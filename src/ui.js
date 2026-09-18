@@ -1,19 +1,24 @@
 // ---------------------------------------------------------------
-// ui.js : DOM側のUI（HUD・スキルツリー・編成・コレクション・パック・3択）
+// ui.js : DOM側のUI（HUD・武器トレイ・ステージ・スキル・編成・コレクション・パック）
 // ---------------------------------------------------------------
 'use strict';
+
+const SRC_LABEL = { start: '初期装備', stage: 'ステージ報酬', pack: 'パック限定' };
 
 const UI = {
   tab: 'skill',
   el: {},
   draftOpen: false,
+  placing: null,      // 配置中の武器
+  skillRows: null,
 
   init() {
     const q = (id) => document.getElementById(id);
     this.el = {
       hudWave: q('hudWave'), hudPhase: q('hudPhase'), hudCoin: q('hudCoin'),
       hudHp: q('hudHp'), hudHpBar: q('hudHpBar'), hudXpBar: q('hudXpBar'), hudLv: q('hudLv'),
-      hudDps: q('hudDps'), panel: q('panel'), tabs: q('tabs'), modal: q('modal'),
+      hudDps: q('hudDps'), hudStage: q('hudStage'), tray: q('tray'),
+      panel: q('panel'), tabs: q('tabs'), modal: q('modal'),
       toast: q('toast'), badgePack: q('badgePack'),
     };
 
@@ -27,19 +32,23 @@ const UI = {
 
     this.renderTabs();
     this.renderPanel();
+    this.renderTray();
   },
 
   // ================= HUD =================
   renderHud() {
     const r = Game.run;
     this.el.hudCoin.textContent = Util.fmt(Game.meta.coins);
-    this._sk = (this._sk || 0) + 1;
-    if (this._sk % 12 === 0) this.refreshSkills();
     const np = (Game.perm.packs.basic || 0) + (Game.perm.packs.rare || 0) + (Game.perm.packs.epic || 0);
     this.el.badgePack.textContent = np;
     this.el.badgePack.style.display = np > 0 ? '' : 'none';
 
+    this._sk = (this._sk || 0) + 1;
+    if (this._sk % 12 === 0) this.refreshSkills();
+
+    const stDef = STAGE_BY_ID[Game.perm.currentStage] || STAGES[0];
     if (!r) {
+      this.el.hudStage.textContent = stDef.name;
       this.el.hudWave.textContent = '—';
       this.el.hudPhase.textContent = '待機中';
       this.el.hudHpBar.style.width = '0%';
@@ -49,6 +58,8 @@ const UI = {
       this.el.hudDps.textContent = '';
       return;
     }
+    const def = STAGE_BY_ID[r.stageId];
+    this.el.hudStage.textContent = def.name + '（突破 W' + def.clearWave + '）';
     this.el.hudWave.textContent = 'W' + r.wave + (Combat.isBossWave(r.wave) ? ' ★BOSS' : '');
     this.el.hudPhase.textContent = r.phase === 'spawn' ? '交戦中'
       : r.phase === 'clear' ? '残敵掃討' : '次ウェーブ ' + r.gapTimer.toFixed(1) + 's';
@@ -57,6 +68,28 @@ const UI = {
     this.el.hudXpBar.style.width = (Util.clamp(r.xp / r.xpNeed, 0, 1) * 100) + '%';
     this.el.hudLv.textContent = 'Lv' + r.level;
     this.el.hudDps.textContent = '敵 ' + r.enemies.length + ' / 撃破 ' + Util.fmt(r.kills);
+  },
+
+  // 武器トレイ（タップして配置モードに入る）
+  renderTray() {
+    const t = this.el.tray;
+    t.innerHTML = '';
+    const run = Game.run;
+    if (!run || run.over) { t.classList.remove('on'); return; }
+    t.classList.add('on');
+    for (const w of run.weapons) {
+      const b = Util.el('button', 'chip' + (this.placing === w ? ' on' : ''));
+      b.style.borderColor = w.def.color;
+      b.innerHTML = '<b style="color:' + w.def.color + '">' + w.def.short + '</b>';
+      b.addEventListener('click', () => {
+        this.placing = (this.placing === w) ? null : w;
+        this.renderTray();
+        this.toastMsg(this.placing ? w.def.name + ' を置く壁をタップ' : '配置をやめました', w.def.color);
+      });
+      t.appendChild(b);
+    }
+    const hint = Util.el('span', 'trayhint', this.placing ? '光っている壁をタップ' : '武器を選んで配置');
+    t.appendChild(hint);
   },
 
   renderTabs() {
@@ -69,15 +102,70 @@ const UI = {
     const p = this.el.panel;
     p.innerHTML = '';
     this.skillRows = null;
-    if (this.tab === 'skill') this.panelSkill(p);
+    if (this.tab === 'stage') this.panelStages(p);
+    else if (this.tab === 'skill') this.panelSkill(p);
     else if (this.tab === 'load') this.panelLoadout(p);
     else if (this.tab === 'coll') this.panelCollection(p);
     else if (this.tab === 'pack') this.panelPacks(p);
     else if (this.tab === 'pres') this.panelPrestige(p);
   },
 
+  // ================= ステージ =================
+  panelStages(p) {
+    const head = Util.el('div', 'phead');
+    head.innerHTML = '<b>ステージ</b><span class="sub">マップごとに通路と壁の形が違う。突破すると新しい武器カードが解放される</span>';
+    p.appendChild(head);
+
+    for (const s of STAGES) {
+      const unlocked = Game.stageUnlocked(s.id);
+      const rec = Game.stageRec(s.id);
+      const cur = Game.perm.currentStage === s.id;
+      const row = Util.el('div', 'strow' + (cur ? ' cur' : '') + (unlocked ? '' : ' locked'));
+      const rw = (s.reward.cards || []).map(c => CARDS[c].name).concat(
+        Object.entries(s.reward.packs || {}).map(([k, v]) => PACKS[k].name + '×' + v)).join(' / ');
+      row.innerHTML =
+        '<div class="stmini">' + this.miniMap(s) + '</div>' +
+        '<div class="sbody">' +
+          '<div class="sname">' + (unlocked ? s.name : '？？？') +
+            (rec.cleared ? ' <em class="ok">突破済</em>' : ' <em>突破 W' + s.clearWave + '</em>') + '</div>' +
+          '<div class="sdesc">' + (unlocked ? s.desc : '前のステージを突破すると解放') + '</div>' +
+          '<div class="sdesc rw">初回報酬: ' + rw + (rec.bestWave ? '　／　自己ベスト W' + rec.bestWave : '') + '</div>' +
+        '</div>';
+      if (unlocked) {
+        const b = Util.el('button', 'sbuy', cur ? '選択中' : '選ぶ');
+        b.disabled = cur;
+        b.addEventListener('click', () => {
+          Game.perm.currentStage = s.id;
+          Game.save();
+          if (!Game.run || Game.run.over) { Render.fit(); }
+          this.renderPanel();
+          this.toastMsg(s.name + ' を選択', '#4ea8ff');
+        });
+        row.appendChild(b);
+      }
+      p.appendChild(row);
+    }
+    p.appendChild(Util.el('div', 'note', '※ ステージを変えると、次の出撃からそのマップになります'));
+  },
+
+  // パネルに出す小さなマップ図
+  miniMap(s) {
+    let out = '<svg viewBox="0 0 ' + s.map[0].length + ' ' + s.map.length + '" class="mm">';
+    for (let r = 0; r < s.map.length; r++) {
+      for (let c = 0; c < s.map[r].length; c++) {
+        const ch = s.map[r][c];
+        let col = null;
+        if (ch === '#') col = '#22344c';
+        else if (ch === 'S') col = '#ff4e63';
+        else if (ch === 'C') col = '#5ec8ff';
+        else if (ch === '.') col = '#0d1826';
+        if (col) out += '<rect x="' + c + '" y="' + r + '" width="1" height="1" fill="' + col + '"/>';
+      }
+    }
+    return out + '</svg>';
+  },
+
   // ================= スキルツリー =================
-  // コインは毎秒増えるので、レベル・価格・購入可否だけ軽く追従させる
   refreshSkills() {
     if (!this.skillRows) return;
     for (const r of this.skillRows) {
@@ -101,7 +189,7 @@ const UI = {
     const meta = Game.meta, perm = Game.perm;
     this.skillRows = [];
     const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>インクリメンタル・スキルツリー</b><span class="sub">コインで数字を大きくする。ラン中もいつでも買える</span>';
+    head.innerHTML = '<b>インクリメンタル・スキルツリー</b><span class="sub">コインで数字を大きくする。ラン中もいつでも買える／長押しで連続購入</span>';
     p.appendChild(head);
 
     let group = null;
@@ -113,10 +201,7 @@ const UI = {
         p.appendChild(row);
         continue;
       }
-      if (s.group !== group) {
-        group = s.group;
-        p.appendChild(Util.el('div', 'sgroup', group));
-      }
+      if (s.group !== group) { group = s.group; p.appendChild(Util.el('div', 'sgroup', group)); }
       const lv = Skill.lv(meta, s.id);
       const cost = Skill.cost(meta, s.id);
       const can = Skill.canBuy(meta, perm, s.id);
@@ -129,14 +214,10 @@ const UI = {
         '<button class="sbuy"' + (can ? '' : ' disabled') + '>' + (maxed ? 'MAX' : '◈ ' + Util.fmt(cost)) + '</button>';
       const btn = row.querySelector('.sbuy');
       let hold = null;
-      // パネルを作り直すとスクロール位置が飛ぶので、行だけ更新する
-      const doBuy = () => {
-        if (Skill.buy(Game.meta, Game.perm, s.id)) this.refreshSkills();
-      };
+      const doBuy = () => { if (Skill.buy(Game.meta, Game.perm, s.id)) this.refreshSkills(); };
       btn.addEventListener('click', doBuy);
-      // 長押しで連続購入（インクリメンタルの手触り）
       btn.addEventListener('pointerdown', () => { hold = setTimeout(function rep() { doBuy(); hold = setTimeout(rep, 90); }, 420); });
-      const stop = () => { clearTimeout(hold); };
+      const stop = () => clearTimeout(hold);
       btn.addEventListener('pointerup', stop);
       btn.addEventListener('pointerleave', stop);
       btn.addEventListener('pointercancel', stop);
@@ -148,7 +229,7 @@ const UI = {
   // ================= 編成 =================
   panelLoadout(p) {
     const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>編成（最大4枠）</b><span class="sub">この4種で戦う。組み合わせでシナジーカードが解禁される</span>';
+    head.innerHTML = '<b>編成（最大4枠）</b><span class="sub">この4種で戦う。組み合わせでシナジーカードが抽選に出るようになる</span>';
     p.appendChild(head);
 
     const slots = Util.el('div', 'slots');
@@ -168,11 +249,9 @@ const UI = {
     });
     p.appendChild(slots);
 
-    // シナジー表示
     const ids = Game.loadoutWeapons();
     const syn = Util.el('div', 'synbox');
     syn.appendChild(Util.el('div', 'sgroup', 'この編成で狙えるシナジー'));
-    let any = false;
     for (const id of CARD_IDS) {
       const c = CARDS[id];
       if (c.kind !== 'synergy') continue;
@@ -180,16 +259,13 @@ const UI = {
       const owned = Game.own(id) > 0;
       const row = Util.el('div', 'synrow' + (ok ? (owned ? ' on' : ' noown') : ' off'));
       row.innerHTML = '<span class="dot" style="background:' + BAL.rarity[c.rarity].color + '"></span>' +
-        '<b>' + c.name + '</b><span class="sdesc">' + c.desc + '</span>' +
-        '<em>' + (!ok ? '編成が不足' : owned ? '抽選に出る' : '未所持') + '</em>';
-      syn.appendChild(row); any = true;
+        '<b>' + c.name + '</b>' +
+        '<em>' + (!ok ? '編成が不足' : owned ? '抽選に出る' : '未所持') + '</em>' +
+        '<span class="sdesc">' + c.desc + '</span>';
+      syn.appendChild(row);
     }
-    if (!any) syn.appendChild(Util.el('div', 'sdesc', '無し'));
     p.appendChild(syn);
-
-    const note = Util.el('div', 'note');
-    note.textContent = '※ 武器は戦場で直接ドラッグして動かせます（拠点から一定範囲内）';
-    p.appendChild(note);
+    p.appendChild(Util.el('div', 'note', '※ 武器の置き場所は戦場の壁の上。画面下の武器チップを選んでから壁をタップします'));
   },
 
   pickWeapon(slot) {
@@ -199,9 +275,8 @@ const UI = {
     const list = Util.el('div', 'wlist');
     const mk = (cid) => {
       const b = Util.el('button', 'wpick');
-      if (cid === null) {
-        b.innerHTML = '<b>外す</b>';
-      } else {
+      if (cid === null) b.innerHTML = '<b>外す</b>';
+      else {
         const w = WEAPONS[CARDS[cid].weapon];
         const used = Game.perm.loadout.includes(cid) && Game.perm.loadout[slot] !== cid;
         b.innerHTML = '<b style="color:' + w.color + '">' + w.name + '</b><span>' + w.desc + '</span>' +
@@ -217,11 +292,16 @@ const UI = {
     };
     for (const wid of owned) list.appendChild(mk('wc_' + wid));
     list.appendChild(mk(null));
-    if (owned.length < 4) {
-      const n = Util.el('div', 'note', '未所持の武器カードはカードパックから出ます');
-      list.appendChild(n);
-    }
     body.appendChild(list);
+    const miss = WEAPON_IDS.filter(wid => Game.own('wc_' + wid) === 0);
+    if (miss.length) {
+      body.appendChild(Util.el('div', 'sgroup', '未所持の武器'));
+      for (const wid of miss) {
+        const w = WEAPONS[wid];
+        body.appendChild(Util.el('div', 'note',
+          '・' + w.name + '　… ' + (w.src === 'stage' ? 'ステージ突破報酬' : 'カードパック')));
+      }
+    }
     this.openModal(body);
   },
 
@@ -231,7 +311,7 @@ const UI = {
     const have = CARD_IDS.filter(id => Game.own(id) > 0).length;
     const head = Util.el('div', 'phead');
     head.innerHTML = '<b>カードコレクション</b><span class="sub">' + have + ' / ' + total +
-      ' 種類　永久資源。転生しても消えない</span>';
+      ' 種類　永久資源。転生しても消えない。同じカードを重ねて持つと、1ランで重ねられる上限が上がる</span>';
     p.appendChild(head);
 
     const order = { weapon: 0, synergy: 1, mod: 2, generic: 3 };
@@ -241,20 +321,16 @@ const UI = {
         (BAL.rarityOrder.indexOf(cb.rarity) - BAL.rarityOrder.indexOf(ca.rarity)) ||
         a.localeCompare(b);
     });
-
     const grid = Util.el('div', 'cgrid');
-    for (const id of ids) {
-      const c = CARDS[id];
-      const n = Game.own(id);
-      grid.appendChild(this.cardEl(c, { count: n, dim: n === 0, small: true }));
-    }
+    for (const id of ids) grid.appendChild(this.cardEl(CARDS[id], { count: Game.own(id), dim: Game.own(id) === 0, small: true }));
     p.appendChild(grid);
   },
 
   // ================= パック =================
   panelPacks(p) {
     const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>カードパック</b><span class="sub">コインでは買えない。ボス突破・転生・ミッションで手に入る</span>';
+    head.innerHTML = '<b>カードパック</b><span class="sub">コインでは買えない。ボス突破・ステージ突破・転生・ミッションで手に入る。' +
+      '刀・手裏剣・触手・泡といった変わり種の武器はここからしか出ない</span>';
     p.appendChild(head);
 
     for (const pid of PACK_IDS) {
@@ -286,6 +362,7 @@ const UI = {
     Game.perm.packs[pid]--;
     const luck = Skill.mods(Game.meta, Game.perm).packLuck;
     const ids = Pack.open(pid, luck);
+    const isNew = ids.map(id => Game.own(id) === 0);
     for (const id of ids) Game.grant(id, 1);
     Game.save();
 
@@ -298,16 +375,12 @@ const UI = {
     body.appendChild(hint);
     this.openModal(body, true);
 
-    // 1枚ずつめくる
     let i = 0;
     const flipNext = () => {
       if (i >= ids.length) return;
       const c = CARDS[ids[i]];
-      const el = this.cardEl(c, { reveal: true, isNew: Game.own(ids[i]) === 1 });
-      row.appendChild(el);
-      // レアリティ演出
-      const glow = BAL.rarity[c.rarity].glow;
-      if (glow >= 2) this.burst(BAL.rarity[c.rarity].color);
+      row.appendChild(this.cardEl(c, { reveal: true, isNew: isNew[i] }));
+      if (BAL.rarity[c.rarity].glow >= 2) this.burst(BAL.rarity[c.rarity].color);
       i++;
       if (i >= ids.length) {
         hint.textContent = '';
@@ -340,15 +413,15 @@ const UI = {
       '<div><span>永久コインボーナス</span><b>' + Util.pct(1 + perm.prestiges * BAL.prestigeCoinBonusPer) + '</b></div>' +
       '<div><span>自己ベスト</span><b>W' + perm.bestWave + '</b></div>' +
       '<div><span>累計撃破</span><b>' + Util.fmt(perm.totalKills) + '</b></div>' +
+      '<div><span>突破ステージ</span><b>' + STAGES.filter(s => Game.stageRec(s.id).cleared).length + ' / ' + STAGES.length + '</b></div>' +
       '<div><span>総ラン数</span><b>' + perm.totalRuns + '</b></div>';
     p.appendChild(st);
 
     const n = Util.clamp(Math.floor(perm.bestWave / BAL.packPerPrestigeDiv), 1, BAL.packPerPrestigeMax);
-    const info = Util.el('div', 'note');
-    info.textContent = Game.canPrestige()
+    p.appendChild(Util.el('div', 'note', Game.canPrestige()
       ? '今転生すると カードパック 約' + n + '個 ＋ 永久コインボーナス +' + (BAL.prestigeCoinBonusPer * 100).toFixed(0) + '%'
-      : 'ウェーブ ' + BAL.prestigeMinWave + ' に到達すると転生できます（現在の自己ベスト W' + perm.bestWave + '）';
-    p.appendChild(info);
+      : 'ウェーブ ' + BAL.prestigeMinWave + ' に到達すると転生できます（現在の自己ベスト W' + perm.bestWave + '）'));
+    p.appendChild(Util.el('div', 'note', '※ ステージの突破状況とカードコレクションは転生しても残ります'));
 
     const btn = Util.el('button', 'bigbtn danger', '転生する');
     btn.disabled = !Game.canPrestige();
@@ -367,12 +440,13 @@ const UI = {
   confirmPrestige() {
     const body = Util.el('div');
     body.appendChild(Util.el('h3', null, '転生しますか？'));
-    body.appendChild(Util.el('p', 'note', 'コイン・スキルツリーは全て失われます。カードコレクションは残ります。'));
+    body.appendChild(Util.el('p', 'note', 'コイン・スキルツリーは全て失われます。カードコレクションとステージ進行は残ります。'));
     const ok = Util.el('button', 'bigbtn danger', '転生する');
     ok.addEventListener('click', () => {
       const res = Game.prestige();
       Game.run = null;
       this.closeModal();
+      this.renderTray();
       if (res) this.showPrestigeResult(res);
       this.renderPanel();
     });
@@ -387,7 +461,8 @@ const UI = {
     body.appendChild(Util.el('h3', null, '転生 #' + res.prestiges + ' 完了'));
     const list = Util.el('div', 'stats');
     list.innerHTML = PACK_IDS.filter(k => res.reward[k] > 0)
-      .map(k => '<div><span>' + PACKS[k].name + '</span><b>×' + res.reward[k] + '</b></div>').join('') || '<div><span>報酬なし</span><b>-</b></div>';
+      .map(k => '<div><span>' + PACKS[k].name + '</span><b>×' + res.reward[k] + '</b></div>').join('') ||
+      '<div><span>報酬なし</span><b>-</b></div>';
     body.appendChild(list);
     if (res.missions.length) {
       body.appendChild(Util.el('div', 'sgroup', 'ミッション達成'));
@@ -399,6 +474,38 @@ const UI = {
     this.openModal(body);
   },
 
+  // ================= ステージ突破 =================
+  showStageClear(got) {
+    const body = Util.el('div');
+    body.appendChild(Util.el('h3', null, '★ ' + got.stage.name + ' 突破！'));
+    if (got.cards.length) {
+      body.appendChild(Util.el('div', 'sgroup', '新しい武器カードを獲得'));
+      const row = Util.el('div', 'popenrow');
+      for (const cid of got.cards) row.appendChild(this.cardEl(CARDS[cid], { reveal: true, isNew: true }));
+      body.appendChild(row);
+      this.burst('#ffb020');
+    }
+    const pk = Object.entries(got.packs).map(([k, v]) => PACKS[k].name + ' ×' + v).join(' / ');
+    if (pk) body.appendChild(Util.el('div', 'reward', '🎁 ' + pk));
+    body.appendChild(Util.el('p', 'note', got.next
+      ? '次のステージ「' + got.next.name + '」が解放されました。このランはこのまま続けられます。'
+      : '全ステージ突破。あとはどこまでウェーブを伸ばせるか。'));
+    const ok = Util.el('button', 'bigbtn', 'このランを続ける');
+    ok.addEventListener('click', () => { this.closeModal(); });
+    body.appendChild(ok);
+    if (got.next) {
+      const go = Util.el('button', 'linkbtn', '次のステージへ移動する（今のランは終了）');
+      go.addEventListener('click', () => {
+        this.closeModal();
+        Game.perm.currentStage = got.next.id;
+        Game.save();
+        Main.finish();
+      });
+      body.appendChild(go);
+    }
+    this.openModal(body, true);
+  },
+
   // ================= 3択カード =================
   eligibleCards() {
     const ids = Game.loadoutWeapons();
@@ -407,8 +514,7 @@ const UI = {
       const c = CARDS[id];
       if (c.kind === 'weapon') return false;
       if (Game.own(id) <= 0) return false;
-      const have = run.cards[id] || 0;
-      if (have >= Game.stackLimit(id)) return false;
+      if ((run.cards[id] || 0) >= Game.stackLimit(id)) return false;
       if (c.kind === 'mod') return ids.includes(c.weapon);
       if (c.kind === 'synergy') return c.requires.every(w => ids.includes(w));
       return true;
@@ -427,8 +533,7 @@ const UI = {
         .filter(e => e.n > 0);
       if (!rEnt.length) break;
       const pickR = Util.weighted(rEnt, e => Math.max(0.01, e.w * (1 + BAL.rarityDraftLuck[e.r] * luck * 0.05))).r;
-      const cand = rem.filter(id => CARDS[id].rarity === pickR);
-      out.push(Util.pick(cand));
+      out.push(Util.pick(rem.filter(id => CARDS[id].rarity === pickR)));
     }
     return out;
   },
@@ -474,7 +579,11 @@ const UI = {
     let sub = '';
     if (o.count !== undefined) sub = o.count > 0 ? '×' + o.count : '未所持';
     else if (o.stacks) sub = o.stacks + ' / ' + o.limit + ' 枚目';
-    const wname = c.weapon ? WEAPONS[c.weapon].name : (c.kind === 'synergy' ? 'シナジー' : '汎用');
+    let wname;
+    if (c.kind === 'weapon') wname = SRC_LABEL[WEAPONS[c.weapon].src] || '武器';
+    else if (c.kind === 'synergy') wname = 'シナジー';
+    else if (c.weapon) wname = WEAPONS[c.weapon].name;
+    else wname = '汎用';
     el.innerHTML =
       '<div class="crar">' + R.name + '</div>' +
       '<div class="cwep">' + wname + '</div>' +
@@ -513,18 +622,17 @@ const UI = {
   // ================= ラン結果 =================
   showResult(res) {
     const body = Util.el('div');
-    body.appendChild(Util.el('h3', null, res.wave > 0 ? '拠点が破壊された' : 'ラン終了'));
+    body.appendChild(Util.el('h3', null, 'コアが破壊された'));
     const st = Util.el('div', 'stats');
     st.innerHTML =
+      '<div><span>ステージ</span><b>' + res.stage.name + '</b></div>' +
       '<div><span>到達ウェーブ</span><b>' + res.wave + (res.newBest ? ' <em class="new">自己ベスト!</em>' : '') + '</b></div>' +
       '<div><span>撃破数</span><b>' + Util.fmt(res.kills) + '</b></div>' +
       '<div><span>獲得コイン</span><b>◈ ' + Util.fmt(res.coins) + '</b></div>';
     body.appendChild(st);
 
     if (res.packs > 0) {
-      const g = Util.el('div', 'reward');
-      g.innerHTML = '🎁 節目突破ボーナス： <b>基本パック ×' + res.packs + '</b>';
-      body.appendChild(g);
+      body.appendChild(Util.el('div', 'reward', '🎁 節目突破ボーナス： 基本パック ×' + res.packs));
     }
     if (res.missions && res.missions.length) {
       body.appendChild(Util.el('div', 'sgroup', 'ミッション達成'));

@@ -35,15 +35,20 @@ const Pack = {
   },
 
   cardsOfRarity(r) {
-    // 所持済みの武器カードは重複しても意味が無いので排出対象から外す
     const pool = CARD_IDS.filter(id => {
       const c = CARDS[id];
       if (c.rarity !== r) return false;
-      if (c.kind === 'weapon' && Game.own(id) > 0) return false;
+      if (c.kind === 'weapon') {
+        // パックから出るのは「なんでもあり枠」の武器だけ。
+        // 初期装備とステージ報酬の武器はここには出さない
+        if (weaponCardSrc(id) !== 'pack') return false;
+        if (Game.own(id) > 0) return false;   // 重複しても意味が無い
+      }
       return true;
     });
     if (pool.length) return pool;
-    return CARD_IDS.filter(id => CARDS[id].rarity === r);
+    // そのレアリティに出せるものが尽きたら、強化カードだけで埋める
+    return CARD_IDS.filter(id => CARDS[id].rarity === r && CARDS[id].kind !== 'weapon');
   },
 
   // パックを1つ開ける -> カードidの配列

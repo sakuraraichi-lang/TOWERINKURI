@@ -24,6 +24,7 @@
         <div class="hbox">
           <div class="hbig" id="hudWave">—</div>
           <div class="hsub" id="hudPhase">待機中</div>
+          <div class="hsub stg" id="hudStage"></div>
         </div>
         <div class="hbox coin">
           <div class="hbig"><span class="ci">◈</span> <span id="hudCoin">0</span></div>
@@ -36,23 +37,27 @@
         <div class="bar xp"><i id="hudXpBar"></i><span id="hudLv">-</span></div>
       </div>
 
+      <div id="toast"></div>
+
+      <div id="tray"></div>
+
       <div class="hrow ctrl">
         <button id="btnStart" class="ctl">出撃</button>
         <button id="btnPause" class="ctl sq">❙❙</button>
         <button id="btnSpeed" class="ctl sq">×1</button>
       </div>
-
-      <div id="toast"></div>
     </div>
   </div>
 
   <!-- ============ 下部パネル ============ -->
   <div id="tabs">
+    <button data-tab="stage">ステージ</button>
     <button data-tab="skill" class="on">スキル</button>
     <button data-tab="load">編成</button>
     <button data-tab="coll">コレクション</button>
     <button data-tab="pack">パック<span id="badgePack" class="badge">0</span></button>
     <button data-tab="pres">転生</button>
+    <button id="btnPanel" class="pcol" title="パネルを畳む">⌄</button>
   </div>
   <div id="panel"></div>
 
@@ -62,6 +67,7 @@
 
 <script src="src/util.js"></script>
 <script src="src/balance.js"></script>
+<script src="src/stages.js"></script>
 <script src="src/weapons.js"></script>
 <script src="src/cards.js"></script>
 <script src="src/skilltree.js"></script>
