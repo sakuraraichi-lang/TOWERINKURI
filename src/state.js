@@ -268,6 +268,31 @@ const Game = {
     return run;
   },
 
+  // ラン中にスキルを買ったら、その場で反映する。
+  // 「ラン中もいつでも買える」と言っている以上、次のランまで効かないのは嘘になる。
+  // カードの効果を壊さないよう、倍率の「差分」だけを掛ける
+  refreshMods() {
+    const run = this.run;
+    if (!run || run.over) return;
+    const old = run.mods;
+    const now = Skill.mods(this.meta, this.perm);
+    const ratio = (k) => (old[k] > 0 ? now[k] / old[k] : 1);
+
+    const rd = ratio('dmg'), rr = ratio('rate'), rg = ratio('range');
+    for (const w of run.weapons) {
+      w.s.dmg *= rd;
+      w.s.rate *= rr;
+      w.s.range *= rg;
+      if (w.dyn.mugenBase) w.dyn.mugenBase *= rg;
+    }
+    const rh = ratio('hp');
+    if (rh !== 1) {
+      run.tower.maxHp *= rh;
+      run.tower.hp *= rh;          // 割合を保ったまま増やす（買っただけで全快はしない）
+    }
+    run.mods = now;
+  },
+
   // 武器をタイルへ動かす。壁の上で、他の武器がいない場所だけ
   moveWeapon(w, c, r) {
     const run = this.run;

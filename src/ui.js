@@ -410,7 +410,7 @@ const UI = {
     const st = Util.el('div', 'stats');
     st.innerHTML =
       '<div><span>転生回数</span><b>' + perm.prestiges + '</b></div>' +
-      '<div><span>永久コインボーナス</span><b>' + Util.pct(1 + perm.prestiges * BAL.prestigeCoinBonusPer) + '</b></div>' +
+      '<div><span>転生倍率（火力・コイン）</span><b>×' + Util.fmt(Math.pow(BAL.prestigePower, perm.prestiges)) + '</b></div>' +
       '<div><span>自己ベスト</span><b>W' + perm.bestWave + '</b></div>' +
       '<div><span>累計撃破</span><b>' + Util.fmt(perm.totalKills) + '</b></div>' +
       '<div><span>突破ステージ</span><b>' + STAGES.filter(s => Game.stageRec(s.id).cleared).length + ' / ' + STAGES.length + '</b></div>' +
@@ -419,7 +419,7 @@ const UI = {
 
     const n = Util.clamp(Math.floor(perm.bestWave / BAL.packPerPrestigeDiv), 1, BAL.packPerPrestigeMax);
     p.appendChild(Util.el('div', 'note', Game.canPrestige()
-      ? '今転生すると カードパック 約' + n + '個 ＋ 永久コインボーナス +' + (BAL.prestigeCoinBonusPer * 100).toFixed(0) + '%'
+      ? '今転生すると カードパック 約' + n + '個 ＋ 火力とコインが永久に ×' + BAL.prestigePower + '（累積）'
       : 'ウェーブ ' + BAL.prestigeMinWave + ' に到達すると転生できます（現在の自己ベスト W' + perm.bestWave + '）'));
     p.appendChild(Util.el('div', 'note', '※ ステージの突破状況とカードコレクションは転生しても残ります'));
 

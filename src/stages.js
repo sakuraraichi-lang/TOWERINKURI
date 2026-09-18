@@ -89,7 +89,7 @@ const STAGES = [
     ],
   },
   {
-    id: 'st4', name: '広間', clearWave: 40,
+    id: 'st4', name: '広間', clearWave: 34,
     desc: '中央の部屋は下からしか入れない。上の広間から外周を大きく回らされるので、長い側面が主戦場になる。',
     reward: { cards: ['wc_gas'], packs: { rare: 1 } },
     map: [
@@ -115,7 +115,7 @@ const STAGES = [
     ],
   },
   {
-    id: 'st5', name: '三叉', clearWave: 55,
+    id: 'st5', name: '三叉', clearWave: 44,
     desc: '出現口3つ。合流点の手前に置けば全部を撃てるが、そこは壁が細い。',
     reward: { cards: ['wc_cryo'], packs: { rare: 1, epic: 1 } },
     map: [

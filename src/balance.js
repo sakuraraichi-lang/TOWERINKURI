@@ -54,7 +54,8 @@ const BAL = {
 
   // --- 転生 ---
   prestigeMinWave: 10,
-  prestigeCoinBonusPer: 0.12,
+  prestigeCoinBonusPer: 0.12,   // 表示用（実際の倍率は prestigePower）
+  prestigePower: 1.35,          // 転生1回ごとに 火力とコインが ×1.35（乗算）
 
   // --- パック ---
   packPerPrestigeDiv: 10,
