@@ -219,14 +219,14 @@ const CARDS = {
 
   // ============ 汎用（編成に関係なく出る） ============
   gen_armor: C({ id: 'gen_armor', kind: 'generic', rarity: 'common', maxStack: 5,
-    name: '増設装甲', desc: 'コアの最大HP ×1.30。その分を即時回復',
-    apply(run) { const add = run.tower.maxHp * 0.30; run.tower.maxHp += add; run.tower.hp += add; } }),
+    name: '増設装甲', desc: 'ライフ +6（その場で回復もする）',
+    apply(run) { run.livesMax += 6; run.lives += 6; } }),
   gen_gold: C({ id: 'gen_gold', kind: 'generic', rarity: 'rare', maxStack: 3,
     name: '金メッキ弾', desc: 'このランのコイン獲得 ×1.35',
     apply(run) { run.coinMul *= 1.35; } }),
   gen_boost: C({ id: 'gen_boost', kind: 'generic', rarity: 'rare', maxStack: 3,
     name: '過給機', desc: '全武器の発射レート ×1.15、射程 ×1.12',
-    apply(run) { for (const w of run.weapons) { w.s.rate *= 1.15; w.s.range *= 1.12; } } }),
+    apply(run) { for (const w of run.units) { w.s.rate *= 1.15; w.s.range *= 1.12; } } }),
 };
 
 const CARD_IDS = Object.keys(CARDS);

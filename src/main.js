@@ -28,8 +28,9 @@ const Main = {
     UI.init();
 
     document.getElementById('btnStart').addEventListener('click', () => {
-      if (Game.phase === 'battle') this.retreat();
-      else this.beginBattle();
+      if (Game.phase !== 'battle') { this.beginBattle(); return; }
+      if (Game.run && Game.run.phase === 'build') { this.nextWave(); return; }
+      this.retreat();
     });
     document.getElementById('btnPause').addEventListener('click', (e) => {
       Game.paused = !Game.paused;
@@ -79,12 +80,14 @@ const Main = {
     b.innerHTML += '<p class="note">' +
       '<b>1ステージ＝' + BAL.wavesPerStage + 'ウェーブ。</b>全部凌げば突破、コアが割れたら失敗。<br>' +
       '失敗してもコインとアップグレードは残るので、整えてもう一度挑む。<br><br>' +
-      '<b>準備フェーズ</b>でアップグレードを買い、編成を決め、武器を<b>壁の上</b>に置く。<br>' +
-      '戦闘に入るとアップグレードは買えない。置き場所だけは動かせる。<br><br>' +
+      '<b>ビルドフェーズ</b>でアップグレードを買い、編成を決め、ユニットを<b>地面</b>に置く。<br>' +
+      '同じ武器を上限まで何基でも置ける。ユニットは<b>向いている扇の中だけ</b>攻撃する。<br>' +
+      '扇を狭めるほど弾がまとまり（集弾率が上がり）、広げるほど守備範囲が増える代わりに散る。<br>' +
+      '<b>配置を変えられるのは、戦闘前とウェーブとウェーブの間だけ。</b><br><br>' +
       '<b>ウェーブを1つ凌ぐごとにカードを1枚選べる</b>（1ステージで4回）。<br>' +
       'アップグレードの「増設スロット」で、1回に取れる枚数を増やせる。<br><br>' +
       '盤面の<b>色の濃いところが敵の溜まり場</b>、<b>赤い枠が抜けられたルート</b>。<br>' +
-      'それを見て置き場所を決めるのがこのゲームの本体。</p>';
+      'それを見て、角度をつけて射線を重ねるのがこのゲームの本体。</p>';
     const ok = Util.el('button', 'bigbtn', 'はじめる');
     ok.addEventListener('click', () => UI.closeModal());
     b.appendChild(ok);
@@ -96,13 +99,11 @@ const Main = {
     Game.startPrep(Game.perm.currentStage);
     Render.fit();
     Game.paused = false;
-    UI.placing = null;
+    UI.placingType = null;
+    UI.selected = null;
     UI.renderTray();
     UI.renderPanel();
-    const b = document.getElementById('btnStart');
-    b.textContent = '戦闘開始';
-    b.classList.remove('danger');
-    b.classList.add('go');
+    this.syncStartButton();
   },
 
   beginBattle() {
@@ -114,10 +115,7 @@ const Main = {
     Game.beginBattle();
     UI.renderTray();
     UI.renderPanel();
-    const b = document.getElementById('btnStart');
-    b.textContent = '撤退';
-    b.classList.add('danger');
-    b.classList.remove('go');
+    this.syncStartButton();
     UI.toastMsg('ウェーブ 1 / ' + BAL.wavesPerStage, '#4ea8ff');
   },
 
@@ -125,30 +123,23 @@ const Main = {
 
   finish(ok) {
     const res = Game.endRun(ok);
-    const b = document.getElementById('btnStart');
-    b.textContent = '戦闘開始';
-    b.classList.remove('danger');
-    b.classList.add('go');
-    UI.placing = null;
+    this.syncStartButton();
+    UI.placingType = null;
+    UI.selected = null;
     UI.renderTray();
     UI.renderPanel();
     if (res) UI.showResult(res);
   },
 
-  // ---------- 配置（壁の上だけ） ----------
+  // ---------- 配置（地面の上・ビルドフェーズのみ） ----------
   bindPlacement(cv) {
-    let dragging = null, moved = false, downAt = null;
+    let aiming = null;     // 向きを変えている最中のユニット
+    let downAt = null;
 
-    const weaponAt = (c, r) => {
+    const unitAt = (c, r) => {
       const run = Game.run;
       if (!run) return null;
-      return run.weapons.find(w => w.c === c && w.r === r) || null;
-    };
-    const tryPlace = (w, c, r) => {
-      if (!Game.run.stage.isWall(c, r)) { UI.toastMsg('壁の上にしか置けません', '#ff8080'); return false; }
-      if (!Game.moveWeapon(w, c, r)) { UI.toastMsg('そこには別の武器があります', '#ff8080'); return false; }
-      Game.save();
-      return true;
+      return run.units.find(u => u.c === c && u.r === r) || null;
     };
 
     cv.addEventListener('pointerdown', (e) => {
@@ -156,39 +147,85 @@ const Main = {
       if (!run || run.over) return;
       const t = Render.tileAt(e.clientX, e.clientY);
       downAt = { x: e.clientX, y: e.clientY };
-      moved = false;
 
-      const onTile = weaponAt(t.c, t.r);
-      if (UI.placing && !onTile) {
-        if (tryPlace(UI.placing, t.c, t.r)) { UI.placing = null; UI.renderTray(); }
+      const onTile = unitAt(t.c, t.r);
+
+      // 置く
+      if (UI.placingType && !onTile) {
+        if (!Game.canBuild()) { UI.toastMsg('戦闘中は配置を変えられません', '#ff8080'); return; }
+        if (!run.stage.buildable(t.c, t.r)) { UI.toastMsg('地面にしか置けません', '#ff8080'); return; }
+        const u = Game.placeUnit(UI.placingType, t.c, t.r);
+        if (!u) { UI.toastMsg('そこには置けません', '#ff8080'); return; }
+        Game.save();
+        UI.selected = u;
+        aiming = u;
+        try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 無視 */ }
+        UI.renderTray();
+        e.preventDefault();
         return;
       }
+
+      // 選ぶ／向きを変える
       if (onTile) {
-        dragging = onTile;
-        UI.placing = onTile;
+        UI.selected = (UI.selected === onTile) ? null : onTile;
+        UI.placingType = null;
+        if (UI.selected && Game.canBuild()) {
+          aiming = UI.selected;
+          try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 無視 */ }
+        }
         UI.renderTray();
+        e.preventDefault();
+        return;
+      }
+
+      // 何も無いところ：選択中なら、そこへ向ける
+      if (UI.selected && Game.canBuild()) {
+        const p = Render.toStage(e.clientX, e.clientY);
+        Game.aimUnit(UI.selected, Util.angle(UI.selected.x, UI.selected.y, p.x, p.y));
+        aiming = UI.selected;
         try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 無視 */ }
+        UI.renderTray();
         e.preventDefault();
       }
     });
 
     cv.addEventListener('pointermove', (e) => {
-      if (!dragging || !downAt) return;
-      if (Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 8) moved = true;
-      if (!moved) return;
-      const t = Render.tileAt(e.clientX, e.clientY);
-      if (t.c === dragging.c && t.r === dragging.r) return;
-      if (Game.run.stage.isWall(t.c, t.r)) Game.moveWeapon(dragging, t.c, t.r);
+      if (!aiming || !Game.canBuild()) return;
+      const p = Render.toStage(e.clientX, e.clientY);
+      const d = Math.hypot(p.x - aiming.x, p.y - aiming.y);
+      if (d < 10) return;            // 真上では向きが決まらない
+      Game.aimUnit(aiming, Util.angle(aiming.x, aiming.y, p.x, p.y));
       e.preventDefault();
     });
 
     const end = () => {
-      if (dragging && moved) { Game.save(); UI.placing = null; UI.renderTray(); }
-      dragging = null; downAt = null;
+      if (aiming) { Game.save(); UI.renderTray(); }
+      aiming = null; downAt = null;
     };
     cv.addEventListener('pointerup', end);
     cv.addEventListener('pointercancel', end);
     cv.addEventListener('contextmenu', (e) => e.preventDefault());
+  },
+
+  // ボタンの文字をフェーズに合わせる
+  syncStartButton() {
+    const b = document.getElementById('btnStart');
+    const run = Game.run;
+    let label, danger = false, go = true;
+    if (Game.phase !== 'battle') label = '戦闘開始';
+    else if (run && run.phase === 'build') label = 'ウェーブ ' + (run.wave + 1) + ' 開始';
+    else { label = '撤退'; danger = true; go = false; }
+    if (b.textContent !== label) b.textContent = label;
+    b.classList.toggle('danger', danger);
+    b.classList.toggle('go', go);
+  },
+
+  nextWave() {
+    Game.startNextWave();
+    UI.placingType = null;
+    UI.selected = null;
+    UI.renderTray();
+    UI.toastMsg('ウェーブ ' + Game.run.wave + ' / ' + BAL.wavesPerStage, '#4ea8ff');
   },
 
   // ---------- ループ ----------
@@ -205,10 +242,11 @@ const Main = {
         if (sig === 'dead') { this.finish(false); break; }
         if (sig === 'stageclear') { this.finish(true); break; }
         if (sig === 'waveclear') {
-          // ウェーブを1つ凌ぐごとにカードを引ける
-          run.tower.hp = Math.min(run.tower.maxHp, run.tower.hp + run.tower.maxHp * run.mods.regen);
+          // ウェーブを1つ凌ぐごとにカードを引ける。そのままビルドフェーズで止まる
+          run.lives = Math.min(run.livesMax, run.lives + run.mods.regen);
           run.pendingPicks += run.mods.picks;
           UI.toastMsg('ウェーブ ' + run.wave + ' 突破', '#7ee3a0');
+          UI.renderTray();
           break;
         }
       }
@@ -217,6 +255,7 @@ const Main = {
 
     Render.draw(run);
     UI.renderHud();
+    this.syncStartButton();
   },
 };
 

@@ -170,66 +170,135 @@ const Game = {
   },
 
   // ---------- 配置 ----------
+  // 保存形式： perm.placements[stageId] = [ {w, c, r, a, arc}, ... ]
+  //   w=武器id  c,r=タイル  a=向き(rad)  arc=射界の半角(rad)
   placementsFor(stageId) {
-    if (!this.perm.placements[stageId]) this.perm.placements[stageId] = {};
-    return this.perm.placements[stageId];
+    const p = this.perm.placements;
+    if (!Array.isArray(p[stageId])) p[stageId] = [];
+    return p[stageId];
   },
 
-  goodWallTiles(st) {
-    const out = [];
-    for (let r = 0; r < st.rows; r++) {
-      for (let c = 0; c < st.cols; c++) {
-        if (!st.isWall(c, r)) continue;
-        let touch = 0, best = Infinity;
-        for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [1, -1], [-1, 1], [-1, -1]]) {
-          const nc = c + dc, nr = r + dr;
-          if (!st.walkable(nc, nr)) continue;
-          touch++;
-          best = Math.min(best, st.dist[st.idx(nc, nr)]);
-        }
-        if (touch > 0) out.push({ c, r, touch, near: best });
+  // その武器を何基まで置けるか
+  unitCap(weaponId) {
+    const def = WEAPONS[weaponId];
+    if (!def) return 0;
+    return def.stock + BAL.unitBonus + Skill.lv(this.meta, 'units');
+  },
+
+  unitCount(weaponId) {
+    const run = this.run;
+    if (!run) return 0;
+    return run.units.filter(u => u.id === weaponId).length;
+  },
+
+  // 置いた地点から見て、一番近い通路の方向。置いた瞬間に自動で向く
+  defaultFacing(st, c, r) {
+    let best = null, bd = 1e9;
+    for (let rr = 0; rr < st.rows; rr++) {
+      for (let cc = 0; cc < st.cols; cc++) {
+        if (!st.walkable(cc, rr)) continue;
+        const d = (cc - c) * (cc - c) + (rr - r) * (rr - r);
+        if (d < bd) { bd = d; best = { c: cc, r: rr }; }
       }
     }
-    out.sort((a, b) => (b.touch - a.touch) || (a.near - b.near));
-    return out;
+    if (!best) return -Math.PI / 2;
+    return Math.atan2(best.r - r, best.c - c);
   },
 
-  // 初期配置は経路に沿って散らす。
-  // コア周りに固めると、敵が通路を歩き切るまで誰も撃てず、ただ待つ時間が生まれる
-  autoPlace(st, weaponIds) {
-    const place = this.placementsFor(st.id);
+  // ---------- ユニットの設置・撤去・調整 ----------
+  canBuild() {
+    // ビルドできるのは、出撃前と、ウェーブとウェーブの間だけ
+    if (this.phase === 'prep') return true;
+    return this.phase === 'battle' && this.run && this.run.phase === 'build';
+  },
+
+  placeUnit(weaponId, c, r) {
+    const run = this.run;
+    if (!run || !this.canBuild()) return null;
+    if (!run.stage.buildable(c, r)) return null;
+    if (run.units.some(u => u.c === c && u.r === r)) return null;
+    if (this.unitCount(weaponId) >= this.unitCap(weaponId)) return null;
+
+    const def = WEAPONS[weaponId];
+    const pos = run.stage.center(c, r);
+    const u = {
+      id: weaponId, def, s: Object.assign({}, def.base), flags: {}, dyn: { heat: 0 },
+      c, r, x: pos.x, y: pos.y,
+      face: this.defaultFacing(run.stage, c, r),
+      arc: def.base.arc,
+      angle: 0, cd: 0, target: null, aim: null, shots: 0, muzzle: 0,
+    };
+    u.angle = u.face;
+    run.units.push(u);
+    this.applyMods();
+    this.syncPlacements();
+    return u;
+  },
+
+  removeUnit(u) {
+    const run = this.run;
+    if (!run || !this.canBuild()) return false;
+    const i = run.units.indexOf(u);
+    if (i < 0) return false;
+    run.units.splice(i, 1);
+    this.syncPlacements();
+    return true;
+  },
+
+  aimUnit(u, angle) {
+    if (!this.canBuild()) return false;
+    u.face = angle;
+    u.angle = angle;
+    this.syncPlacements();
+    return true;
+  },
+
+  setArc(u, delta) {
+    if (!this.canBuild()) return false;
+    u.arc = Util.clamp(u.arc + delta, BAL.arcMin, BAL.arcMax);
+    this.syncPlacements();
+    return true;
+  },
+
+  // 扇の広さから集弾率を出す。狭く絞るほど弾がまとまる
+  groupingOf(u) {
+    const t = Util.clamp((u.arc - BAL.arcMin) / (BAL.arcMax - BAL.arcMin), 0, 1);
+    return 1 - t * BAL.spreadPenalty;
+  },
+
+  syncPlacements() {
+    const run = this.run;
+    if (!run) return;
+    this.perm.placements[run.stageId] = run.units.map(u => ({
+      w: u.id, c: u.c, r: u.r, a: +u.face.toFixed(4), arc: +u.arc.toFixed(4),
+    }));
+  },
+
+  // 保存された配置を読み戻す。編成から外れた武器や、置けない場所のものは捨てる
+  restoreUnits(run) {
+    const allowed = this.loadoutWeapons();
+    const saved = this.placementsFor(run.stageId);
+    const used = {};
     const taken = {};
-    for (const wid of weaponIds) {
-      const p = place[wid];
-      if (p && st.isWall(p.c, p.r) && !taken[p.c + ',' + p.r]) taken[p.c + ',' + p.r] = 1;
-      else delete place[wid];
+    for (const p of saved) {
+      if (!WEAPONS[p.w] || allowed.indexOf(p.w) < 0) continue;
+      if (!run.stage.buildable(p.c, p.r)) continue;
+      const key = p.c + ',' + p.r;
+      if (taken[key]) continue;
+      used[p.w] = (used[p.w] || 0) + 1;
+      if (used[p.w] > this.unitCap(p.w)) continue;
+      taken[key] = 1;
+      const def = WEAPONS[p.w];
+      const pos = run.stage.center(p.c, p.r);
+      run.units.push({
+        id: p.w, def, s: Object.assign({}, def.base), flags: {}, dyn: { heat: 0 },
+        c: p.c, r: p.r, x: pos.x, y: pos.y,
+        face: p.a !== undefined ? p.a : this.defaultFacing(run.stage, p.c, p.r),
+        arc: p.arc !== undefined ? p.arc : def.base.arc,
+        angle: 0, cd: 0, target: null, aim: null, shots: 0, muzzle: 0,
+      });
+      run.units[run.units.length - 1].angle = run.units[run.units.length - 1].face;
     }
-    const pool = this.goodWallTiles(st);
-    if (!pool.length) return place;
-    const maxNear = Math.max.apply(null, pool.map(t => (t.near < Infinity ? t.near : 0)));
-    const need = weaponIds.filter(wid => !place[wid]);
-
-    need.forEach((wid, i) => {
-      // 出現口寄り〜コア寄りまで、等間隔に受け持たせる
-      const want = maxNear * (0.80 - 0.62 * (i / Math.max(1, need.length - 1 || 1)));
-      let best = null, bestScore = -Infinity;
-      for (const t of pool) {
-        const key = t.c + ',' + t.r;
-        if (taken[key]) continue;
-        let far = 1e9;
-        for (const k in taken) {
-          const [tc, tr] = k.split(',').map(Number);
-          far = Math.min(far, Math.hypot(t.c - tc, t.r - tr));
-        }
-        if (far === 1e9) far = 10;
-        const score = t.touch * 2.0
-          - Math.abs(t.near - want) * 0.35      // 担当したい距離に近いほど良い
-          + Math.min(far, 6) * 1.2;             // 他の武器と重ならない
-        if (score > bestScore) { bestScore = score; best = t; }
-      }
-      if (best) { place[wid] = { c: best.c, r: best.r }; taken[best.c + ',' + best.r] = 1; }
-    });
-    return place;
   },
 
   // ---------- 準備フェーズ ----------
@@ -242,7 +311,7 @@ const Game = {
 
   canBuySkills() { return this.phase !== 'battle'; },
 
-  // 盤面と武器だけ用意した状態。敵は出さない
+  // 盤面とユニットだけ用意した状態。敵は出さない
   startPrep(stageId) {
     stageId = stageId || this.perm.currentStage || 'st1';
     if (!this.stageUnlocked(stageId)) stageId = 'st1';
@@ -250,8 +319,6 @@ const Game = {
     this.phase = 'prep';
 
     const st = Stage.build(stageId);
-    const ids = this.loadoutWeapons().slice(0, BAL.maxTurrets);
-    const place = this.autoPlace(st, ids);
     const corePos = st.center(st.core.c, st.core.r);
     const n = st.cols * st.rows;
 
@@ -259,12 +326,13 @@ const Game = {
       stage: st, stageId, stageIdx: STAGE_BY_ID[stageId].idx,
       mods: null,
       time: 0,
-      wave: 0,                 // 0 = まだ始まっていない
+      wave: 0,
       phase: 'idle',
-      toSpawn: 0, spawnTimer: 0, gapTimer: 0,
+      toSpawn: 0, spawnTimer: 0,
       enemies: [], bullets: [], fields: [], fx: [], nums: [],
-      tower: { x: corePos.x, y: corePos.y, r: BAL.coreR, hp: 0, maxHp: 0 },
-      weapons: [],
+      tower: { x: corePos.x, y: corePos.y, r: BAL.coreR },
+      lives: 0, livesMax: 0,
+      units: [],
       cards: {},
       coinMul: 1, resonance: 0, chillVuln: BAL.chillVulnBase, backdraft: 0,
       kills: 0, coinsEarned: 0, dealt: 0, leaked: 0,
@@ -275,46 +343,39 @@ const Game = {
       traffic: new Array(n).fill(0),
       leak: new Array(n).fill(0),
       trafficT: 0,
-      wp(id) { return this.weapons.find(w => w.id === id) || null; },
+      wp(id) { return this.units.find(u => u.id === id) || null; },
+      unitsOf(id) { return this.units.filter(u => u.id === id); },
     };
 
-    ids.forEach((wid) => {
-      const def = WEAPONS[wid];
-      const p = place[wid];
-      const pos = st.center(p.c, p.r);
-      run.weapons.push({
-        id: wid, def, s: Object.assign({}, def.base), flags: {}, dyn: { heat: 0 },
-        c: p.c, r: p.r, x: pos.x, y: pos.y,
-        angle: -Math.PI / 2, cd: 0, target: null, aim: null, shots: 0, muzzle: 0,
-      });
-    });
-
     this.run = run;
-    this.applyMods();          // 準備中の数値を表示に反映しておく
+    this.restoreUnits(run);
+    this.applyMods();
     return run;
   },
 
-  // 今のスキルツリーの内容で、武器とコアの数値を組み直す（準備フェーズ専用）
+  // 今のアップグレードの内容で、ユニットとコアの数値を組み直す
   applyMods() {
     const run = this.run;
     if (!run) return;
     const mods = Skill.mods(this.meta, this.perm);
     run.mods = mods;
-    for (const w of run.weapons) {
-      w.s = Object.assign({}, w.def.base);
-      Skill.applyTo(w, mods);
+    for (const u of run.units) {
+      const keepArc = u.arc;
+      u.s = Object.assign({}, u.def.base);
+      u.s.arc = keepArc;
+      Skill.applyTo(u, mods);
     }
-    const ratio = run.tower.maxHp > 0 ? run.tower.hp / run.tower.maxHp : 1;
-    run.tower.maxHp = BAL.coreHpBase * mods.hp;
-    run.tower.hp = run.tower.maxHp * (run.wave > 0 ? ratio : 1);
+    const lost = run.livesMax > 0 ? (run.livesMax - run.lives) : 0;
+    run.livesMax = BAL.livesBase + mods.lives;
+    run.lives = Math.max(0, run.livesMax - (run.wave > 0 ? lost : 0));
   },
 
-  // ---------- 戦闘開始 ----------
+  // ---------- 戦闘 ----------
   beginBattle() {
     const run = this.run;
     if (!run) return;
-    this.applyMods();                 // 準備中に買ったスキルをここで確定させる
-    run.tower.hp = run.tower.maxHp;
+    this.applyMods();
+    run.lives = run.livesMax;
     run.wave = 1;
     run.cards = {};
     run.pendingPicks = 0;
@@ -325,16 +386,12 @@ const Game = {
     this.save();
   },
 
-  // ---------- 武器の移動（壁の上だけ） ----------
-  moveWeapon(w, c, r) {
+  // ウェーブを凌いだあと、次のウェーブを始める
+  startNextWave() {
     const run = this.run;
-    if (!run || !run.stage.isWall(c, r)) return false;
-    if (run.weapons.some(o => o !== w && o.c === c && o.r === r)) return false;
-    w.c = c; w.r = r;
-    const p = run.stage.center(c, r);
-    w.x = p.x; w.y = p.y;
-    this.placementsFor(run.stageId)[w.id] = { c, r };
-    return true;
+    if (!run || run.over || run.phase !== 'build') return;
+    run.wave++;
+    Combat.startWave(run);
   },
 
   // ---------- 終了 ----------
@@ -358,6 +415,7 @@ const Game = {
     return {
       ok, stage: STAGE_BY_ID[r.stageId], wave: r.wave,
       kills: r.kills, coins: r.coinsEarned, leaked: r.leaked,
+      lives: Math.max(0, Math.ceil(r.lives)), livesMax: r.livesMax,
       stageGot, missions,
     };
   },

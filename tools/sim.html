@@ -97,12 +97,51 @@ const LOADOUTS = {
   st5: ['flame', 'mortar', 'gas', 'tesla'],
 };
 
+// 計測用の自動配置。
+// 本体は手で置く前提なので、ここでは「通路に面した地面へ、経路に沿って散らして置く」
+// という素朴な置き方をする。人が考えて置けばこれより強くなる
+function autoPlace(run) {
+  const st = run.stage;
+  const cand = [];
+  for (let r = 0; r < st.rows; r++) {
+    for (let c = 0; c < st.cols; c++) {
+      if (!st.buildable(c, r)) continue;
+      let near = Infinity;
+      for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]) {
+        const nc = c + dc, nr = r + dr;
+        if (st.walkable(nc, nr)) near = Math.min(near, st.dist[st.idx(nc, nr)]);
+      }
+      if (near < Infinity) cand.push({ c, r, near });
+    }
+  }
+  cand.sort((a, b) => a.near - b.near);
+  if (!cand.length) return;
+
+  const types = Game.loadoutWeapons();
+  const want = [];
+  for (const wid of types) {
+    for (let i = 0; i < Game.unitCap(wid); i++) want.push(wid);
+  }
+  // 経路の手前から奥まで等間隔に割り当てる
+  const taken = {};
+  want.forEach((wid, i) => {
+    const idx = Math.min(cand.length - 1, Math.floor(cand.length * (i + 0.5) / want.length));
+    for (let k = 0; k < cand.length; k++) {
+      const t = cand[(idx + k) % cand.length];
+      const key = t.c + ',' + t.r;
+      if (taken[key]) continue;
+      if (Game.placeUnit(wid, t.c, t.r)) { taken[key] = 1; }
+      break;
+    }
+  });
+}
+
 // 1回の出撃をまるごと回す
 function runStage(stageId, loadout, buys) {
   Game.perm.loadout = loadout.map(w => 'wc_' + w);
   for (const w of loadout) if (!Game.own('wc_' + w)) Game.grant('wc_' + w, 1);
   Game.perm.currentStage = stageId;
-  Game.startPrep(stageId);
+  const run0 = Game.startPrep(stageId);
 
   for (let i = 0; i < buys; i++) {
     const ids = SKILLS.map(s => s.id).filter(id => Skill.canBuy(Game.meta, Game.perm, id));
@@ -110,6 +149,7 @@ function runStage(stageId, loadout, buys) {
     if (!ids.length) break;
     Skill.buy(Game.meta, Game.perm, ids[0]);
   }
+  autoPlace(run0);
   Game.applyMods();
   Game.beginBattle();
 
@@ -122,8 +162,9 @@ function runStage(stageId, loadout, buys) {
     if (sig === 'dead') { res = 'dead'; break; }
     if (sig === 'stageclear') { res = 'clear'; break; }
     if (sig === 'waveclear') {
-      run.tower.hp = Math.min(run.tower.maxHp, run.tower.hp + run.tower.maxHp * run.mods.regen);
+      run.lives = Math.min(run.livesMax, run.lives + run.mods.regen);
       run.pendingPicks += run.mods.picks;
+      Game.startNextWave();          // 本体はボタン待ちだが、計測では即続行する
     }
     while (run.pendingPicks > 0) {
       const p = UI.rollDraft(run.mods.choices);
@@ -139,7 +180,7 @@ function runStage(stageId, loadout, buys) {
   const out = {
     stage: stageId, res, wave: run.wave, sec: Math.round(t / 60),
     kills: run.kills, leaked: run.leaked,
-    hpLeft: Math.round(run.tower.hp / run.tower.maxHp * 100),
+    livesLeft: Math.max(0, Math.ceil(run.lives)) + '/' + run.livesMax,
     offers,
   };
   Game.endRun(res === 'clear');
@@ -171,10 +212,10 @@ document.getElementById('run').addEventListener('click', () => {
     const t0 = performance.now();
     const rows = campaign(8);
     const ms = Math.round(performance.now() - t0);
-    let html = '<table><tr><th>ステージ</th><th>突破</th><th>各回の結果（到達W / 秒 / 漏れ / 残HP%）</th></tr>';
+    let html = '<table><tr><th>ステージ</th><th>突破</th><th>各回の結果（到達W / 秒 / 漏れ / 残ライフ）</th></tr>';
     for (const row of rows) {
       const detail = row.log.map(r =>
-        (r.res === 'clear' ? '突破' : '撃沈') + ' W' + r.wave + ' / ' + r.sec + 's / 漏' + r.leaked + ' / HP' + r.hpLeft + '%'
+        (r.res === 'clear' ? '突破' : '撃沈') + ' W' + r.wave + ' / ' + r.sec + 's / 漏' + r.leaked + ' / ライフ' + r.livesLeft
       ).join('　|　');
       html += '<tr><td>' + row.st.name + '</td>' +
         '<td class="' + (row.cleared ? 'ok' : 'ng') + '">' + (row.cleared ? row.cleared + '回目' : '未突破') + '</td>' +
@@ -201,7 +242,8 @@ document.getElementById('runCards').addEventListener('click', () => {
       Game.newSave();
       Game.meta.skills.picks = picks;
       Game.perm.loadout = ['wc_gatling', 'wc_sniper', null, null];
-      Game.startPrep('st1');
+      const rp = Game.startPrep('st1');
+      autoPlace(rp);
       Game.beginBattle();
       const run = Game.run;
       const sizes = [];

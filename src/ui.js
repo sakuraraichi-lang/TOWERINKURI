@@ -10,7 +10,8 @@ const UI = {
   tab: 'skill',
   el: {},
   draftOpen: false,
-  placing: null,
+  placingType: null,   // 設置しようとしている武器id
+  selected: null,      // 選んでいるユニット
   skillRows: null,
 
   init() {
@@ -54,46 +55,90 @@ const UI = {
     if (!r) { this.el.hudWave.textContent = '—'; return; }
 
     if (Game.phase === 'prep') {
-      this.el.hudWave.textContent = '準備中';
-      this.el.hudPhase.textContent = '配置とスキルを整えて出撃';
+      this.el.hudWave.textContent = 'ビルドフェーズ';
+      this.el.hudPhase.textContent = '配置を決めて戦闘開始';
       this.el.hudWaveBar.style.width = '0%';
       this.el.hudWaveTxt.textContent = '全' + BAL.wavesPerStage + 'ウェーブ';
+    } else if (r.phase === 'build') {
+      this.el.hudWave.textContent = 'ビルドフェーズ';
+      this.el.hudPhase.textContent = 'ウェーブ ' + r.wave + ' を凌いだ。置き直せる';
+      this.el.hudWaveBar.style.width = '100%';
+      this.el.hudWaveTxt.textContent = '次は ウェーブ ' + (r.wave + 1) + ' / ' + BAL.wavesPerStage;
     } else {
       this.el.hudWave.textContent = 'ウェーブ ' + r.wave + ' / ' + BAL.wavesPerStage +
         (Combat.isLastWave(r) ? ' ★' : '');
       this.el.hudPhase.textContent = r.phase === 'spawn' ? '交戦中'
-        : r.phase === 'clear' ? '残敵掃討'
-        : r.phase === 'gap' ? '次ウェーブまで ' + Math.max(0, r.gapTimer).toFixed(1) + 's' : '—';
+        : r.phase === 'clear' ? '残敵掃討' : '—';
       const total = r.toSpawn + r.enemies.length;
       this.el.hudWaveBar.style.width = (Util.clamp(1 - total / Math.max(1, Combat.waveCount(r)), 0, 1) * 100) + '%';
       this.el.hudWaveTxt.textContent = '残り ' + Util.fmt(total);
     }
 
-    this.el.hudHpBar.style.width = (Util.clamp(r.tower.hp / r.tower.maxHp, 0, 1) * 100) + '%';
-    this.el.hudHp.textContent = Util.fmt(r.tower.hp) + ' / ' + Util.fmt(r.tower.maxHp);
+    this.el.hudHpBar.style.width = (Util.clamp(r.lives / Math.max(1, r.livesMax), 0, 1) * 100) + '%';
+    this.el.hudHp.textContent = 'ライフ ' + Math.ceil(r.lives) + ' / ' + r.livesMax;
     this.el.hudDps.textContent = r.leaked > 0 ? '撃破 ' + Util.fmt(r.kills) + ' / 通過 ' + Util.fmt(r.leaked)
                                               : '撃破 ' + Util.fmt(r.kills);
   },
 
+  // 画面下のユニットバー。編成した4種を「配置済 / 上限」で出す
   renderTray() {
     const t = this.el.tray;
     t.innerHTML = '';
     const run = Game.run;
-    if (!run || run.over || !run.weapons.length) { t.classList.remove('on'); return; }
+    if (!run || run.over) { t.classList.remove('on'); return; }
     t.classList.add('on');
-    for (const w of run.weapons) {
-      const b = Util.el('button', 'chip' + (this.placing === w ? ' on' : ''));
-      b.style.borderColor = w.def.color;
-      b.innerHTML = '<b style="color:' + w.def.color + '">' + w.def.short + '</b>' +
-        '<i style="color:' + CATEGORIES[w.def.cat].color + '">' + CATEGORIES[w.def.cat].icon + '</i>';
+
+    const build = Game.canBuild();
+
+    if (this.selected) {
+      // ユニットを選んでいるときは、その調整パネルにする
+      const u = this.selected;
+      const grp = Math.round(Game.groupingOf(u) * 100);
+      const info = Util.el('div', 'usel');
+      info.innerHTML = '<b style="color:' + u.def.color + '">' + u.def.name + '</b>' +
+        '<span>射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) + '°　集弾 ' + grp + '%</span>' +
+        '<span class="dim">盤面をなぞると向きが変わる</span>';
+      t.appendChild(info);
+
+      const mk = (label, fn, cls) => {
+        const b = Util.el('button', 'chip ' + (cls || ''), label);
+        b.disabled = !build;
+        b.addEventListener('click', fn);
+        return b;
+      };
+      t.appendChild(mk('◀狭', () => { Game.setArc(u, -BAL.arcStep); this.renderTray(); }));
+      t.appendChild(mk('広▶', () => { Game.setArc(u, BAL.arcStep); this.renderTray(); }));
+      t.appendChild(mk('撤去', () => {
+        if (Game.removeUnit(u)) { this.selected = null; this.renderTray(); Game.save(); }
+      }, 'danger'));
+      t.appendChild(mk('閉じる', () => { this.selected = null; this.renderTray(); }));
+      if (!build) t.appendChild(Util.el('span', 'trayhint', '戦闘中は動かせません'));
+      return;
+    }
+
+    for (const cid of Game.perm.loadout) {
+      if (!cid || !CARDS[cid]) continue;
+      const wid = CARDS[cid].weapon;
+      const def = WEAPONS[wid];
+      const have = Game.unitCount(wid);
+      const cap = Game.unitCap(wid);
+      const full = have >= cap;
+      const b = Util.el('button', 'chip unit' + (this.placingType === wid ? ' on' : '') + (full ? ' full' : ''));
+      b.style.borderColor = def.color;
+      b.innerHTML = '<b style="color:' + def.color + '">' + def.short + '</b>' +
+        '<u>' + have + '/' + cap + '</u>';
+      b.disabled = !build;
       b.addEventListener('click', () => {
-        this.placing = (this.placing === w) ? null : w;
+        if (full) { this.toastMsg(def.name + ' はこれ以上置けません', '#ff8080'); return; }
+        this.placingType = (this.placingType === wid) ? null : wid;
         this.renderTray();
-        if (this.placing) this.toastMsg(w.def.name + ' を置く壁をタップ', w.def.color);
+        if (this.placingType) this.toastMsg(def.name + ' を置く地面をタップ', def.color);
       });
       t.appendChild(b);
     }
-    t.appendChild(Util.el('span', 'trayhint', this.placing ? '光っている壁をタップ' : '武器を選んで配置'));
+    t.appendChild(Util.el('span', 'trayhint',
+      !build ? '戦闘中は配置を変えられません'
+        : this.placingType ? '光っている地面をタップ' : 'ユニットを選んで配置／置いたものをタップで調整'));
   },
 
   renderTabs() {
@@ -252,8 +297,8 @@ const UI = {
   // ================= 編成 =================
   panelLoadout(p) {
     const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>編成（最大' + BAL.maxTurrets + '枠）</b><span class="sub">' +
-      'カテゴリを散らすか、1カテゴリに寄せてスキルを集中させるかの選択</span>';
+    head.innerHTML = '<b>編成（' + BAL.loadoutSlots + '種類）</b><span class="sub">' +
+      '使える武器の<b>種類</b>を4つ選ぶ。同じ武器は上限まで何基でも置ける</span>';
     p.appendChild(head);
 
     const slots = Util.el('div', 'slots');
@@ -266,7 +311,8 @@ const UI = {
         s.style.borderColor = w.color;
         s.innerHTML = '<div class="sw" style="color:' + w.color + '">' + w.short + '</div>' +
           '<div class="sn">' + w.name + '</div>' +
-          '<div class="sx" style="color:' + cat.color + '">' + cat.icon + ' ' + cat.name + '</div>';
+          '<div class="sx" style="color:' + cat.color + '">' + cat.icon + ' ' + cat.name +
+          '　最大' + Game.unitCap(w.id) + '基</div>';
       } else {
         s.innerHTML = '<div class="sw dim">＋</div><div class="sn dim">空き枠</div><div class="sx">タップで装備</div>';
       }
@@ -275,7 +321,7 @@ const UI = {
       slots.appendChild(s);
     });
     p.appendChild(slots);
-    if (Game.phase === 'battle') p.appendChild(Util.el('div', 'warn', '戦闘中は編成を変えられません（配置は動かせます）'));
+    if (Game.phase === 'battle') p.appendChild(Util.el('div', 'warn', '戦闘中は編成を変えられません'));
 
     const ids = Game.loadoutWeapons();
     const syn = Util.el('div', 'synbox');
@@ -639,7 +685,7 @@ const UI = {
       const pk = res.stageGot ? Object.entries(res.stageGot.packs).map(([k, v]) => PACKS[k].name + ' ×' + v).join(' / ') : '';
       if (pk) body.appendChild(Util.el('div', 'reward', '🎁 ' + pk));
     } else {
-      body.appendChild(Util.el('h3', null, 'コアが破壊された'));
+      body.appendChild(Util.el('h3', null, '防衛線が抜かれた'));
     }
 
     const st = Util.el('div', 'stats');
@@ -652,7 +698,7 @@ const UI = {
 
     if (res.leaked > 0) {
       body.appendChild(Util.el('div', 'warn',
-        '敵 ' + Util.fmt(res.leaked) + ' 体がコアまで到達しました。盤面の赤い枠が、抜けられたルートです。'));
+        '敵 ' + Util.fmt(res.leaked) + ' 体に抜けられました。盤面の赤い枠が、抜けられたルートです。'));
     }
     if (res.missions && res.missions.length) {
       body.appendChild(Util.el('div', 'sgroup', 'ミッション達成'));

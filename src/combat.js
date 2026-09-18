@@ -173,6 +173,9 @@ const Combat = {
     if (run.bullets.length > 1200) run.bullets.shift();
     o = o || {};
     const s = w.s;
+    // 扇を広げているほど弾がばらける。狭く絞れば一点に集まる
+    const g = w.group !== undefined ? w.group : 1;
+    if (g < 1) angle += Util.rand(-1, 1) * (1 - g) * BAL.spreadRad;
     const speed = s.speed * (o.speedMul || 1);
     let dmg = s.dmg * (o.dmgMul || 1);
     if (w.id === 'sniper' && run.resonance > 0) dmg *= (1 + run.resonance);
@@ -219,6 +222,7 @@ const Combat = {
 
   coneDamage(w, run, angle, arc, range, dmg, opts) {
     opts = opts || {};
+    dmg *= (w.group !== undefined ? w.group : 1);   // 即着系は出力が散るぶん1体あたりが落ちる
     const near = Grid.query(w.x, w.y, range + 20, _q);
     let hits = 0;
     for (const e of near) {
@@ -249,6 +253,7 @@ const Combat = {
   },
 
   pulse(w, run, range, dmg, opts) {
+    dmg *= (w.group !== undefined ? w.group : 1);   // 即着系は出力が散るぶん1体あたりが落ちる
     const near = Grid.query(w.x, w.y, range + 20, _q);
     for (const e of near) {
       if (e.dead) continue;
@@ -285,7 +290,7 @@ const Combat = {
   },
 
   chainLightning(w, run, first, chains, dmg) {
-    let cur = first, d = dmg;
+    let cur = first, d = dmg * (w.group !== undefined ? w.group : 1);
     const used = new Set();
     const pts = [{ x: w.x, y: w.y }];
     for (let i = 0; i <= chains; i++) {
@@ -328,7 +333,8 @@ const Combat = {
   // 指定攻撃（迫撃砲）用：射程内で最も敵が固まっている一点を探す
   densestPoint(w, run) {
     const near = Grid.query(w.x, w.y, w.s.range, _q);
-    const cand = near.filter(e => !e.dead && Util.dist(w.x, w.y, e.x, e.y) <= w.s.range);
+    const cand = near.filter(e => !e.dead && Util.dist(w.x, w.y, e.x, e.y) <= w.s.range &&
+                                  this.inArc(w, e.x, e.y));
     if (!cand.length) return null;
     let best = null, bestN = -1;
     const R = Math.max(30, w.s.splash);
@@ -343,12 +349,21 @@ const Combat = {
     return best ? { x: best.x, y: best.y, n: bestN, e: best } : null;
   },
 
+  // 扇の中に入っているか
+  inArc(w, x, y) {
+    let da = Util.angle(w.x, w.y, x, y) - w.face;
+    while (da > Math.PI) da -= Math.PI * 2;
+    while (da < -Math.PI) da += Math.PI * 2;
+    return Math.abs(da) <= w.arc;
+  },
+
   findTarget(w, run) {
     const mode = w.def.target;
     if (mode === 'dense') {
       // 照準固定：触手が掴んでいる一団があれば、そこへ撃ち込む
       if (w.flags.aimGrab && run.grabTarget && !run.grabTarget.dead &&
-          Util.dist(w.x, w.y, run.grabTarget.x, run.grabTarget.y) <= w.s.range) {
+          Util.dist(w.x, w.y, run.grabTarget.x, run.grabTarget.y) <= w.s.range &&
+          this.inArc(w, run.grabTarget.x, run.grabTarget.y)) {
         w.aim = { x: run.grabTarget.x, y: run.grabTarget.y, e: run.grabTarget };
         return run.grabTarget;
       }
@@ -357,9 +372,11 @@ const Combat = {
       return p ? p.e : null;
     }
     if (w.flags.followGrab && run.grabTarget && !run.grabTarget.dead &&
-        Util.dist(w.x, w.y, run.grabTarget.x, run.grabTarget.y) <= w.s.range) return run.grabTarget;
+        Util.dist(w.x, w.y, run.grabTarget.x, run.grabTarget.y) <= w.s.range &&
+        this.inArc(w, run.grabTarget.x, run.grabTarget.y)) return run.grabTarget;
     if (w.flags.followSpot && run.spotTarget && !run.spotTarget.dead &&
-        Util.dist(w.x, w.y, run.spotTarget.x, run.spotTarget.y) <= w.s.range) return run.spotTarget;
+        Util.dist(w.x, w.y, run.spotTarget.x, run.spotTarget.y) <= w.s.range &&
+        this.inArc(w, run.spotTarget.x, run.spotTarget.y)) return run.spotTarget;
 
     const near = Grid.query(w.x, w.y, w.s.range, _q);
     let best = null, score = -Infinity;
@@ -367,6 +384,7 @@ const Combat = {
       if (e.dead) continue;
       const d = Util.dist(w.x, w.y, e.x, e.y);
       if (d > w.s.range + e.r) continue;
+      if (!this.inArc(w, e.x, e.y)) continue;   // 扇の外は撃てない
       let sc;
       if (mode === 'closest') sc = -d;
       else if (mode === 'strongest') sc = e.hp;
@@ -396,15 +414,12 @@ const Combat = {
       }
       if (run.toSpawn <= 0) run.phase = 'clear';
     } else if (run.phase === 'clear') {
-      // このウェーブの敵を全部片づけたら突破
+      // このウェーブの敵を全部片づけたら突破。
+      // 次のウェーブは自動で来ない。ビルドフェーズに戻して、置き直す時間を作る
       if (run.enemies.length === 0) {
         signal = this.isLastWave(run) ? 'stageclear' : 'waveclear';
-        run.phase = 'gap';
-        run.gapTimer = BAL.waveGap;
+        run.phase = 'build';
       }
-    } else if (run.phase === 'gap') {
-      run.gapTimer -= dt;
-      if (run.gapTimer <= 0) { run.wave++; this.startWave(run); }
     }
 
     // --- 場（毒の雲など） ---
@@ -466,13 +481,9 @@ const Combat = {
         }
       }
 
-      // コアに触れた敵は、まとめてダメージを置いて消える（＝漏れ）。
-      // 居座らせるとウェーブが終わらなくなるうえ、どこから抜けられたのかも見えない
+      // コアに触れた敵は、ライフを1つ持っていって消える（＝漏れ）
       if (Util.dist(e.x, e.y, tw.x, tw.y) <= tw.r + e.r) {
-        // 漏れはコア最大HPの一定割合を必ず削る。
-        // 攻撃力ぶんだけだと、HPを積んだ後期に「漏らしても勝てる」状態になってしまう
-        const leakDmg = Math.max(e.dmg * BAL.leakDamage, tw.maxHp * BAL.leakCoreFrac);
-        tw.hp -= leakDmg * (e.boss ? BAL.bossLeakMul : 1);
+        run.lives -= e.boss ? BAL.bossLeakLives : BAL.leakLives;
         run.leaked++;
         // 経路全体を塗るが、コアに近い区間ほど濃くする。
         // 「どこで止め損ねたか」が知りたいので、手前ほど強調しても意味が薄い
@@ -488,10 +499,10 @@ const Combat = {
       }
     }
 
-    if (tw.hp <= 0) { tw.hp = 0; return 'dead'; }
+    if (run.lives <= 0) { run.lives = 0; return 'dead'; }
 
-    // --- 武器 ---
-    for (const w of run.weapons) {
+    // --- ユニット ---
+    for (const w of run.units) {
       if (w.flags.heat) w.dyn.heat = Math.max(0, w.dyn.heat - dt * 0.42);
       if (w.flags.thunderGod) {
         w.dyn.godCd -= dt;
@@ -508,8 +519,17 @@ const Combat = {
 
       w.target = this.findTarget(w, run);
       if (w.muzzle > 0) w.muzzle -= dt;
+      // 砲身は扇の中でだけ振れる。向きそのものはプレイヤーが決めたまま動かない
       const look = w.aim || w.target;
-      if (look) w.angle = Util.turnToward(w.angle, Util.angle(w.x, w.y, look.x, look.y), w.s.turn * dt);
+      let want = w.face;
+      if (look) {
+        want = Util.angle(w.x, w.y, look.x, look.y);
+        let da = want - w.face;
+        while (da > Math.PI) da -= Math.PI * 2;
+        while (da < -Math.PI) da += Math.PI * 2;
+        want = w.face + Util.clamp(da, -w.arc, w.arc);
+      }
+      w.angle = Util.turnToward(w.angle, want, w.s.turn * dt);
 
       const rate = w.s.rate * (w.flags.heat ? (1 + w.dyn.heat * (w.dyn.heatMax || 0)) : 1);
       w.cd -= dt;
@@ -518,6 +538,7 @@ const Combat = {
           w.cd = 1 / Math.max(0.02, rate);
           w.muzzle = 0.07;
           w.shots++;
+          w.group = Game.groupingOf(w);  // 扇の広さで決まる集弾率。fire から参照する
           w.def.fire(w, run);
         } else w.cd = 0;
       }

@@ -66,12 +66,13 @@ const Render = {
     this.tiles(ctx, st);
     if (!run) { ctx.setTransform(1, 0, 0, 1, 0, 0); return; }
 
+    this.arcs(ctx, run);
     this.fields(ctx, run);
     this.aims(ctx, run);
     this.core(ctx, run);
     this.enemies(ctx, run);
     this.bullets(ctx, run);
-    this.weapons(ctx, run);
+    this.units(ctx, run);
     this.effects(ctx, run);
     this.numbers(ctx, run);
 
@@ -79,47 +80,41 @@ const Render = {
   },
 
   tiles(ctx, st) {
-    const sel = UI.placing;
     for (let r = 0; r < st.rows; r++) {
       for (let c = 0; c < st.cols; c++) {
         const ch = st.grid[r][c];
         const x = c * TILE, y = r * TILE;
-        if (ch === '#') {
-          // 壁 = 明るいブロック。武器が置ける場所なので一番はっきり見せる
-          ctx.fillStyle = '#25384f';
+        if (ch === ' ') {
+          // 障害物
+          ctx.fillStyle = '#0b1018';
           ctx.fillRect(x, y, TILE, TILE);
-          ctx.fillStyle = 'rgba(255,255,255,0.07)';
-          ctx.fillRect(x, y, TILE, 3);
-          ctx.fillStyle = 'rgba(0,0,0,0.28)';
-          ctx.fillRect(x, y + TILE - 3, TILE, 3);
-          ctx.strokeStyle = '#3a5170';
-          ctx.lineWidth = 1;
+          ctx.strokeStyle = '#161f2c'; ctx.lineWidth = 1;
           ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
-        } else if (ch === ' ') {
-          ctx.fillStyle = '#04060a';
+        } else if (ch === '#') {
+          // 地面（ユニットを置ける）
+          ctx.fillStyle = '#1c2a3c';
           ctx.fillRect(x, y, TILE, TILE);
+          ctx.strokeStyle = 'rgba(120,170,230,0.10)'; ctx.lineWidth = 1;
+          ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
         } else {
-          // 通路 = 暗く沈める
-          ctx.fillStyle = '#070c14';
+          // 通路（敵が通る）。暗く沈めて地面と区別する
+          ctx.fillStyle = '#080d15';
           ctx.fillRect(x, y, TILE, TILE);
-          ctx.strokeStyle = 'rgba(90,140,200,0.10)';
-          ctx.lineWidth = 1;
-          ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
         }
         if (ch === 'S') {
-          ctx.fillStyle = 'rgba(255,60,90,0.16)';
+          ctx.fillStyle = 'rgba(255,60,90,0.18)';
           ctx.fillRect(x, y, TILE, TILE);
           ctx.strokeStyle = '#ff4e63'; ctx.lineWidth = 2;
           ctx.strokeRect(x + 3, y + 3, TILE - 6, TILE - 6);
         }
       }
     }
-    // 通行量と漏れルートのヒートマップ。
-    // 「どこに敵が溜まるか」「どこから抜けられたか」を見て置き場所を決めるためのもの
+
+    // 通行量と漏れルートのヒートマップ
     this.heat(ctx, st);
 
-    // 通路に進行方向の矢印を薄く出す（どこを通ってくるか一目で分かるように）
-    ctx.strokeStyle = 'rgba(120,170,230,0.22)';
+    // 通路に進行方向の矢印を薄く出す
+    ctx.strokeStyle = 'rgba(120,170,230,0.20)';
     ctx.lineWidth = 2;
     ctx.beginPath();
     for (let r = 0; r < st.rows; r++) {
@@ -129,7 +124,7 @@ const Render = {
         if (!n) continue;
         const a = Math.atan2(n.r - r, n.c - c);
         const cx = c * TILE + TILE / 2, cy = r * TILE + TILE / 2;
-        const L = 7, tipx = cx + Math.cos(a) * L, tipy = cy + Math.sin(a) * L;
+        const L = 6, tipx = cx + Math.cos(a) * L, tipy = cy + Math.sin(a) * L;
         ctx.moveTo(tipx, tipy);
         ctx.lineTo(cx + Math.cos(a + 2.5) * L, cy + Math.sin(a + 2.5) * L);
         ctx.moveTo(tipx, tipy);
@@ -138,24 +133,17 @@ const Render = {
     }
     ctx.stroke();
 
-    // 設置モードのとき、置ける壁を光らせる
-    if (sel) {
+    // 設置モードのとき、置ける地面を光らせる
+    if (UI.placingType && Game.canBuild()) {
       const occupied = {};
-      if (Game.run) for (const w of Game.run.weapons) if (w !== sel) occupied[w.c + ',' + w.r] = 1;
+      if (Game.run) for (const u of Game.run.units) occupied[u.c + ',' + u.r] = 1;
       for (let r = 0; r < st.rows; r++) {
         for (let c = 0; c < st.cols; c++) {
-          if (!st.isWall(c, r) || occupied[c + ',' + r]) continue;
-          ctx.fillStyle = 'rgba(78,168,255,0.18)';
+          if (!st.buildable(c, r) || occupied[c + ',' + r]) continue;
+          ctx.fillStyle = 'rgba(78,168,255,0.16)';
           ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
-          ctx.strokeStyle = 'rgba(120,200,255,0.55)'; ctx.lineWidth = 1.5;
-          ctx.strokeRect(c * TILE + 2, r * TILE + 2, TILE - 4, TILE - 4);
         }
       }
-      // 選択中の武器の射程
-      ctx.strokeStyle = sel.def.color + '77';
-      ctx.setLineDash([6, 8]);
-      ctx.beginPath(); ctx.arc(sel.x, sel.y, sel.s.range, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]);
     }
   },
 
@@ -242,51 +230,79 @@ const Render = {
     ctx.stroke();
   },
 
-  weapons(ctx, run) {
-    for (const w of run.weapons) {
-      const c = w.def.color;
-      const sel = UI.placing === w;
-      ctx.save();
-      ctx.translate(w.x, w.y);
-      ctx.rotate(w.angle);
-      ctx.fillStyle = c;
-      const bl = w.id === 'sniper' ? 24 : w.id === 'tesla' || w.id === 'cryo' ? 9
-               : w.id === 'katana' ? 20 : 16;
-      ctx.fillRect(0, -3, bl, 6);
-      if (w.muzzle > 0) {
-        ctx.globalAlpha = 0.9; ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(bl + 3, 0, 5, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-      }
-      ctx.restore();
+  // 射界（扇）。画面に出ているこの形が、そのまま当たる範囲
+  arcs(ctx, run) {
+    const sel = UI.selected;
+    const build = Game.canBuild();
+    for (const u of run.units) {
+      const isSel = sel === u;
+      if (!build && !isSel) {
+        // 戦闘中は選んでいるものだけ濃く出す（画面が埋まるので）
+        ctx.globalAlpha = 0.16;
+      } else ctx.globalAlpha = isSel ? 0.55 : 0.30;
 
-      ctx.save();
-      ctx.shadowColor = c; ctx.shadowBlur = sel ? 20 : 11;
-      ctx.fillStyle = '#0e1622';
-      ctx.strokeStyle = sel ? '#ffffff' : c; ctx.lineWidth = sel ? 3 : 2;
-      ctx.beginPath(); ctx.arc(w.x, w.y, 14, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.restore();
+      const c = u.def.color;
+      ctx.strokeStyle = c;
+      ctx.lineWidth = isSel ? 2 : 1.2;
+      ctx.beginPath();
+      ctx.moveTo(u.x, u.y);
+      ctx.lineTo(u.x + Math.cos(u.face - u.arc) * u.s.range, u.y + Math.sin(u.face - u.arc) * u.s.range);
+      ctx.arc(u.x, u.y, u.s.range, u.face - u.arc, u.face + u.arc);
+      ctx.closePath();
+      ctx.stroke();
+
+      ctx.globalAlpha = isSel ? 0.16 : 0.07;
       ctx.fillStyle = c;
-      ctx.font = 'bold 9px system-ui,sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(w.def.short, w.x, w.y + 0.5);
+      ctx.fill();
+      ctx.globalAlpha = 1;
     }
   },
 
   // 指定攻撃（迫撃砲）が狙っている一点
   aims(ctx, run) {
-    for (const w of run.weapons) {
+    for (const w of run.units) {
       if (!w.aim) continue;
-      const R = Math.max(26, w.s.splash);
+      const R = Math.max(24, w.s.splash);
       ctx.strokeStyle = w.def.color + 'cc';
       ctx.lineWidth = 1.6;
       ctx.setLineDash([4, 5]);
       ctx.beginPath(); ctx.arc(w.aim.x, w.aim.y, R, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
       ctx.beginPath();
-      ctx.moveTo(w.aim.x - 7, w.aim.y); ctx.lineTo(w.aim.x + 7, w.aim.y);
-      ctx.moveTo(w.aim.x, w.aim.y - 7); ctx.lineTo(w.aim.x, w.aim.y + 7);
+      ctx.moveTo(w.aim.x - 6, w.aim.y); ctx.lineTo(w.aim.x + 6, w.aim.y);
+      ctx.moveTo(w.aim.x, w.aim.y - 6); ctx.lineTo(w.aim.x, w.aim.y + 6);
       ctx.stroke();
+    }
+  },
+
+  units(ctx, run) {
+    for (const u of run.units) {
+      const c = u.def.color;
+      const sel = UI.selected === u;
+      ctx.save();
+      ctx.translate(u.x, u.y);
+      ctx.rotate(u.angle);
+      ctx.fillStyle = c;
+      const bl = u.id === 'sniper' ? 22 : u.id === 'tesla' || u.id === 'cryo' ? 8
+               : u.id === 'katana' ? 18 : 14;
+      ctx.fillRect(0, -2.5, bl, 5);
+      if (u.muzzle > 0) {
+        ctx.globalAlpha = 0.9; ctx.fillStyle = '#fff';
+        ctx.beginPath(); ctx.arc(bl + 3, 0, 4.5, 0, Math.PI * 2); ctx.fill();
+        ctx.globalAlpha = 1;
+      }
+      ctx.restore();
+
+      ctx.save();
+      ctx.shadowColor = c; ctx.shadowBlur = sel ? 18 : 9;
+      ctx.fillStyle = '#0e1622';
+      ctx.strokeStyle = sel ? '#ffffff' : c; ctx.lineWidth = sel ? 2.5 : 1.8;
+      ctx.beginPath(); ctx.arc(u.x, u.y, 11, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.restore();
+      ctx.fillStyle = c;
+      ctx.font = 'bold 8px system-ui,sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(u.def.short, u.x, u.y + 0.5);
     }
   },
 

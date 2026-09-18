@@ -11,10 +11,10 @@ const SKILLS = [
   // ============ 資源・拠点 ============
   { id: 'coin', name: '集金効率', icon: '◈', group: '資源',
     desc: '敵から得るコイン ×1.13', cost0: 15, costG: 1.30, max: Infinity, unlock: 0 },
-  { id: 'core', name: '装甲板', icon: '▣', group: '拠点',
-    desc: 'コアの最大HP ×1.18', cost0: 22, costG: 1.32, max: Infinity, unlock: 0 },
+  { id: 'core', name: '防衛線', icon: '▣', group: '拠点',
+    desc: 'ライフ +3（抜けられてよい敵が3体増える）', cost0: 40, costG: 1.26, max: 200, unlock: 0 },
   { id: 'regen', name: '応急修理班', icon: '✚', group: '拠点',
-    desc: 'ウェーブを1つ突破するごとに、コアHPを最大値の6%回復', cost0: 60, costG: 1.45, max: 12, unlock: 1 },
+    desc: 'ウェーブを1つ突破するごとにライフ +1（上限まで）', cost0: 90, costG: 1.55, max: 10, unlock: 1 },
 
   // ============ カテゴリ別（その分類の武器を1つでも持つと解放） ============
   { id: 'short_dmg', name: '近接兵装', icon: '◤', group: '短射程', cat: 'short',
@@ -46,6 +46,9 @@ const SKILLS = [
     desc: '支援カテゴリの 減速・拘束・感電の持続 ×1.12', cost0: 55, costG: 1.34, max: 25, unlock: 0 },
   { id: 'sup_rng', name: '照射範囲', icon: '❉', group: '支援', cat: 'support',
     desc: '支援カテゴリの射程・効果範囲 ×1.10', cost0: 55, costG: 1.34, max: 25, unlock: 0 },
+
+  { id: 'units', name: '増設基盤', icon: '⛁', group: '拠点',
+    desc: 'どの武器も設置できる数が +1 基', cost0: 400, costG: 3.4, max: 8, unlock: 0 },
 
   // ============ カード側の枠を増やす ============
   { id: 'picks', name: '増設スロット', icon: '★', group: 'カード',
@@ -110,8 +113,8 @@ const Skill = {
     const pw = Math.pow(BAL.prestigePower, perm.prestiges);
     return {
       coin:   Math.pow(1.13, L('coin')) * Math.pow(1.06, L('lure')) * pw,
-      hp:     Math.pow(1.18, L('core')),
-      regen:  L('regen') * 0.06,          // ウェーブ突破ごとに最大HPのこの割合を回復
+      lives:  3 * L('core'),
+      regen:  L('regen'),                 // ウェーブ突破ごとに戻るライフ
       spawn:  1 + 0.12 * L('lure'),
       luck:   L('luck'),
       packLuck: L('pack'),

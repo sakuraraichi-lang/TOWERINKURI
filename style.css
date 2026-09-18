@@ -241,3 +241,16 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 #tray .chip{display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.1;}
 #tray .chip i{font-style:normal;font-size:9px;}
 .wpick b i{font-style:normal;font-size:10px;font-weight:700;margin-left:4px;}
+
+
+/* ============ ユニットバー（設置） ============ */
+#tray .chip.unit{min-width:54px;padding:5px 8px;}
+#tray .chip u{display:block;text-decoration:none;font-size:10px;color:var(--dim);
+              font-variant-numeric:tabular-nums;margin-top:1px;}
+#tray .chip.full u{color:var(--danger);}
+#tray .chip.danger{border-color:var(--danger);color:#ffb7bf;}
+#tray .usel{background:rgba(7,12,20,.85);border:1px solid var(--line);border-radius:9px;
+            padding:5px 9px;display:flex;flex-direction:column;line-height:1.35;}
+#tray .usel b{font-size:12px;}
+#tray .usel span{font-size:10px;color:var(--txt);}
+#tray .usel span.dim{color:var(--dim);font-size:9px;}
