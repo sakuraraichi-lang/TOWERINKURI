@@ -51,7 +51,12 @@ const BAL = {
   waveCountBase: 24,
   waveCountPerWave: 9,
   waveCountMax: 600,
-  spawnIntervalBase: 0.22,
+
+  // 敵が湧く間隔。**ウェーブの長さは戦闘ではなくここで決まっていた。**
+  // 通算W16で「削る22秒に対して湧き77秒」まで開き、
+  // 1ウェーブの9割が敵を待つだけの時間になっていたので詰めた（2026-09-19）
+  spawnIntervalBase: 0.16,      // 通算W0での間隔(秒)
+  spawnIntervalDecay: 0.94,     // 通算ウェーブごとに掛かる。小さいほど後半が速く湧く
   spawnIntervalMin: 0.02,
   enemyCap: 900,
 

@@ -255,18 +255,44 @@ function autoPlaceRange(run) {
   }
 }
 
-// 1回の出撃をまるごと回す
-function runStage(stageId, loadout, buys) {
+// ---------------------------------------------------------------
+// 1回の出撃をまるごと回す。
+//
+// **「突破したか」だけでなく、経済の数字を全部持ち帰る。**
+// 強い/弱いではなく「どこで経済曲線が壊れているか」を見たいので、
+// コイン・購入・カード・被害・死因までウェーブ単位で記録する
+//
+//   opts.bal    … BAL を一時的に差し替える（調整前後を同じコードで比べる）
+//   opts.noLure … 敵誘引を買わせない（リスク・リターンの比較用）
+//   opts.buildId… どのビルドの行かを記録に残す
+// ---------------------------------------------------------------
+function withBal(over, fn) {
+  if (!over) return fn();
+  const keep = {};
+  for (const k in over) { keep[k] = BAL[k]; BAL[k] = over[k]; }
+  try { return fn(); } finally { for (const k in keep) BAL[k] = keep[k]; }
+}
+
+function runStage(stageId, loadout, buys, opts) {
+  opts = opts || {};
+  return withBal(opts.bal, () => runStageInner(stageId, loadout, buys, opts));
+}
+
+function runStageInner(stageId, loadout, buys, opts) {
   Game.perm.loadout = loadout.map(w => 'wc_' + w);
   for (const w of loadout) if (!Game.own('wc_' + w)) Game.grant('wc_' + w, 1);
   Game.perm.currentStage = stageId;
   const run0 = Game.startPrep(stageId);
 
+  // 安い順に買う。買った額も数えておく（コインの出口はここだけ）
+  let spent = 0, bought = 0;
   for (let i = 0; i < buys; i++) {
-    const ids = SKILLS.map(s => s.id).filter(id => Skill.canBuy(Game.meta, Game.perm, id));
+    let ids = SKILLS.map(s => s.id).filter(id => Skill.canBuy(Game.meta, Game.perm, id));
+    if (opts.noLure) ids = ids.filter(id => id !== 'lure');
     ids.sort((a, b) => Skill.cost(Game.meta, a) - Skill.cost(Game.meta, b));
     if (!ids.length) break;
-    Skill.buy(Game.meta, Game.perm, ids[0]);
+    const c = Skill.cost(Game.meta, ids[0]);
+    if (Skill.buy(Game.meta, Game.perm, ids[0])) { spent += c; bought++; }
   }
   autoPlace(run0);
   Game.applyMods();
@@ -275,9 +301,12 @@ function runStage(stageId, loadout, buys) {
   const run = Game.run;
   let t = 0, res = null;
   const offers = [];
-  // ウェーブ単位の観測。プレイヤー側と敵側の成長曲線を比べるための素の数字
+  let cardsTaken = 0;
+  const coins0 = Game.meta.coins;
+
   const waves = [];
-  let wT = 0, wDealt = 0, wKills = 0, wCoins = Game.meta.coins, wLeak = 0;
+  let wT = 0, wDealt = 0, wKills = 0, wCoins = Game.meta.coins;
+  let wLeak = 0, wLost = 0, wCards = 0;
   const snapWave = (cleared) => {
     const g = globalWave(run.stageIdx, run.wave);
     const stageMul = Math.pow(BAL.stageHpMul, run.stageIdx);
@@ -287,20 +316,31 @@ function runStage(stageId, loadout, buys) {
     const nRaw = Math.floor((BAL.waveCountBase + g * BAL.waveCountPerWave) * run.mods.spawn);
     // 湧き切るまでに必ずかかる時間。ウェーブの長さのうち、これは戦闘ではなく待ち時間
     const spawnSec = n * Math.max(BAL.spawnIntervalMin,
-                                  BAL.spawnIntervalBase * Math.pow(0.97, g));
+      BAL.spawnIntervalBase * Math.pow(BAL.spawnIntervalDecay, g));
     const sec = (t - wT) / 60;
     const dealt = run.dealt - wDealt;
+    const coins = Game.meta.coins - wCoins;
+    const kills = run.kills - wKills;
+    const enemyDps = BAL.enemyDpsBase * Math.pow(BAL.enemyDpsGrowth, g - 1);
     waves.push({
-      stage: STAGE_BY_ID[run.stageId].name, wave: run.wave, g,
+      build: opts.buildId || '', stage: STAGE_BY_ID[run.stageId].name, wave: run.wave, g,
+      elapsed: +(t / 60).toFixed(1),
       enemyHp: hp1, count: n, countRaw: nRaw, capped: nRaw > n,
-      totalHp: hp1 * n, spawnSec,
+      totalHp: hp1 * n, enemyDps,
+      spawnSec, sec,
+      killSec: dealt > 0 ? (hp1 * n) / (dealt / Math.max(0.001, sec)) : 0,
       dps: sec > 0 ? dealt / sec : 0,
-      sec, kills: run.kills - wKills, leaked: run.leaked - wLeak,
-      coinRate: sec > 0 ? (Game.meta.coins - wCoins) / sec : 0,
+      kills, leaked: run.leaked - wLeak, livesLost: run.livesLost - wLost,
+      coins, cards: cardsTaken - wCards,
+      units: run.units.length,
+      coinRate: sec > 0 ? coins / sec : 0,
+      killRate: sec > 0 ? kills / sec : 0,
       cleared,
     });
-    wT = t; wDealt = run.dealt; wKills = run.kills; wCoins = Game.meta.coins; wLeak = run.leaked;
+    wT = t; wDealt = run.dealt; wKills = run.kills; wCoins = Game.meta.coins;
+    wLeak = run.leaked; wLost = run.livesLost; wCards = cardsTaken;
   };
+
   // **打ち切りは「負け」ではない。** ウェーブが長くなると1ステージが
   // この時間を超え、倒せているのに res が付かないまま抜けてしまう。
   // それを失敗と数えると、同じステージを何度もやり直して測定が止まる
@@ -324,18 +364,129 @@ function runStage(stageId, loadout, buys) {
       p.sort((a, b) => BAL.rarityOrder.indexOf(CARDS[b].rarity) - BAL.rarityOrder.indexOf(CARDS[a].rarity));
       const id = p[0];
       run.cards[id] = (run.cards[id] || 0) + 1;
+      cardsTaken++;
       if (CARDS[id].apply) CARDS[id].apply(run);
     }
   }
   if (!res) res = 'timeout';
+
+  // 死因。**「負けた」で終わらせず、何に抜けられて終わったのかまで残す**
+  let death = null;
+  if (res === 'dead') {
+    const by = Object.keys(run.leakBy).map(k => k + '×' + run.leakBy[k]).join(' ');
+    const last = waves[waves.length - 1];
+    death = {
+      stage: STAGE_BY_ID[run.stageId].name, wave: run.wave,
+      g: last ? last.g : 0,
+      leakedBy: by,
+      // そのウェーブで倒し切るのに要る秒数と、実際にかけられた秒数
+      needSec: last && last.dps > 0 ? +(last.totalHp / last.dps).toFixed(1) : null,
+      hadSec: last ? +last.sec.toFixed(1) : null,
+      dps: last ? Math.round(last.dps) : 0,
+      totalHp: last ? Math.round(last.totalHp) : 0,
+    };
+  }
+
+  const sec = t / 60;
+  const earned = (Game.meta.coins - coins0) + 0;  // 戦闘中に増えた分
   const out = {
-    stage: stageId, res, wave: run.wave, sec: Math.round(t / 60),
-    kills: run.kills, leaked: run.leaked,
-    livesLeft: Math.max(0, Math.ceil(run.lives)) + '/' + run.livesMax,
-    offers, waves,
+    build: opts.buildId || '', stage: stageId, res, wave: run.wave,
+    sec: +sec.toFixed(1),
+    kills: run.kills, leaked: run.leaked, livesLost: run.livesLost,
+    livesLeft: Math.max(0, Math.ceil(run.lives)), livesMax: run.livesMax,
+    coinsEarned: Math.round(earned), coinsSpent: Math.round(spent), skillsBought: bought,
+    cardsTaken, units: run.units.length, weapons: loadout.length,
+    coinPerSec: +(earned / sec).toFixed(1),
+    killPerSec: +(run.kills / sec).toFixed(1),
+    dpsAvg: Math.round(run.dealt / sec),
+    death, offers, waves,
   };
   Game.endRun(res === 'clear');
   return out;
+}
+
+// ---------------------------------------------------------------
+// 経済の測定（2026-09-19 追加）
+//
+// 「強い/弱い」ではなく「どこで経済曲線が壊れているか」を見るための一式。
+// 調整前後・敵誘引あり無し・ビルド別を、**同じコードで**回して比べる
+// ---------------------------------------------------------------
+
+// 案2を入れる前の値。調整前後を同じセッションで比べるために残してある
+const BAL_BEFORE = { spawnIntervalBase: 0.22, spawnIntervalDecay: 0.97 };
+
+// 1周（突破できるところまで）。pick はステージを受けて編成を返す
+function campaignRun(pick, opts) {
+  opts = opts || {};
+  if (opts.reset !== false) Game.newSave();
+  const stages = [], allWaves = [], deaths = [];
+  let total = 0, cleared = 0, attempts = 0;
+  for (const stg of STAGES) {
+    let ok = false, tries = 0, secs = 0, note = '';
+    for (let i = 1; i <= HARD_CAP; i++) {
+      const r = runStage(stg.id, pick(stg), 90, opts);
+      tries = i; attempts++; secs += r.sec; total += r.sec;
+      for (const w of r.waves) allWaves.push(w);
+      if (r.death) deaths.push(r.death);
+      if (r.res === 'clear') { ok = true; cleared++; break; }
+      if (r.res === 'timeout') { note = '打切'; break; }
+    }
+    stages.push({ stage: stg.name, ok, tries, sec: +secs.toFixed(1), note });
+    if (!ok) break;
+    if (opts.stopAfter && cleared >= opts.stopAfter) break;
+  }
+  const m = Skill.mods(Game.meta, Game.perm);
+  return {
+    label: opts.label || '', stages, cleared, attempts,
+    totalSec: +total.toFixed(1), totalMin: +(total / 60).toFixed(1),
+    allWaves, deaths,
+    coins: Math.round(Game.meta.coins),
+    lv: SKILLS.reduce((a, x) => a + Skill.lv(Game.meta, x.id), 0),
+    lureLv: Skill.lv(Game.meta, 'lure'),
+    mid: +m.cat.mid.dmg.toFixed(1), long: +m.cat.long.dmg.toFixed(1),
+  };
+}
+
+// ウェーブ群をまとめる。**平均ではなく合計と比で見る**
+function digest(waves) {
+  if (!waves.length) return null;
+  const sum = (f) => waves.reduce((a, w) => a + f(w), 0);
+  const sec = sum(w => w.sec);
+  const spawn = sum(w => Math.min(w.spawnSec, w.sec));   // 湧きは実時間を超えない
+  return {
+    waves: waves.length,
+    sec: +sec.toFixed(1),
+    spawnSec: +spawn.toFixed(1),
+    // ウェーブ時間のうち、敵を待っているだけだった割合
+    waitPct: +(100 * spawn / sec).toFixed(0),
+    kills: sum(w => w.kills),
+    coins: Math.round(sum(w => w.coins)),
+    coinPerSec: +(sum(w => w.coins) / sec).toFixed(1),
+    killPerSec: +(sum(w => w.kills) / sec).toFixed(1),
+    livesLost: sum(w => w.livesLost),
+    wavePerMin: +(60 * waves.length / sec).toFixed(2),
+  };
+}
+
+// **転生の評価。** 「何分で転生するのが正解」を先に決めず、
+// 「今回のランで得た成長 ÷ かかった時間」を実測する。
+//   stopAfter ステージ突破したら転生する、を2周やって比べる
+function prestigeTest(stopAfter, opts) {
+  opts = Object.assign({}, opts || {}, { stopAfter });
+  Game.newSave();
+  const a = campaignRun(s => LOADOUTS[s.id], Object.assign({}, opts, { label: '1周目' }));
+  if (!Game.canPrestige()) return { stopAfter, error: '転生条件を満たさなかった', a };
+  const got = Game.prestige();
+  const b = campaignRun(s => LOADOUTS[s.id],
+    Object.assign({}, opts, { reset: false, label: '2周目（転生後）' }));
+  return {
+    stopAfter,
+    packs: got.reward, prestiges: got.prestiges,
+    aMin: a.totalMin, bMin: b.totalMin,
+    speedup: a.totalSec > 0 ? +(a.totalSec / Math.max(1, b.totalSec)).toFixed(2) : null,
+    aCleared: a.cleared, bCleared: b.cleared,
+    a, b,
+  };
 }
 
 // 1周分。**突破するまで回す。**

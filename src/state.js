@@ -352,6 +352,7 @@ const Game = {
       cards: {},
       coinMul: 1, resonance: 0, chillVuln: BAL.chillVulnBase, backdraft: 0,
       kills: 0, coinsEarned: 0, dealt: 0, leaked: 0,
+      livesLost: 0, leakBy: {},   // 死因のため：失ったライフと、抜けられた敵の内訳
       shake: 0,
       over: false, cleared: false,
       pendingPicks: 0,

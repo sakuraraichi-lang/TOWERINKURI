@@ -63,7 +63,7 @@ const Combat = {
   },
 
   spawnInterval(run) {
-    const v = BAL.spawnIntervalBase * Math.pow(0.97, this.gw(run));
+    const v = BAL.spawnIntervalBase * Math.pow(BAL.spawnIntervalDecay, this.gw(run));
     return Math.max(BAL.spawnIntervalMin, v);
   },
 
@@ -91,7 +91,8 @@ const Combat = {
       dmg: BAL.enemyDpsBase * Math.pow(BAL.enemyDpsGrowth, g - 1) * (boss ? BAL.bossDpsMul : 1),
       coin: BAL.enemyCoinBase * Math.pow(BAL.enemyCoinGrowth, g - 1) * t.coin * (boss ? BAL.bossCoinMul : 1),
       color: boss ? '#ff2d55' : t.color,
-      boss: !!boss,
+      boss: !!boss, tname: t.name,     // 死因の内訳に使う
+
       shock: 0, slow: 0, slowT: 0, stun: 0, chill: 0,
       burn: 0, burnT: 0, fvuln: 0, fvulnT: 0,
       grabT: 0, grabV: 0, dist: 1e9, counted: false,
@@ -484,8 +485,13 @@ const Combat = {
 
       // コアに触れた敵は、ライフを1つ持っていって消える（＝漏れ）
       if (Util.dist(e.x, e.y, tw.x, tw.y) <= tw.r + e.r) {
-        run.lives -= e.boss ? BAL.bossLeakLives : BAL.leakLives;
+        const cost = e.boss ? BAL.bossLeakLives : BAL.leakLives;
+        run.lives -= cost;
         run.leaked++;
+        run.livesLost += cost;
+        // 何に抜けられたか。死因を「どの敵に負けたか」まで残す
+        const tn = e.boss ? 'boss' : (e.tname || 'grunt');
+        run.leakBy[tn] = (run.leakBy[tn] || 0) + 1;
         // 経路全体を塗るが、コアに近い区間ほど濃くする。
         // 「どこで止め損ねたか」が知りたいので、手前ほど強調しても意味が薄い
         const route = st.routes[e.si];
