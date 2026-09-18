@@ -27,19 +27,19 @@ const BAL = {
   // --- ライフ ---
   // コアのHPではなく「ライフ」。抜けられた敵1体につき1減る。
   // HPだと後半に数字を積んで漏らし放題になってしまうので、体数で数える
-  livesBase: 30,
+  livesBase: 24,
   leakLives: 1,         // 1体抜けられるごとに減るライフ
   bossLeakLives: 5,     // ボスに抜けられたとき
 
   // --- 敵 ---
   // 強さは「通算ウェーブ番号」で決まる。ステージ1のW1が1、ステージ2のW1が6
-  enemyHpBase: 14,
-  enemyHpGrowth: 1.28,
+  enemyHpBase: 19,
+  enemyHpGrowth: 1.30,
   enemySpdBase: 112,    // px/s（1タイル44px）。押し寄せる速さ
   enemySpdGrowth: 1.012,
   enemySpdCap: 260,
   enemyDpsBase: 7,
-  enemyDpsGrowth: 1.22,
+  enemyDpsGrowth: 1.26,
   enemyCoinBase: 2.4,
   enemyCoinGrowth: 1.26,
   enemySlowFloor: 0.25, // どれだけ重ねても、この倍率より遅くはならない
