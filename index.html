@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,maximum-scale=1,user-scalable=no">
+<meta name="theme-color" content="#070a10">
+<meta name="description" content="インクリメンタル × ローグライト × タワーディフェンス × カード構築">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>INKURIMENT</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="app">
+
+  <!-- ============ 戦場 ============ -->
+  <div id="stage">
+    <canvas id="cv"></canvas>
+
+    <div id="hud">
+      <div class="hrow top">
+        <div class="hbox">
+          <div class="hbig" id="hudWave">—</div>
+          <div class="hsub" id="hudPhase">待機中</div>
+        </div>
+        <div class="hbox coin">
+          <div class="hbig"><span class="ci">◈</span> <span id="hudCoin">0</span></div>
+          <div class="hsub" id="hudDps"></div>
+        </div>
+      </div>
+
+      <div class="hrow bars">
+        <div class="bar hp"><i id="hudHpBar"></i><span id="hudHp"></span></div>
+        <div class="bar xp"><i id="hudXpBar"></i><span id="hudLv">-</span></div>
+      </div>
+
+      <div class="hrow ctrl">
+        <button id="btnStart" class="ctl">出撃</button>
+        <button id="btnPause" class="ctl sq">❙❙</button>
+        <button id="btnSpeed" class="ctl sq">×1</button>
+      </div>
+
+      <div id="toast"></div>
+    </div>
+  </div>
+
+  <!-- ============ 下部パネル ============ -->
+  <div id="tabs">
+    <button data-tab="skill" class="on">スキル</button>
+    <button data-tab="load">編成</button>
+    <button data-tab="coll">コレクション</button>
+    <button data-tab="pack">パック<span id="badgePack" class="badge">0</span></button>
+    <button data-tab="pres">転生</button>
+  </div>
+  <div id="panel"></div>
+
+</div>
+
+<div id="modal"></div>
+
+<script src="src/util.js"></script>
+<script src="src/balance.js"></script>
+<script src="src/weapons.js"></script>
+<script src="src/cards.js"></script>
+<script src="src/skilltree.js"></script>
+<script src="src/packs.js"></script>
+<script src="src/state.js"></script>
+<script src="src/combat.js"></script>
+<script src="src/render.js"></script>
+<script src="src/ui.js"></script>
+<script src="src/main.js"></script>
+</body>
+</html>
