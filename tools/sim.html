@@ -33,6 +33,8 @@
 
 <button id="run">実測する</button>
 <label class="note">周回数 <input id="trials" type="number" value="2" min="1" max="6" style="width:52px"></label>
+<button id="runCurve">成長曲線を見る</button>
+<button id="runBuilds">ビルド差を見る</button>
 <button id="runCards">カード3択の候補数を測る</button>
 <span id="status" class="note"></span>
 
@@ -158,12 +160,33 @@ function runStage(stageId, loadout, buys) {
   const run = Game.run;
   let t = 0, res = null;
   const offers = [];
+  // ウェーブ単位の観測。プレイヤー側と敵側の成長曲線を比べるための素の数字
+  const waves = [];
+  let wT = 0, wDealt = 0, wKills = 0, wCoins = Game.meta.coins, wLeak = 0;
+  const snapWave = (cleared) => {
+    const g = globalWave(run.stageIdx, run.wave);
+    const stageMul = Math.pow(BAL.stageHpMul, run.stageIdx);
+    const hp1 = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * stageMul;
+    const n = Combat.waveCount(run);
+    const sec = (t - wT) / 60;
+    const dealt = run.dealt - wDealt;
+    waves.push({
+      stage: STAGE_BY_ID[run.stageId].name, wave: run.wave, g,
+      enemyHp: hp1, count: n, totalHp: hp1 * n,
+      dps: sec > 0 ? dealt / sec : 0,
+      sec, kills: run.kills - wKills, leaked: run.leaked - wLeak,
+      coinRate: sec > 0 ? (Game.meta.coins - wCoins) / sec : 0,
+      cleared,
+    });
+    wT = t; wDealt = run.dealt; wKills = run.kills; wCoins = Game.meta.coins; wLeak = run.leaked;
+  };
   while (t < 60 * 60 * 12) {
     const sig = Combat.update(run, 1 / 60);
     t++;
-    if (sig === 'dead') { res = 'dead'; break; }
-    if (sig === 'stageclear') { res = 'clear'; break; }
+    if (sig === 'dead') { res = 'dead'; snapWave(false); break; }
+    if (sig === 'stageclear') { res = 'clear'; snapWave(true); break; }
     if (sig === 'waveclear') {
+      snapWave(true);
       run.lives = Math.min(run.livesMax, run.lives + run.mods.regen);
       run.pendingPicks += run.mods.picks;
       Game.startNextWave();          // 本体はボタン待ちだが、計測では即続行する
@@ -183,7 +206,7 @@ function runStage(stageId, loadout, buys) {
     stage: stageId, res, wave: run.wave, sec: Math.round(t / 60),
     kills: run.kills, leaked: run.leaked,
     livesLeft: Math.max(0, Math.ceil(run.lives)) + '/' + run.livesMax,
-    offers,
+    offers, waves,
   };
   Game.endRun(res === 'clear');
   return out;
@@ -279,6 +302,103 @@ document.getElementById('run').addEventListener('click', () => {
       '「突破時点の戦力」は、そのステージを抜けた直後のアップグレードの効き具合（周回ぶんの平均）。' +
       '奥へ行くほど大きくなるなら、蓄積が難度を上回っているということ。' +
       '　／　計測にかかった時間 ' + ms + 'ms</p>';
+    document.getElementById('out').innerHTML = html;
+    st.textContent = '完了';
+  }, 30);
+});
+
+// ---------------------------------------------------------------
+// 成長曲線（方針17：抽象論ではなく数値を観測する）
+//   プレイヤー側と敵側が、ウェーブごとにどう伸びているかを並べる。
+//   絶対値ではなく「敵の総HP ÷ プレイヤーDPS = 倒しきるのに要る秒数」で見る
+// ---------------------------------------------------------------
+function curveRun(builds) {
+  Game.newSave();
+  const all = [];
+  for (const st of STAGES) {
+    const lo = builds[st.id] || LOADOUTS[st.id];
+    let r = null;
+    for (let i = 1; i <= HARD_CAP; i++) {
+      r = runStage(st.id, lo, 90);
+      if (r.res === 'clear') break;
+    }
+    all.push(...r.waves);
+    if (r.res !== 'clear') break;
+  }
+  return all;
+}
+
+document.getElementById('runCurve').addEventListener('click', () => {
+  const st = document.getElementById('status');
+  st.textContent = '計測中…';
+  setTimeout(() => {
+    const rows = curveRun({});
+    let html = '<table><tr><th>ステージ</th><th>W</th><th>通算</th>' +
+      '<th>敵1体HP</th><th>敵数</th><th>敵の総HP</th>' +
+      '<th>実測DPS</th><th>総HP/DPS<br>（要る秒数）</th><th>実際の秒数</th>' +
+      '<th>漏れ</th><th>コイン/秒</th></tr>';
+    for (const w of rows) {
+      const need = w.dps > 0 ? (w.totalHp / w.dps) : Infinity;
+      const tight = need > w.sec * 0.9;
+      html += '<tr' + (w.cleared ? '' : ' class="ng"') + '><td>' + w.stage + '</td><td class="n">' + w.wave + '</td>' +
+        '<td class="n">' + w.g + '</td>' +
+        '<td class="n">' + Util.fmt(w.enemyHp) + '</td><td class="n">' + w.count + '</td>' +
+        '<td class="n">' + Util.fmt(w.totalHp) + '</td>' +
+        '<td class="n">' + Util.fmt(w.dps) + '</td>' +
+        '<td class="n' + (tight ? ' ng' : ' ok') + '">' + (isFinite(need) ? need.toFixed(1) : '-') + 's</td>' +
+        '<td class="n">' + w.sec.toFixed(1) + 's</td>' +
+        '<td class="n">' + w.leaked + '</td>' +
+        '<td class="n">' + Util.fmt(w.coinRate) + '</td></tr>';
+    }
+    html += '</table>';
+    html += '<p class="note">「総HP/DPS」が「実際の秒数」を上回っていると、そのウェーブは倒し切れずに漏れている。' +
+      '赤い行はそのランで撃沈したウェーブ。<br>' +
+      '<b>絶対値ではなく比で読む。</b>敵HPもDPSも桁が増えていくのは正常で、' +
+      '見るべきは「要る秒数」が時間とともにどう動いているか。</p>';
+    document.getElementById('out').innerHTML = html;
+    st.textContent = '完了';
+  }, 30);
+});
+
+// ---------------------------------------------------------------
+// ビルド差（方針11：標準／強力／非効率 の複数ケースで測る）
+// ---------------------------------------------------------------
+const BUILD_SETS = {
+  '標準（射程を散らす）': ['gatling', 'sniper', 'missile', 'tesla'],
+  '強力（シナジー狙い）': ['gatling', 'tesla', 'missile', 'sniper'],
+  '範囲・支援寄り': ['flame', 'gas', 'cryo', 'mortar'],
+  '非効率（短射程だけ）': ['katana', 'tesla', 'katana', 'tesla'],
+};
+
+document.getElementById('runBuilds').addEventListener('click', () => {
+  const st = document.getElementById('status');
+  st.textContent = '計測中…';
+  setTimeout(() => {
+    let html = '<table><tr><th>ビルド</th><th>到達</th><th>各ステージの突破回数</th>' +
+      '<th>最終到達時の戦力<br>（総段数 / 中射程 / 長射程）</th></tr>';
+    for (const name in BUILD_SETS) {
+      const set = BUILD_SETS[name];
+      Game.newSave();
+      const tries = [];
+      let reached = 0;
+      for (const stg of STAGES) {
+        let ok = false;
+        for (let i = 1; i <= HARD_CAP; i++) {
+          const r = runStage(stg.id, set, 90);
+          if (r.res === 'clear') { tries.push(i + '回'); ok = true; reached++; break; }
+        }
+        if (!ok) { tries.push('未突破'); break; }
+      }
+      const m = Skill.mods(Game.meta, Game.perm);
+      const lv = SKILLS.reduce((a, x) => a + Skill.lv(Game.meta, x.id), 0);
+      html += '<tr><td>' + name + '</td>' +
+        '<td class="' + (reached === STAGES.length ? 'ok' : 'ng') + '">' + reached + ' / ' + STAGES.length + '</td>' +
+        '<td>' + tries.join(' , ') + '</td>' +
+        '<td>' + lv + ' / ×' + m.cat.mid.dmg.toFixed(1) + ' / ×' + m.cat.long.dmg.toFixed(1) + '</td></tr>';
+    }
+    html += '</table><p class="note">同じ編成を全ステージで通したときの到達段階。' +
+      '強いビルドと弱いビルドで、どこで止まるかが変わるかを見る。<br>' +
+      '<b>差が出ないなら、ビルドを考える意味が無いということ。</b></p>';
     document.getElementById('out').innerHTML = html;
     st.textContent = '完了';
   }, 30);
