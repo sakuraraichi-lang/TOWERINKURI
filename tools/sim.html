@@ -104,7 +104,71 @@ const LOADOUTS = {
 // 計測用の自動配置。
 // 本体は手で置く前提なので、ここでは「通路に面した地面へ、経路に沿って散らして置く」
 // という素朴な置き方をする。人が考えて置けばこれより強くなる
-function autoPlace(run) {
+// 置き場の評価は「その地点から、扇の中にどれだけ通路が入るか」で決める。
+//
+// **以前は通路に隣接するタイルしか候補にしていなかった。**
+// どの武器も通路に張り付くので、射程430のスナイパーと射程100の刀が
+// 同じ場所から撃つことになり、射程の差が測定上まるごと消えていた。
+// 「非効率ビルドのほうが強い」という観測はこれを疑う必要がある
+const AIM_CACHE = {};
+
+// ある射程・射界における、各地面タイルの最良の向きと点数。
+// 地形は固定なので、ステージと射程・射界ごとに1回だけ計算して使い回す
+function aimField(st, range, arc) {
+  const key = st.id + '|' + Math.round(range / 10) + '|' + Math.round(arc / 0.02);
+  if (AIM_CACHE[key]) return AIM_CACHE[key];
+
+  // 通路タイル。コアに近いほど「抜かれたら困る場所」なので重みを増やす
+  const path = [];
+  let maxD = 1;
+  for (let r = 0; r < st.rows; r++) {
+    for (let c = 0; c < st.cols; c++) {
+      if (!st.walkable(c, r)) continue;
+      const d = st.dist[st.idx(c, r)];
+      if (d >= 1e9) continue;
+      if (d > maxD) maxD = d;
+      path.push({ p: st.center(c, r), d });
+    }
+  }
+
+  const N = 48;                       // 向きの候補（7.5度刻み）
+  const out = [];
+  for (let r = 0; r < st.rows; r++) {
+    for (let c = 0; c < st.cols; c++) {
+      if (!st.buildable(c, r)) continue;
+      const g = st.center(c, r);
+      const seen = [];
+      for (const t of path) {
+        const dx = t.p.x - g.x, dy = t.p.y - g.y;
+        const d = Math.hypot(dx, dy);
+        if (d > range || d < 1) continue;
+        seen.push({ a: Math.atan2(dy, dx), w: 1 + (1 - t.d / maxD) });
+      }
+      if (!seen.length) continue;
+      let bw = 0, ba = 0;
+      for (let k = 0; k < N; k++) {
+        const a0 = -Math.PI + (k * 2 * Math.PI) / N;
+        let w = 0;
+        for (const s of seen) {
+          let da = s.a - a0;
+          while (da > Math.PI) da -= Math.PI * 2;
+          while (da < -Math.PI) da += Math.PI * 2;
+          if (Math.abs(da) <= arc) w += s.w;
+        }
+        if (w > bw) { bw = w; ba = a0; }
+      }
+      if (bw > 0) out.push({ c, r, a: ba, w: bw });
+    }
+  }
+  out.sort((x, y) => y.w - x.w);
+  AIM_CACHE[key] = out;
+  return out;
+}
+
+// 【比較用】以前の配置。通路に隣接するタイルにしか置かない。
+// これを残してあるのは、「ビルド差が逆転している」という観測が
+// ゲーム側の話なのか、この配置のせいなのかを同じ条件で見比べるため
+function autoPlaceHug(run) {
   const st = run.stage;
   const cand = [];
   for (let r = 0; r < st.rows; r++) {
@@ -120,13 +184,9 @@ function autoPlace(run) {
   }
   cand.sort((a, b) => a.near - b.near);
   if (!cand.length) return;
-
   const types = Game.loadoutWeapons();
   const want = [];
-  for (const wid of types) {
-    for (let i = 0; i < Game.unitCap(wid); i++) want.push(wid);
-  }
-  // 経路の手前から奥まで等間隔に割り当てる
+  for (const wid of types) for (let i = 0; i < Game.unitCap(wid); i++) want.push(wid);
   const taken = {};
   want.forEach((wid, i) => {
     const idx = Math.min(cand.length - 1, Math.floor(cand.length * (i + 0.5) / want.length));
@@ -134,10 +194,65 @@ function autoPlace(run) {
       const t = cand[(idx + k) % cand.length];
       const key = t.c + ',' + t.r;
       if (taken[key]) continue;
-      if (Game.placeUnit(wid, t.c, t.r)) { taken[key] = 1; }
+      if (Game.placeUnit(wid, t.c, t.r)) taken[key] = 1;
       break;
     }
   });
+}
+
+// 'range' … 射線が通る場所に置く（既定） / 'hug' … 旧・通路張り付き
+let PLACE_MODE = 'range';
+
+function autoPlace(run) {
+  if (PLACE_MODE === 'hug') return autoPlaceHug(run);
+  return autoPlaceRange(run);
+}
+
+function autoPlaceRange(run) {
+  const st = run.stage;
+  const mods = Skill.mods(Game.meta, Game.perm);
+
+  // この時点で乗っているのはスキルだけ（カードは戦闘中に引く）
+  const statOf = (wid) => {
+    const def = WEAPONS[wid];
+    const fake = { def, s: Object.assign({}, def.base) };
+    Skill.applyTo(fake, mods);
+    return { range: fake.s.range, arc: fake.s.arc };
+  };
+
+  const want = [];
+  for (const wid of Game.loadoutWeapons()) {
+    for (let i = 0; i < Game.unitCap(wid); i++) want.push(wid);
+  }
+  // 射程の長いものから場所を取る。後回しにすると良い遠射点が埋まってしまう
+  want.sort((a, b) => statOf(b).range - statOf(a).range);
+
+  const taken = {};
+  const far = (c, r, min2) => {
+    for (const k in taken) {
+      const i = k.indexOf(',');
+      const dc = (+k.slice(0, i)) - c, dr = (+k.slice(i + 1)) - r;
+      if (dc * dc + dr * dr < min2) return false;
+    }
+    return true;
+  };
+
+  for (const wid of want) {
+    const s0 = statOf(wid);
+    const field = aimField(st, s0.range, s0.arc);
+    // まず「味方と離れた良い点」、無ければ空いている最良点
+    let pick = null;
+    for (const f of field) {
+      if (taken[f.c + ',' + f.r]) continue;
+      if (far(f.c, f.r, 5)) { pick = f; break; }
+      if (!pick) pick = f;
+    }
+    if (!pick) continue;
+    const u = Game.placeUnit(wid, pick.c, pick.r);
+    if (!u) continue;
+    taken[pick.c + ',' + pick.r] = 1;
+    Game.aimUnit(u, pick.a);
+  }
 }
 
 // 1回の出撃をまるごと回す
@@ -168,11 +283,17 @@ function runStage(stageId, loadout, buys) {
     const stageMul = Math.pow(BAL.stageHpMul, run.stageIdx);
     const hp1 = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * stageMul;
     const n = Combat.waveCount(run);
+    // 上限に当たっていなければ何体だったか。当たると敵の増加がHPだけになる
+    const nRaw = Math.floor((BAL.waveCountBase + g * BAL.waveCountPerWave) * run.mods.spawn);
+    // 湧き切るまでに必ずかかる時間。ウェーブの長さのうち、これは戦闘ではなく待ち時間
+    const spawnSec = n * Math.max(BAL.spawnIntervalMin,
+                                  BAL.spawnIntervalBase * Math.pow(0.97, g));
     const sec = (t - wT) / 60;
     const dealt = run.dealt - wDealt;
     waves.push({
       stage: STAGE_BY_ID[run.stageId].name, wave: run.wave, g,
-      enemyHp: hp1, count: n, totalHp: hp1 * n,
+      enemyHp: hp1, count: n, countRaw: nRaw, capped: nRaw > n,
+      totalHp: hp1 * n, spawnSec,
       dps: sec > 0 ? dealt / sec : 0,
       sec, kills: run.kills - wKills, leaked: run.leaked - wLeak,
       coinRate: sec > 0 ? (Game.meta.coins - wCoins) / sec : 0,
@@ -180,7 +301,11 @@ function runStage(stageId, loadout, buys) {
     });
     wT = t; wDealt = run.dealt; wKills = run.kills; wCoins = Game.meta.coins; wLeak = run.leaked;
   };
-  while (t < 60 * 60 * 12) {
+  // **打ち切りは「負け」ではない。** ウェーブが長くなると1ステージが
+  // この時間を超え、倒せているのに res が付かないまま抜けてしまう。
+  // それを失敗と数えると、同じステージを何度もやり直して測定が止まる
+  const TIME_CAP = 60 * 60 * 20;
+  while (t < TIME_CAP) {
     const sig = Combat.update(run, 1 / 60);
     t++;
     if (sig === 'dead') { res = 'dead'; snapWave(false); break; }
@@ -202,6 +327,7 @@ function runStage(stageId, loadout, buys) {
       if (CARDS[id].apply) CARDS[id].apply(run);
     }
   }
+  if (!res) res = 'timeout';
   const out = {
     stage: stageId, res, wave: run.wave, sec: Math.round(t / 60),
     kills: run.kills, leaked: run.leaked,
@@ -229,6 +355,7 @@ function campaign() {
       const r = runStage(st.id, lo, 90);
       log.push(r);
       if (r.res === 'clear') { cleared = i; break; }
+      if (r.res === 'timeout') break;   // 難易度ではなく長さの問題。繰り返しても同じ
     }
     // **突破できたときだけ**戦力を記録する。
     // 打ち切りで終わった回の値を混ぜると「突破時点の戦力」ではなくなる
@@ -334,27 +461,35 @@ document.getElementById('runCurve').addEventListener('click', () => {
   setTimeout(() => {
     const rows = curveRun({});
     let html = '<table><tr><th>ステージ</th><th>W</th><th>通算</th>' +
-      '<th>敵1体HP</th><th>敵数</th><th>敵の総HP</th>' +
-      '<th>実測DPS</th><th>総HP/DPS<br>（要る秒数）</th><th>実際の秒数</th>' +
+      '<th>敵1体HP</th><th>敵数<br>（上限前）</th><th>敵の総HP</th>' +
+      '<th>実測DPS</th><th>総HP/DPS<br>（削る秒数）</th>' +
+      '<th>湧き切る秒数</th><th>実際の秒数</th>' +
       '<th>漏れ</th><th>コイン/秒</th></tr>';
     for (const w of rows) {
       const need = w.dps > 0 ? (w.totalHp / w.dps) : Infinity;
       const tight = need > w.sec * 0.9;
       html += '<tr' + (w.cleared ? '' : ' class="ng"') + '><td>' + w.stage + '</td><td class="n">' + w.wave + '</td>' +
         '<td class="n">' + w.g + '</td>' +
-        '<td class="n">' + Util.fmt(w.enemyHp) + '</td><td class="n">' + w.count + '</td>' +
+        '<td class="n">' + Util.fmt(w.enemyHp) + '</td>' +
+        '<td class="n' + (w.capped ? ' ng' : '') + '">' + w.count +
+          (w.capped ? '<br><small>(' + w.countRaw + ')</small>' : '') + '</td>' +
         '<td class="n">' + Util.fmt(w.totalHp) + '</td>' +
         '<td class="n">' + Util.fmt(w.dps) + '</td>' +
         '<td class="n' + (tight ? ' ng' : ' ok') + '">' + (isFinite(need) ? need.toFixed(1) : '-') + 's</td>' +
+        '<td class="n' + (w.spawnSec > need ? ' ng' : '') + '">' + w.spawnSec.toFixed(1) + 's</td>' +
         '<td class="n">' + w.sec.toFixed(1) + 's</td>' +
         '<td class="n">' + w.leaked + '</td>' +
         '<td class="n">' + Util.fmt(w.coinRate) + '</td></tr>';
     }
     html += '</table>';
-    html += '<p class="note">「総HP/DPS」が「実際の秒数」を上回っていると、そのウェーブは倒し切れずに漏れている。' +
+    html += '<p class="note">「削る秒数」が「実際の秒数」を上回っていると、そのウェーブは倒し切れずに漏れている。' +
       '赤い行はそのランで撃沈したウェーブ。<br>' +
       '<b>絶対値ではなく比で読む。</b>敵HPもDPSも桁が増えていくのは正常で、' +
-      '見るべきは「要る秒数」が時間とともにどう動いているか。</p>';
+      '見るべきは「削る秒数」が時間とともにどう動いているか。<br>' +
+      '<b>敵数が赤いのは上限600に張り付いている印</b>（括弧内が上限が無ければ出たはずの数）。' +
+      'ここから先、敵の増加はHPだけになる。<br>' +
+      '<b>「湧き切る秒数」が赤いのは、削るより湧かせるほうが遅いということ。</b>' +
+      'その帯は敵が湧いた端から溶けるので、長さだけが増えて難しくはならない。</p>';
     document.getElementById('out').innerHTML = html;
     st.textContent = '完了';
   }, 30);
@@ -363,11 +498,20 @@ document.getElementById('runCurve').addEventListener('click', () => {
 // ---------------------------------------------------------------
 // ビルド差（方針11：標準／強力／非効率 の複数ケースで測る）
 // ---------------------------------------------------------------
+// **同じ4種を並べ替えただけのものを別ビルドとして数えない。**
+// 以前の「強力」は「標準」と武器が完全に同じで、順番が違うだけだった。
+// 配置は射程順に決まるので、2行は同じものを2回測っていた。
+// 「非効率」も katana/tesla の2種しか無く、「射程が短い」と
+// 「武器の種類が少ない」が混ざっていた
 const BUILD_SETS = {
+  // 短・中・長を散らした素直な編成
   '標準（射程を散らす）': ['gatling', 'sniper', 'missile', 'tesla'],
-  '強力（シナジー狙い）': ['gatling', 'tesla', 'missile', 'sniper'],
+  // 触手＋ミサイル(伝説) / 触手＋迫撃砲(叙事詩) / ミサイル＋テスラ(叙事詩) が同時に狙える
+  '強力（シナジー狙い）': ['tentacle', 'missile', 'mortar', 'tesla'],
+  // 火炎＋毒ガス(爆燃)。面で焼く編成
   '範囲・支援寄り': ['flame', 'gas', 'cryo', 'mortar'],
-  '非効率（短射程だけ）': ['katana', 'tesla', 'katana', 'tesla'],
+  // 4種すべて射程165以下。種類は4つあるので「射程の短さ」だけを見られる
+  '非効率（短射程だけ）': ['katana', 'flame', 'tentacle', 'cryo'],
 };
 
 document.getElementById('runBuilds').addEventListener('click', () => {
@@ -383,11 +527,13 @@ document.getElementById('runBuilds').addEventListener('click', () => {
       let reached = 0;
       for (const stg of STAGES) {
         let ok = false;
+        let why = '未突破';
         for (let i = 1; i <= HARD_CAP; i++) {
           const r = runStage(stg.id, set, 90);
           if (r.res === 'clear') { tries.push(i + '回'); ok = true; reached++; break; }
+          if (r.res === 'timeout') { why = '打ち切り(20分超)'; break; }
         }
-        if (!ok) { tries.push('未突破'); break; }
+        if (!ok) { tries.push(why); break; }
       }
       const m = Skill.mods(Game.meta, Game.perm);
       const lv = SKILLS.reduce((a, x) => a + Skill.lv(Game.meta, x.id), 0);
