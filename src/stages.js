@@ -11,7 +11,7 @@ const TILE = 44;
 
 const STAGES = [
   {
-    id: 'st1', name: '訓練場', clearWave: 10,
+    id: 'st1', name: '訓練場',
     desc: '一本道の蛇行路。壁が通路に挟まれているので、どこに置いても複数の列を撃てる。',
     reward: { cards: ['wc_missile'], packs: { basic: 1 } },
     map: [
@@ -37,7 +37,7 @@ const STAGES = [
     ],
   },
   {
-    id: 'st2', name: '十字路', clearWave: 20,
+    id: 'st2', name: '十字路',
     desc: '出現口が2つ。左右から来て中段で合流するが、合流してからコアまでが短い。手前で削り切りたい。',
     reward: { cards: ['wc_tesla'], packs: { basic: 1 } },
     map: [
@@ -63,9 +63,9 @@ const STAGES = [
     ],
   },
   {
-    id: 'st3', name: '螺旋', clearWave: 30,
+    id: 'st3', name: '螺旋',
     desc: '外周から中心へ巻き込む長い一本道。内側ほど敵が密集するので、中心の壁が主戦場になる。',
-    reward: { cards: ['wc_flame'], packs: { basic: 1, rare: 1 } },
+    reward: { cards: ['wc_flame', 'wc_mortar'], packs: { basic: 1, rare: 1 } },
     map: [
       '#############',
       '#S..........#',
@@ -89,7 +89,7 @@ const STAGES = [
     ],
   },
   {
-    id: 'st4', name: '広間', clearWave: 34,
+    id: 'st4', name: '広間',
     desc: '中央の部屋は下からしか入れない。上の広間から外周を大きく回らされるので、長い側面が主戦場になる。',
     reward: { cards: ['wc_gas'], packs: { rare: 1 } },
     map: [
@@ -115,7 +115,7 @@ const STAGES = [
     ],
   },
   {
-    id: 'st5', name: '三叉', clearWave: 44,
+    id: 'st5', name: '三叉',
     desc: '出現口3つ。合流点の手前に置けば全部を撃てるが、そこは壁が細い。',
     reward: { cards: ['wc_cryo'], packs: { rare: 1, epic: 1 } },
     map: [
@@ -143,7 +143,10 @@ const STAGES = [
 ];
 
 const STAGE_BY_ID = {};
-for (const s of STAGES) STAGE_BY_ID[s.id] = s;
+STAGES.forEach((s, i) => { s.idx = i; STAGE_BY_ID[s.id] = s; });
+
+// 通算ウェーブ番号。ステージ1のW1が1、ステージ2のW1が6。敵の強さはこれで決まる
+function globalWave(stageIdx, wave) { return stageIdx * BAL.wavesPerStage + wave; }
 
 // ---------------------------------------------------------------
 // マップ文字列から、当たり判定とフローフィールドを作る
@@ -199,8 +202,20 @@ const Stage = {
       }
     }
 
+    // 各出現口からコアまでの経路タイル。「どのルートから漏れたか」を塗るのに使う
+    const routes = spawns.map(sp => {
+      const out = [];
+      let cur = sp, guard = 0;
+      while (cur && guard++ < cols * rows) {
+        out.push(idx(cur.c, cur.r));
+        if (cur.c === core.c && cur.r === core.r) break;
+        cur = next[idx(cur.c, cur.r)];
+      }
+      return out;
+    });
+
     const built = {
-      def, id: stageId, cols, rows, grid, spawns, core, dist, next, idx, walkable,
+      def, id: stageId, cols, rows, grid, spawns, core, dist, next, idx, walkable, routes,
       w: cols * TILE, h: rows * TILE,
       center: (c, r) => ({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2 }),
       isWall: (c, r) => (c >= 0 && r >= 0 && c < cols && r < rows && grid[r][c] === '#'),

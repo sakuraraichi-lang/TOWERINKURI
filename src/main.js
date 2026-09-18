@@ -1,11 +1,20 @@
 // ---------------------------------------------------------------
-// main.js : 起動・ゲームループ・配置入力（タッチ／マウス共通）
+// main.js : 起動・ゲームループ・配置入力
+//   準備フェーズ → 戦闘（5ウェーブ） → 結果 の順に回す
 // ---------------------------------------------------------------
 'use strict';
+
+const HEAT_MODES = [
+  { heat: true,  leak: true,  label: '熱+漏' },
+  { heat: true,  leak: false, label: '熱' },
+  { heat: false, leak: true,  label: '漏' },
+  { heat: false, leak: false, label: 'off' },
+];
 
 const Main = {
   last: 0,
   raf: 0,
+  heatMode: 0,
 
   init() {
     Game.load();
@@ -19,8 +28,8 @@ const Main = {
     UI.init();
 
     document.getElementById('btnStart').addEventListener('click', () => {
-      if (Game.run && !Game.run.over) this.selfDestruct();
-      else this.startRun();
+      if (Game.phase === 'battle') this.retreat();
+      else this.beginBattle();
     });
     document.getElementById('btnPause').addEventListener('click', (e) => {
       Game.paused = !Game.paused;
@@ -30,7 +39,12 @@ const Main = {
       Game.speed = Game.speed === 1 ? 2 : Game.speed === 2 ? 3 : 1;
       e.currentTarget.textContent = '×' + Game.speed;
     });
-
+    document.getElementById('btnHeat').addEventListener('click', (e) => {
+      this.heatMode = (this.heatMode + 1) % HEAT_MODES.length;
+      const m = HEAT_MODES[this.heatMode];
+      Game.showHeat = m.heat; Game.showLeak = m.leak;
+      e.currentTarget.textContent = m.label;
+    });
     document.getElementById('btnPanel').addEventListener('click', () => {
       document.getElementById('app').classList.toggle('collapsed');
       setTimeout(() => Render.resize(), 30);
@@ -47,6 +61,8 @@ const Main = {
     document.addEventListener('visibilitychange', () => { if (document.hidden) Game.save(); });
     setInterval(() => Game.save(), 8000);
 
+    this.toPrep();
+
     if (!Game.perm.seenIntro) {
       Game.perm.seenIntro = true;
       Game.save();
@@ -60,60 +76,74 @@ const Main = {
   intro() {
     const b = Util.el('div');
     b.appendChild(Util.el('h3', null, 'INKURIMENT'));
-    b.innerHTML += '<p class="note">敵は通路を通ってコアへ向かう。<b>武器は壁の上にだけ置ける。</b><br>' +
-      'マップはステージごとに違い、どこに置くかがそのまま攻略になる。<br><br>' +
-      '<b>◈コイン</b> → 下の「スキル」でひたすら数字を上げる（ラン中も買える）<br>' +
-      '<b>経験値</b> → レベルアップで <b>3択カード</b>。武器の挙動そのものが変わる<br><br>' +
-      'ステージを突破すると新しい武器カードが解放され、<br>' +
-      'カードパックからは刀・手裏剣・触手・泡といった変わり種が出る。<br>' +
-      'コアが壊れてもコインとスキルは残る。転生すると、それも捨ててパックに換わる。</p>';
+    b.innerHTML += '<p class="note">' +
+      '<b>1ステージ＝' + BAL.wavesPerStage + 'ウェーブ。</b>全部凌げば突破、コアが割れたら失敗。<br>' +
+      '失敗してもコインとアップグレードは残るので、整えてもう一度挑む。<br><br>' +
+      '<b>準備フェーズ</b>でアップグレードを買い、編成を決め、武器を<b>壁の上</b>に置く。<br>' +
+      '戦闘に入るとアップグレードは買えない。置き場所だけは動かせる。<br><br>' +
+      '<b>ウェーブを1つ凌ぐごとにカードを1枚選べる</b>（1ステージで4回）。<br>' +
+      'アップグレードの「増設スロット」で、1回に取れる枚数を増やせる。<br><br>' +
+      '盤面の<b>色の濃いところが敵の溜まり場</b>、<b>赤い枠が抜けられたルート</b>。<br>' +
+      'それを見て置き場所を決めるのがこのゲームの本体。</p>';
     const ok = Util.el('button', 'bigbtn', 'はじめる');
-    ok.addEventListener('click', () => { UI.closeModal(); this.startRun(); });
+    ok.addEventListener('click', () => UI.closeModal());
     b.appendChild(ok);
     UI.openModal(b, true);
   },
 
-  startRun(stageId) {
+  // ---------- 準備フェーズへ ----------
+  toPrep() {
+    Game.startPrep(Game.perm.currentStage);
+    Render.fit();
+    Game.paused = false;
+    UI.placing = null;
+    UI.renderTray();
+    UI.renderPanel();
+    const b = document.getElementById('btnStart');
+    b.textContent = '戦闘開始';
+    b.classList.remove('danger');
+    b.classList.add('go');
+  },
+
+  beginBattle() {
     if (Game.loadoutWeapons().length === 0) {
       UI.toastMsg('武器を1つ以上編成してください', '#ff8080');
       UI.tab = 'load'; UI.renderTabs(); UI.renderPanel();
       return;
     }
-    Game.startRun(stageId);
-    Render.fit();
-    Combat.startWave(Game.run);
-    Game.paused = false;
-    UI.placing = null;
+    Game.beginBattle();
     UI.renderTray();
-    const b = document.getElementById('btnStart');
-    b.textContent = '自壊'; b.classList.add('danger');
     UI.renderPanel();
+    const b = document.getElementById('btnStart');
+    b.textContent = '撤退';
+    b.classList.add('danger');
+    b.classList.remove('go');
+    UI.toastMsg('ウェーブ 1 / ' + BAL.wavesPerStage, '#4ea8ff');
   },
 
-  selfDestruct() { if (Game.run && !Game.run.over) this.finish(); },
+  retreat() { this.finish(false); },
 
-  finish() {
-    const res = Game.endRun();
+  finish(ok) {
+    const res = Game.endRun(ok);
     const b = document.getElementById('btnStart');
-    b.textContent = '出撃'; b.classList.remove('danger');
+    b.textContent = '戦闘開始';
+    b.classList.remove('danger');
+    b.classList.add('go');
     UI.placing = null;
     UI.renderTray();
-    if (res) UI.showResult(res);
     UI.renderPanel();
+    if (res) UI.showResult(res);
   },
 
   // ---------- 配置（壁の上だけ） ----------
   bindPlacement(cv) {
-    let dragging = null;
-    let moved = false;
-    let downAt = null;
+    let dragging = null, moved = false, downAt = null;
 
     const weaponAt = (c, r) => {
       const run = Game.run;
       if (!run) return null;
       return run.weapons.find(w => w.c === c && w.r === r) || null;
     };
-
     const tryPlace = (w, c, r) => {
       if (!Game.run.stage.isWall(c, r)) { UI.toastMsg('壁の上にしか置けません', '#ff8080'); return false; }
       if (!Game.moveWeapon(w, c, r)) { UI.toastMsg('そこには別の武器があります', '#ff8080'); return false; }
@@ -153,11 +183,7 @@ const Main = {
     });
 
     const end = () => {
-      if (dragging && moved) {
-        Game.save();
-        UI.placing = null;
-        UI.renderTray();
-      }
+      if (dragging && moved) { Game.save(); UI.placing = null; UI.renderTray(); }
       dragging = null; downAt = null;
     };
     cv.addEventListener('pointerup', end);
@@ -173,25 +199,20 @@ const Main = {
     if (dt > 0.1) dt = 0.1;
     const run = Game.run;
 
-    if (run && !run.over && !Game.paused && !UI.draftOpen) {
+    if (run && Game.phase === 'battle' && !run.over && !Game.paused && !UI.draftOpen) {
       for (let i = 0; i < Game.speed; i++) {
-        const r = Combat.update(run, dt);
-        if (r === 'dead') { this.finish(); break; }
-      }
-      if (!run.over) {
-        // ウェーブを1つ終えるたびに、ステージ突破の条件を見る
-        if (run.justClearedWave) {
-          const w = run.justClearedWave;
-          run.justClearedWave = null;
-          const def = STAGE_BY_ID[run.stageId];
-          if (!run.cleared && w >= def.clearWave) {
-            run.cleared = true;
-            const got = Game.clearStage(run.stageId);
-            if (got) { Game.paused = true; UI.renderPanel(); UI.showStageClear(got); }
-          }
+        const sig = Combat.update(run, dt);
+        if (sig === 'dead') { this.finish(false); break; }
+        if (sig === 'stageclear') { this.finish(true); break; }
+        if (sig === 'waveclear') {
+          // ウェーブを1つ凌ぐごとにカードを引ける
+          run.tower.hp = Math.min(run.tower.maxHp, run.tower.hp + run.tower.maxHp * run.mods.regen);
+          run.pendingPicks += run.mods.picks;
+          UI.toastMsg('ウェーブ ' + run.wave + ' 突破', '#7ee3a0');
+          break;
         }
-        if (run.pendingDrafts > 0 && !UI.draftOpen) UI.showDraft();
       }
+      if (!run.over && run.pendingPicks > 0 && !UI.draftOpen) UI.showDraft();
     }
 
     Render.draw(run);

@@ -230,3 +230,14 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       border-left:1px solid var(--line);}
 #app.collapsed .pcol{transform:rotate(180deg);}
 #app.collapsed #panel{flex-basis:0;min-height:0;padding:0;overflow:hidden;border:none;}
+
+
+/* ============ 5ウェーブ制で足したもの ============ */
+.bar.wv i{background:linear-gradient(90deg,#8a5fd6,#c79bff);}
+.ctl.go{border-color:#4a8fd8;background:linear-gradient(180deg,#2a6fc4,#1c4d8c);}
+.warn{background:rgba(255,120,90,.10);border:1px solid rgba(255,120,90,.38);
+      border-radius:9px;padding:9px 10px;font-size:11px;line-height:1.6;margin:8px 0;color:#ffc7b8;}
+.sgroup i{font-style:normal;color:var(--dim);margin-left:8px;font-size:10px;letter-spacing:0;}
+#tray .chip{display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.1;}
+#tray .chip i{font-style:normal;font-size:9px;}
+.wpick b i{font-style:normal;font-size:10px;font-weight:700;margin-left:4px;}

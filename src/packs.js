@@ -10,11 +10,11 @@ const PACKS = {
     weights: { common: 76, rare: 20, epic: 3.6, legendary: 0.4 }, guarantee: null,
   },
   rare: {
-    id: 'rare', name: 'レアパック', size: 5, unlock: 20, color: '#4aa8ff',
+    id: 'rare', name: 'レアパック', size: 5, unlock: 2, color: '#4aa8ff',
     weights: { common: 46, rare: 41, epic: 11, legendary: 2 }, guarantee: 'rare',
   },
   epic: {
-    id: 'epic', name: 'エピックパック', size: 5, unlock: 45, color: '#c26bff',
+    id: 'epic', name: 'エピックパック', size: 5, unlock: 4, color: '#c26bff',
     weights: { common: 18, rare: 46, epic: 30, legendary: 6 }, guarantee: 'epic',
   },
 };
@@ -22,7 +22,10 @@ const PACKS = {
 const PACK_IDS = ['basic', 'rare', 'epic'];
 
 const Pack = {
-  isUnlocked(perm, id) { return perm.bestWave >= PACKS[id].unlock; },
+  // 解放条件は「突破したステージ数」
+  isUnlocked(perm, id) {
+    return STAGES.filter(s => (perm.stages[s.id] || {}).cleared).length >= PACKS[id].unlock;
+  },
 
   // レアリティを1つ抽選（packLuck で上振れする）
   rollRarity(pack, packLuck) {
@@ -69,14 +72,14 @@ const Pack = {
     return out;
   },
 
-  // 転生で貰えるパックの中身を決める
-  prestigeReward(bestWave, packLuck) {
-    const n = Util.clamp(Math.floor(bestWave / BAL.packPerPrestigeDiv), 1, BAL.packPerPrestigeMax);
+  // 転生で貰えるパックの中身を決める。突破ステージ数が多いほど良いものが出る
+  prestigeReward(clearedStages, prestiges, packLuck) {
+    const n = Util.clamp(clearedStages + prestiges, 1, BAL.packPerPrestigeMax);
     const out = { basic: 0, rare: 0, epic: 0 };
     for (let i = 0; i < n; i++) {
-      const roll = Math.random() + packLuck * 0.03 + bestWave / 400;
-      if (roll > 1.10 && bestWave >= PACKS.epic.unlock) out.epic++;
-      else if (roll > 0.72 && bestWave >= PACKS.rare.unlock) out.rare++;
+      const roll = Math.random() + packLuck * 0.03 + clearedStages * 0.09 + prestiges * 0.03;
+      if (roll > 1.05 && clearedStages >= PACKS.epic.unlock) out.epic++;
+      else if (roll > 0.68 && clearedStages >= PACKS.rare.unlock) out.rare++;
       else out.basic++;
     }
     return out;
@@ -84,14 +87,18 @@ const Pack = {
 };
 
 // --- ミッション（パックの入手経路その3） ---
+function clearedStages(p) { return STAGES.filter(s => (p.stages[s.id] || {}).cleared).length; }
+
 const MISSIONS = [
-  { id: 'wave10',   name: 'ウェーブ10到達',       reward: { basic: 1 }, check: (p) => p.bestWave >= 10 },
-  { id: 'wave25',   name: 'ウェーブ25到達',       reward: { basic: 2 }, check: (p) => p.bestWave >= 25 },
-  { id: 'wave50',   name: 'ウェーブ50到達',       reward: { rare: 2 },  check: (p) => p.bestWave >= 50 },
-  { id: 'wave100',  name: 'ウェーブ100到達',      reward: { epic: 2 },  check: (p) => p.bestWave >= 100 },
-  { id: 'kill1k',   name: '累計1,000体撃破',      reward: { basic: 1 }, check: (p) => p.totalKills >= 1000 },
-  { id: 'kill100k', name: '累計100,000体撃破',    reward: { rare: 2 },  check: (p) => p.totalKills >= 100000 },
-  { id: 'pres1',    name: '初めての転生',         reward: { basic: 2 }, check: (p) => p.prestiges >= 1 },
-  { id: 'pres10',   name: '転生10回',             reward: { epic: 1 },  check: (p) => p.prestiges >= 10 },
-  { id: 'coll20',   name: 'カード20種を所持',     reward: { rare: 1 },  check: (p) => Object.keys(p.collection).length >= 20 },
+  { id: 'st1',      name: '最初のステージを突破',   reward: { basic: 1 }, check: (p) => clearedStages(p) >= 1 },
+  { id: 'st3',      name: 'ステージを3つ突破',      reward: { rare: 1 },  check: (p) => clearedStages(p) >= 3 },
+  { id: 'stAll',    name: '全ステージを突破',       reward: { epic: 2 },  check: (p) => clearedStages(p) >= STAGES.length },
+  { id: 'kill1k',   name: '累計1,000体撃破',        reward: { basic: 1 }, check: (p) => p.totalKills >= 1000 },
+  { id: 'kill50k',  name: '累計50,000体撃破',       reward: { rare: 2 },  check: (p) => p.totalKills >= 50000 },
+  { id: 'kill1m',   name: '累計1,000,000体撃破',    reward: { epic: 2 },  check: (p) => p.totalKills >= 1000000 },
+  { id: 'pres1',    name: '初めての転生',           reward: { basic: 2 }, check: (p) => p.prestiges >= 1 },
+  { id: 'pres10',   name: '転生10回',               reward: { epic: 1 },  check: (p) => p.prestiges >= 10 },
+  { id: 'coll25',   name: 'カード25種を所持',       reward: { rare: 1 },  check: (p) => Object.keys(p.collection).length >= 25 },
+  { id: 'cat6',     name: '6カテゴリすべての武器を所持', reward: { epic: 1 },
+    check: (p) => CATEGORY_IDS.every(cat => WEAPON_IDS.some(w => WEAPONS[w].cat === cat && (p.collection['wc_' + w] || 0) > 0)) },
 ];

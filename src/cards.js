@@ -20,6 +20,7 @@ const CARDS = {
   wc_flame:    C({ id: 'wc_flame',    kind: 'weapon', weapon: 'flame',    rarity: 'epic',   name: '火炎放射器',     desc: '編成枠に装備。扇状に炎を吹き、燃焼を残す。' }),
   wc_gas:      C({ id: 'wc_gas',      kind: 'weapon', weapon: 'gas',      rarity: 'epic',   name: '毒ガス散布機',   desc: '編成枠に装備。通路に毒の雲を撒く。' }),
   wc_cryo:     C({ id: 'wc_cryo',     kind: 'weapon', weapon: 'cryo',     rarity: 'legendary', name: '凍結装置',    desc: '編成枠に装備。周囲へ冷気を放ち、敵を鈍らせる。' }),
+  wc_mortar:   C({ id: 'wc_mortar',   kind: 'weapon', weapon: 'mortar',   rarity: 'rare',   name: '迫撃砲',         desc: '編成枠に装備。敵が最も密集した一点へ撃ち込む。' }),
   wc_katana:   C({ id: 'wc_katana',   kind: 'weapon', weapon: 'katana',   rarity: 'rare',   name: '刀',             desc: '編成枠に装備。間合いの敵をまとめて斬る。' }),
   wc_shuriken: C({ id: 'wc_shuriken', kind: 'weapon', weapon: 'shuriken', rarity: 'rare',   name: '手裏剣',         desc: '編成枠に装備。敵から敵へ跳ね回る。' }),
   wc_tentacle: C({ id: 'wc_tentacle', kind: 'weapon', weapon: 'tentacle', rarity: 'epic',   name: '触手',           desc: '編成枠に装備。敵を掴んで来た道へ引き戻す。' }),
@@ -170,6 +171,17 @@ const CARDS = {
     name: '酸泡', desc: '割れたときのダメージ ×2.4。さらに酸だまりを残す',
     apply(run) { const w = run.wp('bubble'); if (w) { w.s.splashMul *= 2.4; w.flags.acid = true; w.s.fieldR = 60; w.s.fieldDur = 3.5; } } }),
 
+  // ============ 迫撃砲 ============
+  mtr_shell: C({ id: 'mtr_shell', kind: 'mod', weapon: 'mortar', rarity: 'common', maxStack: 5,
+    name: '大口径榴弾', desc: '迫撃砲のダメージ ×1.45',
+    apply(run) { const w = run.wp('mortar'); if (w) w.s.dmg *= 1.45; } }),
+  mtr_wide: C({ id: 'mtr_wide', kind: 'mod', weapon: 'mortar', rarity: 'rare', maxStack: 3,
+    name: '広域炸裂', desc: '迫撃砲の爆風 ×1.40、射程 ×1.18',
+    apply(run) { const w = run.wp('mortar'); if (w) { w.s.splash *= 1.40; w.s.range *= 1.18; } } }),
+  mtr_carpet: C({ id: 'mtr_carpet', kind: 'mod', weapon: 'mortar', rarity: 'epic', maxStack: 2,
+    name: '絨毯爆撃', desc: '同時に +3 発。着弾はばらけるが、面ごと潰せる',
+    apply(run) { const w = run.wp('mortar'); if (w) { w.s.count += 3; w.s.dmg *= 0.8; } } }),
+
   // ============ シナジー（2種を同時編成しているときだけ抽選に出る） ============
   syn_charged: C({ id: 'syn_charged', kind: 'synergy', requires: ['gatling', 'tesla'], rarity: 'rare', maxStack: 3,
     name: '帯電弾', desc: '【ガトリング＋テスラ】ガトリング弾が着弾時に2連鎖の電撃を起こす',
@@ -199,6 +211,11 @@ const CARDS = {
     name: '吊るし上げ', desc: '【触手＋ミサイル】掴まれている敵にミサイルが殺到し、その敵へのダメージ ×2.2',
     apply(run) { const t = run.wp('tentacle'); if (t) t.flags.hang = true;
       const m = run.wp('missile'); if (m) m.flags.followGrab = true; } }),
+
+  syn_fixfire: C({ id: 'syn_fixfire', kind: 'synergy', requires: ['tentacle', 'mortar'], rarity: 'epic', maxStack: 2,
+    name: '照準固定', desc: '【触手＋迫撃砲】掴んで足を止めた一団へ、迫撃砲が必ず撃ち込む。ダメージ ×1.5',
+    apply(run) { const t = run.wp('tentacle'); if (t) t.flags.hang = true;
+      const m = run.wp('mortar'); if (m) { m.flags.aimGrab = true; m.s.dmg *= 1.5; } } }),
 
   // ============ 汎用（編成に関係なく出る） ============
   gen_armor: C({ id: 'gen_armor', kind: 'generic', rarity: 'common', maxStack: 5,

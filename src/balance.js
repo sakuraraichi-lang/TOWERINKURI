@@ -5,66 +5,66 @@
 
 const BAL = {
   // --- 盤面（タイルは stages.js の TILE = 44px） ---
-  coreR: 18,            // コアの当たり半径
+  coreR: 18,
   maxTurrets: 4,        // 同時に置ける武器の数（＝編成枠）
 
+  // --- ステージ構造 ---
+  wavesPerStage: 5,     // 1ステージ＝5ウェーブ。全部凌げば突破
+  waveGap: 3.0,         // ウェーブとウェーブの間（カードを選ぶ間）
+
   // --- コア ---
-  coreHpBase: 120,
-  coreRegenPerLv: 0.6,  // スキル1段ごとの毎秒回復
+  coreHpBase: 160,
 
   // --- 敵 ---
-  enemyHpBase: 12,
-  enemyHpGrowth: 1.165,
-  enemySpdBase: 82,     // px/s（1タイル44px）
-  enemySpdGrowth: 1.004,
-  enemySpdCap: 190,
-  enemyDpsBase: 6,
-  enemyDpsGrowth: 1.14,
-  enemyCoinBase: 2.2,
-  enemyCoinGrowth: 1.135,
-  enemyXpBase: 1.0,
-  enemyXpGrowth: 1.055,
+  // 強さは「通算ウェーブ番号」で決まる。ステージ1のW1が1、ステージ2のW1が6
+  enemyHpBase: 14,
+  enemyHpGrowth: 1.28,
+  enemySpdBase: 112,    // px/s（1タイル44px）。押し寄せる速さ
+  enemySpdGrowth: 1.012,
+  enemySpdCap: 260,
+  enemyDpsBase: 7,
+  enemyDpsGrowth: 1.22,
+  enemyCoinBase: 2.4,
+  enemyCoinGrowth: 1.26,
   enemySlowFloor: 0.25, // どれだけ重ねても、この倍率より遅くはならない
+  leakDamage: 3.0,      // コアに到達した敵が置いていくダメージ（dmgの何秒ぶんか）
+  bossLeakMul: 4,       // ボスが抜けたときの追加倍率
 
-  waveCountBase: 7,
-  waveCountPerWave: 1.35,
-  waveCountMax: 260,
-  spawnIntervalBase: 0.50,
-  spawnIntervalMin: 0.04,
-  waveGap: 0.9,
-  clearWait: 6,         // 残敵の掃討をこの秒数まで待ち、越えたら次ウェーブへ進む
-  enemyCap: 420,
+  // 1ウェーブに来る敵の数。「大量に来る」ことが前提のゲームなので多め
+  waveCountBase: 24,
+  waveCountPerWave: 9,
+  waveCountMax: 600,
+  spawnIntervalBase: 0.22,
+  spawnIntervalMin: 0.02,
+  enemyCap: 900,
 
-  bossEvery: 10,
-  bossHpMul: 22,
-  bossSpdMul: 0.55,
-  bossCoinMul: 30,
-  bossXpMul: 25,
-  bossDpsMul: 3.5,
-  bossStunResist: 0.35, // ボスへの拘束・減速はこの割合まで短くなる
+  // 各ステージの最終ウェーブにボスが出る
+  bossHpMul: 26,
+  bossSpdMul: 0.6,
+  bossCoinMul: 34,
+  bossDpsMul: 4,
+  bossStunResist: 0.35,
 
   // --- 状態異常 ---
-  shockVuln: 0.25,      // 感電中の被ダメージ増加
-  chillVulnBase: 0,     // 凍結中の被ダメージ増加（カードで増える）
-  fieldTick: 0.2,       // 場（毒・炎・酸）のダメージ計算の刻み(秒)
-
-  // --- 経験値 ---
-  xpNeedBase: 9,
-  xpNeedGrowth: 1.29,
+  shockVuln: 0.25,
+  chillVulnBase: 0,
+  fieldTick: 0.2,
 
   // --- 転生 ---
-  prestigeMinWave: 10,
-  prestigeCoinBonusPer: 0.12,   // 表示用（実際の倍率は prestigePower）
+  prestigeMinStages: 2,         // これだけステージを突破すると転生できる
   prestigePower: 1.35,          // 転生1回ごとに 火力とコインが ×1.35（乗算）
 
   // --- パック ---
-  packPerPrestigeDiv: 10,
   packPerPrestigeMax: 25,
 
-  // --- 3択カード ---
-  draftSize: 3,
+  // --- カード ---
+  draftSize: 3,                 // 提示枚数の基本値（スキル「選択肢拡張」で増える）
   rarityWeight: { common: 62, rare: 26, epic: 10, legendary: 2.0 },
   rarityDraftLuck: { common: -1.0, rare: 0.35, epic: 0.55, legendary: 0.75 },
+
+  // --- 配置の手がかり（ヒートマップ） ---
+  trafficSample: 0.25,          // 何秒ごとに敵の位置を数えるか
+  heatFade: 0.6,                // 次の戦闘へ持ち越すときの減衰率
 
   // --- レアリティ表示 ---
   rarity: {

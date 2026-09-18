@@ -1,16 +1,18 @@
 // ---------------------------------------------------------------
 // combat.js : 敵・弾・場・状態異常・ウェーブ進行
-//   敵はフローフィールドに沿って通路を歩き、コアを目指す
+//
+//   1ステージ = 5ウェーブ。ウェーブを1つ凌ぐごとにカードを引ける。
+//   敵の強さは「通算ウェーブ番号」（ステージをまたいで増える）で決まる
 // ---------------------------------------------------------------
 'use strict';
 
 const ENEMY_TYPES = {
-  grunt: { name: 'grunt', hp: 1.0, spd: 1.0, r: 11, coin: 1.0, xp: 1.0, color: '#ff5b6e', from: 1 },
-  swift: { name: 'swift', hp: 0.55, spd: 1.8, r: 8.5, coin: 1.1, xp: 1.1, color: '#ff9cf0', from: 4 },
-  tank:  { name: 'tank',  hp: 3.2, spd: 0.6, r: 16, coin: 2.4, xp: 2.2, color: '#c8a05a', from: 7 },
+  grunt: { name: 'grunt', hp: 1.0, spd: 1.0, r: 10, coin: 1.0, color: '#ff5b6e', from: 1 },
+  swift: { name: 'swift', hp: 0.5, spd: 1.9, r: 8, coin: 1.15, color: '#ff9cf0', from: 3 },
+  tank:  { name: 'tank',  hp: 3.4, spd: 0.58, r: 15, coin: 2.5, color: '#c8a05a', from: 6 },
 };
 
-// 敵をセルに分けて近傍検索を速くする（スマホで敵400体でも落ちないように）
+// 敵をセルに分けて近傍検索を速くする（スマホで敵900体でも落ちないように）
 const Grid = {
   cell: 70, map: new Map(),
   build(enemies) {
@@ -42,60 +44,60 @@ const _q = [];
 const Combat = {
 
   // ================= ウェーブ =================
-  waveCount(run, wave) {
-    const n = (BAL.waveCountBase + wave * BAL.waveCountPerWave) * run.mods.spawn;
+  gw(run) { return globalWave(run.stageIdx, run.wave); },
+
+  waveCount(run) {
+    const g = this.gw(run);
+    const n = (BAL.waveCountBase + g * BAL.waveCountPerWave) * run.mods.spawn;
     return Math.min(BAL.waveCountMax, Math.floor(n));
   },
 
-  isBossWave(wave) { return wave % BAL.bossEvery === 0; },
+  isLastWave(run) { return run.wave >= BAL.wavesPerStage; },
 
   startWave(run) {
     run.phase = 'spawn';
-    run.toSpawn = this.waveCount(run, run.wave);
-    if (this.isBossWave(run.wave)) run.toSpawn = Math.max(4, Math.floor(run.toSpawn * 0.6)) + 1;
+    run.toSpawn = this.waveCount(run);
     run.spawnTimer = 0;
     run.bossSpawned = false;
     run.spawnPick = 0;
   },
 
   spawnInterval(run) {
-    const v = BAL.spawnIntervalBase * Math.pow(0.986, run.wave) * run.mods.waveSpd;
+    const v = BAL.spawnIntervalBase * Math.pow(0.97, this.gw(run));
     return Math.max(BAL.spawnIntervalMin, v);
   },
 
-  pickType(wave) {
-    const avail = Object.values(ENEMY_TYPES).filter(t => wave >= t.from);
+  pickType(g) {
+    const avail = Object.values(ENEMY_TYPES).filter(t => g >= t.from);
     if (avail.length === 1) return avail[0];
-    return Util.weighted(avail, t => t.name === 'grunt' ? 60 : t.name === 'swift' ? 28 : 20);
+    return Util.weighted(avail, t => t.name === 'grunt' ? 58 : t.name === 'swift' ? 28 : 22);
   },
 
   spawnEnemy(run, boss) {
     if (run.enemies.length >= BAL.enemyCap) return;
     const st = run.stage;
-    const w = run.wave;
-    const t = boss ? ENEMY_TYPES.grunt : this.pickType(w);
-    // 出現口は順番に使う（1か所に偏らせない）
-    const sp = st.spawns[run.spawnPick++ % st.spawns.length];
+    const g = this.gw(run);
+    const t = boss ? ENEMY_TYPES.grunt : this.pickType(g);
+    const si = run.spawnPick++ % st.spawns.length;      // 出現口は順番に使う
+    const sp = st.spawns[si];
     const p = st.center(sp.c, sp.r);
-    const hp = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, w - 1) * t.hp * (boss ? BAL.bossHpMul : 1);
+    const hp = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * t.hp * (boss ? BAL.bossHpMul : 1);
     run.enemies.push({
-      x: p.x + Util.rand(-8, 8), y: p.y + Util.rand(-8, 8),
-      hp, maxHp: hp,
-      spd: Math.min(BAL.enemySpdCap, BAL.enemySpdBase * Math.pow(BAL.enemySpdGrowth, w)) * t.spd * (boss ? BAL.bossSpdMul : 1),
+      x: p.x + Util.rand(-10, 10), y: p.y + Util.rand(-10, 10),
+      hp, maxHp: hp, si,
+      spd: Math.min(BAL.enemySpdCap, BAL.enemySpdBase * Math.pow(BAL.enemySpdGrowth, g)) * t.spd * (boss ? BAL.bossSpdMul : 1),
       r: boss ? 18 : t.r,
-      dmg: BAL.enemyDpsBase * Math.pow(BAL.enemyDpsGrowth, w - 1) * (boss ? BAL.bossDpsMul : 1),
-      coin: BAL.enemyCoinBase * Math.pow(BAL.enemyCoinGrowth, w - 1) * t.coin * (boss ? BAL.bossCoinMul : 1),
-      xp: BAL.enemyXpBase * Math.pow(BAL.enemyXpGrowth, w - 1) * t.xp * (boss ? BAL.bossXpMul : 1),
+      dmg: BAL.enemyDpsBase * Math.pow(BAL.enemyDpsGrowth, g - 1) * (boss ? BAL.bossDpsMul : 1),
+      coin: BAL.enemyCoinBase * Math.pow(BAL.enemyCoinGrowth, g - 1) * t.coin * (boss ? BAL.bossCoinMul : 1),
       color: boss ? '#ff2d55' : t.color,
       boss: !!boss,
       shock: 0, slow: 0, slowT: 0, stun: 0, chill: 0,
       burn: 0, burnT: 0, fvuln: 0, fvulnT: 0,
-      grabT: 0, grabV: 0, dist: 1e9,
+      grabT: 0, grabV: 0, dist: 1e9, counted: false,
       hitFlash: 0, dead: false,
     });
   },
 
-  // ボスは拘束・減速に強い
   statusScale(e) { return e.boss ? BAL.bossStunResist : 1; },
 
   // ================= ダメージ =================
@@ -112,7 +114,7 @@ const Combat = {
     opts = opts || {};
     let dmg = amount * this.vuln(run, e);
     const crit = opts.crit === true || (typeof opts.crit === 'number' && Util.chance(opts.crit)) ||
-                 (opts.forceCrit === true);
+                 opts.forceCrit === true;
     if (crit) dmg *= opts.critMul || 2;
     e.hp -= dmg;
     e.hitFlash = 0.1;
@@ -130,8 +132,8 @@ const Combat = {
 
     if (!e.dead && opts.exec && e.hp > 0 && e.hp / e.maxHp <= opts.exec) e.hp = 0;
 
-    if (run.nums.length < 90 && dmg > 0) {
-      run.nums.push({ x: e.x + Util.rand(-6, 6), y: e.y - e.r, t: 0, life: 0.65,
+    if (run.nums.length < 70 && dmg > 0) {
+      run.nums.push({ x: e.x + Util.rand(-6, 6), y: e.y - e.r, t: 0, life: 0.6,
         txt: Util.fmt(dmg), crit: crit, color: opts.color || '#fff' });
     }
 
@@ -148,15 +150,6 @@ const Combat = {
     Game.meta.coins += coin;
     run.coinsEarned += coin;
 
-    const xp = e.xp * run.mods.xp;
-    run.xp += xp;
-    while (run.xp >= run.xpNeed) {
-      run.xp -= run.xpNeed;
-      run.level++;
-      run.xpNeed = BAL.xpNeedBase * Math.pow(BAL.xpNeedGrowth, run.level - 1);
-      run.pendingDrafts++;
-    }
-
     // 砕氷：凍ったまま死ぬと氷片が飛ぶ
     const cw = run.wp('cryo');
     if (cw && cw.flags.shatter && e.chill > 0 && !(opts && opts.shard)) {
@@ -169,13 +162,15 @@ const Combat = {
       this.fx(run, { type: 'boom', x: e.x, y: e.y, r: 90, color: '#bff0ff', life: 0.25 });
     }
 
-    this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * (e.boss ? 4 : 1.6), color: e.color, life: e.boss ? 0.5 : 0.24 });
+    if (run.fx.length < 180) {
+      this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * (e.boss ? 4 : 1.5), color: e.color, life: e.boss ? 0.5 : 0.22 });
+    }
     if (e.boss) this.shake(run, 16);
   },
 
   // ================= 攻撃のかたち =================
   spawnBullet(w, run, angle, o) {
-    if (run.bullets.length > 900) run.bullets.shift();
+    if (run.bullets.length > 1200) run.bullets.shift();
     o = o || {};
     const s = w.s;
     const speed = s.speed * (o.speedMul || 1);
@@ -207,7 +202,7 @@ const Combat = {
     });
   },
 
-  // 目標地点へ投げる（毒ガスの散布弾）
+  // 目標地点へ投げる（毒ガスの散布弾・迫撃砲の砲弾）
   spawnLob(w, run, tx, ty, o) {
     const a = Util.angle(w.x, w.y, tx, ty);
     const speed = w.s.speed;
@@ -216,12 +211,12 @@ const Combat = {
       dmg: 0, r: w.s.bulletR, pierce: 0, bounce: 0, hit: null,
       splash: 0, splashMul: 1, homing: 0, crit: 0, critMul: 2,
       exec: 0, shock: 0, slow: 0, slowDur: 0, stun: 0, burn: 0, burnDur: 0,
-      color: o.color || '#8fd94a', lob: true, landX: tx, landY: ty, onLand: o.onLand,
-      life: 4, src: w, wid: w.id, range: w.s.range * 1.6, ox: w.x, oy: w.y, target: null,
+      color: o.color || '#8fd94a', lob: true, mark: !!o.mark,
+      landX: tx, landY: ty, onLand: o.onLand,
+      life: 5, src: w, wid: w.id, range: w.s.range * 1.8, ox: w.x, oy: w.y, target: null,
     });
   },
 
-  // 扇状の即時攻撃（火炎放射器・刀）
   coneDamage(w, run, angle, arc, range, dmg, opts) {
     opts = opts || {};
     const near = Grid.query(w.x, w.y, range + 20, _q);
@@ -235,16 +230,11 @@ const Combat = {
       while (da < -Math.PI) da += Math.PI * 2;
       if (Math.abs(da) > arc) continue;
       const o = Object.assign({}, opts);
-      // 兜割り：凍っている敵には必ず会心
       if (w.flags.frostCrit && e.chill > 0) o.forceCrit = true;
       this.damage(run, e, dmg, o);
       hits++;
     }
-    // 無限刃：斬るたびに間合いが伸びる
-    if (w.flags.mugen && hits > 0) {
-      w.s.range = Math.min(w.dyn.mugenBase * 2, w.s.range * 1.06);
-    }
-    // 爆燃：炎が毒の雲に届いたら引火させる
+    if (w.flags.mugen && hits > 0) w.s.range = Math.min(w.dyn.mugenBase * 2, w.s.range * 1.06);
     if (w.flags.ignite) {
       for (let i = run.fields.length - 1; i >= 0; i--) {
         const f = run.fields[i];
@@ -258,7 +248,6 @@ const Combat = {
     return hits;
   },
 
-  // 自分を中心にした全方位の一撃（凍結装置）
   pulse(w, run, range, dmg, opts) {
     const near = Grid.query(w.x, w.y, range + 20, _q);
     for (const e of near) {
@@ -268,23 +257,20 @@ const Combat = {
     }
   },
 
-  // 設置型の場（毒の雲・火の海・酸だまり）
   spawnField(run, x, y, o) {
-    if (run.fields.length > 60) run.fields.shift();
+    if (run.fields.length > 70) run.fields.shift();
     run.fields.push({
       x, y, r: o.r, dur: o.dur, t: 0, tick: 0,
       dps: o.dps, slow: o.slow || 0, vuln: o.vuln || 0,
-      color: o.color, kind: o.kind || 'gas', burn: o.burn || 0,
+      color: o.color, kind: o.kind || 'gas',
     });
   },
 
-  // 敵を掴んで来た道へ引き戻す（触手）
   grab(w, run, first, power, dur, dmg) {
     const targets = [first];
     if (w.s.count > 1) {
       const near = Grid.query(w.x, w.y, w.s.range, _q);
-      const extra = near.filter(e => !e.dead && e !== first &&
-        Util.dist(w.x, w.y, e.x, e.y) <= w.s.range)
+      const extra = near.filter(e => !e.dead && e !== first && Util.dist(w.x, w.y, e.x, e.y) <= w.s.range)
         .sort((a, b) => a.dist - b.dist).slice(0, w.s.count - 1);
       for (const e of extra) targets.push(e);
     }
@@ -299,24 +285,21 @@ const Combat = {
   },
 
   chainLightning(w, run, first, chains, dmg) {
-    let cur = first;
-    let d = dmg;
+    let cur = first, d = dmg;
     const used = new Set();
     const pts = [{ x: w.x, y: w.y }];
-    const falloff = w.s.chainFalloff;
     for (let i = 0; i <= chains; i++) {
       if (!cur || cur.dead) break;
       used.add(cur);
       pts.push({ x: cur.x, y: cur.y });
-      this.damage(run, cur, d, { shock: w.s.shockDur, color: '#d8c7ff',
-        crit: w.s.crit, critMul: w.s.critMul });
-      d *= falloff;
+      this.damage(run, cur, d, { shock: w.s.shockDur, color: '#d8c7ff', crit: w.s.crit, critMul: w.s.critMul });
+      d *= w.s.chainFalloff;
       const near = Grid.query(cur.x, cur.y, 150, _q);
       let best = null, bd = 1e9;
       for (const e of near) {
         if (e.dead || used.has(e)) continue;
         let dd = Util.dist2(cur.x, cur.y, e.x, e.y);
-        if (e.stun > 0) dd *= 0.25;   // 感電泡：泡に閉じ込めた敵を優先して通る
+        if (e.stun > 0) dd *= 0.25;      // 感電泡：閉じ込めた敵を優先して通る
         if (dd < bd) { bd = dd; best = e; }
       }
       cur = best;
@@ -338,12 +321,41 @@ const Combat = {
     this.shake(run, Math.min(10, radius * 0.06));
   },
 
-  fx(run, o) { if (run.fx.length < 260) { o.t = 0; run.fx.push(o); } },
+  fx(run, o) { if (run.fx.length < 240) { o.t = 0; run.fx.push(o); } },
   shake(run, v) { run.shake = Math.min(26, run.shake + v * 0.35); },
 
   // ================= 照準 =================
+  // 指定攻撃（迫撃砲）用：射程内で最も敵が固まっている一点を探す
+  densestPoint(w, run) {
+    const near = Grid.query(w.x, w.y, w.s.range, _q);
+    const cand = near.filter(e => !e.dead && Util.dist(w.x, w.y, e.x, e.y) <= w.s.range);
+    if (!cand.length) return null;
+    let best = null, bestN = -1;
+    const R = Math.max(30, w.s.splash);
+    // 候補を間引いて総当たり（敵が多いときに重くならないように）
+    const step = Math.max(1, Math.floor(cand.length / 24));
+    for (let i = 0; i < cand.length; i += step) {
+      const a = cand[i];
+      let n = 0;
+      for (const b of cand) if (Util.dist2(a.x, a.y, b.x, b.y) <= R * R) n++;
+      if (n > bestN) { bestN = n; best = a; }
+    }
+    return best ? { x: best.x, y: best.y, n: bestN, e: best } : null;
+  },
+
   findTarget(w, run) {
     const mode = w.def.target;
+    if (mode === 'dense') {
+      // 照準固定：触手が掴んでいる一団があれば、そこへ撃ち込む
+      if (w.flags.aimGrab && run.grabTarget && !run.grabTarget.dead &&
+          Util.dist(w.x, w.y, run.grabTarget.x, run.grabTarget.y) <= w.s.range) {
+        w.aim = { x: run.grabTarget.x, y: run.grabTarget.y, e: run.grabTarget };
+        return run.grabTarget;
+      }
+      const p = this.densestPoint(w, run);
+      w.aim = p;
+      return p ? p.e : null;
+    }
     if (w.flags.followGrab && run.grabTarget && !run.grabTarget.dead &&
         Util.dist(w.x, w.y, run.grabTarget.x, run.grabTarget.y) <= w.s.range) return run.grabTarget;
     if (w.flags.followSpot && run.spotTarget && !run.spotTarget.dead &&
@@ -365,38 +377,35 @@ const Combat = {
   },
 
   // ================= 更新 =================
+  // 戻り値: null / 'dead'（コア破壊）/ 'waveclear' / 'stageclear'
   update(run, dt) {
     const st = run.stage;
     Grid.build(run.enemies);
+    let signal = null;
 
     // --- ウェーブ進行 ---
     if (run.phase === 'spawn') {
       run.spawnTimer -= dt;
-      while (run.spawnTimer <= 0 && run.toSpawn > 0) {
-        const boss = this.isBossWave(run.wave) && !run.bossSpawned;
+      let guard = 0;
+      while (run.spawnTimer <= 0 && run.toSpawn > 0 && guard++ < 60) {
+        const boss = this.isLastWave(run) && !run.bossSpawned;
         this.spawnEnemy(run, boss);
         if (boss) run.bossSpawned = true;
         run.toSpawn--;
         run.spawnTimer += this.spawnInterval(run);
       }
-      if (run.toSpawn <= 0) { run.phase = 'clear'; run.clearTimer = BAL.clearWait; }
+      if (run.toSpawn <= 0) run.phase = 'clear';
     } else if (run.phase === 'clear') {
-      // 全部倒せば即、倒しきれなくても clearWait 秒で次のウェーブへ。
-      // 倒し残しは次のウェーブに持ち越され、そのまま圧力になる
-      run.clearTimer -= dt;
-      if (run.enemies.length === 0 || run.clearTimer <= 0) {
+      // このウェーブの敵を全部片づけたら突破
+      if (run.enemies.length === 0) {
+        signal = this.isLastWave(run) ? 'stageclear' : 'waveclear';
         run.phase = 'gap';
         run.gapTimer = BAL.waveGap;
-        run.justClearedWave = run.wave;
       }
-    } else {
+    } else if (run.phase === 'gap') {
       run.gapTimer -= dt;
       if (run.gapTimer <= 0) { run.wave++; this.startWave(run); }
     }
-
-    // --- コア ---
-    const tw = run.tower;
-    if (run.mods.regen > 0 && tw.hp > 0) tw.hp = Math.min(tw.maxHp, tw.hp + run.mods.regen * dt);
 
     // --- 場（毒の雲など） ---
     for (let i = run.fields.length - 1; i >= 0; i--) {
@@ -419,6 +428,11 @@ const Combat = {
     }
 
     // --- 敵 ---
+    const tw = run.tower;
+    run.trafficT += dt;
+    const sample = run.trafficT >= BAL.trafficSample;
+    if (sample) run.trafficT = 0;
+
     for (let i = run.enemies.length - 1; i >= 0; i--) {
       const e = run.enemies[i];
       if (e.dead) { run.enemies.splice(i, 1); continue; }
@@ -431,16 +445,18 @@ const Combat = {
       if (e.hitFlash > 0) e.hitFlash -= dt;
       if (e.burnT > 0) { e.burnT -= dt; this.damage(run, e, e.burn * dt, { color: '#ff8a3a' }); if (e.dead) continue; }
 
-      // 現在タイルとコアまでの距離
       const tc = (e.x / TILE) | 0, tr = (e.y / TILE) | 0;
-      e.dist = st.walkable(tc, tr) ? st.dist[st.idx(tc, tr)] : 1e9;
+      const inside = st.walkable(tc, tr);
+      e.dist = inside ? st.dist[st.idx(tc, tr)] : 1e9;
 
-      const goal = st.walkable(tc, tr) ? st.flowTo(tc, tr) : { x: tw.x, y: tw.y };
+      // 通行量の記録（どこに溜まるかを、次の準備フェーズで見せるため）
+      if (sample && inside) run.traffic[st.idx(tc, tr)]++;
+
+      const goal = inside ? st.flowTo(tc, tr) : { x: tw.x, y: tw.y };
       const a = Util.angle(e.x, e.y, goal.x, goal.y);
 
       if (e.stun <= 0) {
         if (e.grabT > 0) {
-          // 掴まれている間は来た道へ戻される
           e.x -= Math.cos(a) * e.grabV * dt;
           e.y -= Math.sin(a) * e.grabV * dt;
         } else {
@@ -450,10 +466,22 @@ const Combat = {
         }
       }
 
-      // コアに触れたら削る
+      // コアに触れた敵は、まとめてダメージを置いて消える（＝漏れ）。
+      // 居座らせるとウェーブが終わらなくなるうえ、どこから抜けられたのかも見えない
       if (Util.dist(e.x, e.y, tw.x, tw.y) <= tw.r + e.r) {
-        tw.hp -= e.dmg * dt;
-        if (Math.random() < dt * 6) this.fx(run, { type: 'spark', x: e.x, y: e.y, color: '#ff5b6e', life: 0.2 });
+        tw.hp -= e.dmg * BAL.leakDamage * (e.boss ? BAL.bossLeakMul : 1);
+        run.leaked++;
+        // 経路全体を塗るが、コアに近い区間ほど濃くする。
+        // 「どこで止め損ねたか」が知りたいので、手前ほど強調しても意味が薄い
+        const route = st.routes[e.si];
+        if (route) for (let k = 0; k < route.length; k++) {
+          run.leak[route[k]] += 0.15 + 0.85 * (k / Math.max(1, route.length - 1));
+        }
+        this.fx(run, { type: 'boom', x: e.x, y: e.y, r: 26, color: '#ff5b6e', life: 0.3 });
+        this.shake(run, 3);
+        e.dead = true;
+        run.enemies.splice(i, 1);
+        continue;
       }
     }
 
@@ -466,21 +494,20 @@ const Combat = {
         w.dyn.godCd -= dt;
         if (w.dyn.godCd <= 0) {
           w.dyn.godCd = 5;
-          for (const e of run.enemies.slice(0, 120)) {
+          for (const e of run.enemies.slice(0, 150)) {
             if (e.dead) continue;
             this.damage(run, e, w.s.dmg * 3, { shock: Math.max(2, w.s.shockDur), color: '#d8c7ff' });
-            this.fx(run, { type: 'bolt', pts: [{ x: e.x, y: e.y - 260 }, { x: e.x, y: e.y }], life: 0.16, color: '#e2d6ff' });
           }
+          this.fx(run, { type: 'ring', x: run.tower.x, y: run.tower.y, r: Math.max(st.w, st.h), color: '#e2d6ff', life: 0.4 });
           this.shake(run, 14);
         }
       }
 
       w.target = this.findTarget(w, run);
       if (w.muzzle > 0) w.muzzle -= dt;
-      if (w.target) {
-        const want = Util.angle(w.x, w.y, w.target.x, w.target.y);
-        w.angle = Util.turnToward(w.angle, want, w.s.turn * dt);
-      }
+      const look = w.aim || w.target;
+      if (look) w.angle = Util.turnToward(w.angle, Util.angle(w.x, w.y, look.x, look.y), w.s.turn * dt);
+
       const rate = w.s.rate * (w.flags.heat ? (1 + w.dyn.heat * (w.dyn.heatMax || 0)) : 1);
       w.cd -= dt;
       if (w.cd <= 0) {
@@ -489,9 +516,7 @@ const Combat = {
           w.muzzle = 0.07;
           w.shots++;
           w.def.fire(w, run);
-        } else {
-          w.cd = 0;
-        }
+        } else w.cd = 0;
       }
     }
 
@@ -501,7 +526,6 @@ const Combat = {
       b.life -= dt;
       if (b.life <= 0) { this.bulletEnd(run, b); run.bullets.splice(i, 1); continue; }
 
-      // 投擲弾は目標地点に着いたら効果を出す
       if (b.lob) {
         b.x += b.vx * dt; b.y += b.vy * dt;
         if (Util.dist(b.x, b.y, b.landX, b.landY) < 14) {
@@ -550,9 +574,7 @@ const Combat = {
           burn: b.burn, burnDur: b.burnDur, color: b.color,
         });
 
-        if (b.src && b.src.flags.resonance && b.wid === 'gatling') {
-          run.resonance = Math.min(4.0, run.resonance + 0.006);
-        }
+        if (b.src && b.src.flags.resonance && b.wid === 'gatling') run.resonance = Math.min(4.0, run.resonance + 0.006);
         if (b.src && b.src.flags.spot && b.wid === 'sniper' && !e.dead) run.spotTarget = e;
         if (b.src && b.src.flags.charged && b.wid === 'gatling') {
           this.chainLightning(b.src, run, e, b.src.dyn.chargedChain || 2, b.dmg * 0.55);
@@ -572,9 +594,8 @@ const Combat = {
           consumed = true; break;
         }
 
-        this.fx(run, { type: 'spark', x: b.x, y: b.y, color: b.color, life: 0.14 });
+        if (run.fx.length < 150) this.fx(run, { type: 'spark', x: b.x, y: b.y, color: b.color, life: 0.14 });
 
-        // 跳弾（手裏剣）
         if (b.bounce > 0) {
           b.bounce--;
           if (!b.hit) b.hit = new Set();
@@ -591,9 +612,9 @@ const Combat = {
             const sp = Math.hypot(b.vx, b.vy) || 400;
             const na = Util.angle(b.x, b.y, best.x, best.y);
             b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
-            b.ox = b.x; b.oy = b.y;   // 射程の起点を打ち直す
+            b.ox = b.x; b.oy = b.y;
             b.target = best;
-          } else { consumed = true; }
+          } else consumed = true;
           break;
         }
 
@@ -618,7 +639,7 @@ const Combat = {
     if (run.shake > 0) run.shake = Math.max(0, run.shake - dt * 42);
 
     run.time += dt;
-    return null;
+    return signal;
   },
 
   bulletEnd(run, b) {

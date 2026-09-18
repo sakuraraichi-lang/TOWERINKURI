@@ -67,6 +67,7 @@ const Render = {
     if (!run) { ctx.setTransform(1, 0, 0, 1, 0, 0); return; }
 
     this.fields(ctx, run);
+    this.aims(ctx, run);
     this.core(ctx, run);
     this.enemies(ctx, run);
     this.bullets(ctx, run);
@@ -113,6 +114,10 @@ const Render = {
         }
       }
     }
+    // 通行量と漏れルートのヒートマップ。
+    // 「どこに敵が溜まるか」「どこから抜けられたか」を見て置き場所を決めるためのもの
+    this.heat(ctx, st);
+
     // 通路に進行方向の矢印を薄く出す（どこを通ってくるか一目で分かるように）
     ctx.strokeStyle = 'rgba(120,170,230,0.22)';
     ctx.lineWidth = 2;
@@ -151,6 +156,51 @@ const Render = {
       ctx.setLineDash([6, 8]);
       ctx.beginPath(); ctx.arc(sel.x, sel.y, sel.s.range, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
+    }
+  },
+
+  // 蓄積された通行量／漏れを盤面に塗る
+  heat(ctx, st) {
+    const run = Game.run;
+    const saved = Game.perm && Game.perm.heat ? Game.perm.heat[st.id] : null;
+    if (!saved) return;
+    // 戦闘中は「今の戦闘ぶん」を、準備中は「これまでの蓄積」を見せる
+    const live = run && Game.phase === 'battle';
+    const traf = live ? run.traffic : saved.traffic;
+    const leak = live ? run.leak : saved.leak;
+    if (!traf) return;
+
+    let mt = 0, ml = 0;
+    for (let i = 0; i < traf.length; i++) { if (traf[i] > mt) mt = traf[i]; if (leak[i] > ml) ml = leak[i]; }
+
+    if (Game.showHeat && mt > 0) {
+      for (let r = 0; r < st.rows; r++) {
+        for (let c = 0; c < st.cols; c++) {
+          const v = traf[st.idx(c, r)] / mt;
+          if (v <= 0.02) continue;
+          const k = Math.pow(v, 0.6);
+          // 薄い青 -> 黄 -> 赤。濃いほど敵が長く居座る場所
+          const cr = Math.round(40 + 215 * k);
+          const cg = Math.round(90 + 110 * (1 - Math.abs(k - 0.5) * 2));
+          const cb = Math.round(210 * (1 - k));
+          ctx.fillStyle = 'rgba(' + cr + ',' + cg + ',' + cb + ',' + (0.07 + k * 0.26).toFixed(3) + ')';
+          ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
+        }
+      }
+    }
+    if (Game.showLeak && ml > 0) {
+      for (let r = 0; r < st.rows; r++) {
+        for (let c = 0; c < st.cols; c++) {
+          const v = leak[st.idx(c, r)] / ml;
+          if (v <= 0.35) continue;           // 薄いところまで塗ると全面が赤くなる
+          const k = (v - 0.35) / 0.65;
+          ctx.strokeStyle = 'rgba(255,70,90,' + (0.18 + k * 0.62).toFixed(3) + ')';
+          ctx.lineWidth = 1.5 + k * 2;
+          ctx.setLineDash([5, 4]);
+          ctx.strokeRect(c * TILE + 4, r * TILE + 4, TILE - 8, TILE - 8);
+          ctx.setLineDash([]);
+        }
+      }
     }
   },
 
@@ -220,6 +270,23 @@ const Render = {
       ctx.font = 'bold 9px system-ui,sans-serif';
       ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
       ctx.fillText(w.def.short, w.x, w.y + 0.5);
+    }
+  },
+
+  // 指定攻撃（迫撃砲）が狙っている一点
+  aims(ctx, run) {
+    for (const w of run.weapons) {
+      if (!w.aim) continue;
+      const R = Math.max(26, w.s.splash);
+      ctx.strokeStyle = w.def.color + 'cc';
+      ctx.lineWidth = 1.6;
+      ctx.setLineDash([4, 5]);
+      ctx.beginPath(); ctx.arc(w.aim.x, w.aim.y, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.moveTo(w.aim.x - 7, w.aim.y); ctx.lineTo(w.aim.x + 7, w.aim.y);
+      ctx.moveTo(w.aim.x, w.aim.y - 7); ctx.lineTo(w.aim.x, w.aim.y + 7);
+      ctx.stroke();
     }
   },
 
