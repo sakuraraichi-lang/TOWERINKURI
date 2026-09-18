@@ -207,14 +207,15 @@ function campaign() {
       log.push(r);
       if (r.res === 'clear') { cleared = i; break; }
     }
-    // ステージ突破時点の戦力を記録する（蓄積がどれだけ効いているかを見るため）
+    // **突破できたときだけ**戦力を記録する。
+    // 打ち切りで終わった回の値を混ぜると「突破時点の戦力」ではなくなる
     const m = Skill.mods(Game.meta, Game.perm);
     rows.push({ st, cleared, log,
-      power: {
+      power: cleared ? {
         lv: SKILLS.reduce((a, x) => a + Skill.lv(Game.meta, x.id), 0),
         mid: +m.cat.mid.dmg.toFixed(1), long: +m.cat.long.dmg.toFixed(1),
         units: Skill.lv(Game.meta, 'units'), lives: BAL.livesBase + m.lives,
-      } });
+      } : null });
     if (!cleared) break;
   }
   return rows;
@@ -229,7 +230,7 @@ function campaignN(trials) {
     const rows = campaign();
     rows.forEach((r, i) => {
       per[i].push(r.cleared || null);
-      if (r.power) power[i].push(r.power);
+      if (r.power && r.cleared) power[i].push(r.power);
     });
   }
   const med = (arr) => {
