@@ -2,8 +2,8 @@
 // state.js : セーブと、準備 → 戦闘 → 結果 の流れ
 //
 //   1ステージ = 5ウェーブ。全部凌げば突破、コアが割れたら失敗。
-//   スキルは「準備フェーズ」でしか買えない。戦闘に入ったら編成は固定される
-//   （武器の置き場所だけは戦闘中も動かせる）
+//   アップグレードもユニットの設置・向き・射界も、いじれるのはビルドフェーズだけ。
+//   戦闘が始まったら何も動かせない
 //
 //   perm  … 絶対に消えない（カード・パック・ステージ進行・ヒートマップ）
 //   meta  … 転生で消える（コイン・スキルツリー）
@@ -28,7 +28,8 @@ const Game = {
   newSave() {
     this.perm = {
       collection: Object.assign({}, STARTER_CARDS),
-      packs: { basic: 1, rare: 0, epic: 0 },
+      packs: { basic: 1, arms: 0, chem: 0, syn: 0 },
+      deepest: 0,        // 転生を挟んでも戻らない「到達した深さ」。パックの解放条件に使う
       prestiges: 0,
       totalKills: 0,
       totalRuns: 0,
@@ -76,6 +77,8 @@ const Game = {
     if (!this.perm.stages) this.perm.stages = {};
     if (!this.perm.placements) this.perm.placements = {};
     if (!this.perm.heat) this.perm.heat = {};
+    if (typeof this.perm.deepest !== 'number') this.perm.deepest = this.clearedCount();
+    for (const k of PACK_IDS) if (typeof this.perm.packs[k] !== 'number') this.perm.packs[k] = 0;
     if (!STAGE_BY_ID[this.perm.currentStage]) this.perm.currentStage = 'st1';
     return true;
   },
@@ -106,6 +109,7 @@ const Game = {
     const firstPerfect = perfect && !rec.perfect;
     rec.cleared = true;
     if (perfect) rec.perfect = true;
+    this.perm.deepest = Math.max(this.perm.deepest || 0, this.clearedCount());
     const def = STAGE_BY_ID[id];
     const got = { first, perfect: !!perfect, firstPerfect,
                   cards: [], packs: {}, stage: def, next: STAGES[def.idx + 1] || null };
@@ -117,10 +121,12 @@ const Game = {
       for (const cid of (def.reward.cards || [])) { this.grant(cid, 1); got.cards.push(cid); }
       for (const k in (def.reward.packs || {})) addPack(k, def.reward.packs[k]);
     }
-    // 完璧クリアはパックの入手経路。1体も通さない配置を組めた報酬
+    // 完璧クリアはパックの入手経路。1体も通さない配置を組めた報酬。
+    // 出るのは「そのステージの分野」なので、浅いところを完璧にしても奥の分野は掘れない
     if (perfect) {
-      addPack('basic', 1);
-      if (firstPerfect) addPack('rare', 1);
+      const kind = Pack.forStage(id);
+      addPack(kind, 1);
+      if (firstPerfect) addPack(kind, 1);
     }
     this.save();
     return got;
@@ -436,16 +442,21 @@ const Game = {
 
   prestige() {
     if (!this.canPrestige()) return null;
+    const cleared = this.clearedCount();
     const mods = Skill.mods(this.meta, this.perm);
-    const reward = Pack.prestigeReward(this.clearedCount(), this.perm.prestiges, mods.packLuck);
+    const reward = Pack.prestigeReward(cleared, this.perm.prestiges, mods.packLuck);
     for (const k in reward) this.perm.packs[k] = (this.perm.packs[k] || 0) + reward[k];
     this.perm.prestiges++;
     this.meta.coins = 0;
     this.meta.skills = {};
+    // **ステージ進行も戻す。** もう一度突破すれば初回報酬と初回完璧の報酬を取り直せる。
+    // deepest（到達した深さ）だけは戻さないので、パックの解放は保たれる
+    this.perm.stages = {};
+    this.perm.currentStage = 'st1';
     this.run = null;
     this.phase = 'prep';
     const missions = this.checkMissions();
     this.save();
-    return { reward, missions, prestiges: this.perm.prestiges };
+    return { reward, missions, prestiges: this.perm.prestiges, resetStages: cleared };
   },
 };

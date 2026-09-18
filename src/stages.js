@@ -41,7 +41,7 @@ const STAGES = [
   {
     id: 'st2', name: '二面作戦',
     desc: '長い蛇行路の両端から来て、中央のコアを挟み撃ちにされる。脚と脚の間に地面が残るので、同じ区間を左右から撃てる。',
-    reward: { cards: ['wc_tesla'], packs: { basic: 1 } },
+    reward: { cards: ['wc_tesla'], packs: { arms: 1 } },
     map: [
       '###############',
       '#S...........##',
@@ -69,7 +69,7 @@ const STAGES = [
   {
     id: 'st3', name: '螺旋',
     desc: '外周から中心へ巻き込む長い一本道。輪と輪の間の地面に置けば、内側と外側のどちらにも撃てる。',
-    reward: { cards: ['wc_flame', 'wc_mortar'], packs: { basic: 1, rare: 1 } },
+    reward: { cards: ['wc_flame', 'wc_mortar'], packs: { arms: 1, chem: 1 } },
     map: [
       '###############',
       '#S............#',
@@ -97,7 +97,7 @@ const STAGES = [
   {
     id: 'st4', name: '広間',
     desc: '中央の島をぐるりと回る一本道。島の上と外周の両方に置けるので、射線が組みやすい。',
-    reward: { cards: ['wc_gas'], packs: { rare: 1 } },
+    reward: { cards: ['wc_gas'], packs: { chem: 1 } },
     map: [
       '###############',
       '##S.........S.#',
@@ -125,7 +125,7 @@ const STAGES = [
   {
     id: 'st5', name: '三叉',
     desc: '3方向から来て中央で合流する。合流点のまわりは全部地面なので、囲むように置ける。',
-    reward: { cards: ['wc_cryo'], packs: { rare: 1, epic: 1 } },
+    reward: { cards: ['wc_cryo'], packs: { chem: 1, syn: 1 } },
     map: [
       '###############',
       '#S.##########S.',

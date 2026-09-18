@@ -415,8 +415,8 @@ const UI = {
   // ================= パック =================
   panelPacks(p) {
     const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>カードパック</b><span class="sub">コインでは買えない。<b>完璧クリア</b>・ステージ突破・転生・ミッションで手に入る。' +
-      '刀・手裏剣・触手・泡といった変わり種の武器はここからしか出ない</span>';
+    head.innerHTML = '<b>カードパック</b><span class="sub">コインでは買えない。<b>完璧クリア</b>・ステージ突破・転生・ミッションで手に入る。<br>' +
+      '<b>パックは分野で分かれている。</b>奥の分野は奥のステージまで行かないと掘れない</span>';
     p.appendChild(head);
 
     for (const pid of PACK_IDS) {
@@ -426,7 +426,8 @@ const UI = {
       const row = Util.el('div', 'prow' + (n > 0 && unlocked ? ' can' : ''));
       row.innerHTML = '<div class="pico" style="background:' + pk.color + '22;border-color:' + pk.color + '">⬢</div>' +
         '<div class="sbody"><div class="sname">' + pk.name + ' <em>×' + n + '</em></div>' +
-        '<div class="sdesc">' + (unlocked ? pk.size + '枚入り' + (pk.guarantee ? ' / ' + BAL.rarity[pk.guarantee].name + '以上1枚確定' : '')
+        '<div class="sdesc">' + (unlocked
+          ? pk.desc + '<br>' + pk.size + '枚入り' + (pk.guarantee ? ' / ' + BAL.rarity[pk.guarantee].name + '以上1枚確定' : '')
           : 'ステージを ' + pk.unlock + ' 個突破すると解放') + '</div></div>' +
         '<button class="sbuy"' + (n > 0 && unlocked ? '' : ' disabled') + '>開封</button>';
       row.querySelector('.sbuy').addEventListener('click', () => this.openPack(pid));
@@ -503,10 +504,11 @@ const UI = {
     p.appendChild(st);
 
     p.appendChild(Util.el('div', 'note', Game.canPrestige()
-      ? '今転生すると カードパック 約' + (Game.clearedCount() + perm.prestiges) + '個 ＋ 火力とコインが永久に ×' +
-        BAL.prestigePower + '（累積）'
+      ? '今転生すると カードパック 約' +
+        Math.round(Math.pow(Game.clearedCount(), 1.7)) + '個 ＋ 火力とコインが永久に ×' +
+        BAL.prestigePower + '（累積）。奥まで突破してから転生するほど、もらえる数が増えます'
       : 'ステージを ' + BAL.prestigeMinStages + ' 個突破すると転生できます（現在 ' + Game.clearedCount() + ' 個）'));
-    p.appendChild(Util.el('div', 'note', '※ ステージの突破状況とカードコレクションは転生しても残ります'));
+    p.appendChild(Util.el('div', 'warn', '※ 転生するとステージの突破状況も戻ります。もう一度突破すれば初回報酬と初回完璧クリアの報酬を取り直せます（カードとパックは残ります）'));
 
     const btn = Util.el('button', 'bigbtn danger', '転生する');
     btn.disabled = !Game.canPrestige() || Game.phase === 'battle';
@@ -525,7 +527,7 @@ const UI = {
   confirmPrestige() {
     const body = Util.el('div');
     body.appendChild(Util.el('h3', null, '転生しますか？'));
-    body.appendChild(Util.el('p', 'note', 'コインとアップグレードは全て失われます。カードとステージ進行は残ります。'));
+    body.appendChild(Util.el('p', 'note', 'コインとアップグレードは全て失われ、ステージの突破状況も戻ります。カードとパックは残ります。'));
     const ok = Util.el('button', 'bigbtn danger', '転生する');
     ok.addEventListener('click', () => {
       const res = Game.prestige();
