@@ -237,9 +237,21 @@ function campaignN(trials) {
     if (!v.length) return null;
     return v[Math.floor(v.length / 2)];
   };
+  // 戦力は数値の集まりなので、周回ぶんの**平均**を取る。
+  // 並べ替えずに真ん中を拾うと、ただ「最後の周の値」を採っているだけになる
+  const avg = (list) => {
+    if (!list.length) return null;
+    const keys = Object.keys(list[0]);
+    const o = {};
+    for (const k of keys) {
+      const v = list.reduce((a, x) => a + x[k], 0) / list.length;
+      o[k] = k === 'lv' || k === 'units' || k === 'lives' ? Math.round(v) : +v.toFixed(1);
+    }
+    return o;
+  };
   return STAGES.map((st, i) => ({
     st, tries: per[i], median: med(per[i]), fails: per[i].filter(x => x === null).length,
-    power: power[i].length ? power[i][Math.floor(power[i].length / 2)] : null,
+    power: avg(power[i]),
   }));
 }
 
@@ -263,7 +275,7 @@ document.getElementById('run').addEventListener('click', () => {
     }
     html += '</table>';
     html += '<p class="note">' + trials + '周の中央値。突破するまで回している（安全弁 ' + HARD_CAP + '回）。' +
-      '「突破時点の戦力」は、そのステージを抜けた直後のアップグレードの効き具合。' +
+      '「突破時点の戦力」は、そのステージを抜けた直後のアップグレードの効き具合（周回ぶんの平均）。' +
       '奥へ行くほど大きくなるなら、蓄積が難度を上回っているということ。' +
       '　／　計測にかかった時間 ' + ms + 'ms</p>';
     document.getElementById('out').innerHTML = html;
