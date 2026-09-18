@@ -120,10 +120,17 @@ const Game = {
   own(cardId) { return this.perm.collection[cardId] || 0; },
   grant(cardId, n) { this.perm.collection[cardId] = (this.perm.collection[cardId] || 0) + (n || 1); },
 
+  // 1回の出撃で重ねられる上限。所持枚数では絞らない
+  // （絞ると、手持ちが薄いうちは3択の候補が1枚しか出ず、選ぶ意味が消えるため）
   stackLimit(cardId) {
     const c = CARDS[cardId];
     if (!c || c.kind === 'weapon') return 0;
-    return Math.min(c.maxStack || 1, this.own(cardId));
+    return c.maxStack || 1;
+  },
+
+  // ダブりは「出やすさ」に変換する。持っているほど3択に顔を出す
+  cardWeight(cardId) {
+    return 1 + 0.45 * Math.max(0, this.own(cardId) - 1);
   },
 
   ownedWeaponIds() { return WEAPON_IDS.filter(wid => this.own('wc_' + wid) > 0); },

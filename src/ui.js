@@ -351,7 +351,7 @@ const UI = {
     const have = CARD_IDS.filter(id => Game.own(id) > 0).length;
     const head = Util.el('div', 'phead');
     head.innerHTML = '<b>カードコレクション</b><span class="sub">' + have + ' / ' + total +
-      ' 種類　永久資源。同じカードを重ねて持つと、1回の出撃で重ねられる上限が上がる</span>';
+      ' 種類　永久資源。同じカードを重ねて持つほど、カード選択に顔を出しやすくなる</span>';
     p.appendChild(head);
 
     const order = { weapon: 0, synergy: 1, mod: 2, generic: 3 };
@@ -533,7 +533,8 @@ const UI = {
         .filter(e => e.n > 0);
       if (!rEnt.length) break;
       const pickR = Util.weighted(rEnt, e => Math.max(0.01, e.w * (1 + BAL.rarityDraftLuck[e.r] * luck * 0.05))).r;
-      out.push(Util.pick(rem.filter(id => CARDS[id].rarity === pickR)));
+      const cand = rem.filter(id => CARDS[id].rarity === pickR);
+      out.push(Util.weighted(cand, id => Game.cardWeight(id)));
     }
     return out;
   },

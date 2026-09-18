@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<title>INKURIMENT — バランス実測</title>
+<style>
+  body{background:#0a0f18;color:#dbe6f3;font-family:system-ui,"Noto Sans JP",sans-serif;
+       margin:0;padding:18px;line-height:1.6;}
+  h1{font-size:17px;margin:0 0 4px;}
+  p.lead{font-size:12px;color:#8fa6bd;margin:0 0 14px;}
+  button{background:#1c4d8c;border:1px solid #4a8fd8;color:#fff;border-radius:8px;
+         padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;margin-right:8px;}
+  button:disabled{opacity:.45;cursor:default;}
+  table{border-collapse:collapse;margin-top:14px;font-size:12px;width:100%;max-width:900px;}
+  th,td{border:1px solid #223449;padding:5px 9px;text-align:left;}
+  th{background:#13202f;color:#9fb8d0;}
+  td.n{text-align:right;font-variant-numeric:tabular-nums;}
+  .ok{color:#7ee3a0;} .ng{color:#ff8a9a;}
+  pre{background:#0d1622;border:1px solid #223449;border-radius:8px;padding:10px;
+      font-size:11px;overflow:auto;max-height:340px;}
+  .note{font-size:11px;color:#7f93ab;margin-top:12px;}
+</style>
+</head>
+<body>
+
+<h1>INKURIMENT — バランス実測</h1>
+<p class="lead">
+  ゲーム本体のコードをそのまま読み込み、描画なしで回して到達ウェーブと突破までの挑戦回数を測る。<br>
+  操作は「安い順にアップグレードを買う」「3択は高レアリティ優先」という素朴なオート運用。
+  人が遊べばこれより上に出るので、<b>下限の目安</b>として読む。
+</p>
+
+<button id="run">実測する</button>
+<button id="runCards">カード3択の候補数を測る</button>
+<span id="status" class="note"></span>
+
+<div id="out"></div>
+
+<script src="../src/util.js"></script>
+<script src="../src/balance.js"></script>
+<script src="../src/stages.js"></script>
+<script src="../src/weapons.js"></script>
+<script src="../src/cards.js"></script>
+<script src="../src/skilltree.js"></script>
+<script src="../src/packs.js"></script>
+<script src="../src/state.js"></script>
+<script src="../src/combat.js"></script>
+<script>
+// 【重要】計測は localStorage に一切書かない。
+// ゲーム本体と同じオリジンなので、書くとプレイヤーのセーブを壊してしまう
+Game.save = function () {};
+Game.load = function () { this.newSave(); return false; };
+
+// 描画とDOMを使わずに回すため、UI と Render の必要な部分だけ差し替える
+const Render = { fit() {}, resize() {} };
+const UI = {
+  draftOpen: false, placing: null,
+  toastMsg() {}, renderTray() {}, renderPanel() {}, renderHud() {}, renderTabs() {},
+  // 本体の抽選ロジックと同じもの（ui.js からの写しではなく、同じ規則を使う）
+  eligibleCards() {
+    const ids = Game.loadoutWeapons();
+    const run = Game.run;
+    return CARD_IDS.filter(id => {
+      const c = CARDS[id];
+      if (c.kind === 'weapon') return false;
+      if (Game.own(id) <= 0) return false;
+      if ((run.cards[id] || 0) >= Game.stackLimit(id)) return false;
+      if (c.kind === 'mod') return ids.includes(c.weapon);
+      if (c.kind === 'synergy') return c.requires.every(w => ids.includes(w));
+      return true;
+    });
+  },
+  rollDraft(n) {
+    const pool = this.eligibleCards();
+    if (!pool.length) return [];
+    const luck = Game.run.mods.luck;
+    const out = [];
+    for (let i = 0; i < n && out.length < pool.length; i++) {
+      const rem = pool.filter(id => !out.includes(id));
+      const rEnt = BAL.rarityOrder
+        .map(r => ({ r, w: BAL.rarityWeight[r], n: rem.filter(id => CARDS[id].rarity === r).length }))
+        .filter(e => e.n > 0);
+      if (!rEnt.length) break;
+      const pickR = Util.weighted(rEnt, e => Math.max(0.01, e.w * (1 + BAL.rarityDraftLuck[e.r] * luck * 0.05))).r;
+      const cand = rem.filter(id => CARDS[id].rarity === pickR);
+      out.push(Util.weighted(cand, id => Game.cardWeight(id)));
+    }
+    return out;
+  },
+};
+
+const LOADOUTS = {
+  st1: ['gatling', 'sniper'],
+  st2: ['gatling', 'sniper', 'missile'],
+  st3: ['gatling', 'sniper', 'missile', 'tesla'],
+  st4: ['flame', 'mortar', 'missile', 'tesla'],
+  st5: ['flame', 'mortar', 'gas', 'tesla'],
+};
+
+// 1回の出撃をまるごと回す
+function runStage(stageId, loadout, buys) {
+  Game.perm.loadout = loadout.map(w => 'wc_' + w);
+  for (const w of loadout) if (!Game.own('wc_' + w)) Game.grant('wc_' + w, 1);
+  Game.perm.currentStage = stageId;
+  Game.startPrep(stageId);
+
+  for (let i = 0; i < buys; i++) {
+    const ids = SKILLS.map(s => s.id).filter(id => Skill.canBuy(Game.meta, Game.perm, id));
+    ids.sort((a, b) => Skill.cost(Game.meta, a) - Skill.cost(Game.meta, b));
+    if (!ids.length) break;
+    Skill.buy(Game.meta, Game.perm, ids[0]);
+  }
+  Game.applyMods();
+  Game.beginBattle();
+
+  const run = Game.run;
+  let t = 0, res = null;
+  const offers = [];
+  while (t < 60 * 60 * 12) {
+    const sig = Combat.update(run, 1 / 60);
+    t++;
+    if (sig === 'dead') { res = 'dead'; break; }
+    if (sig === 'stageclear') { res = 'clear'; break; }
+    if (sig === 'waveclear') {
+      run.tower.hp = Math.min(run.tower.maxHp, run.tower.hp + run.tower.maxHp * run.mods.regen);
+      run.pendingPicks += run.mods.picks;
+    }
+    while (run.pendingPicks > 0) {
+      const p = UI.rollDraft(run.mods.choices);
+      run.pendingPicks--;
+      if (!p.length) break;
+      offers.push(p.length);
+      p.sort((a, b) => BAL.rarityOrder.indexOf(CARDS[b].rarity) - BAL.rarityOrder.indexOf(CARDS[a].rarity));
+      const id = p[0];
+      run.cards[id] = (run.cards[id] || 0) + 1;
+      if (CARDS[id].apply) CARDS[id].apply(run);
+    }
+  }
+  const out = {
+    stage: stageId, res, wave: run.wave, sec: Math.round(t / 60),
+    kills: run.kills, leaked: run.leaked,
+    hpLeft: Math.round(run.tower.hp / run.tower.maxHp * 100),
+    offers,
+  };
+  Game.endRun(res === 'clear');
+  return out;
+}
+
+function campaign(maxRunsPerStage) {
+  Game.newSave();          // localStorage は触らない
+  const rows = [];
+  for (const st of STAGES) {
+    const lo = LOADOUTS[st.id];
+    let cleared = null;
+    const log = [];
+    for (let i = 1; i <= maxRunsPerStage; i++) {
+      const r = runStage(st.id, lo, 90);
+      log.push(r);
+      if (r.res === 'clear') { cleared = i; break; }
+    }
+    rows.push({ st, cleared, log });
+    if (!cleared) break;       // 突破できないと次のステージは解放されない
+  }
+  return rows;
+}
+
+document.getElementById('run').addEventListener('click', () => {
+  const st = document.getElementById('status');
+  st.textContent = '計測中…';
+  setTimeout(() => {
+    const t0 = performance.now();
+    const rows = campaign(8);
+    const ms = Math.round(performance.now() - t0);
+    let html = '<table><tr><th>ステージ</th><th>突破</th><th>各回の結果（到達W / 秒 / 漏れ / 残HP%）</th></tr>';
+    for (const row of rows) {
+      const detail = row.log.map(r =>
+        (r.res === 'clear' ? '突破' : '撃沈') + ' W' + r.wave + ' / ' + r.sec + 's / 漏' + r.leaked + ' / HP' + r.hpLeft + '%'
+      ).join('　|　');
+      html += '<tr><td>' + row.st.name + '</td>' +
+        '<td class="' + (row.cleared ? 'ok' : 'ng') + '">' + (row.cleared ? row.cleared + '回目' : '未突破') + '</td>' +
+        '<td>' + detail + '</td></tr>';
+    }
+    html += '</table>';
+    const allOffers = rows.flatMap(r => r.log.flatMap(x => x.offers));
+    const min = allOffers.length ? Math.min.apply(null, allOffers) : 0;
+    const avg = allOffers.length ? (allOffers.reduce((a, b) => a + b, 0) / allOffers.length).toFixed(2) : 0;
+    html += '<p class="note">カード提示枚数： 最小 ' + min + ' / 平均 ' + avg +
+      ' （' + allOffers.length + '回の抽選）　／　計測にかかった時間 ' + ms + 'ms</p>';
+    document.getElementById('out').innerHTML = html;
+    st.textContent = '完了';
+  }, 30);
+});
+
+// カード枯渇の確認だけを単体で測る
+document.getElementById('runCards').addEventListener('click', () => {
+  const st = document.getElementById('status');
+  st.textContent = '計測中…';
+  setTimeout(() => {
+    const lines = [];
+    for (const picks of [0, 1, 2, 3]) {
+      Game.newSave();
+      Game.meta.skills.picks = picks;
+      Game.perm.loadout = ['wc_gatling', 'wc_sniper', null, null];
+      Game.startPrep('st1');
+      Game.beginBattle();
+      const run = Game.run;
+      const sizes = [];
+      const taken = {};
+      for (let w = 0; w < BAL.wavesPerStage - 1; w++) {
+        for (let k = 0; k < run.mods.picks; k++) {
+          const p = UI.rollDraft(run.mods.choices);
+          sizes.push(p.length);
+          if (!p.length) continue;
+          const id = p[0];
+          run.cards[id] = (run.cards[id] || 0) + 1;
+          taken[id] = (taken[id] || 0) + 1;
+        }
+      }
+      Game.endRun(false);
+      lines.push('増設スロット Lv' + picks + '（1ウェーブ ' + (picks + 1) + '枚）：' +
+        '提示枚数 ' + sizes.join(',') + '　→ 空振り ' + sizes.filter(x => x === 0).length + '回');
+    }
+    document.getElementById('out').innerHTML = '<pre>' + lines.join('\n') + '</pre>' +
+      '<p class="note">初期所持（カード7種）だけの状態で、1ステージぶんの抽選を回したもの。' +
+      '0 が出ると「候補が尽きて選べなかった」という意味。</p>';
+    st.textContent = '完了';
+  }, 30);
+});
+</script>
+</body>
+</html>

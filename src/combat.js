@@ -469,7 +469,10 @@ const Combat = {
       // コアに触れた敵は、まとめてダメージを置いて消える（＝漏れ）。
       // 居座らせるとウェーブが終わらなくなるうえ、どこから抜けられたのかも見えない
       if (Util.dist(e.x, e.y, tw.x, tw.y) <= tw.r + e.r) {
-        tw.hp -= e.dmg * BAL.leakDamage * (e.boss ? BAL.bossLeakMul : 1);
+        // 漏れはコア最大HPの一定割合を必ず削る。
+        // 攻撃力ぶんだけだと、HPを積んだ後期に「漏らしても勝てる」状態になってしまう
+        const leakDmg = Math.max(e.dmg * BAL.leakDamage, tw.maxHp * BAL.leakCoreFrac);
+        tw.hp -= leakDmg * (e.boss ? BAL.bossLeakMul : 1);
         run.leaked++;
         // 経路全体を塗るが、コアに近い区間ほど濃くする。
         // 「どこで止め損ねたか」が知りたいので、手前ほど強調しても意味が薄い
