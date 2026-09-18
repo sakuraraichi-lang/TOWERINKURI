@@ -27,10 +27,12 @@
 <p class="lead">
   ゲーム本体のコードをそのまま読み込み、描画なしで回して到達ウェーブと突破までの挑戦回数を測る。<br>
   操作は「安い順にアップグレードを買う」「3択は高レアリティ優先」という素朴なオート運用。
-  人が遊べばこれより上に出るので、<b>下限の目安</b>として読む。
+  人が遊べばこれより上に出るので、<b>下限の目安</b>として読む。<br>
+  カードの抽選が乱数なので、<b>指定した回数まわして中央値を取る</b>。1本だけだと当てにならない。
 </p>
 
 <button id="run">実測する</button>
+<label class="note">周回数 <input id="trials" type="number" value="2" min="1" max="6" style="width:52px"></label>
 <button id="runCards">カード3択の候補数を測る</button>
 <span id="status" class="note"></span>
 
@@ -187,46 +189,83 @@ function runStage(stageId, loadout, buys) {
   return out;
 }
 
-function campaign(maxRunsPerStage) {
-  Game.newSave();          // localStorage は触らない
+// 1周分。**突破するまで回す。**
+// 途中で見切りをつけると「実際には周回して貯まるコイン」が計算に入らず、
+// 到達時の戦力を実際より低く見積もってしまう
+const HARD_CAP = 15;           // 安全弁。これを超えたら「未突破」として扱う
+                               // （上限無しにすると計算量が跳ね上がってブラウザが固まる）
+
+function campaign() {
+  Game.newSave();              // localStorage は触らない
   const rows = [];
   for (const st of STAGES) {
     const lo = LOADOUTS[st.id];
     let cleared = null;
     const log = [];
-    for (let i = 1; i <= maxRunsPerStage; i++) {
+    for (let i = 1; i <= HARD_CAP; i++) {
       const r = runStage(st.id, lo, 90);
       log.push(r);
       if (r.res === 'clear') { cleared = i; break; }
     }
-    rows.push({ st, cleared, log });
-    if (!cleared) break;       // 突破できないと次のステージは解放されない
+    // ステージ突破時点の戦力を記録する（蓄積がどれだけ効いているかを見るため）
+    const m = Skill.mods(Game.meta, Game.perm);
+    rows.push({ st, cleared, log,
+      power: {
+        lv: SKILLS.reduce((a, x) => a + Skill.lv(Game.meta, x.id), 0),
+        mid: +m.cat.mid.dmg.toFixed(1), long: +m.cat.long.dmg.toFixed(1),
+        units: Skill.lv(Game.meta, 'units'), lives: BAL.livesBase + m.lives,
+      } });
+    if (!cleared) break;
   }
   return rows;
 }
 
+// **複数回まわして中央値を取る。** カード抽選が乱数なので1本では当てにならない。
+// 実際、同じ設定で「2回目突破」と「8回かけても未突破」が出たことがある
+function campaignN(trials) {
+  const per = STAGES.map(() => []);
+  const power = STAGES.map(() => []);
+  for (let t = 0; t < trials; t++) {
+    const rows = campaign();
+    rows.forEach((r, i) => {
+      per[i].push(r.cleared || null);
+      if (r.power) power[i].push(r.power);
+    });
+  }
+  const med = (arr) => {
+    const v = arr.filter(x => x !== null).sort((a, b) => a - b);
+    if (!v.length) return null;
+    return v[Math.floor(v.length / 2)];
+  };
+  return STAGES.map((st, i) => ({
+    st, tries: per[i], median: med(per[i]), fails: per[i].filter(x => x === null).length,
+    power: power[i].length ? power[i][Math.floor(power[i].length / 2)] : null,
+  }));
+}
+
 document.getElementById('run').addEventListener('click', () => {
   const st = document.getElementById('status');
-  st.textContent = '計測中…';
+  const trials = Math.max(1, parseInt(document.getElementById('trials').value, 10) || 3);
+  st.textContent = '計測中…（' + trials + '周ぶん。時間がかかります）';
   setTimeout(() => {
     const t0 = performance.now();
-    const rows = campaign(8);
+    const rows = campaignN(trials);
     const ms = Math.round(performance.now() - t0);
-    let html = '<table><tr><th>ステージ</th><th>突破</th><th>各回の結果（到達W / 秒 / 漏れ / 残ライフ）</th></tr>';
-    for (const row of rows) {
-      const detail = row.log.map(r =>
-        (r.res === 'clear' ? '突破' : '撃沈') + ' W' + r.wave + ' / ' + r.sec + 's / 漏' + r.leaked + ' / ライフ' + r.livesLeft
-      ).join('　|　');
-      html += '<tr><td>' + row.st.name + '</td>' +
-        '<td class="' + (row.cleared ? 'ok' : 'ng') + '">' + (row.cleared ? row.cleared + '回目' : '未突破') + '</td>' +
-        '<td>' + detail + '</td></tr>';
+    let html = '<table><tr><th>ステージ</th><th>突破までの回数<br>（中央値）</th><th>各周の結果</th>' +
+      '<th>突破時点の戦力<br>（総段数 / 中射程 / 長射程 / 増設 / ライフ）</th></tr>';
+    for (const r of rows) {
+      const list = r.tries.map(x => x === null ? '未突破' : x + '回').join(' , ');
+      const p = r.power;
+      html += '<tr><td>' + r.st.name + '</td>' +
+        '<td class="' + (r.median ? 'ok' : 'ng') + '">' + (r.median ? r.median + '回目' : '未突破') + '</td>' +
+        '<td>' + list + '</td>' +
+        '<td>' + (p ? p.lv + ' / ×' + p.mid + ' / ×' + p.long + ' / ' + p.units + ' / ' + p.lives : '-') + '</td></tr>';
     }
     html += '</table>';
-    const allOffers = rows.flatMap(r => r.log.flatMap(x => x.offers));
-    const min = allOffers.length ? Math.min.apply(null, allOffers) : 0;
-    const avg = allOffers.length ? (allOffers.reduce((a, b) => a + b, 0) / allOffers.length).toFixed(2) : 0;
-    html += '<p class="note">カード提示枚数： 最小 ' + min + ' / 平均 ' + avg +
-      ' （' + allOffers.length + '回の抽選）　／　計測にかかった時間 ' + ms + 'ms</p>';
+    html += '<p class="note">' + trials + '周の中央値。突破するまで回している（安全弁 ' + HARD_CAP + '回）。' +
+      '「突破時点の戦力」は、そのステージを抜けた直後のアップグレードの効き具合。' +
+      '奥へ行くほど大きくなるなら、蓄積が難度を上回っているということ。' +
+      '　／　計測にかかった時間 ' + ms + 'ms</p>';
     document.getElementById('out').innerHTML = html;
     st.textContent = '完了';
   }, 30);
