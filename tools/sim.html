@@ -400,9 +400,37 @@ function runStageInner(stageId, loadout, buys, opts) {
     killPerSec: +(run.kills / sec).toFixed(1),
     dpsAvg: Math.round(run.dealt / sec),
     death, offers, waves,
+    // 「シナジーが弱い」のか「シナジーのカードが来ていない」のかを分けるため、
+    // 実際に取れたカードと、その編成で出るはずのシナジーを両方残す
+    cards: Object.assign({}, run.cards),
+    synOwned: Object.keys(run.cards).filter(id => CARDS[id].kind === 'synergy'),
+    synPossible: CARD_IDS.filter(id => CARDS[id].kind === 'synergy' &&
+      CARDS[id].requires.every(w => loadout.indexOf(w) >= 0)),
   };
   Game.endRun(res === 'clear');
   return out;
+}
+
+// ---------------------------------------------------------------
+// **パックを開ける。**
+//
+// 本体ではパックを開けるのはUIの操作なので、測定器は今まで1つも開けていなかった。
+// つまり手札は STARTER_CARDS（ガトリングとスナイパーの強化＋汎用1枚）に
+// 固定されたままで、**カード構築というこのゲームの柱が測定に入っていなかった。**
+// 実際、シナジーカードは2000回抽選して0回しか出なかった。
+// プレイヤーは貰ったパックを必ず開けるので、測定器も同じことをする
+// ---------------------------------------------------------------
+function openAllPacks() {
+  const luck = Skill.mods(Game.meta, Game.perm).packLuck;
+  let opened = 0, got = 0;
+  for (let guard = 0; guard < 500; guard++) {
+    const pid = PACK_IDS.find(k => (Game.perm.packs[k] || 0) > 0 && Pack.isUnlocked(Game.perm, k));
+    if (!pid) break;
+    Game.perm.packs[pid]--;
+    for (const id of Pack.open(pid, luck)) { Game.grant(id, 1); got++; }
+    opened++;
+  }
+  return { opened, got };
 }
 
 // ---------------------------------------------------------------
@@ -420,10 +448,12 @@ function campaignRun(pick, opts) {
   opts = opts || {};
   if (opts.reset !== false) Game.newSave();
   const stages = [], allWaves = [], deaths = [];
-  let total = 0, cleared = 0, attempts = 0;
+  let total = 0, cleared = 0, attempts = 0, packsOpened = 0;
   for (const stg of STAGES) {
     let ok = false, tries = 0, secs = 0, note = '';
     for (let i = 1; i <= HARD_CAP; i++) {
+      // プレイヤーと同じように、持っているパックは開けてから出撃する
+      if (opts.noPacks !== true) packsOpened += openAllPacks().opened;
       const r = runStage(stg.id, pick(stg), 90, opts);
       tries = i; attempts++; secs += r.sec; total += r.sec;
       for (const w of r.waves) allWaves.push(w);
@@ -437,7 +467,9 @@ function campaignRun(pick, opts) {
   }
   const m = Skill.mods(Game.meta, Game.perm);
   return {
-    label: opts.label || '', stages, cleared, attempts,
+    label: opts.label || '', stages, cleared, attempts, packsOpened,
+    collection: Object.keys(Game.perm.collection).length,
+    synOwned: CARD_IDS.filter(id => CARDS[id].kind === 'synergy' && Game.own(id) > 0),
     totalSec: +total.toFixed(1), totalMin: +(total / 60).toFixed(1),
     allWaves, deaths,
     coins: Math.round(Game.meta.coins),
