@@ -81,7 +81,8 @@ const Combat = {
     const si = run.spawnPick++ % st.spawns.length;      // 出現口は順番に使う
     const sp = st.spawns[si];
     const p = st.center(sp.c, sp.r);
-    const hp = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * t.hp * (boss ? BAL.bossHpMul : 1);
+    const stageMul = Math.pow(BAL.stageHpMul, run.stageIdx);
+    const hp = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * stageMul * t.hp * (boss ? BAL.bossHpMul : 1);
     run.enemies.push({
       x: p.x + Util.rand(-10, 10), y: p.y + Util.rand(-10, 10),
       hp, maxHp: hp, si,

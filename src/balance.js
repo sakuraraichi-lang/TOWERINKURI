@@ -33,6 +33,9 @@ const BAL = {
 
   // --- 敵 ---
   // 強さは「通算ウェーブ番号」で決まる。ステージ1のW1が1、ステージ2のW1が6
+  // ステージが進むほど、通算ウェーブとは別に上乗せする。
+  // 後のステージほど蓄積した戦力で到達するので、ウェーブ番号の伸びだけでは追いつかない
+  stageHpMul: 1.22,     // ステージ1つ進むごとに敵HPへ乗る倍率
   enemyHpBase: 19,
   enemyHpGrowth: 1.30,
   enemySpdBase: 112,    // px/s（1タイル44px）。押し寄せる速さ
@@ -41,7 +44,7 @@ const BAL = {
   enemyDpsBase: 7,
   enemyDpsGrowth: 1.26,
   enemyCoinBase: 2.4,
-  enemyCoinGrowth: 1.26,
+  enemyCoinGrowth: 1.19,
   enemySlowFloor: 0.25, // どれだけ重ねても、この倍率より遅くはならない
 
   // 1ウェーブに来る敵の数。「大量に来る」ことが前提のゲームなので多め

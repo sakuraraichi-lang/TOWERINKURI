@@ -10,7 +10,7 @@
 const SKILLS = [
   // ============ 資源・拠点 ============
   { id: 'coin', name: '集金効率', icon: '◈', group: '資源',
-    desc: '敵から得るコイン ×1.13', cost0: 15, costG: 1.30, max: Infinity, unlock: 0 },
+    desc: '敵から得るコイン ×1.11', cost0: 15, costG: 1.33, max: Infinity, unlock: 0 },
   { id: 'core', name: '防衛線', icon: '▣', group: '拠点',
     desc: 'ライフ +3（抜けられてよい敵が3体増える）', cost0: 40, costG: 1.26, max: 200, unlock: 0 },
   { id: 'regen', name: '応急修理班', icon: '✚', group: '拠点',
@@ -48,7 +48,7 @@ const SKILLS = [
     desc: '支援カテゴリの射程・効果範囲 ×1.10', cost0: 55, costG: 1.34, max: 25, unlock: 0 },
 
   { id: 'units', name: '増設基盤', icon: '⛁', group: '拠点',
-    desc: 'どの武器も設置できる数が +1 基', cost0: 400, costG: 3.4, max: 8, unlock: 0 },
+    desc: 'どの武器も設置できる数が +1 基', cost0: 900, costG: 7.5, max: 5, unlock: 1 },
 
   // ============ カード側の枠を増やす ============
   { id: 'picks', name: '増設スロット', icon: '★', group: 'カード',
@@ -112,7 +112,7 @@ const Skill = {
     // 転生は乗算。1周期ぶんの頭打ちを越えるための唯一の手段なので、加算では足りない
     const pw = Math.pow(BAL.prestigePower, perm.prestiges);
     return {
-      coin:   Math.pow(1.13, L('coin')) * Math.pow(1.06, L('lure')) * pw,
+      coin:   Math.pow(1.11, L('coin')) * Math.pow(1.06, L('lure')) * pw,
       lives:  3 * L('core'),
       regen:  L('regen'),                 // ウェーブ突破ごとに戻るライフ
       spawn:  1 + 0.12 * L('lure'),

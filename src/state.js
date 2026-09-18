@@ -34,7 +34,7 @@ const Game = {
       totalRuns: 0,
       missions: {},
       loadout: ['wc_gatling', 'wc_sniper', null, null],
-      stages: { st1: { cleared: false, bestWave: 0, attempts: 0 } },
+      stages: { st1: { cleared: false, perfect: false, bestWave: 0, attempts: 0 } },
       currentStage: 'st1',
       placements: {},
       heat: {},          // stageId -> { traffic: [], leak: [] }
@@ -87,7 +87,7 @@ const Game = {
 
   // ---------- ステージ ----------
   stageRec(id) {
-    if (!this.perm.stages[id]) this.perm.stages[id] = { cleared: false, bestWave: 0, attempts: 0 };
+    if (!this.perm.stages[id]) this.perm.stages[id] = { cleared: false, perfect: false, bestWave: 0, attempts: 0 };
     return this.perm.stages[id];
   },
 
@@ -99,18 +99,28 @@ const Game = {
     return this.stageRec(STAGES[i - 1].id).cleared;
   },
 
-  clearStage(id) {
+  // perfect = 1体も抜けさせずに5ウェーブ凌いだ（完璧クリア）
+  clearStage(id, perfect) {
     const rec = this.stageRec(id);
     const first = !rec.cleared;
+    const firstPerfect = perfect && !rec.perfect;
     rec.cleared = true;
+    if (perfect) rec.perfect = true;
     const def = STAGE_BY_ID[id];
-    const got = { first, cards: [], packs: {}, stage: def, next: STAGES[def.idx + 1] || null };
+    const got = { first, perfect: !!perfect, firstPerfect,
+                  cards: [], packs: {}, stage: def, next: STAGES[def.idx + 1] || null };
+    const addPack = (k, n) => {
+      this.perm.packs[k] = (this.perm.packs[k] || 0) + n;
+      got.packs[k] = (got.packs[k] || 0) + n;
+    };
     if (first) {
       for (const cid of (def.reward.cards || [])) { this.grant(cid, 1); got.cards.push(cid); }
-      for (const k in (def.reward.packs || {})) {
-        this.perm.packs[k] = (this.perm.packs[k] || 0) + def.reward.packs[k];
-        got.packs[k] = def.reward.packs[k];
-      }
+      for (const k in (def.reward.packs || {})) addPack(k, def.reward.packs[k]);
+    }
+    // 完璧クリアはパックの入手経路。1体も通さない配置を組めた報酬
+    if (perfect) {
+      addPack('basic', 1);
+      if (firstPerfect) addPack('rare', 1);
     }
     this.save();
     return got;
@@ -407,13 +417,14 @@ const Game = {
 
     this.foldHeat(r);
 
+    const perfect = ok && r.leaked === 0;
     let stageGot = null;
-    if (ok) stageGot = this.clearStage(r.stageId);
+    if (ok) stageGot = this.clearStage(r.stageId, perfect);
 
     const missions = this.checkMissions();
     this.save();
     return {
-      ok, stage: STAGE_BY_ID[r.stageId], wave: r.wave,
+      ok, perfect, stage: STAGE_BY_ID[r.stageId], wave: r.wave,
       kills: r.kills, coins: r.coinsEarned, leaked: r.leaked,
       lives: Math.max(0, Math.ceil(r.lives)), livesMax: r.livesMax,
       stageGot, missions,

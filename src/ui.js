@@ -76,8 +76,9 @@ const UI = {
 
     this.el.hudHpBar.style.width = (Util.clamp(r.lives / Math.max(1, r.livesMax), 0, 1) * 100) + '%';
     this.el.hudHp.textContent = 'ライフ ' + Math.ceil(r.lives) + ' / ' + r.livesMax;
-    this.el.hudDps.textContent = r.leaked > 0 ? '撃破 ' + Util.fmt(r.kills) + ' / 通過 ' + Util.fmt(r.leaked)
-                                              : '撃破 ' + Util.fmt(r.kills);
+    this.el.hudDps.textContent = r.leaked > 0
+      ? '撃破 ' + Util.fmt(r.kills) + ' / 通過 ' + Util.fmt(r.leaked)
+      : '撃破 ' + Util.fmt(r.kills) + '　★完璧';
   },
 
   // 画面下のユニットバー。編成した4種を「配置済 / 上限」で出す
@@ -163,7 +164,7 @@ const UI = {
   panelStages(p) {
     const head = Util.el('div', 'phead');
     head.innerHTML = '<b>ステージ</b><span class="sub">1ステージ＝' + BAL.wavesPerStage +
-      'ウェーブ。全部凌げば突破。マップごとに通路と壁の形が違う</span>';
+      'ウェーブ。全部凌げば突破。<b>1体も通さず凌ぐと「完璧クリア」でカードパック</b></span>';
     p.appendChild(head);
 
     for (const s of STAGES) {
@@ -177,7 +178,7 @@ const UI = {
         '<div class="stmini">' + this.miniMap(s) + '</div>' +
         '<div class="sbody">' +
           '<div class="sname">' + (unlocked ? s.name : '？？？') +
-            (rec.cleared ? ' <em class="ok">突破済</em>' : ' <em>未突破</em>') + '</div>' +
+            (rec.perfect ? ' <em class="ok">★完璧</em>' : rec.cleared ? ' <em class="ok">突破済</em>' : ' <em>未突破</em>') + '</div>' +
           '<div class="sdesc">' + (unlocked ? s.desc : '前のステージを突破すると解放') + '</div>' +
           '<div class="sdesc rw">初回報酬: ' + rw +
             (rec.attempts ? '　／　挑戦 ' + rec.attempts + '回・最高 W' + rec.bestWave : '') + '</div>' +
@@ -414,7 +415,7 @@ const UI = {
   // ================= パック =================
   panelPacks(p) {
     const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>カードパック</b><span class="sub">コインでは買えない。ステージ突破・転生・ミッションで手に入る。' +
+    head.innerHTML = '<b>カードパック</b><span class="sub">コインでは買えない。<b>完璧クリア</b>・ステージ突破・転生・ミッションで手に入る。' +
       '刀・手裏剣・触手・泡といった変わり種の武器はここからしか出ない</span>';
     p.appendChild(head);
 
@@ -674,7 +675,16 @@ const UI = {
   showResult(res) {
     const body = Util.el('div');
     if (res.ok) {
-      body.appendChild(Util.el('h3', null, '★ ' + res.stage.name + ' 突破！'));
+      body.appendChild(Util.el('h3', null,
+        res.perfect ? '★★ ' + res.stage.name + ' 完璧クリア！' : '★ ' + res.stage.name + ' 突破！'));
+      if (res.perfect) {
+        body.appendChild(Util.el('div', 'reward', '🏆 1体も通さなかった。カードパックを獲得'));
+        this.burst('#ffb020');
+      } else {
+        body.appendChild(Util.el('div', 'note',
+          '1体も通さずに凌ぐと「完璧クリア」になり、カードパックが手に入る（今回は ' +
+          Util.fmt(res.leaked) + ' 体通した）'));
+      }
       if (res.stageGot && res.stageGot.first && res.stageGot.cards.length) {
         body.appendChild(Util.el('div', 'sgroup', '新しい武器カードを獲得'));
         const row = Util.el('div', 'popenrow');
@@ -693,7 +703,9 @@ const UI = {
       '<div><span>ステージ</span><b>' + res.stage.name + '</b></div>' +
       '<div><span>到達ウェーブ</span><b>' + res.wave + ' / ' + BAL.wavesPerStage + '</b></div>' +
       '<div><span>撃破数</span><b>' + Util.fmt(res.kills) + '</b></div>' +
-      '<div><span>獲得コイン</span><b>◈ ' + Util.fmt(res.coins) + '</b></div>';
+      '<div><span>獲得コイン</span><b>◈ ' + Util.fmt(res.coins) + '</b></div>' +
+      '<div><span>残りライフ</span><b>' + res.lives + ' / ' + res.livesMax + '</b></div>' +
+      '<div><span>通した敵</span><b>' + Util.fmt(res.leaked) + '</b></div>';
     body.appendChild(st);
 
     if (res.leaked > 0) {
