@@ -198,7 +198,7 @@ const Game = {
   unitCap(weaponId) {
     const def = WEAPONS[weaponId];
     if (!def) return 0;
-    return def.stock + BAL.unitBonus + Skill.lv(this.meta, 'units');
+    return def.stock + BAL.unitBonus + Skill.amount(this.meta, 'units');
   },
 
   unitCount(weaponId) {

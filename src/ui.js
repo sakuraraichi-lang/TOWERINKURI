@@ -276,7 +276,7 @@ const UI = {
       row.innerHTML =
         '<div class="sic">' + s.icon + '</div>' +
         '<div class="sbody"><div class="sname">' + s.name + ' <em>Lv' + lv + (s.max !== Infinity ? '/' + s.max : '') + '</em></div>' +
-        '<div class="sdesc">' + s.desc + '</div></div>' +
+        '<div class="sdesc">' + Skill.desc(s) + '</div></div>' +
         '<button class="sbuy"' + (can ? '' : ' disabled') + '>' + (maxed ? 'MAX' : '◈ ' + Util.fmt(cost)) + '</button>';
       const btn = row.querySelector('.sbuy');
       let hold = null;
