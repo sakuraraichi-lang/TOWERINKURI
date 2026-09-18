@@ -227,6 +227,8 @@ const Stage = {
       },
       reachable: spawns.every(s => dist[idx(s.c, s.r)] < INF),
       unreachableSpawns: spawns.filter(s => dist[idx(s.c, s.r)] >= INF),
+      // 出現口ごとの経路長（タイル数）。短いと撃てる時間が足りず、必ず漏れる
+      routeLens: spawns.map(s => dist[idx(s.c, s.r)]).filter(d => d < INF),
     };
 
     this._cache[stageId] = built;
@@ -246,6 +248,12 @@ const Stage = {
       if (!b.reachable) bad.push(s.id + ': コアへ到達できない出現口 ' + JSON.stringify(b.unreachableSpawns));
       const walls = b.grid.reduce((n, row) => n + row.filter(ch => ch === '#').length, 0);
       if (walls < 12) bad.push(s.id + ': 設置できる壁が少なすぎる (' + walls + ')');
+      // 経路が短すぎると、どう置いても撃つ時間が足りずに漏れる。
+      // 実際に経路17タイルのマップで「8回挑戦して全部ウェーブ1で撃沈」になった
+      const shortest = b.routeLens.length ? Math.min.apply(null, b.routeLens) : 0;
+      if (shortest < BAL.minRouteLen) {
+        bad.push(s.id + ': 経路が短すぎる (' + shortest + ' < ' + BAL.minRouteLen + ') 経路長=' + b.routeLens.join('/'));
+      }
     }
     return bad;
   },
