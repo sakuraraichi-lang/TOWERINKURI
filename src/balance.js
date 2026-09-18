@@ -4,7 +4,7 @@
 'use strict';
 
 const BAL = {
-  // --- 盤面（タイルは stages.js の TILE = 44px） ---
+  // --- 盤面（タイルの大きさは stages.js の TILE） ---
   coreR: 16,
   loadoutSlots: 4,      // 編成できる武器の「種類」数
   unitBonus: 0,         // 設置上限への加算（スキルで増える）
@@ -38,7 +38,7 @@ const BAL = {
   stageHpMul: 1.35,     // ステージ1つ進むごとに敵HPへ乗る倍率
   enemyHpBase: 19,
   enemyHpGrowth: 1.30,
-  enemySpdBase: 112,    // px/s（1タイル44px）。押し寄せる速さ
+  enemySpdBase: 112,    // px/s（1タイルは stages.js の TILE）。押し寄せる速さ
   enemySpdGrowth: 1.012,
   enemySpdCap: 260,
   enemyDpsBase: 7,
