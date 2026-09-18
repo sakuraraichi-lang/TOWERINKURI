@@ -15,7 +15,7 @@ const BAL = {
   // --- 敵 ---
   enemyHpBase: 12,
   enemyHpGrowth: 1.165,
-  enemySpdBase: 68,     // px/s（1タイル44px）
+  enemySpdBase: 82,     // px/s（1タイル44px）
   enemySpdGrowth: 1.004,
   enemySpdCap: 190,
   enemyDpsBase: 6,
@@ -29,9 +29,10 @@ const BAL = {
   waveCountBase: 7,
   waveCountPerWave: 1.35,
   waveCountMax: 260,
-  spawnIntervalBase: 0.62,
+  spawnIntervalBase: 0.50,
   spawnIntervalMin: 0.04,
-  waveGap: 1.2,
+  waveGap: 0.9,
+  clearWait: 6,         // 残敵の掃討をこの秒数まで待ち、越えたら次ウェーブへ進む
   enemyCap: 420,
 
   bossEvery: 10,

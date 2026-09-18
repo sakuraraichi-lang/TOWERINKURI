@@ -379,9 +379,12 @@ const Combat = {
         run.toSpawn--;
         run.spawnTimer += this.spawnInterval(run);
       }
-      if (run.toSpawn <= 0) run.phase = 'clear';
+      if (run.toSpawn <= 0) { run.phase = 'clear'; run.clearTimer = BAL.clearWait; }
     } else if (run.phase === 'clear') {
-      if (run.enemies.length === 0) {
+      // 全部倒せば即、倒しきれなくても clearWait 秒で次のウェーブへ。
+      // 倒し残しは次のウェーブに持ち越され、そのまま圧力になる
+      run.clearTimer -= dt;
+      if (run.enemies.length === 0 || run.clearTimer <= 0) {
         run.phase = 'gap';
         run.gapTimer = BAL.waveGap;
         run.justClearedWave = run.wave;
