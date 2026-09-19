@@ -37,6 +37,7 @@
       <span class="lbl">武器</span>
       <button class="w on" data-w="gatling">ガトリング</button>
       <button class="w" data-w="sniper">スナイパー</button>
+      <button class="w" data-w="cryo">凍結</button>
       <button id="clear">全撤去</button>
     </div>
     <div class="grp">
@@ -63,7 +64,16 @@
     </div>
   </div>
 
-  <div id="hint">地面をタップして武器を置く／置いた武器をドラッグして動かす</div>
+  <!-- 選択中のユニットの調整。選んだときだけ出る -->
+  <div id="selbar">
+    <span id="selName">—</span>
+    <button id="narrow">◀ 狭</button>
+    <button id="wide">広 ▶</button>
+    <button id="remove">撤去</button>
+    <button id="deselect">閉じる</button>
+  </div>
+
+  <div id="hint">武器を選んで地面をタップ／置いたものをタップすると、次にタップした場所へ動く</div>
 </div>
 <script src="/proto/proto.js"></script>
 </body>

@@ -15,7 +15,7 @@
 'use strict';
 
 // ===== 実験用のつまみ（ここだけ見れば全部変えられる）=====
-const BUILD = '09/19 20:23';   // 画面右下に出る。届いている版がこれで分かる
+const BUILD = '09/19 20:52';   // 画面右下に出る。届いている版がこれで分かる
 
 const P = {
   // フィールド（縦持ちのスマホに合わせた比率。画面いっぱいに拡大される）
@@ -128,7 +128,7 @@ const rnd = (a, b) => a + Math.random() * (b - a);
 
 function mkEnemy(x, y) {
   return { x, y, hp: P.enemyHp, max: P.enemyHp, r: P.enemyR,
-    jam: 1, px: 0, py: 0, hit: 0, dead: false, tint: rnd(-0.12, 0.12) };
+    jam: 1, slow: 0, slowT: 0, px: 0, py: 0, hit: 0, dead: false, tint: rnd(-0.12, 0.12) };
 }
 function spawnEnemy() {
   for (let t = 0; t < 24; t++) {
@@ -212,35 +212,83 @@ function crowdBucket(dt) {
 }
 
 // ===== 武器 =====
+// arc = 扇の半角(rad)。**狭いほど集弾が上がり、広いほど守備範囲が増える**
 const WEAPONS = {
   gatling: {
     name: 'ガトリング', color: '#ffd24a', range: 108, rate: 13, dmg: 7,
-    spread: 0.18, speed: 380, pierce: 0, kind: 'bullet',
+    speed: 380, pierce: 0, kind: 'bullet',
+    arc: 0.45, arcMin: 0.14, arcMax: 1.05, turn: 4.5,
   },
   sniper: {
     name: 'スナイパー', color: '#6fe3ff', range: 250, rate: 0.9, dmg: 34,
-    spread: 0.0, speed: 0, pierce: 99, kind: 'beam',
+    speed: 0, pierce: 99, kind: 'beam',
+    arc: 0.22, arcMin: 0.10, arcMax: 0.75, turn: 2.4,
+  },
+  // 凍結：足を止める。**バケットと組み合わせると、止まった敵の後ろが詰まって団子になる**
+  cryo: {
+    name: '凍結', color: '#8fd8ff', range: 92, rate: 4, dmg: 1.5,
+    speed: 0, pierce: 0, kind: 'field', slow: 0.72, slowT: 1.1,
+    arc: 0.70, arcMin: 0.22, arcMax: 1.25, turn: 5.5,
   },
 };
+
+// 集弾率：扇を絞るほど1に近づき、広げるほど落ちる。
+// 弾はばらけ、瞬間当たりの武器は威力が落ちる
+function grouping(u) {
+  const d = u.d;
+  const t = (u.arc - d.arcMin) / Math.max(0.001, d.arcMax - d.arcMin);
+  return 1 - 0.55 * Math.max(0, Math.min(1, t));
+}
+// その角度が扇の中か
+function inArc(u, x, y) {
+  let da = Math.atan2(y - u.y, x - u.x) - u.face;
+  while (da > Math.PI) da -= Math.PI * 2;
+  while (da < -Math.PI) da += Math.PI * 2;
+  return Math.abs(da) <= u.arc;
+}
 
 function placeUnit(type, x, y) {
   if (!walkableAt(x, y)) return null;
   for (const u of S.units) if (Math.hypot(u.x - x, u.y - y) < 18) return null;
   const d = WEAPONS[type];
-  const u = { type, d, x, y, cd: 0, angle: -Math.PI / 2, flash: 0 };
+  const u = { type, d, x, y, cd: 0, face: -Math.PI / 2, arc: d.arc, flash: 0 };
   S.units.push(u);
   return u;
 }
 
-// 敵が一番濃いところを狙う（貫通・連射のどちらも、群れに当てたい）
-function pickTarget(u) {
-  let best = null, bs = -1;
+// 扇をどちらへ向けるか。**敵がいちばん濃い方向**を探す（自動で回る）
+function bestFacing(u) {
+  const N = 16, w = new Float64Array(N);
   const R2 = u.d.range * u.d.range;
-  for (let i = 0; i < S.enemies.length; i += 1) {
+  for (let i = 0; i < S.enemies.length; i++) {
     const e = S.enemies[i];
     const dx = e.x - u.x, dy = e.y - u.y, d2 = dx * dx + dy * dy;
     if (d2 > R2) continue;
-    // 近さ＋その先に何体並んでいるか
+    let a = Math.atan2(dy, dx) + Math.PI;
+    const k = ((a / (Math.PI * 2)) * N) | 0;
+    w[k % N] += 1 - Math.sqrt(d2) / u.d.range * 0.5;
+  }
+  // 扇の幅ぶんをまとめて見る（広い扇なら広く見渡す）
+  const half = Math.max(1, Math.round(u.arc / (Math.PI * 2 / N)));
+  let bi = -1, bw = 0;
+  for (let i = 0; i < N; i++) {
+    let sum = 0;
+    for (let j = -half; j <= half; j++) sum += w[(i + j + N * 2) % N];
+    if (sum > bw) { bw = sum; bi = i; }
+  }
+  if (bi < 0) return null;
+  return (bi + 0.5) / N * Math.PI * 2 - Math.PI;
+}
+
+// 扇の中から狙う相手を選ぶ
+function pickTarget(u) {
+  let best = null, bs = -1;
+  const R2 = u.d.range * u.d.range;
+  for (let i = 0; i < S.enemies.length; i++) {
+    const e = S.enemies[i];
+    const dx = e.x - u.x, dy = e.y - u.y, d2 = dx * dx + dy * dy;
+    if (d2 > R2) continue;
+    if (!inArc(u, e.x, e.y)) continue;          // **扇の外は撃たない**
     let score = 1 - Math.sqrt(d2) / u.d.range;
     if (u.d.kind === 'beam') {
       const a = Math.atan2(dy, dx), ca = Math.cos(a), sa = Math.sin(a);
@@ -250,8 +298,7 @@ function pickTarget(u) {
         const ox = o.x - u.x, oy = o.y - u.y;
         const t = ox * ca + oy * sa;
         if (t < 0 || t > u.d.range) continue;
-        const perp = Math.abs(-ox * sa + oy * ca);
-        if (perp < 9) line++;
+        if (Math.abs(-ox * sa + oy * ca) < 9) line++;
       }
       score += line * 0.5;
     }
@@ -263,9 +310,10 @@ function pickTarget(u) {
 function fire(u) {
   const t = pickTarget(u);
   if (!t) return;
+  const g = grouping(u);
   const a = Math.atan2(t.y - u.y, t.x - u.x);
-  u.angle = a;
   u.flash = 0.06;
+
   if (u.d.kind === 'beam') {
     // 貫通：線上の敵に全部当てる。**当たった数が線の太さになる**
     const ca = Math.cos(a), sa = Math.sin(a);
@@ -275,12 +323,29 @@ function fire(u) {
       const tt = ox * ca + oy * sa;
       if (tt < 0 || tt > u.d.range) continue;
       if (Math.abs(-ox * sa + oy * ca) > e.r + 2) continue;
-      hurt(e, u.d.dmg, u.d.color);
+      hurt(e, u.d.dmg * g, u.d.color);          // 散ると威力が落ちる
       hits++; if (tt > far) far = tt;
     }
     if (P.fx) S.fx.push({ k: 'beam', x: u.x, y: u.y, a, len: Math.max(far, 30), n: hits, t: 0, life: 0.18 });
+
+  } else if (u.d.kind === 'field') {
+    // 凍結：扇の中を丸ごと鈍らせる。**足が止まると後ろが詰まる**
+    let n = 0;
+    for (const e of S.enemies) {
+      const dx = e.x - u.x, dy = e.y - u.y;
+      if (dx * dx + dy * dy > u.d.range * u.d.range) continue;
+      if (!inArc(u, e.x, e.y)) continue;
+      e.slow = Math.max(e.slow, u.d.slow * g);
+      e.slowT = Math.max(e.slowT, u.d.slowT);
+      hurt(e, u.d.dmg, u.d.color);
+      n++;
+    }
+    if (P.fx && n) S.fx.push({ k: 'chill', x: u.x, y: u.y, a, arc: u.arc, r: u.d.range, t: 0, life: 0.22 });
+
   } else {
-    const aa = a + rnd(-u.d.spread, u.d.spread);
+    // 弾：集弾が悪いほどばらける
+    const spread = (1 - g) * u.arc * 0.9;
+    const aa = a + rnd(-spread, spread);
     S.bullets.push({ x: u.x, y: u.y, vx: Math.cos(aa) * u.d.speed, vy: Math.sin(aa) * u.d.speed,
       dmg: u.d.dmg, life: u.d.range / u.d.speed, color: u.d.color, pierce: u.d.pierce, hit: null });
   }
@@ -318,7 +383,8 @@ function update(dt) {
   for (let i = 0; i < S.enemies.length; i++) {
     const e = S.enemies[i];
     flowDir(e.x, e.y, _d);
-    const v = P.enemySpd * e.jam * dt;
+    if (e.slowT > 0) { e.slowT -= dt; if (e.slowT <= 0) e.slow = 0; }
+    const v = P.enemySpd * e.jam * (1 - e.slow) * dt;
     const nx = e.x + _d.x * v, ny = e.y + _d.y * v;
     if (walkableAt(nx, ny)) { e.x = nx; e.y = ny; }
     else if (walkableAt(nx, e.y)) e.x = nx;
@@ -343,10 +409,18 @@ function update(dt) {
     }
   }
 
-  // 武器
+  // 武器。**向きは敵がいちばん濃いほうへ、ゆっくり回る**
   for (const u of S.units) {
     u.cd -= dt;
     if (u.flash > 0) u.flash -= dt;
+    const want = bestFacing(u);
+    if (want !== null) {
+      let da = want - u.face;
+      while (da > Math.PI) da -= Math.PI * 2;
+      while (da < -Math.PI) da += Math.PI * 2;
+      const step = u.d.turn * dt;
+      u.face += Math.abs(da) < step ? da : Math.sign(da) * step;
+    }
     while (u.cd <= 0) { fire(u); u.cd += 1 / u.d.rate; }
   }
 
@@ -466,6 +540,14 @@ function draw() {
       ctx.strokeStyle = 'rgba(255,150,120,' + (0.7 * (1 - k)).toFixed(3) + ')';
       ctx.lineWidth = 1.6;
       ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (1 + k * 2.2), 0, 7); ctx.stroke();
+    } else if (f.k === 'chill') {
+      ctx.fillStyle = 'rgba(143,216,255,' + (0.20 * (1 - k)).toFixed(3) + ')';
+      ctx.beginPath(); ctx.moveTo(f.x, f.y);
+      ctx.arc(f.x, f.y, f.r, f.a - f.arc, f.a + f.arc); ctx.closePath(); ctx.fill();
+    } else if (f.k === 'no') {
+      ctx.strokeStyle = 'rgba(255,90,110,' + (0.8 * (1 - k)).toFixed(3) + ')';
+      ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(f.x, f.y, 10 + k * 8, 0, 7); ctx.stroke();
     } else if (f.k === 'leak') {
       ctx.fillStyle = 'rgba(255,70,90,' + (0.5 * (1 - k)).toFixed(3) + ')';
       ctx.beginPath(); ctx.arc(f.x, f.y, 10 + k * 14, 0, 7); ctx.fill();
@@ -481,7 +563,9 @@ function draw() {
 
   // 敵
   for (const e of S.enemies) {
-    ctx.fillStyle = e.hit > 0 ? '#ffffff' : (e.tint > 0 ? '#ff6f7e' : '#ef5568');
+    ctx.fillStyle = e.hit > 0 ? '#ffffff'
+                  : e.slow > 0 ? '#7fc4e8'
+                  : (e.tint > 0 ? '#ff6f7e' : '#ef5568');
     ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, 7); ctx.fill();
     if (e.hp < e.max) {
       ctx.fillStyle = 'rgba(0,0,0,.45)';
@@ -499,12 +583,22 @@ function draw() {
     ctx.lineTo(b.x - b.vx * 0.012, b.y - b.vy * 0.012); ctx.stroke();
   }
 
-  // ユニット
+  // ユニットと扇の射界
   for (const u of S.units) {
-    ctx.save(); ctx.translate(u.x, u.y);
-    ctx.strokeStyle = 'rgba(255,255,255,.10)'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.arc(0, 0, u.d.range, 0, 7); ctx.stroke();
-    ctx.rotate(u.angle);
+    const on = (u === sel);
+    // 扇。選択中は濃く
+    ctx.fillStyle = u.d.color.replace(')', '') ;
+    ctx.beginPath();
+    ctx.moveTo(u.x, u.y);
+    ctx.arc(u.x, u.y, u.d.range, u.face - u.arc, u.face + u.arc);
+    ctx.closePath();
+    ctx.fillStyle = on ? 'rgba(255,255,255,.10)' : 'rgba(255,255,255,.045)';
+    ctx.fill();
+    ctx.strokeStyle = on ? u.d.color : 'rgba(255,255,255,.14)';
+    ctx.lineWidth = on ? 1.4 : 0.8;
+    ctx.stroke();
+
+    ctx.save(); ctx.translate(u.x, u.y); ctx.rotate(u.face);
     ctx.fillStyle = u.d.color;
     ctx.beginPath(); ctx.arc(0, 0, 8, 0, 7); ctx.fill();
     ctx.fillStyle = '#0b1016';
@@ -514,9 +608,9 @@ function draw() {
       ctx.beginPath(); ctx.arc(13, 0, 4, 0, 7); ctx.fill();
     }
     ctx.restore();
-    if (u === drag.u) {
+    if (on) {
       ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2;
-      ctx.beginPath(); ctx.arc(u.x, u.y, 15, 0, 7); ctx.stroke();
+      ctx.beginPath(); ctx.arc(u.x, u.y, 15 + Math.sin(S.t * 6) * 1.2, 0, 7); ctx.stroke();
     }
   }
 
@@ -535,38 +629,53 @@ function draw() {
   }
 }
 
-// ===== 入力：タップで置く／ドラッグで動かす =====
-const drag = { u: null, moved: false };
+// ===== 入力 =====
+// **ドラッグはやめた。** 置ける場所に吸い付く仕組みなので、
+// 「選んで、置きたい場所をタップ」のほうがスマホでは確実で速い。
+//   何も選んでいない → タップした場所に、トレイで選んだ武器を置く
+//   ユニットを選択中 → タップした場所へ、そのユニットを動かす
+//   選択中のユニットをもう一度タップ → 選択を外す
 let placing = 'gatling';
+let sel = null;                       // 選択中のユニット
+
 const toField = (cx, cy) => ({ x: (cx - offX) / scale, y: (cy - offY) / scale });
-const unitAt = (x, y) => S.units.find(u => Math.hypot(u.x - x, u.y - y) <= 16) || null;
+const unitAt = (x, y) => S.units.find(u => Math.hypot(u.x - x, u.y - y) <= 15) || null;
+const canPutAt = (x, y, ignore) => {
+  if (!walkableAt(x, y)) return false;
+  for (const o of S.units) if (o !== ignore && Math.hypot(o.x - x, o.y - y) < 18) return false;
+  return true;
+};
+
+function setSel(u) {
+  sel = u;
+  document.getElementById('selbar').classList.toggle('show', !!u);
+  if (u) document.getElementById('selName').textContent =
+    u.d.name + '　射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) + '°　集弾 ' + Math.round(grouping(u) * 100) + '%';
+}
 
 cv.addEventListener('pointerdown', (ev) => {
   const p = toField(ev.clientX, ev.clientY);
-  const u = unitAt(p.x, p.y);
-  drag.moved = false;
-  if (u) { drag.u = u; try { cv.setPointerCapture(ev.pointerId); } catch (e) {} }
-  else {
-    const nu = placeUnit(placing, p.x, p.y);
-    if (nu) { drag.u = nu; try { cv.setPointerCapture(ev.pointerId); } catch (e) {} }
-  }
+  const hit = unitAt(p.x, p.y);
   document.getElementById('hint').classList.add('gone');
+
+  if (hit) { setSel(hit === sel ? null : hit); ev.preventDefault(); return; }
+
+  if (sel) {
+    // 選択中：そこへ動かす。置けない場所なら何もしない（誤爆で増やさない）
+    if (canPutAt(p.x, p.y, sel)) { sel.x = p.x; sel.y = p.y; setSel(sel); }
+    else flashNo(p.x, p.y);
+  } else {
+    const nu = placeUnit(placing, p.x, p.y);
+    if (nu) setSel(nu); else flashNo(p.x, p.y);
+  }
   ev.preventDefault();
 });
-cv.addEventListener('pointermove', (ev) => {
-  if (!drag.u) return;
-  const p = toField(ev.clientX, ev.clientY);
-  if (!walkableAt(p.x, p.y)) return;
-  let ok = true;
-  for (const o of S.units) if (o !== drag.u && Math.hypot(o.x - p.x, o.y - p.y) < 18) ok = false;
-  if (!ok) return;
-  drag.u.x = p.x; drag.u.y = p.y; drag.moved = true;
-  ev.preventDefault();
-});
-const endDrag = () => { drag.u = null; };
-cv.addEventListener('pointerup', endDrag);
-cv.addEventListener('pointercancel', endDrag);
 cv.addEventListener('contextmenu', (e) => e.preventDefault());
+
+// 置けないことを、押した場所で知らせる
+function flashNo(x, y) {
+  if (P.fx) S.fx.push({ k: 'no', x, y, t: 0, life: 0.3 });
+}
 
 // ===== ボタン =====
 function group(sel, fn) {
@@ -577,7 +686,7 @@ function group(sel, fn) {
     fn(b);
   }));
 }
-group('#tools .w', b => { placing = b.dataset.w; });
+group('#tools .w', b => { placing = b.dataset.w; setSel(null); });
 group('#tools .n', b => {
   P.target = +b.dataset.n;
   // 減らすときは即座に間引く。増やすときは湧きに任せず一気に撒く
@@ -594,12 +703,28 @@ group('#tools .m', b => {
   document.getElementById('hMethod').textContent = '密集: ' + b.textContent;
 });
 group('#tools .s', b => { P.speed = +b.dataset.s; });
-document.getElementById('clear').addEventListener('click', () => { S.units.length = 0; });
+document.getElementById('clear').addEventListener('click', () => { S.units.length = 0; setSel(null); });
 document.getElementById('fx').addEventListener('click', (e) => {
   P.fx = !P.fx; e.currentTarget.classList.toggle('on', P.fx);
   e.currentTarget.textContent = '演出 ' + (P.fx ? 'ON' : 'OFF');
   if (!P.fx) { S.fx.length = 0; S.nums.length = 0; S.coins.length = 0; }
 });
+// 選択中のユニットの調整
+const setArc = (d) => {
+  if (!sel) return;
+  sel.arc = Math.max(sel.d.arcMin, Math.min(sel.d.arcMax, sel.arc + d));
+  setSel(sel);
+};
+document.getElementById('narrow').addEventListener('click', () => setArc(-0.12));
+document.getElementById('wide').addEventListener('click', () => setArc(0.12));
+document.getElementById('remove').addEventListener('click', () => {
+  if (!sel) return;
+  const i = S.units.indexOf(sel);
+  if (i >= 0) S.units.splice(i, 1);
+  setSel(null);
+});
+document.getElementById('deselect').addEventListener('click', () => setSel(null));
+
 document.getElementById('panel').addEventListener('click', (e) => {
   const t = document.getElementById('tools');
   t.classList.toggle('hide');
@@ -657,4 +782,5 @@ for (let i = 0; i < P.target; i++) {
 placeUnit('gatling', P.W * 0.30, P.H * 0.60);
 placeUnit('gatling', P.W * 0.70, P.H * 0.60);
 placeUnit('sniper', P.W * 0.50, P.H * 0.78);
+placeUnit('cryo', P.W * 0.50, P.H * 0.50);
 requestAnimationFrame(loop);
