@@ -262,3 +262,76 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   background:rgba(8,13,20,.7);border:1px solid rgba(255,255,255,.1);
   border-radius:7px;padding:4px 8px;}
 #protoLink:active{opacity:1;}
+
+
+/* ============================================================
+   画面の切り替え（2026-09-20）
+   **1画面にいっぺんに詰め込まない。**
+   ホーム＝選んで始めるだけ／戦場＝盤面と最小限の表示だけ
+   ============================================================ */
+body.on-home #stage{display:none;}
+body.on-home #tabs{display:flex;order:99;}
+body.on-battle #home{display:none;}
+body.on-battle #tabs{display:none;}
+
+/* --- ホーム --- */
+/* #app は縦のフレックスなので、ホームもその子として並べる
+   （絶対配置にするとタブと重なる） */
+#home{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;
+  padding:calc(8px + env(safe-area-inset-top,0px)) 10px 0;gap:10px;}
+#home #panel{flex:1 1 auto;min-height:0;margin:0 -10px;border-radius:0;}
+#home .hbar{display:flex;align-items:center;gap:10px;flex:0 0 auto;}
+#home .hcoin{font-size:15px;color:var(--gold);font-variant-numeric:tabular-nums;}
+#home .hprog{margin-left:auto;font-size:11px;color:var(--dim);}
+
+#homeMain{flex:0 0 auto;display:flex;align-items:stretch;gap:8px;}
+.snav{flex:0 0 40px;border-radius:12px;border:1px solid rgba(255,255,255,.1);
+  background:rgba(255,255,255,.04);color:var(--ink);font-size:17px;cursor:pointer;}
+.snav:disabled{opacity:.25;}
+.scard{flex:1;min-width:0;background:rgba(255,255,255,.04);
+  border:1px solid rgba(255,255,255,.09);border-radius:14px;padding:12px 14px;}
+.scard .slabel{font-size:10px;color:var(--dim);letter-spacing:.06em;}
+.scard .sname{font-size:22px;font-weight:700;margin:2px 0 6px;}
+.scard .sdesc{font-size:11px;color:var(--dim);line-height:1.6;min-height:2.6em;}
+.scard .smini{margin:8px 0 6px;}
+.scard .sstat{font-size:11px;color:var(--dim);display:flex;gap:12px;flex-wrap:wrap;}
+.scard.locked .sname{color:var(--dim);}
+
+.bigstart{flex:0 0 auto;min-height:58px;border-radius:14px;border:none;
+  background:linear-gradient(180deg,#2f8bff,#1b63d6);color:#fff;
+  font:inherit;font-size:18px;font-weight:700;letter-spacing:.06em;cursor:pointer;
+  box-shadow:0 4px 18px rgba(30,110,230,.35);}
+.bigstart:disabled{background:#2a3644;color:var(--dim);box-shadow:none;}
+.bigstart:active{transform:translateY(1px);}
+
+/* --- タブ。**使えないものは鍵つきで見せる**（あとで開くと分かるように） --- */
+#tabs button.lock{opacity:.32;}
+#tabs button.lock::after{content:'🔒';margin-left:4px;font-size:10px;}
+
+/* --- 戦場の最小HUD --- */
+#hud .htop{display:flex;align-items:center;gap:10px;}
+.hphase{font-size:12px;font-weight:650;background:rgba(8,13,20,.62);
+  border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:4px 9px;}
+.hlife{position:relative;flex:1;max-width:200px;height:16px;border-radius:8px;
+  background:rgba(8,13,20,.62);border:1px solid rgba(255,255,255,.08);overflow:hidden;}
+.hlife i{position:absolute;inset:0;width:100%;transform-origin:left;
+  background:linear-gradient(90deg,#3ddc84,#7ee3a0);transition:transform .18s;}
+.hlife span{position:absolute;inset:0;display:grid;place-items:center;
+  font-size:10px;font-weight:700;color:#06210f;}
+#hud .hbtm{display:flex;align-items:center;gap:6px;margin-top:auto;}
+.hwave{font-size:11px;color:var(--dim);}
+.readybtn{position:absolute;right:10px;bottom:calc(58px + var(--safe-b));
+  min-height:50px;padding:0 20px;border-radius:13px;border:none;
+  background:linear-gradient(180deg,#2f8bff,#1b63d6);color:#fff;
+  font:inherit;font-size:15px;font-weight:700;cursor:pointer;pointer-events:auto;
+  box-shadow:0 4px 16px rgba(30,110,230,.4);}
+.readybtn.danger{background:linear-gradient(180deg,#ff6b7f,#d63b52);
+  box-shadow:0 4px 16px rgba(220,60,90,.35);}
+.readybtn:active{transform:translateY(1px);}
+
+.smini .mm{width:100%;max-height:120px;display:block;}
+
+/* 開いていないタブのときの、中身の代わり */
+#panel.empty{display:grid;place-items:center;}
+.panelhint{text-align:center;font-size:12px;color:var(--dim);line-height:1.9;padding:18px;}
+.panelhint b{color:var(--txt);}

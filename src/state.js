@@ -33,6 +33,7 @@ const Game = {
       prestiges: 0,
       totalKills: 0,
       totalRuns: 0,
+      packsEarned: 0,     // **遊んで手に入れた**パックの数（最初から持っている1個は数えない）
       missions: {},
       loadout: ['wc_gatling', 'wc_sniper', null, null],
       stages: { st1: { cleared: false, perfect: false, bestWave: 0, attempts: 0 } },
@@ -40,6 +41,8 @@ const Game = {
       placements: {},
       heat: {},          // stageId -> { traffic: [], leak: [] }
       seenIntro: false,
+      // **タブは最初から全部出さない。** 遊んで意味が分かった順に開く
+      tabs: { skill: false, load: false, pack: false, deck: false },
     };
     this.meta = { coins: 0, skills: {} };
   },
@@ -130,6 +133,7 @@ const Game = {
     const addPack = (k, n) => {
       this.perm.packs[k] = (this.perm.packs[k] || 0) + n;
       got.packs[k] = (got.packs[k] || 0) + n;
+      this.perm.packsEarned = (this.perm.packsEarned || 0) + n;
     };
     // **実験用のステージは報酬を出さない。** 比較のために置いてあるだけで、
     // ここで稼げてしまうと本編の経済がぶれる
@@ -173,7 +177,10 @@ const Game = {
       if (this.perm.missions[m.id]) continue;
       if (m.check(this.perm)) {
         this.perm.missions[m.id] = true;
-        for (const k in m.reward) this.perm.packs[k] = (this.perm.packs[k] || 0) + m.reward[k];
+        for (const k in m.reward) {
+          this.perm.packs[k] = (this.perm.packs[k] || 0) + m.reward[k];
+          this.perm.packsEarned = (this.perm.packsEarned || 0) + m.reward[k];
+        }
         got.push(m);
       }
     }
@@ -459,6 +466,7 @@ const Game = {
     let stageGot = null;
     if (ok) stageGot = this.clearStage(r.stageId, perfect);
 
+    this.openTabs();     // 出撃を終えたらタブが開く（totalRuns は beginBattle で数えている）
     const missions = this.checkMissions();
     this.save();
     return {
@@ -469,6 +477,22 @@ const Game = {
     };
   },
 
+  // タブの解禁。**一度開いたら閉じない**
+  //   スキル・装備 … 一度でも出撃を終えたら（負けても開く）
+  //   パック・デッキ … パックを手にしたら
+  openTabs() {
+    const t = this.perm.tabs || (this.perm.tabs = { skill: false, load: false, pack: false, deck: false });
+    const opened = [];
+    if (!t.skill && this.perm.totalRuns > 0) { t.skill = true; t.load = true; opened.push('skill', 'load'); }
+    // **最初から持っている1個では開かない。** 遊んで手に入れてから
+    if (!t.pack && (this.perm.packsEarned || 0) > 0) { t.pack = true; t.deck = true; opened.push('pack', 'deck'); }
+    return opened;
+  },
+  tabOpen(id) {
+    if (id === 'coll' || id === 'pres') return !!(this.perm.tabs && this.perm.tabs.skill);
+    return !!(this.perm.tabs && this.perm.tabs[id]);
+  },
+
   // ---------- 転生 ----------
   canPrestige() { return this.clearedCount() >= BAL.prestigeMinStages; },
 
@@ -477,7 +501,10 @@ const Game = {
     const cleared = this.clearedCount();
     const mods = Skill.mods(this.meta, this.perm);
     const reward = Pack.prestigeReward(cleared, this.perm.prestiges, mods.packLuck);
-    for (const k in reward) this.perm.packs[k] = (this.perm.packs[k] || 0) + reward[k];
+    for (const k in reward) {
+      this.perm.packs[k] = (this.perm.packs[k] || 0) + reward[k];
+      this.perm.packsEarned = (this.perm.packsEarned || 0) + reward[k];
+    }
     this.perm.prestiges++;
     this.meta.coins = 0;
     this.meta.skills = {};

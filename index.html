@@ -15,52 +15,64 @@
 
 <div id="app">
 
+  <!-- ============ ホーム ============ -->
+  <!-- **1画面にいっぺんに詰め込まない。** ここはステージを選んで始めるだけ -->
+  <div id="home">
+    <div class="hbar">
+      <div class="hcoin">◈ <b id="homeCoin">0</b></div>
+      <div class="hprog" id="homeProg"></div>
+    </div>
+
+    <div id="homeMain">
+      <button class="snav" id="homePrev" aria-label="前のステージ">◀</button>
+      <div class="scard">
+        <div class="slabel" id="homeLabel">ステージ 1</div>
+        <div class="sname" id="homeName">—</div>
+        <div class="sdesc" id="homeDesc"></div>
+        <div class="smini" id="homeMini"></div>
+        <div class="sstat" id="homeStat"></div>
+      </div>
+      <button class="snav" id="homeNext" aria-label="次のステージ">▶</button>
+    </div>
+
+    <button id="homeStart" class="bigstart">スタート</button>
+
+    <!-- タブの中身。ホームにいるときだけ出る -->
+    <div id="panel"></div>
+  </div>
+
   <!-- ============ 戦場 ============ -->
   <div id="stage">
     <canvas id="cv"></canvas>
 
+    <!-- **戦闘中に常時見えるのは、ここだけ。** -->
     <div id="hud">
-      <div class="hrow top">
-        <div class="hbox">
-          <div class="hbig" id="hudWave">—</div>
-          <div class="hsub" id="hudPhase">待機中</div>
-          <div class="hsub stg" id="hudStage"></div>
-        </div>
-        <div class="hbox coin">
-          <div class="hbig"><span class="ci">◈</span> <span id="hudCoin">0</span></div>
-          <div class="hsub" id="hudDps"></div>
-        </div>
+      <div class="htop">
+        <div class="hphase" id="hudPhase">準備フェーズ</div>
+        <div class="hlife"><i id="hudHpBar"></i><span id="hudHp"></span></div>
       </div>
-
-      <div class="hrow bars">
-        <div class="bar hp"><i id="hudHpBar"></i><span id="hudHp"></span></div>
-        <div class="bar wv"><i id="hudWaveBar"></i><span id="hudWaveTxt"></span></div>
-      </div>
-
       <div id="toast"></div>
-
       <div id="tray"></div>
-
-      <div class="hrow ctrl">
-        <button id="btnStart" class="ctl go">戦闘開始</button>
-        <button id="btnPause" class="ctl sq">❙❙</button>
+      <div class="hbtm">
+        <button id="btnHome" class="ctl sq" title="ホームへ戻る">✕</button>
+        <div class="hwave" id="hudWaveTxt"></div>
         <button id="btnSpeed" class="ctl sq">×1</button>
-        <button id="btnHeat" class="ctl sq" title="ヒートマップの表示切替">熱+漏</button>
+        <button id="btnPause" class="ctl sq">❙❙</button>
       </div>
+      <!-- 準備完了。**誤爆しないよう、盤面から離れた右下に単独で置く** -->
+      <button id="btnStart" class="readybtn">準備完了</button>
     </div>
   </div>
 
-  <!-- ============ 下部パネル ============ -->
+  <!-- ============ 下部タブ（ホームのときだけ） ============ -->
   <div id="tabs">
-    <button data-tab="stage">ステージ</button>
-    <button data-tab="skill" class="on">スキル</button>
-    <button data-tab="load">編成</button>
-    <button data-tab="coll">コレクション</button>
+    <button data-tab="skill">スキル</button>
+    <button data-tab="load">装備</button>
     <button data-tab="pack">パック<span id="badgePack" class="badge">0</span></button>
+    <button data-tab="deck">デッキ</button>
+    <button data-tab="coll">コレクション</button>
     <button data-tab="pres">転生</button>
-    <button id="btnPanel" class="pcol" title="パネルを畳む">⌄</button>
   </div>
-  <div id="panel"></div>
 
 </div>
 

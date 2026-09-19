@@ -40,15 +40,18 @@ const Main = {
       Game.speed = Game.speed === 1 ? 2 : Game.speed === 2 ? 3 : 1;
       e.currentTarget.textContent = '×' + Game.speed;
     });
-    document.getElementById('btnHeat').addEventListener('click', (e) => {
-      this.heatMode = (this.heatMode + 1) % HEAT_MODES.length;
-      const m = HEAT_MODES[this.heatMode];
-      Game.showHeat = m.heat; Game.showLeak = m.leak;
-      e.currentTarget.textContent = m.label;
+    // ホームの「スタート」で戦場へ。**ここが唯一の入口**
+    document.getElementById('homeStart').addEventListener('click', () => {
+      const st = STAGES[UI.pick];
+      if (!st || !Game.stageUnlocked(st.id)) return;
+      Game.perm.currentStage = st.id;
+      Game.save();
+      this.toBattle();
     });
-    document.getElementById('btnPanel').addEventListener('click', () => {
-      document.getElementById('app').classList.toggle('collapsed');
-      setTimeout(() => Render.resize(), 30);
+    // 戦場からホームへ戻る
+    document.getElementById('btnHome').addEventListener('click', () => {
+      if (Game.phase === 'battle') { this.finish(false); return; }
+      this.toHome();
     });
 
     UI.el.modal.addEventListener('click', (e) => {
@@ -62,7 +65,9 @@ const Main = {
     document.addEventListener('visibilitychange', () => { if (document.hidden) Game.save(); });
     setInterval(() => Game.save(), 8000);
 
-    this.toPrep();
+    // 起動したらホーム。**いきなり盤面を出さない**
+    Game.startPrep(Game.perm.currentStage);
+    UI.setScreen('home');
 
     if (!Game.perm.seenIntro) {
       Game.perm.seenIntro = true;
@@ -95,15 +100,28 @@ const Main = {
     UI.openModal(b, true);
   },
 
-  // ---------- 準備フェーズへ ----------
+  // ---------- ホームへ ----------
+  toHome() {
+    UI.placingType = null; UI.selected = null; UI.moving = null;
+    Game.paused = false;
+    UI.setScreen('home');
+  },
+
+  // ---------- 戦場（準備フェーズ）へ ----------
+  toBattle() {
+    UI.setScreen('battle');
+    this.toPrep();
+    setTimeout(() => Render.resize(), 0);
+  },
+
   toPrep() {
     Game.startPrep(Game.perm.currentStage);
     Render.fit();
     Game.paused = false;
     UI.placingType = null;
     UI.selected = null;
+    UI.moving = null;
     UI.renderTray();
-    UI.renderPanel();
     this.syncStartButton();
   },
 
@@ -212,14 +230,14 @@ const Main = {
   // ボタンの文字をフェーズに合わせる
   syncStartButton() {
     const b = document.getElementById('btnStart');
+    if (!b) return;
     const run = Game.run;
-    let label, danger = false, go = true;
-    if (Game.phase !== 'battle') label = '戦闘開始';
-    else if (run && run.phase === 'build') label = 'ウェーブ ' + (run.wave + 1) + ' 開始';
-    else { label = '撤退'; danger = true; go = false; }
+    let label, danger = false;
+    if (Game.phase !== 'battle') label = '準備完了';
+    else if (run && run.phase === 'build') label = '次のウェーブへ';
+    else { label = '撤退'; danger = true; }
     if (b.textContent !== label) b.textContent = label;
     b.classList.toggle('danger', danger);
-    b.classList.toggle('go', go);
   },
 
   nextWave() {

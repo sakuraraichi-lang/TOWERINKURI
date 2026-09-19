@@ -15,71 +15,128 @@ const UI = {
   selected: null,      // 選んでいるユニット
   skillRows: null,
 
+  pick: 0,               // ホームで選んでいるステージの番号
+
   init() {
     const q = (id) => document.getElementById(id);
     this.el = {
-      hudWave: q('hudWave'), hudPhase: q('hudPhase'), hudCoin: q('hudCoin'),
-      hudHp: q('hudHp'), hudHpBar: q('hudHpBar'), hudWaveBar: q('hudWaveBar'), hudWaveTxt: q('hudWaveTxt'),
-      hudDps: q('hudDps'), hudStage: q('hudStage'), tray: q('tray'),
+      hudPhase: q('hudPhase'), hudHp: q('hudHp'), hudHpBar: q('hudHpBar'),
+      hudWaveTxt: q('hudWaveTxt'), tray: q('tray'),
       panel: q('panel'), tabs: q('tabs'), modal: q('modal'),
       toast: q('toast'), badgePack: q('badgePack'),
-      btnStart: q('btnStart'), btnHeat: q('btnHeat'),
+      btnStart: q('btnStart'),
+      homeCoin: q('homeCoin'), homeProg: q('homeProg'), homeLabel: q('homeLabel'),
+      homeName: q('homeName'), homeDesc: q('homeDesc'), homeMini: q('homeMini'),
+      homeStat: q('homeStat'), homeStart: q('homeStart'),
+      homePrev: q('homePrev'), homeNext: q('homeNext'),
     };
 
     this.el.tabs.addEventListener('click', (e) => {
       const b = e.target.closest('[data-tab]');
       if (!b) return;
+      if (!Game.tabOpen(b.dataset.tab)) {
+        this.toastMsg(this.lockWhy(b.dataset.tab), '#ff8080');
+        return;
+      }
       this.tab = b.dataset.tab;
       this.renderTabs();
       this.renderPanel();
     });
 
+    this.el.homePrev.addEventListener('click', () => this.movePick(-1));
+    this.el.homeNext.addEventListener('click', () => this.movePick(1));
+
+    this.pick = Math.max(0, STAGES.findIndex(s => s.id === Game.perm.currentStage));
     this.renderTabs();
     this.renderPanel();
     this.renderTray();
   },
 
+  lockWhy(id) {
+    if (id === 'pack' || id === 'deck') return 'パックを手に入れると開きます';
+    return '一度出撃すると開きます';
+  },
+
+  // ===== ホーム =====
+  movePick(d) {
+    const n = STAGES.length;
+    this.pick = (this.pick + d + n) % n;
+    this.renderHome();
+  },
+
+  renderHome() {
+    const e = this.el;
+    if (!e.homeName) return;
+    const st = STAGES[this.pick];
+    const rec = Game.stageRec(st.id);
+    const open = Game.stageUnlocked(st.id);
+
+    e.homeCoin.textContent = Util.fmt(Game.meta.coins);
+    e.homeProg.textContent = '突破 ' + Game.clearedCount() + ' / ' + MAIN_STAGES.length;
+
+    const mi = MAIN_STAGES.findIndex(x => x.id === st.id);
+    e.homeLabel.textContent = st.experimental ? '実験用' : ('ステージ ' + (mi + 1));
+    e.homeName.textContent = open ? st.name : '？？？';
+    e.homeDesc.textContent = open ? st.desc : '前のステージを突破すると開きます';
+    // miniMap は SVG の文字列を返す（Node ではない）
+    e.homeMini.innerHTML = open ? this.miniMap(st) : '';
+
+    const bits = [];
+    if (rec.cleared) bits.push('★ 突破');
+    if (rec.perfect) bits.push('★★ 完璧');
+    if (rec.attempts) bits.push('挑戦 ' + rec.attempts + '回');
+    if (st.experimental) bits.push('報酬なし');
+    e.homeStat.textContent = bits.join('　');
+
+    e.homeStart.disabled = !open;
+    e.homeStart.textContent = open ? 'スタート' : 'ロック中';
+    document.querySelector('.scard').classList.toggle('locked', !open);
+  },
+
+  // ===== 画面の切り替え =====
+  setScreen(name) {
+    document.body.classList.toggle('on-home', name === 'home');
+    document.body.classList.toggle('on-battle', name === 'battle');
+    if (name === 'home') { this.renderHome(); this.renderTabs(); this.renderPanel(); }
+  },
+
   // ================= HUD =================
   renderHud() {
     const r = Game.run;
-    this.el.hudCoin.textContent = Util.fmt(Game.meta.coins);
-    const np = (Game.perm.packs.basic || 0) + (Game.perm.packs.rare || 0) + (Game.perm.packs.epic || 0);
-    this.el.badgePack.textContent = np;
-    this.el.badgePack.style.display = np > 0 ? '' : 'none';
+    const np = (Game.perm.packs.basic || 0) + (Game.perm.packs.arms || 0)
+             + (Game.perm.packs.chem || 0) + (Game.perm.packs.syn || 0);
+    if (this.el.badgePack) {
+      // タブがまだ開いていないうちは、中身を匂わせない
+      const show = np > 0 && Game.tabOpen('pack');
+      this.el.badgePack.textContent = np;
+      this.el.badgePack.style.display = show ? '' : 'none';
+    }
+    if (this.el.homeCoin && document.body.classList.contains('on-home')) {
+      this.el.homeCoin.textContent = Util.fmt(Game.meta.coins);
+    }
+    if (!document.body.classList.contains('on-battle')) return;
 
     this._sk = (this._sk || 0) + 1;
     if (this._sk % 12 === 0) this.refreshSkills();
+    if (!r) return;
 
-    const def = STAGE_BY_ID[Game.perm.currentStage] || STAGES[0];
-    this.el.hudStage.textContent = def.name;
-
-    if (!r) { this.el.hudWave.textContent = '—'; return; }
-
+    // **戦闘中に常時出すのは、フェーズ名・ライフ・残りだけ。**
+    // 数字を並べるほど盤面が見えなくなる
     if (Game.phase === 'prep') {
-      this.el.hudWave.textContent = '準備フェーズ';
-      this.el.hudPhase.textContent = 'アップグレード・編成・配置';
-      this.el.hudWaveBar.style.width = '0%';
+      this.el.hudPhase.textContent = '準備フェーズ';
       this.el.hudWaveTxt.textContent = '全' + BAL.wavesPerStage + 'ウェーブ';
     } else if (r.phase === 'build') {
-      this.el.hudWave.textContent = 'ウェーブ間';
-      this.el.hudPhase.textContent = 'ウェーブ ' + r.wave + ' を凌いだ。置き直せる（購入は不可）';
-      this.el.hudWaveBar.style.width = '100%';
-      this.el.hudWaveTxt.textContent = '次は ウェーブ ' + (r.wave + 1) + ' / ' + BAL.wavesPerStage;
+      this.el.hudPhase.textContent = 'ウェーブ ' + r.wave + ' 突破';
+      this.el.hudWaveTxt.textContent = '次は ' + (r.wave + 1) + ' / ' + BAL.wavesPerStage;
     } else {
-      this.el.hudWave.textContent = 'ウェーブ ' + r.wave + ' / ' + BAL.wavesPerStage +
+      this.el.hudPhase.textContent = 'ウェーブ ' + r.wave + ' / ' + BAL.wavesPerStage +
         (Combat.isLastWave(r) ? ' ★' : '');
-      this.el.hudPhase.textContent = r.phase === 'spawn' ? '交戦中'
-        : r.phase === 'clear' ? '残敵掃討' : '—';
-      const total = r.toSpawn + r.enemies.length;
-      this.el.hudWaveBar.style.width = (Util.clamp(1 - total / Math.max(1, Combat.waveCount(r)), 0, 1) * 100) + '%';
-      this.el.hudWaveTxt.textContent = '残り ' + Util.fmt(total);
+      this.el.hudWaveTxt.textContent = '残り ' + Util.fmt(r.toSpawn + r.enemies.length);
     }
 
-    this.el.hudHpBar.style.width = (Util.clamp(r.lives / Math.max(1, r.livesMax), 0, 1) * 100) + '%';
-    this.el.hudHp.textContent = 'ライフ ' + Math.ceil(r.lives) + ' / ' + r.livesMax;
-    this.el.hudDps.textContent = r.leaked > 0
-      ? '撃破 ' + Util.fmt(r.kills) + ' / 通過 ' + Util.fmt(r.leaked)
-      : '撃破 ' + Util.fmt(r.kills) + '　★完璧';
+    const k = Util.clamp(r.lives / Math.max(1, r.livesMax), 0, 1);
+    this.el.hudHpBar.style.transform = 'scaleX(' + k.toFixed(3) + ')';
+    this.el.hudHp.textContent = Math.ceil(r.lives) + ' / ' + r.livesMax;
   },
 
   // 画面下のユニットバー。編成した4種を「配置済 / 上限」で出す
@@ -172,7 +229,10 @@ const UI = {
 
   renderTabs() {
     for (const b of this.el.tabs.querySelectorAll('[data-tab]')) {
-      b.classList.toggle('on', b.dataset.tab === this.tab);
+      const id = b.dataset.tab;
+      const open = Game.tabOpen(id);
+      b.classList.toggle('lock', !open);
+      b.classList.toggle('on', open && id === this.tab);
     }
   },
 
@@ -180,12 +240,28 @@ const UI = {
     const p = this.el.panel;
     p.innerHTML = '';
     this.skillRows = null;
+
+    // **開いていないタブの中身は出さない。**
+    // 一度に全部見せないのが狙いなので、ここで見えてしまうと意味が無い
+    if (!Game.tabOpen(this.tab)) {
+      p.classList.add('empty');
+      const d = Util.el('div', 'panelhint');
+      d.innerHTML = Game.perm.totalRuns > 0
+        ? '<b>' + this.lockWhy(this.tab) + '</b>'
+        : 'まずは<b>スタート</b>を押して、一度戦ってみよう。<br>' +
+          '<span class="dim">戦い終わると、下のタブが開きます。</span>';
+      p.appendChild(d);
+      return;
+    }
+    p.classList.remove('empty');
+
     if (this.tab === 'stage') this.panelStages(p);
     else if (this.tab === 'skill') this.panelSkill(p);
     else if (this.tab === 'load') this.panelLoadout(p);
     else if (this.tab === 'coll') this.panelCollection(p);
     else if (this.tab === 'pack') this.panelPacks(p);
     else if (this.tab === 'pres') this.panelPrestige(p);
+    else if (this.tab === 'deck') this.panelDeck(p);
   },
 
   // ================= ステージ =================
@@ -216,8 +292,9 @@ const UI = {
         b.disabled = cur || Game.phase === 'battle';
         b.addEventListener('click', () => {
           Game.perm.currentStage = s.id;
+          UI.pick = STAGES.findIndex(x => x.id === s.id);
           Game.save();
-          Main.toPrep();
+          this.renderHome();
           this.toastMsg(s.name + ' を選択', '#4ea8ff');
         });
         row.appendChild(b);
@@ -390,7 +467,9 @@ const UI = {
       b.addEventListener('click', () => {
         Game.perm.loadout[slot] = cid;
         Game.save(); this.closeModal();
-        Main.toPrep();
+        // ホームで装備を変えただけなら盤面を作り直す必要は無い
+        if (document.body.classList.contains('on-battle')) Main.toPrep();
+        else this.renderPanel();
       });
       return b;
     };
@@ -560,7 +639,8 @@ const UI = {
     ok.addEventListener('click', () => {
       const res = Game.prestige();
       this.closeModal();
-      Main.toPrep();
+      UI.pick = 0;
+      Main.toHome();
       if (res) this.showPrestigeResult(res);
     });
     const no = Util.el('button', 'linkbtn', 'やめる');
@@ -581,6 +661,20 @@ const UI = {
     b.addEventListener('click', () => { this.closeModal(); this.tab = 'pack'; this.renderTabs(); this.renderPanel(); });
     body.appendChild(b);
     this.openModal(body);
+  },
+
+  // デッキ。**まだ枠だけ。**
+  // 3択の抽選に入るカードを自分で組めるようにする場所だが、
+  // カードの種類が増えてからでないと選ぶ意味が出ないので、今は説明だけ置く
+  panelDeck(p) {
+    p.appendChild(Util.el('h3', null, 'デッキ'));
+    p.appendChild(Util.el('p', 'note',
+      'ウェーブ突破ごとの3択に、どのカードを入れるかを自分で組む場所です。' +
+      '**まだ作っていません。**カードが揃ってからでないと選ぶ意味が出ないので、先に置いてあります。'));
+    const n = Object.keys(Game.perm.collection).length;
+    p.appendChild(Util.el('div', 'sgroup', '今の手札'));
+    p.appendChild(Util.el('p', 'note', 'カード ' + n + ' 種類を持っています。' +
+      '今は持っているもの全部が3択の抽選に入ります。'));
   },
 
   // ================= カード選択（ウェーブ突破ごと） =================
@@ -748,17 +842,18 @@ const UI = {
       b.addEventListener('click', () => {
         this.closeModal();
         Game.perm.currentStage = next.id;
+        UI.pick = STAGES.findIndex(x => x.id === next.id);
         Game.save();
-        Main.toPrep();
+        Main.toBattle();
       });
       body.appendChild(b);
     }
     const again = Util.el('button', next ? 'linkbtn' : 'bigbtn', 'このステージの準備に戻る');
-    again.addEventListener('click', () => { this.closeModal(); Main.toPrep(); });
+    again.addEventListener('click', () => { this.closeModal(); Main.toHome(); });
     body.appendChild(again);
     const up = Util.el('button', 'linkbtn', 'アップグレードを見る');
     up.addEventListener('click', () => {
-      this.closeModal(); Main.toPrep();
+      this.closeModal(); Main.toHome();
       this.tab = 'skill'; this.renderTabs(); this.renderPanel();
     });
     body.appendChild(up);
