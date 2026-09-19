@@ -52,3 +52,4 @@ html,body{height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
   border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);
   color:var(--ink);font:inherit;font-size:12px;-webkit-tap-highlight-color:transparent;}
 #selbar #remove{margin-left:auto;background:rgba(255,90,110,.16);border-color:rgba(255,90,110,.4);}
+#selbar button.on{background:#1d6fd4;border-color:#3f93ff;font-weight:650;}

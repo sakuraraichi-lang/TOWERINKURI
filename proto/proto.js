@@ -15,7 +15,7 @@
 'use strict';
 
 // ===== 実験用のつまみ（ここだけ見れば全部変えられる）=====
-const BUILD = '09/19 20:52';   // 画面右下に出る。届いている版がこれで分かる
+const BUILD = '09/19 21:00';   // 画面右下に出る。届いている版がこれで分かる
 
 const P = {
   // フィールド（縦持ちのスマホに合わせた比率。画面いっぱいに拡大される）
@@ -251,7 +251,7 @@ function placeUnit(type, x, y) {
   if (!walkableAt(x, y)) return null;
   for (const u of S.units) if (Math.hypot(u.x - x, u.y - y) < 18) return null;
   const d = WEAPONS[type];
-  const u = { type, d, x, y, cd: 0, face: -Math.PI / 2, arc: d.arc, flash: 0 };
+  const u = { type, d, x, y, cd: 0, face: -Math.PI / 2, arc: d.arc, flash: 0, manual: false };
   S.units.push(u);
   return u;
 }
@@ -413,7 +413,7 @@ function update(dt) {
   for (const u of S.units) {
     u.cd -= dt;
     if (u.flash > 0) u.flash -= dt;
-    const want = bestFacing(u);
+    const want = u.manual ? null : bestFacing(u);
     if (want !== null) {
       let da = want - u.face;
       while (da > Math.PI) da -= Math.PI * 2;
@@ -608,10 +608,25 @@ function draw() {
       ctx.beginPath(); ctx.arc(13, 0, 4, 0, 7); ctx.fill();
     }
     ctx.restore();
+    if (u.manual) {
+      // 手動で向けたものは、扇の中心線を出して「固定されている」と分かるようにする
+      ctx.strokeStyle = 'rgba(255,210,74,.45)'; ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(u.x, u.y);
+      ctx.lineTo(u.x + Math.cos(u.face) * u.d.range, u.y + Math.sin(u.face) * u.d.range);
+      ctx.stroke();
+    }
     if (on) {
       ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(u.x, u.y, 15 + Math.sin(S.t * 6) * 1.2, 0, 7); ctx.stroke();
     }
+  }
+
+  // 向きを決めるモードのとき、選択中のユニットを目立たせる
+  if (sel && tapMode === 'aim') {
+    ctx.strokeStyle = 'rgba(255,210,74,.7)'; ctx.lineWidth = 1.5;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.arc(sel.x, sel.y, sel.d.range, 0, 7); ctx.stroke();
+    ctx.setLineDash([]);
   }
 
   // ダメージ数字
@@ -646,11 +661,21 @@ const canPutAt = (x, y, ignore) => {
   return true;
 };
 
+// 選択中のタップが何を意味するか。'move' か 'aim'
+let tapMode = 'move';
+
 function setSel(u) {
   sel = u;
+  if (!u) tapMode = 'move';
   document.getElementById('selbar').classList.toggle('show', !!u);
-  if (u) document.getElementById('selName').textContent =
-    u.d.name + '　射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) + '°　集弾 ' + Math.round(grouping(u) * 100) + '%';
+  if (!u) return;
+  document.getElementById('selName').textContent =
+    u.d.name + '　射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) + '°　集弾 ' +
+    Math.round(grouping(u) * 100) + '%　向き ' + (u.manual ? '手動' : '自動');
+  const ab = document.getElementById('aim');
+  ab.classList.toggle('on', tapMode === 'aim');
+  ab.textContent = tapMode === 'aim' ? '向き：タップで指定' : '向きを決める';
+  document.getElementById('auto').classList.toggle('on', !u.manual);
 }
 
 cv.addEventListener('pointerdown', (ev) => {
@@ -661,6 +686,15 @@ cv.addEventListener('pointerdown', (ev) => {
   if (hit) { setSel(hit === sel ? null : hit); ev.preventDefault(); return; }
 
   if (sel) {
+    if (tapMode === 'aim') {
+      // **向きを決める。** タップした方角へ扇を向け、そのユニットを手動に切り替える
+      sel.face = Math.atan2(p.y - sel.y, p.x - sel.x);
+      sel.manual = true;
+      tapMode = 'move';
+      setSel(sel);
+      ev.preventDefault();
+      return;
+    }
     // 選択中：そこへ動かす。置けない場所なら何もしない（誤爆で増やさない）
     if (canPutAt(p.x, p.y, sel)) { sel.x = p.x; sel.y = p.y; setSel(sel); }
     else flashNo(p.x, p.y);
@@ -715,6 +749,17 @@ const setArc = (d) => {
   sel.arc = Math.max(sel.d.arcMin, Math.min(sel.d.arcMax, sel.arc + d));
   setSel(sel);
 };
+document.getElementById('aim').addEventListener('click', () => {
+  if (!sel) return;
+  tapMode = (tapMode === 'aim') ? 'move' : 'aim';
+  setSel(sel);
+});
+document.getElementById('auto').addEventListener('click', () => {
+  if (!sel) return;
+  sel.manual = false;        // 自動旋回に戻す
+  tapMode = 'move';
+  setSel(sel);
+});
 document.getElementById('narrow').addEventListener('click', () => setArc(-0.12));
 document.getElementById('wide').addEventListener('click', () => setArc(0.12));
 document.getElementById('remove').addEventListener('click', () => {
