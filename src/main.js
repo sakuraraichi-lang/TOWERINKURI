@@ -227,10 +227,12 @@ const Main = {
   // ---------- ループ ----------
   loop(t) {
     this.raf = requestAnimationFrame((tt) => this.loop(tt));
-    let dt = (t - this.last) / 1000;
+    const real = (t - this.last) / 1000;      // 実際に経った時間（fps用。上限を掛けない）
+    let dt = real;
     this.last = t;
     if (dt > 0.1) dt = 0.1;
     const run = Game.run;
+    const t0 = performance.now();
 
     if (run && Game.phase === 'battle' && !run.over && !Game.paused && !UI.draftOpen) {
       for (let i = 0; i < Game.speed; i++) {
@@ -250,6 +252,7 @@ const Main = {
     }
 
     Render.draw(run);
+    UI.perf(real, performance.now() - t0, run);
     UI.renderHud();
     this.syncStartButton();
   },

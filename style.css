@@ -608,3 +608,17 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 
 /* 調整パネルを出しているあいだ、チュートリアルの帯は上へ逃がす */
 #stage.popopen #tut{top:calc(96px + env(safe-area-inset-top,0px));bottom:auto;}
+
+/* ============ 処理の重さ（実機で敵数の上限を測るため） ============ */
+/* 既定では空。「残り◯」をタップで出入りする */
+#perf{position:absolute;right:10px;top:calc(46px + env(safe-area-inset-top,0px));
+  z-index:22;pointer-events:none;text-align:right;
+  font-variant-numeric:tabular-nums;text-shadow:0 1px 3px #000;}
+#perf:empty{display:none;}
+#perf b{font-size:20px;font-weight:900;line-height:1;}
+#perf b.ok{color:var(--ok);}
+#perf b.mid{color:var(--gold);}
+#perf b.bad{color:var(--danger);}
+#perf span{display:block;font-size:9.5px;color:var(--dim);margin-top:2px;}
+/* タップできると分かるように、下線を薄く引く */
+.hwave{cursor:pointer;border-bottom:1px dotted rgba(255,255,255,.18);}

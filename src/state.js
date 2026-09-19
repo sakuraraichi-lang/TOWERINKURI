@@ -51,6 +51,8 @@ const Game = {
       swaps: {},
       // 武器の調整ポップアップを置いた場所（プレイヤーが動かせる）
       upop: null,
+      // 処理の重さを出すか（実機で敵数の上限を測るため）
+      perf: false,
     };
     this.meta = { coins: 0, skills: {} };
   },

@@ -24,7 +24,7 @@ const UI = {
       hudWaveTxt: q('hudWaveTxt'), tray: q('tray'),
       panel: q('panel'), tabs: q('tabs'), modal: q('modal'),
       toast: q('toast'), badgePack: q('badgePack'),
-      upop: q('upop'), stage: q('stage'), tut: q('tut'),
+      upop: q('upop'), stage: q('stage'), tut: q('tut'), perf: q('perf'),
       btnStart: q('btnStart'),
       homeCoin: q('homeCoin'), homeProg: q('homeProg'), homeLabel: q('homeLabel'),
       homeName: q('homeName'), homeMini: q('homeMini'),
@@ -47,6 +47,9 @@ const UI = {
       this.renderTabs();
       this.renderPanel();
     });
+
+    // 「残り◯」をタップすると、処理の重さの表示が出入りする
+    if (this.el.hudWaveTxt) this.el.hudWaveTxt.addEventListener('click', () => this.togglePerf());
 
     this.el.homePrev.addEventListener('click', () => this.movePick(-1));
     this.el.homeNext.addEventListener('click', () => this.movePick(1));
@@ -129,6 +132,34 @@ const UI = {
     document.body.classList.toggle('on-home', name === 'home');
     document.body.classList.toggle('on-battle', name === 'battle');
     if (name === 'home') { this.renderHome(); this.renderTabs(); this.renderPanel(); }
+  },
+
+  // ================= 処理の重さ =================
+  // **実機で何体まで出せるかを測るための表示。** 既定では出さない。
+  // fps は「上限を掛ける前の実時間」から出すので、重くなると素直に下がる
+  perf(realDt, frameMs, run) {
+    const p = this.el.perf;
+    if (!p) return;
+    if (!Game.perm || !Game.perm.perf) { if (p.textContent) p.textContent = ''; return; }
+
+    this._pfA = (this._pfA || 0) + realDt;
+    this._pfN = (this._pfN || 0) + 1;
+    this._pfMs = Math.max(this._pfMs || 0, frameMs);   // 山を見る。平均だとカクつきが消える
+    if (this._pfA < 0.5) return;
+
+    const fps = Math.round(this._pfN / Math.max(0.0001, this._pfA));
+    const en = run ? run.enemies.length : 0;
+    const bu = run ? run.bullets.length : 0;
+    p.innerHTML = '<b class="' + (fps >= 50 ? 'ok' : fps >= 30 ? 'mid' : 'bad') + '">' + fps + '</b> fps' +
+      '<span>敵 ' + en + '　弾 ' + bu + '　最大 ' + this._pfMs.toFixed(1) + 'ms</span>';
+    this._pfA = 0; this._pfN = 0; this._pfMs = 0;
+  },
+
+  togglePerf() {
+    Game.perm.perf = !Game.perm.perf;
+    if (!Game.perm.perf && this.el.perf) this.el.perf.textContent = '';
+    Game.save();
+    this.toastMsg(Game.perm.perf ? '処理の重さを表示' : '非表示', '#ff8a1f');
   },
 
   // ================= HUD =================
