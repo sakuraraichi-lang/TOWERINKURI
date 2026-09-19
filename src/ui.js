@@ -27,8 +27,9 @@ const UI = {
       upop: q('upop'), stage: q('stage'), tut: q('tut'),
       btnStart: q('btnStart'),
       homeCoin: q('homeCoin'), homeProg: q('homeProg'), homeLabel: q('homeLabel'),
-      homeName: q('homeName'), homeDesc: q('homeDesc'), homeMini: q('homeMini'),
+      homeName: q('homeName'), homeMini: q('homeMini'),
       homeStat: q('homeStat'), homeStart: q('homeStart'),
+      homeRank: q('homeRank'), homeXp: q('homeXp'),
       homePrev: q('homePrev'), homeNext: q('homeNext'),
     };
 
@@ -39,7 +40,10 @@ const UI = {
         this.toastMsg(this.lockWhy(b.dataset.tab), '#ff8080');
         return;
       }
+      // **同じタブをもう一度押すと閉じる。** 閉じているあいだはステージだけが見える
+      this.tabsOff = (this.tab === b.dataset.tab) ? !this.tabsOff : false;
       this.tab = b.dataset.tab;
+      this.syncTabsOff();
       this.renderTabs();
       this.renderPanel();
     });
@@ -48,9 +52,17 @@ const UI = {
     this.el.homeNext.addEventListener('click', () => this.movePick(1));
 
     this.pick = Math.max(0, STAGES.findIndex(s => s.id === Game.perm.currentStage));
+    // 最初はどのタブも開いていないので、ステージだけを見せる
+    this.tabsOff = true;
+    this.syncTabsOff();
     this.renderTabs();
     this.renderPanel();
     this.renderTray();
+  },
+
+  // タブを閉じているあいだはパネルを畳み、ステージの的を大きく見せる
+  syncTabsOff() {
+    document.body.classList.toggle('tabsoff', !!this.tabsOff);
   },
 
   lockWhy(id) {
@@ -71,27 +83,45 @@ const UI = {
     const st = STAGES[this.pick];
     const rec = Game.stageRec(st.id);
     const open = Game.stageUnlocked(st.id);
+    const done = Game.clearedCount(), all = MAIN_STAGES.length;
 
     e.homeCoin.textContent = Util.fmt(Game.meta.coins);
-    e.homeProg.textContent = '突破 ' + Game.clearedCount() + ' / ' + MAIN_STAGES.length;
+    // 階級＝転生回数。伸び方が一番ゆっくりで、外から見た「格」に近い
+    if (e.homeRank) e.homeRank.textContent = Game.perm.prestiges;
+    if (e.homeXp) e.homeXp.style.width = (100 * done / all).toFixed(1) + '%';
+    e.homeProg.textContent = '突破 ' + done + ' / ' + all +
+      '　撃破 ' + Util.fmt(Game.perm.totalKills);
 
     const mi = MAIN_STAGES.findIndex(x => x.id === st.id);
-    e.homeLabel.textContent = st.experimental ? '実験用' : ('ステージ ' + (mi + 1));
-    e.homeName.textContent = open ? st.name : '？？？';
-    e.homeDesc.textContent = open ? st.desc : '前のステージを突破すると開きます';
+    e.homeLabel.innerHTML = st.experimental
+      ? '実験ステージ <b>' + (EXP_STAGES.findIndex(x => x.id === st.id) + 1) + '</b>'
+      : 'ステージ <b>' + (mi + 1) + '</b>';
+    // 名前は最後の1語だけ琥珀にして、参考画像の二色見出しに寄せる
+    e.homeName.innerHTML = open ? this.splitTitle(st.name) : '？？？';
     // miniMap は SVG の文字列を返す（Node ではない）
-    e.homeMini.innerHTML = open ? this.miniMap(st) : '';
+    e.homeMini.innerHTML = open ? this.miniMap(st) : '<span class="lk">🔒</span>';
+    e.homeMini.classList.toggle('locked', !open);
 
-    const bits = [];
-    if (rec.cleared) bits.push('★ 突破');
-    if (rec.perfect) bits.push('★★ 完璧');
-    if (rec.attempts) bits.push('挑戦 ' + rec.attempts + '回');
-    if (st.experimental) bits.push('報酬なし');
-    e.homeStat.textContent = bits.join('　');
+    let line;
+    if (!open) line = '<span class="ck">🔒</span>前のステージを突破すると開きます';
+    else if (rec.perfect) line = '<span class="ck">✓</span>完璧クリア済み　<em>★★</em>';
+    else if (rec.cleared) line = '<span class="ck">✓</span>突破済み　<em>W' + rec.bestWave + '</em>';
+    else if (rec.attempts) line = '<span class="ck">…</span>最高 <em>ウェーブ ' + rec.bestWave + '</em>' +
+      '　挑戦 ' + rec.attempts + '回';
+    else line = '<span class="ck">＊</span>未挑戦　' + (st.experimental ? '報酬なし' : '全' + BAL.wavesPerStage + 'ウェーブ');
+    e.homeStat.innerHTML = line;
 
     e.homeStart.disabled = !open;
-    e.homeStart.textContent = open ? 'スタート' : 'ロック中';
-    document.querySelector('.scard').classList.toggle('locked', !open);
+    e.homeStart.innerHTML = open ? '出撃<s>▶</s>' : 'ロック中';
+  },
+
+  // 「実験場・広大」→「実験場・<em>広大</em>」。区切りが無ければ後ろ半分を色付け
+  splitTitle(name) {
+    const m = name.match(/^(.*[・\s])(.+)$/);
+    if (m) return m[1] + '<em>' + m[2] + '</em>';
+    if (name.length <= 2) return '<em>' + name + '</em>';
+    const cut = Math.ceil(name.length / 2);
+    return name.slice(0, cut) + '<em>' + name.slice(cut) + '</em>';
   },
 
   // ===== 画面の切り替え =====
@@ -323,7 +353,7 @@ const UI = {
       const id = b.dataset.tab;
       const open = Game.tabOpen(id);
       b.classList.toggle('lock', !open);
-      b.classList.toggle('on', open && id === this.tab);
+      b.classList.toggle('on', open && id === this.tab && !this.tabsOff);
     }
   },
 
@@ -401,10 +431,10 @@ const UI = {
       for (let c = 0; c < s.map[r].length; c++) {
         const ch = s.map[r][c];
         let col = null;
-        if (ch === '#') col = '#22344c';
-        else if (ch === 'S') col = '#ff4e63';
-        else if (ch === 'C') col = '#5ec8ff';
-        else if (ch === '.') col = '#0d1826';
+        if (ch === '#') col = '#2e3442';        // 置ける地面（壁）
+        else if (ch === 'S') col = '#ff5566';   // 出現口
+        else if (ch === 'C') col = '#ffc93c';   // コア
+        else if (ch === '.') col = '#0c0e13';   // 通路
         if (col) out += '<rect x="' + c + '" y="' + r + '" width="1" height="1" fill="' + col + '"/>';
       }
     }
@@ -412,87 +442,217 @@ const UI = {
   },
 
   // ================= スキルツリー =================
+  // ツリーの節を、コインの増減に合わせて光らせ直す。
+  // **描き直しはしない。** 触っている最中に節が動くと押せない
   refreshSkills() {
-    if (!this.skillRows) return;
+    if (!this.skillRows || !this.skillRows.length) return;
     const canPhase = Game.canBuySkills();
     for (const r of this.skillRows) {
-      const s = SKILL_BY_ID[r.id];
+      if (!r.node || !r.node.isConnected) continue;
       const lv = Skill.lv(Game.meta, r.id);
       if (r.lv !== lv) {
         r.lv = lv;
-        r.lvEl.textContent = 'Lv' + lv + (s.max !== Infinity ? '/' + s.max : '');
-        r.btn.textContent = lv >= s.max ? 'MAX' : '◈ ' + Util.fmt(Skill.cost(Game.meta, r.id));
+        const u = r.node.querySelector('u');
+        if (lv > 0 && u) u.textContent = lv;
+        r.node.classList.toggle('have', lv > 0);
       }
       const can = canPhase && Skill.canBuy(Game.meta, Game.perm, r.id);
-      if (r.can !== can) {
-        r.can = can;
-        r.btn.disabled = !can;
-        r.row.classList.toggle('can', can);
-      }
+      if (r.can !== can) { r.can = can; r.node.classList.toggle('can', can); }
+    }
+    const c = document.getElementById('treeCoin');
+    if (c) c.textContent = Util.fmt(Game.meta.coins);
+    if (this.treeBuyBtn && this.treeBuyBtn.isConnected && this.treeSel) {
+      const can = canPhase && Skill.canBuy(Game.meta, Game.perm, this.treeSel);
+      this.treeBuyBtn.disabled = !can;
     }
   },
 
+  // ================= アップグレード（枝で結んだツリー） =================
+  // 一覧だと「どこから伸びているのか」が見えないので、節と枝で描く。
+  // **座標は定義から自動で決める。** ノードを足しても、ここを直さなくていい
   panelSkill(p) {
-    const meta = Game.meta, perm = Game.perm;
+    const perm = Game.perm;
     this.skillRows = [];
     const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>アップグレード</b><span class="sub">コインで数字を大きくする。' +
-      '火力は<b>武器カテゴリ単位</b>で伸ばす</span>';
+    head.innerHTML = '<b>スキルツリー</b><span class="sub">コインで数字を大きくする。' +
+      '火力は<b>武器カテゴリ単位</b>で伸ばす。節をタップすると中身が出る</span>';
     p.appendChild(head);
 
     if (!Game.canBuySkills()) {
       p.appendChild(Util.el('div', 'warn', '戦闘中は購入できません。撤退するか、ステージを終えてから。'));
     }
 
-    let group = null;
+    // 枝＝group。定義に出てくる順に左から並べる
+    const branches = [];
     for (const s of SKILLS) {
-      const unlocked = Skill.isUnlocked(perm, s.id);
-      if (s.group !== group) {
-        group = s.group;
-        const g = Util.el('div', 'sgroup');
-        const cat = s.cat ? CATEGORIES[s.cat] : null;
-        g.innerHTML = cat
-          ? '<span style="color:' + cat.color + '">' + cat.icon + ' ' + cat.name + '</span>' +
-            '<i>' + cat.desc + '</i>'
-          : group;
-        p.appendChild(g);
-      }
-      if (!unlocked) {
-        const row = Util.el('div', 'srow locked');
-        row.innerHTML = '<div class="sic">🔒</div><div class="sbody"><div class="sname">？？？</div>' +
-          '<div class="sdesc">' + Skill.lockReason(perm, s.id) + '</div></div>';
-        p.appendChild(row);
-        continue;
-      }
-      const lv = Skill.lv(meta, s.id);
-      const cost = Skill.cost(meta, s.id);
-      const can = Game.canBuySkills() && Skill.canBuy(meta, perm, s.id);
-      const maxed = lv >= s.max;
-      // 換装していれば、そちらの名前と効果を出す
-      const n = Skill.node(s.id, perm);
-      const row = Util.el('div', 'srow' + (can ? ' can' : '') + (n.swapId ? ' swapped' : ''));
-      row.innerHTML =
-        '<div class="sic">' + n.icon + '</div>' +
-        '<div class="sbody"><div class="sname">' + n.name +
-          (n.swapId ? ' <u>換装</u>' : '') +
-          ' <em>Lv' + lv + (s.max !== Infinity ? '/' + s.max : '') + '</em></div>' +
-        '<div class="sdesc">' + Skill.desc(n) + '</div></div>' +
-        '<button class="sbuy"' + (can ? '' : ' disabled') + '>' + (maxed ? 'MAX' : '◈ ' + Util.fmt(cost)) + '</button>';
-      const btn = row.querySelector('.sbuy');
-      let hold = null;
-      const doBuy = () => {
-        if (!Game.canBuySkills()) return;
-        if (Skill.buy(Game.meta, Game.perm, s.id)) { Game.applyMods(); this.refreshSkills(); }
-      };
-      btn.addEventListener('click', doBuy);
-      btn.addEventListener('pointerdown', () => { hold = setTimeout(function rep() { doBuy(); hold = setTimeout(rep, 90); }, 420); });
-      const stop = () => clearTimeout(hold);
-      btn.addEventListener('pointerup', stop);
-      btn.addEventListener('pointerleave', stop);
-      btn.addEventListener('pointercancel', stop);
-      this.skillRows.push({ id: s.id, row, btn, can, lv, lvEl: row.querySelector('.sname em') });
-      p.appendChild(row);
+      let b = branches.find(x => x.group === s.group);
+      if (!b) { b = { group: s.group, cat: s.cat || null, nodes: [] }; branches.push(b); }
+      b.nodes.push(s);
     }
+
+    const COL = 78, ROW = 82, ROOT_Y = 34, TOP = 104;
+    const W = branches.length * COL;
+    const rows = Math.max.apply(null, branches.map(b => b.nodes.length));
+    const H = TOP + (rows - 1) * ROW + 54;
+    const rootX = W / 2;
+
+    const box = Util.el('div', 'treecanvas');
+    box.style.width = W + 'px';
+    box.style.height = H + 'px';
+
+    let svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">';
+    const dots = [];
+    branches.forEach((b, gi) => {
+      const x = gi * COL + COL / 2;
+      const col = b.cat ? CATEGORIES[b.cat].color : '#ffb020';
+      const lit = b.nodes.some(s => Skill.lv(Game.meta, s.id) > 0);
+      const o = lit ? .85 : .25;
+      // 幹から枝へ。**曲げて描くと、どこから分かれたのかが目で追える**
+      svg += '<path d="M' + rootX + ' ' + (ROOT_Y + 26) +
+             ' C ' + rootX + ' ' + (TOP - 22) + ', ' + x + ' ' + (ROOT_Y + 34) + ', ' + x + ' ' + TOP +
+             '" fill="none" stroke="' + col + '" stroke-width="' + (lit ? 2 : 1.2) +
+             '" opacity="' + o + '"/>';
+      for (let i = 1; i < b.nodes.length; i++) {
+        const litSeg = Skill.lv(Game.meta, b.nodes[i - 1].id) > 0;
+        svg += '<line x1="' + x + '" y1="' + (TOP + (i - 1) * ROW) +
+               '" x2="' + x + '" y2="' + (TOP + i * ROW) +
+               '" stroke="' + col + '" stroke-width="' + (litSeg ? 2 : 1.2) +
+               '" opacity="' + (litSeg ? .85 : .25) + '"/>';
+      }
+      dots.push({ b, x, col });
+    });
+    svg += '</svg>';
+    box.innerHTML = svg;
+
+    // 幹のてっぺん
+    const root = Util.el('div', 'tnode root have', '⬢');
+    root.style.left = rootX + 'px';
+    root.style.top = ROOT_Y + 'px';
+    box.appendChild(root);
+
+    for (const d of dots) {
+      const g = Util.el('div', 'tgroup', d.b.group);
+      g.style.left = d.x + 'px';
+      g.style.top = (TOP - 34) + 'px';
+      g.style.color = d.col;
+      box.appendChild(g);
+
+      d.b.nodes.forEach((s, i) => {
+        const y = TOP + i * ROW;
+        const unlocked = Skill.isUnlocked(perm, s.id);
+        const lv = Skill.lv(Game.meta, s.id);
+        const n = Skill.node(s.id, perm);
+        const can = Game.canBuySkills() && Skill.canBuy(Game.meta, perm, s.id);
+        const btn = Util.el('button', 'tnode' +
+          (!unlocked ? ' locked' : lv > 0 ? ' have' : '') +
+          (can ? ' can' : '') + (n.swapId ? ' swapped' : '') +
+          (this.treeSel === s.id ? ' sel' : ''));
+        btn.innerHTML = (unlocked ? n.icon : '🔒') + (lv > 0 ? '<u>' + lv + '</u>' : '');
+        btn.style.left = d.x + 'px';
+        btn.style.top = y + 'px';
+        if (unlocked) btn.style.borderColor = lv > 0 ? d.col : '';
+        btn.addEventListener('click', () => {
+          this.treeSel = s.id;
+          this.refreshTree();
+        });
+        box.appendChild(btn);
+
+        const lb = Util.el('div', 'tlabel', unlocked ? n.name : '？？？');
+        lb.style.left = d.x + 'px';
+        lb.style.top = (y + 26) + 'px';
+        box.appendChild(lb);
+
+        this.skillRows.push({ id: s.id, row: btn, btn: null, can, lv, node: btn });
+      });
+    }
+
+    const scroller = Util.el('div');
+    scroller.id = 'tree';
+    scroller.appendChild(box);
+    p.appendChild(scroller);
+    // 横の見ている位置。開き直しても同じところを見せる
+    requestAnimationFrame(() => {
+      if (this._treeX != null) { scroller.scrollLeft = this._treeX; this._treeX = null; return; }
+      const sel = box.querySelector('.tnode.sel');
+      scroller.scrollLeft = sel
+        ? parseFloat(sel.style.left) - scroller.clientWidth / 2
+        : (W - scroller.clientWidth) / 2;
+    });
+
+    p.appendChild(this.treeDetail());
+    p.appendChild(this.treePoints());
+  },
+
+  // 選んだ節の中身と、買うボタン
+  treeDetail() {
+    const id = this.treeSel;
+    if (!id || !SKILL_BY_ID[id]) {
+      return Util.el('div', 'tdetail none', '節をタップすると、効果と値段が出ます');
+    }
+    const s = SKILL_BY_ID[id];
+    const perm = Game.perm, meta = Game.meta;
+    const n = Skill.node(id, perm);
+    const unlocked = Skill.isUnlocked(perm, id);
+    const lv = Skill.lv(meta, id);
+    const maxed = lv >= s.max;
+    const can = Game.canBuySkills() && Skill.canBuy(meta, perm, id);
+
+    const d = Util.el('div', 'tdetail');
+    if (!unlocked) {
+      d.innerHTML = '<div class="tdhead"><div class="sic">🔒</div>' +
+        '<div class="sbody"><div class="sname">？？？</div></div></div>' +
+        '<div class="tdesc">' + Skill.lockReason(perm, id) + '</div>';
+      return d;
+    }
+    d.innerHTML =
+      '<div class="tdhead"><div class="sic">' + n.icon + '</div><div class="sbody">' +
+        '<div class="sname">' + n.name + (n.swapId ? ' <u>換装</u>' : '') + '</div>' +
+        '<div class="sdesc">' + s.group + '</div></div>' +
+        '<div class="tdlv">Lv ' + lv + (s.max !== Infinity ? ' / ' + s.max : '') + '</div></div>' +
+      '<div class="tdesc">' + Skill.desc(n) +
+        (n.swapId ? '<span class="was">元：' + n.swappedFrom + '</span>' : '') + '</div>' +
+      '<div class="tdbuy"><button class="sbuy"' + (can ? '' : ' disabled') + '>' +
+        (maxed ? 'MAX' : '◈ ' + Util.fmt(Skill.cost(meta, id)) + ' で強化') + '</button></div>';
+
+    const btn = d.querySelector('.sbuy');
+    let hold = null;
+    // **押しっぱなしで連打できるので、描き直さずその場で書き換える。**
+    // 描き直すと押している要素が消えて、連打が途切れる
+    const doBuy = () => {
+      if (!Game.canBuySkills()) return;
+      if (!Skill.buy(Game.meta, Game.perm, id)) return;
+      Game.applyMods();
+      const lv2 = Skill.lv(meta, id);
+      d.querySelector('.tdlv').textContent = 'Lv ' + lv2 + (s.max !== Infinity ? ' / ' + s.max : '');
+      btn.textContent = lv2 >= s.max ? 'MAX' : '◈ ' + Util.fmt(Skill.cost(meta, id)) + ' で強化';
+      this.refreshSkills();
+      btn.disabled = !(Game.canBuySkills() && Skill.canBuy(meta, Game.perm, id));
+    };
+    btn.addEventListener('click', doBuy);
+    btn.addEventListener('pointerdown', () => { hold = setTimeout(function rep() { doBuy(); hold = setTimeout(rep, 90); }, 420); });
+    const stop = () => clearTimeout(hold);
+    btn.addEventListener('pointerup', stop);
+    btn.addEventListener('pointerleave', stop);
+    btn.addEventListener('pointercancel', stop);
+    this.treeBuyBtn = btn;
+    return d;
+  },
+
+  treePoints() {
+    const t = Util.el('div', 'tpoints');
+    t.innerHTML = '<span>使用可能なコイン</span><b id="treeCoin">' + Util.fmt(Game.meta.coins) + '</b>';
+    return t;
+  },
+
+  // 買った直後の描き直し。**横スクロールの位置を保つ**
+  refreshTree() {
+    const sc = document.getElementById('tree');
+    const x = sc ? sc.scrollLeft : 0;
+    const y = this.el.panel.scrollTop;
+    this.renderPanel();
+    const sc2 = document.getElementById('tree');
+    if (sc2) sc2.scrollLeft = x;
+    this.el.panel.scrollTop = y;
   },
 
   // ================= 編成 =================
@@ -688,33 +848,34 @@ const UI = {
     // ---- ③ 換装の3択 ----
     const showSwaps = () => {
       stage.innerHTML = '';
-      const h = Util.el('div', 'gswaphead');
-      h.innerHTML = '<b>換装が出た</b><span>今あるアップグレードを1つ、別の効き方に入れ替えられる。' +
-        '<b>レベルと値段はそのまま</b>。強くなるのではなく、伸ばす方向が変わる</span>';
-      stage.appendChild(h);
+      stage.appendChild(this.choiceHead('換装',
+        '今あるアップグレードを1つ、別の効き方に入れ替える　レベルと値段はそのまま'));
+      const row = Util.el('div', 'chrow');
       for (const sw of swaps) {
         const base = SKILL_BY_ID[sw.base];
         const lv = Skill.lv(Game.meta, sw.base);
         const cur = Skill.node(sw.base);
-        const row = Util.el('button', 'gswap');
-        row.innerHTML =
-          '<div class="sic">' + sw.icon + '</div>' +
-          '<div class="sbody">' +
-            '<div class="sname">' + sw.name + ' <em>Lv' + lv + '</em></div>' +
-            '<div class="sdesc">' + Skill.desc(sw) + '</div>' +
-            '<div class="sdesc was">' + cur.name + '：' + Skill.desc(cur) + '</div>' +
-          '</div>';
-        row.addEventListener('click', () => {
+        const el = this.choiceCard({
+          name: sw.name,
+          desc: Skill.desc(sw),
+          icon: sw.icon,
+          color: 'var(--acc2)',
+          isNew: true,
+          type: cur.name + ' と入れ替え',
+          foot: '引き継ぐレベル <b>' + lv + '</b>',
+        });
+        el.addEventListener('click', () => {
           Skill.applySwap(Game.perm, sw.id);
           Game.applyMods();
           Game.save();
-          this.toastMsg(base.name + ' → ' + sw.name + ' に換装', '#c26bff');
+          this.toastMsg(base.name + ' → ' + sw.name + ' に換装', '#ff7a18');
           stage.innerHTML = '';
           stage.appendChild(Util.el('div', 'gdone', sw.name + ' に換装した'));
           finish();
         });
-        stage.appendChild(row);
+        row.appendChild(el);
       }
+      stage.appendChild(row);
       const skip = Util.el('button', 'gskip', '今は換えない');
       skip.addEventListener('click', () => { stage.innerHTML = ''; finish(); });
       stage.appendChild(skip);
@@ -749,7 +910,7 @@ const UI = {
     };
     seal.addEventListener('click', unseal);
     stage.addEventListener('click', (e) => {
-      if (e.target.closest('.gswap') || e.target.closest('.gskip')) return;
+      if (e.target.closest('.chcard') || e.target.closest('.gskip')) return;
       flipNext();
     });
   },
@@ -866,13 +1027,27 @@ const UI = {
     Game.paused = true;
 
     const body = Util.el('div', 'draft');
-    body.appendChild(Util.el('h3', null,
-      'ウェーブ ' + run.wave + ' 突破 — カードを1枚選ぶ' +
+    body.appendChild(this.choiceHead('レベルアップ',
+      'ウェーブ ' + run.wave + ' 突破　1枚選ぶ' +
       (run.pendingPicks > 1 ? '（あと ' + run.pendingPicks + ' 枚）' : '')));
-    const row = Util.el('div', 'drow');
+    body.appendChild(this.runSlots());
+
+    const row = Util.el('div', 'chrow');
     for (const id of ids) {
       const c = CARDS[id];
-      const el = this.cardEl(c, { pick: true, stacks: (run.cards[id] || 0) + 1, limit: Game.stackLimit(id) });
+      const stacks = (run.cards[id] || 0) + 1;
+      const el = this.choiceCard({
+        name: c.name,
+        desc: c.desc,
+        icon: this.cardIcon(c),
+        color: BAL.rarity[c.rarity].color,
+        isNew: Game.own(id) === 0 || stacks === 1,
+        type: c.kind === 'weapon' ? '武器を編成に追加'
+            : c.kind === 'synergy' ? 'シナジー'
+            : (c.weapon ? WEAPONS[c.weapon].name + ' 強化' : '全体強化'),
+        foot: BAL.rarity[c.rarity].name + '　' + stacks + ' / ' + Game.stackLimit(id) + ' 枚目',
+        hot: BAL.rarity[c.rarity].glow >= 2,
+      });
       el.addEventListener('click', () => {
         run.cards[id] = (run.cards[id] || 0) + 1;
         if (CARDS[id].apply) CARDS[id].apply(run);
@@ -887,6 +1062,54 @@ const UI = {
     }
     body.appendChild(row);
     this.openModal(body, true);
+  },
+
+  // ---- 3択の画面の部品（レベルアップと換装で使い回す） ----
+  choiceHead(title, sub) {
+    const h = Util.el('div', 'chhead');
+    h.innerHTML = '<b>' + title + '</b>' + (sub ? '<span>' + sub + '</span>' : '');
+    return h;
+  },
+
+  // 上に並ぶ枠。**今この出撃で何を積んだか**を見せる（空きは ＋）
+  runSlots() {
+    const run = Game.run;
+    const wrap = Util.el('div', 'chslots');
+    const ids = run ? Object.keys(run.cards || {}) : [];
+    const show = ids.slice(-3);
+    for (let i = 0; i < 4; i++) {
+      const id = show[i];
+      const s = Util.el('div', 'chslot' + (id ? ' on' : ' empty'));
+      if (id) {
+        s.innerHTML = this.cardIcon(CARDS[id]) + '<u>×' + run.cards[id] + '</u>';
+        s.style.color = BAL.rarity[CARDS[id].rarity].color;
+      } else s.textContent = '＋';
+      wrap.appendChild(s);
+    }
+    return wrap;
+  },
+
+  // 絵の素材が無いので、カテゴリの記号で代用する
+  cardIcon(c) {
+    if (c.kind === 'synergy') return '⧉';
+    if (c.weapon && WEAPONS[c.weapon]) {
+      const cat = CATEGORIES[WEAPONS[c.weapon].cat];
+      return (cat && cat.icon) || '◈';
+    }
+    return '✦';
+  },
+
+  choiceCard(o) {
+    const el = Util.el('button', 'chcard pick' + (o.hot ? ' hot' : ''));
+    el.style.setProperty('--ac', o.color || 'var(--acc)');
+    el.innerHTML =
+      (o.isNew ? '<span class="chnew">NEW</span>' : '') +
+      '<div class="chname">' + o.name + '</div>' +
+      '<div class="chart">' + o.icon + '</div>' +
+      '<div class="chdesc">' + o.desc + '</div>' +
+      (o.foot ? '<div class="chval">' + o.foot + '</div>' : '') +
+      '<div class="chtype">' + o.type + '</div>';
+    return el;
   },
 
   // ================= カードの見た目 =================

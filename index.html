@@ -19,23 +19,28 @@
   <!-- **1画面にいっぺんに詰め込まない。** ここはステージを選んで始めるだけ -->
   <div id="home">
     <div class="hbar">
-      <div class="hcoin">◈ <b id="homeCoin">0</b></div>
-      <div class="hprog" id="homeProg"></div>
+      <div class="lvring"><b id="homeRank">0</b><i>RANK</i></div>
+      <div class="hid">
+        <div class="hnm" id="homeName2">指揮官</div>
+        <div class="hxp"><i id="homeXp"></i></div>
+        <div class="hnum" id="homeProg"></div>
+      </div>
+      <div class="hpill"><s>◈</s><b id="homeCoin">0</b></div>
     </div>
 
     <div id="homeMain">
       <button class="snav" id="homePrev" aria-label="前のステージ">◀</button>
       <div class="scard">
-        <div class="slabel" id="homeLabel">ステージ 1</div>
-        <div class="sname" id="homeName">—</div>
-        <div class="sdesc" id="homeDesc"></div>
-        <div class="smini" id="homeMini"></div>
-        <div class="sstat" id="homeStat"></div>
+        <div class="heroart" id="homeMini"></div>
+        <div class="htitle" id="homeName">—</div>
+        <div class="hrule"><i>◆</i></div>
+        <div class="hstageline" id="homeLabel">ステージ <b>1</b></div>
+        <div class="hclear" id="homeStat"></div>
       </div>
       <button class="snav" id="homeNext" aria-label="次のステージ">▶</button>
     </div>
 
-    <button id="homeStart" class="bigstart">スタート</button>
+    <button id="homeStart" class="bigstart">出撃<s>▶</s></button>
 
     <!-- タブの中身。ホームにいるときだけ出る -->
     <div id="panel"></div>
@@ -73,12 +78,12 @@
 
   <!-- ============ 下部タブ（ホームのときだけ） ============ -->
   <div id="tabs">
-    <button data-tab="skill">スキル</button>
-    <button data-tab="load">装備</button>
-    <button data-tab="pack">パック<span id="badgePack" class="badge">0</span></button>
-    <button data-tab="deck">デッキ</button>
-    <button data-tab="coll">コレクション</button>
-    <button data-tab="pres">転生</button>
+    <button data-tab="skill"><span class="ti">✦</span>スキル</button>
+    <button data-tab="load"><span class="ti">⚔</span>装備</button>
+    <button data-tab="pack"><span class="ti">⬢</span>パック<span id="badgePack" class="badge">0</span></button>
+    <button data-tab="deck"><span class="ti">▤</span>デッキ</button>
+    <button data-tab="coll"><span class="ti">◫</span>図鑑</button>
+    <button data-tab="pres"><span class="ti">◉</span>転生</button>
   </div>
 
 </div>

@@ -101,7 +101,7 @@ const Render = {
     this.stage = st;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#05070c';
+    ctx.fillStyle = '#06070a';
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
 
     let sx = 0, sy = 0;
@@ -132,25 +132,25 @@ const Render = {
         const x = c * TILE, y = r * TILE;
         if (ch === ' ') {
           // 障害物
-          ctx.fillStyle = '#0b1018';
+          ctx.fillStyle = '#0a0b0f';
           ctx.fillRect(x, y, TILE, TILE);
-          ctx.strokeStyle = '#161f2c'; ctx.lineWidth = 1;
+          ctx.strokeStyle = '#181b22'; ctx.lineWidth = 1;
           ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
         } else if (ch === '#') {
           // 地面（ユニットを置ける）
-          ctx.fillStyle = '#1c2a3c';
+          ctx.fillStyle = '#242a35';
           ctx.fillRect(x, y, TILE, TILE);
-          ctx.strokeStyle = 'rgba(120,170,230,0.10)'; ctx.lineWidth = 1;
+          ctx.strokeStyle = 'rgba(255,190,90,0.09)'; ctx.lineWidth = 1;
           ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
         } else {
           // 通路（敵が通る）。暗く沈めて地面と区別する
-          ctx.fillStyle = '#080d15';
+          ctx.fillStyle = '#08090c';
           ctx.fillRect(x, y, TILE, TILE);
         }
         if (ch === 'S') {
           ctx.fillStyle = 'rgba(255,60,90,0.18)';
           ctx.fillRect(x, y, TILE, TILE);
-          ctx.strokeStyle = '#ff4e63'; ctx.lineWidth = 2;
+          ctx.strokeStyle = '#ff5566'; ctx.lineWidth = 2;
           ctx.strokeRect(x + 3, y + 3, TILE - 6, TILE - 6);
         }
       }
@@ -160,7 +160,7 @@ const Render = {
     this.heat(ctx, st);
 
     // 通路に進行方向の矢印を薄く出す
-    ctx.strokeStyle = 'rgba(120,170,230,0.20)';
+    ctx.strokeStyle = 'rgba(255,190,90,0.18)';
     ctx.lineWidth = 2;
     ctx.beginPath();
     for (let r = 0; r < st.rows; r++) {
@@ -285,9 +285,9 @@ const Render = {
     const t = run.tower;
     const hpR = Util.clamp(t.hp / t.maxHp, 0, 1);
     ctx.save();
-    ctx.shadowColor = '#4ea8ff'; ctx.shadowBlur = 22;
-    ctx.fillStyle = '#12243c';
-    ctx.strokeStyle = '#5ec8ff'; ctx.lineWidth = 2.5;
+    ctx.shadowColor = '#ffb020'; ctx.shadowBlur = 22;
+    ctx.fillStyle = '#2a1f08';
+    ctx.strokeStyle = '#ffc93c'; ctx.lineWidth = 2.5;
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
       const a = -Math.PI / 2 + i * Math.PI / 3;
@@ -371,7 +371,7 @@ const Render = {
 
       ctx.save();
       ctx.shadowColor = c; ctx.shadowBlur = sel ? 18 : 9;
-      ctx.fillStyle = '#0e1622';
+      ctx.fillStyle = '#101319';
       ctx.strokeStyle = sel ? '#ffffff' : c; ctx.lineWidth = sel ? 2.5 : 1.8;
       ctx.beginPath(); ctx.arc(u.x, u.y, 11, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
       ctx.restore();
