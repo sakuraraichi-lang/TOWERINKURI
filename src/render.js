@@ -241,12 +241,14 @@ const Render = {
           const v = traf[st.idx(c, r)] / mt;
           if (v <= 0.02) continue;
           const k = Math.pow(v, 0.6);
-          // 薄い青 -> 黄 -> 赤。濃いほど敵が長く居座る場所。
+          // 琥珀 -> 赤。濃いほど敵が長く居座る場所。
+          // **盤面と同じ暖色でそろえる。** 以前は薄い青から始めていて、
+          // 黒×琥珀の床の上で1箇所だけ寒色が浮いていた
           // **タイルいっぱいには塗らない。** 全面を塗ると敵と弾が見えなくなるので、
           // 内側に余白を残してマス目の境界を潰さないようにする
-          const cr = Math.round(40 + 215 * k);
-          const cg = Math.round(90 + 110 * (1 - Math.abs(k - 0.5) * 2));
-          const cb = Math.round(210 * (1 - k));
+          const cr = Math.round(200 + 55 * k);
+          const cg = Math.round(150 - 100 * k);
+          const cb = Math.round(40 - 30 * k);
           ctx.fillStyle = 'rgba(' + cr + ',' + cg + ',' + cb + ',' + (0.04 + k * 0.15).toFixed(3) + ')';
           ctx.fillRect(c * TILE + 2, r * TILE + 2, TILE - 4, TILE - 4);
         }
