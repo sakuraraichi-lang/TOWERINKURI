@@ -431,7 +431,7 @@ const UI = {
       for (let c = 0; c < s.map[r].length; c++) {
         const ch = s.map[r][c];
         let col = null;
-        if (ch === '#') col = '#2e3442';        // 置ける地面（壁）
+        if (ch === '#') col = '#3b3527';        // 置ける地面（壁）
         else if (ch === 'S') col = '#ff5566';   // 出現口
         else if (ch === 'C') col = '#ffc93c';   // コア
         else if (ch === '.') col = '#0c0e13';   // 通路

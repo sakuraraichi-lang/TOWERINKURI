@@ -333,11 +333,11 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 #app.collapsed .pcol{transform:rotate(180deg);}
 #app.collapsed #panel{flex-basis:0;min-height:0;padding:0;overflow:hidden;border:none;}
 
-/* 実験用プロトタイプへの入口。ゲームの見た目に干渉しないよう最小限 */
-#protoLink{position:fixed;right:8px;bottom:calc(6px + var(--safe-b,0px));z-index:40;
-  font-size:10px;color:var(--dim);text-decoration:none;opacity:.5;
-  background:rgba(8,10,14,.75);border:1px solid var(--line);padding:4px 8px;}
-#protoLink:active{opacity:1;}
+/* 実験用プロトタイプへの入口。ホームの上のバーに小さく置く。
+   **以前は画面の隅に浮かせていて、出撃ボタンや操作列に重なっていた** */
+#protoLink{flex:0 0 auto;font-size:9.5px;color:var(--dim);text-decoration:none;
+  background:#0e1116;border:1px solid var(--line);padding:5px 7px;white-space:nowrap;}
+#protoLink:active{color:var(--acc);}
 
 /* ============================================================
    画面の切り替え
@@ -348,7 +348,6 @@ body.on-home #stage{display:none;}
 body.on-home #tabs{display:flex;order:99;}
 body.on-battle #home{display:none;}
 body.on-battle #tabs{display:none;}
-body.on-home #protoLink{bottom:calc(62px + var(--safe-b,0px));right:auto;left:8px;}
 
 /* --- ホーム --- */
 #home{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;
@@ -621,5 +620,3 @@ body:not(.tabsoff) .snav{height:44px;}
 body:not(.tabsoff) .bigstart{min-height:46px;font-size:16px;gap:10px;}
 body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 
-/* 戦闘中は試作への入口を出さない（操作列に重なる） */
-body.on-battle #protoLink{display:none;}
