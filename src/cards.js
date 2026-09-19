@@ -55,7 +55,7 @@ const CARDS = {
     apply(run) { const w = run.wp('sniper'); if (w) { w.s.crit += 0.25; w.s.critMul += 1.0; } } }),
   snp_rail: C({ id: 'snp_rail', kind: 'mod', weapon: 'sniper', rarity: 'epic', maxStack: 2,
     name: '貫通レールガン', desc: 'スナイパー弾が並んだ敵を全て貫通。弾速 ×1.6 / ダメージ ×1.3',
-    apply(run) { const w = run.wp('sniper'); if (w) { w.s.pierce += 99; w.s.speed *= 1.6; w.s.dmg *= 1.3; w.flags.rail = true; } } }),
+    apply(run) { const w = run.wp('sniper'); if (w) { w.s.pierce += 99; w.s.speed *= 1.6; w.s.dmg *= 1.3; } } }),
   snp_exec: C({ id: 'snp_exec', kind: 'mod', weapon: 'sniper', rarity: 'legendary', maxStack: 1,
     name: '執行', desc: 'スナイパーが命中させた敵は、残りHP18%以下なら即死',
     apply(run) { const w = run.wp('sniper'); if (w) w.s.execThr = Math.max(w.s.execThr, 0.18); } }),
@@ -75,7 +75,7 @@ const CARDS = {
     apply(run) { const w = run.wp('missile'); if (w) w.dyn.cluster = (w.dyn.cluster || 0) + 4; } }),
   msl_nuke: C({ id: 'msl_nuke', kind: 'mod', weapon: 'missile', rarity: 'legendary', maxStack: 1,
     name: '戦術核', desc: 'ミサイルのダメージ ×3.2 / 爆風 ×2.4 / レート ×0.55。画面が揺れる',
-    apply(run) { const w = run.wp('missile'); if (w) { w.s.dmg *= 3.2; w.s.splash *= 2.4; w.s.rate *= 0.55; w.flags.nuke = true; } } }),
+    apply(run) { const w = run.wp('missile'); if (w) { w.s.dmg *= 3.2; w.s.splash *= 2.4; w.s.rate *= 0.55; } } }),
 
   // ============ テスラコイル ============
   tsl_coil: C({ id: 'tsl_coil', kind: 'mod', weapon: 'tesla', rarity: 'common', maxStack: 5,
@@ -114,7 +114,8 @@ const CARDS = {
     apply(run) { const w = run.wp('gas'); if (w) { w.s.fieldR *= 1.35; w.s.fieldDur *= 1.3; } } }),
   gas_nerve: C({ id: 'gas_nerve', kind: 'mod', weapon: 'gas', rarity: 'legendary', maxStack: 1,
     name: '神経ガス', desc: '雲の中の敵は 50%減速し、受けるダメージ +45%。毒 ×1.6',
-    apply(run) { const w = run.wp('gas'); if (w) { w.s.dmg *= 1.6; w.s.slow = Math.max(w.s.slow, 0.5); w.flags.nerve = true; } } }),
+    apply(run) { const w = run.wp('gas'); if (w) { w.s.dmg *= 1.6; w.s.slow = Math.max(w.s.slow, 0.5);
+      w.s.fieldVuln = Math.max(w.s.fieldVuln, 0.45); } } }),
 
   // ============ 凍結装置 ============
   cry_deep: C({ id: 'cry_deep', kind: 'mod', weapon: 'cryo', rarity: 'common', maxStack: 5,

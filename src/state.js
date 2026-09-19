@@ -63,7 +63,11 @@ const Game = {
         for (const id of Object.keys(old.perm.collection || {})) {
           if (CARDS[id]) this.perm.collection[id] = old.perm.collection[id];
         }
-        Object.assign(this.perm.packs, old.perm.packs || {});
+        // 今のパック定義にあるものだけ引き継ぐ（旧形式の rare / epic を持ち込まない）
+        for (const pk of PACK_IDS) {
+          const v = (old.perm.packs || {})[pk];
+          if (typeof v === 'number') this.perm.packs[pk] = v;
+        }
         this.perm.prestiges = old.perm.prestiges || 0;
         this.perm.totalKills = old.perm.totalKills || 0;
         this.save();
@@ -78,6 +82,10 @@ const Game = {
     if (!this.perm.placements) this.perm.placements = {};
     if (!this.perm.heat) this.perm.heat = {};
     if (typeof this.perm.deepest !== 'number') this.perm.deepest = this.clearedCount();
+    // パックは今の定義と同じキーだけにする。
+    // 昔の save には rare / epic が残っていて、開けられないまま数え続けていた
+    if (!this.perm.packs) this.perm.packs = {};
+    for (const k of Object.keys(this.perm.packs)) if (PACK_IDS.indexOf(k) < 0) delete this.perm.packs[k];
     for (const k of PACK_IDS) if (typeof this.perm.packs[k] !== 'number') this.perm.packs[k] = 0;
     if (!STAGE_BY_ID[this.perm.currentStage]) this.perm.currentStage = 'st1';
     return true;

@@ -56,6 +56,7 @@ function baseStats(o) {
     cone: 0,        // 扇の半角(rad)。0なら扇ではない
     fieldR: 0,      // 設置する場の半径
     fieldDur: 0,    // 場の持続秒
+    fieldVuln: 0,   // 場の中の敵が受けるダメージの増分（0.2 = +20%）
     arc: 0.40,      // 射界の半角(rad)。プレイヤーが広げ狭めできる初期値
     turn: 7,        // 砲身が扇の中で振れる速さ(rad/s)。向きそのものは動かない
   }, o);
@@ -150,14 +151,14 @@ const WEAPONS = {
     desc: '毒の雲を通路に撒く。雲の中の敵は毒を受け続け、防御が落ちる。',
     target: 'lead',
     base: baseStats({ arc: 0.30, dmg: 7, rate: 0.42, range: 300, speed: 260, bulletR: 5,
-                      fieldR: 76, fieldDur: 5.5, slow: 0.15, slowDur: 1 }),
+                      fieldR: 76, fieldDur: 5.5, fieldVuln: 0.2, slow: 0.15, slowDur: 1 }),
     fire(w, run) {
       if (!w.target) return;
       Combat.spawnLob(w, run, w.target.x, w.target.y, {
         color: '#8fd94a',
         onLand: (rr, x, y) => Combat.spawnField(rr, x, y, {
           kind: 'gas', r: w.s.fieldR, dur: w.s.fieldDur, dps: w.s.dmg,
-          slow: w.s.slow, vuln: 0.2, color: '#8fd94a', src: w,
+          slow: w.s.slow, vuln: w.s.fieldVuln, color: '#8fd94a', src: w,
         }),
       });
     },

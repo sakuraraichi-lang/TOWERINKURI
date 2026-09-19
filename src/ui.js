@@ -55,13 +55,13 @@ const UI = {
     if (!r) { this.el.hudWave.textContent = '—'; return; }
 
     if (Game.phase === 'prep') {
-      this.el.hudWave.textContent = 'ビルドフェーズ';
-      this.el.hudPhase.textContent = '配置を決めて戦闘開始';
+      this.el.hudWave.textContent = '準備フェーズ';
+      this.el.hudPhase.textContent = 'アップグレード・編成・配置';
       this.el.hudWaveBar.style.width = '0%';
       this.el.hudWaveTxt.textContent = '全' + BAL.wavesPerStage + 'ウェーブ';
     } else if (r.phase === 'build') {
-      this.el.hudWave.textContent = 'ビルドフェーズ';
-      this.el.hudPhase.textContent = 'ウェーブ ' + r.wave + ' を凌いだ。置き直せる';
+      this.el.hudWave.textContent = 'ウェーブ間';
+      this.el.hudPhase.textContent = 'ウェーブ ' + r.wave + ' を凌いだ。置き直せる（購入は不可）';
       this.el.hudWaveBar.style.width = '100%';
       this.el.hudWaveTxt.textContent = '次は ウェーブ ' + (r.wave + 1) + ' / ' + BAL.wavesPerStage;
     } else {
