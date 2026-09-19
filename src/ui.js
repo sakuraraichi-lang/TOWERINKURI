@@ -812,7 +812,8 @@ const UI = {
       row.innerHTML = '<span class="synico">' + need + '</span>' +
         '<b>' + c.name + '</b><em>' + (!ok ? '編成が不足' : owned ? '抽選に出る' : '未所持') + '</em>' +
         '<span class="sdesc">' +
-          c.requires.map(w => WEAPONS[w].name).join(' × ') + '　' + c.desc + '</span>';
+          c.requires.map(w => WEAPONS[w].name).join(' × ') + '　' +
+          c.desc.replace(/^【[^】]*】/, '') + '</span>';
       row.addEventListener('click', () => row.classList.toggle('open'));
       syn.appendChild(row);
     }
