@@ -416,7 +416,7 @@ const UI = {
           UI.pick = STAGES.findIndex(x => x.id === s.id);
           Game.save();
           this.renderHome();
-          this.toastMsg(s.name + ' を選択', '#4ea8ff');
+          this.toastMsg(s.name + ' を選択', '#ffb020');
         });
         row.appendChild(b);
       }
