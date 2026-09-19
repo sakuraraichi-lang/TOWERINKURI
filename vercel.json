@@ -3,13 +3,6 @@
   "cleanUrls": true,
   "headers": [
     {
-      "comment": "更新が必ず届くように、自作ファイルは毎回取り直させる",
-      "source": "/(.*)\.(html|css|js)",
-      "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
-      ]
-    },
-    {
       "source": "/(.*)",
       "headers": [
         { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
