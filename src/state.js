@@ -40,9 +40,10 @@ const Game = {
       currentStage: 'st1',
       placements: {},
       heat: {},          // stageId -> { traffic: [], leak: [] }
-      seenIntro: false,
       // **タブは最初から全部出さない。** 遊んで意味が分かった順に開く
       tabs: { skill: false, load: false, pack: false, deck: false },
+      // チュートリアルで今どこまで進んだか。**一度に1操作しか教えない**
+      tut: 0,
     };
     this.meta = { coins: 0, skills: {} };
   },

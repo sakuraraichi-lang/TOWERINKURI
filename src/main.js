@@ -69,35 +69,11 @@ const Main = {
     Game.startPrep(Game.perm.currentStage);
     UI.setScreen('home');
 
-    if (!Game.perm.seenIntro) {
-      Game.perm.seenIntro = true;
-      Game.save();
-      this.intro();
-    }
+    // **起動直後の説明モーダルは廃止した。**
+    // ルールを1枚に並べても読まれない。戦場で1操作ずつ出す（UI.renderTut）
 
     this.last = performance.now();
     this.raf = requestAnimationFrame((t) => this.loop(t));
-  },
-
-  intro() {
-    const b = Util.el('div');
-    b.appendChild(Util.el('h3', null, 'INKURIMENT'));
-    b.innerHTML += '<p class="note">' +
-      '<b>1ステージ＝' + BAL.wavesPerStage + 'ウェーブ。</b>全部凌げば突破、コアが割れたら失敗。<br>' +
-      '失敗してもコインとアップグレードは残るので、整えてもう一度挑む。<br><br>' +
-      '<b>準備フェーズ</b>でアップグレードを買い、編成を決め、ユニットを<b>地面</b>に置く。<br>' +
-      '同じ武器を上限まで何基でも置ける。ユニットは<b>向いている扇の中だけ</b>攻撃する。<br>' +
-      '扇を狭めるほど弾がまとまり（集弾率が上がり）、広げるほど守備範囲が増える代わりに散る。<br>' +
-      'ウェーブとウェーブの間は<b>ウェーブ間</b>。ここでは<b>置き直しだけ</b>できる。<br>' +
-      '<b>アップグレードを買えるのは準備フェーズだけ</b>（戦闘に入ると買えない）。<br><br>' +
-      '<b>ウェーブを1つ凌ぐごとにカードを1枚選べる</b>（1ステージで4回）。<br>' +
-      'アップグレードの「増設スロット」で、1回に取れる枚数を増やせる。<br><br>' +
-      '盤面の<b>色の濃いところが敵の溜まり場</b>、<b>赤い枠が抜けられたルート</b>。<br>' +
-      'それを見て、角度をつけて射線を重ねるのがこのゲームの本体。</p>';
-    const ok = Util.el('button', 'bigbtn', 'はじめる');
-    ok.addEventListener('click', () => UI.closeModal());
-    b.appendChild(ok);
-    UI.openModal(b, true);
   },
 
   // ---------- ホームへ ----------

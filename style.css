@@ -369,3 +369,18 @@ body.on-battle #tabs{display:none;}
       border-radius:8px;min-height:32px;padding:5px 4px;font-size:11px;font-weight:800;}
 #upop .chip.danger{border-color:var(--danger);color:#ffb7bf;}
 #upop .trayhint{display:block;margin-top:6px;font-size:10px;color:var(--dim);text-align:center;}
+
+/* ============ チュートリアル ============ */
+/* **一度に1操作しか出さない。** 盤面と「準備完了」を隠さない高さに置く */
+#tut{position:absolute;left:10px;right:10px;bottom:112px;z-index:20;display:none;
+     padding:9px 12px;box-sizing:border-box;pointer-events:none;
+     background:rgba(10,20,34,.93);border:1px solid rgba(78,168,255,.55);border-radius:11px;
+     box-shadow:0 4px 18px rgba(0,0,0,.55);backdrop-filter:blur(3px);}
+#tut.on{display:block;}
+#tut i{display:block;font-style:normal;font-size:9px;color:var(--acc);
+       letter-spacing:.08em;margin-bottom:2px;}
+#tut b{display:block;font-size:13px;line-height:1.4;}
+#tut span{display:block;font-size:10px;color:var(--dim);line-height:1.5;margin-top:2px;}
+
+/* 試作への入口が下部タブに重なっていた。タブの上へ逃がす */
+body.on-home #protoLink{bottom:calc(44px + var(--safe-b,0px));}

@@ -24,7 +24,7 @@ const UI = {
       hudWaveTxt: q('hudWaveTxt'), tray: q('tray'),
       panel: q('panel'), tabs: q('tabs'), modal: q('modal'),
       toast: q('toast'), badgePack: q('badgePack'),
-      upop: q('upop'), stage: q('stage'),
+      upop: q('upop'), stage: q('stage'), tut: q('tut'),
       btnStart: q('btnStart'),
       homeCoin: q('homeCoin'), homeProg: q('homeProg'), homeLabel: q('homeLabel'),
       homeName: q('homeName'), homeDesc: q('homeDesc'), homeMini: q('homeMini'),
@@ -148,11 +148,12 @@ const UI = {
     const t = this.el.tray;
     t.innerHTML = '';
     const run = Game.run;
-    if (!run || run.over) { t.classList.remove('on'); return; }
+    if (!run || run.over) { t.classList.remove('on'); this.renderTut(); return; }
     t.classList.add('on');
 
     const build = Game.canBuild();
     this.renderUnitPop();
+    this.renderTut();
 
     for (const cid of Game.perm.loadout) {
       if (!cid || !CARDS[cid]) continue;
@@ -211,12 +212,14 @@ const UI = {
     let deg = Math.round(u.face * 180 / Math.PI); if (deg < 0) deg += 360;
     p.appendChild(bar('向き', 0, 359, deg, (v) => {
       Game.aimUnit(u, v * Math.PI / 180);
+      this.tutAimed = true;
       Game.save();
     }));
     const arcPct = Math.round((u.arc - BAL.arcMin) / (BAL.arcMax - BAL.arcMin) * 100);
     p.appendChild(bar('射界', 0, 100, arcPct, (v) => {
       const want = BAL.arcMin + (BAL.arcMax - BAL.arcMin) * (v / 100);
       Game.setArc(u, want - u.arc);
+      this.tutAimed = true;
       const el = document.getElementById('uInfo');
       if (el) el.textContent = '射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) +
         '°　集弾 ' + Math.round(Game.groupingOf(u) * 100) + '%';
@@ -261,6 +264,58 @@ const UI = {
 
     p.style.left = Util.clamp(x, 6, Math.max(6, host.width - w - 6)) + 'px';
     p.style.top = Util.clamp(y, 6, Math.max(6, host.height - h - 6)) + 'px';
+  },
+
+  // ============ チュートリアル ============
+  // **一度に1操作しか教えない。** 全部並べると読まれない。
+  // 進み方は perm.tut に持つので、途中でやめても続きから出る
+  TUT: [
+    { t: '左上の武器をひとつ選ぶ',      s: 'GAT はガトリング、SNP はスナイパー' },
+    { t: '光っている地面をタップして置く', s: '置けるのは地面（壁）の上だけ' },
+    { t: '武器の横のバーで、向きを敵のほうへ', s: '射界を広げると守備範囲が増え、集弾が落ちる' },
+    { t: '右下の「準備完了」で始まる',    s: '置き直しはウェーブの合間にできる' },
+    { t: 'あとは眺めるだけ',            s: '倒すと ◈ が増える。負けても持ち帰れる' },
+  ],
+
+  // 今のステップが済んだかを、盤面の状態から見る（押させるボタンは作らない）
+  tutDone(i) {
+    const run = Game.run;
+    switch (i) {
+      case 0: return !!this.placingType || (run && run.units.length > 0);
+      case 1: return !!(run && run.units.length > 0);
+      case 2: return !!this.tutAimed;
+      case 3: return Game.phase === 'battle';
+      case 4: return !!(run && run.wave > 1);
+      default: return true;
+    }
+  },
+
+  renderTut() {
+    const p = this.el.tut;
+    if (!p) return;
+    const run = Game.run;
+    // 最後まで見せたあとに出撃が終わったら、そこで畳む。
+    // **ウェーブ1で負けると wave は 2 にならない**ので、これが無いと次の出撃でも
+    // 「あとは眺めるだけ」が準備フェーズに出てしまう
+    if (run && run.over && (Game.perm.tut || 0) === this.TUT.length - 1) {
+      Game.perm.tut = this.TUT.length;
+      Game.save();
+    }
+    // 2回目以降の出撃では出さない。**一度覚えたものを毎回見せない**
+    if (!run || run.over || Game.perm.totalRuns > 1 || (Game.perm.tut || 0) >= this.TUT.length) {
+      p.classList.remove('on'); p.innerHTML = ''; return;
+    }
+
+    let i = Game.perm.tut || 0;
+    while (i < this.TUT.length && this.tutDone(i)) i++;
+    if (i !== (Game.perm.tut || 0)) { Game.perm.tut = i; Game.save(); }
+    if (i >= this.TUT.length) { p.classList.remove('on'); p.innerHTML = ''; return; }
+
+    const step = this.TUT[i];
+    const html = '<i>' + (i + 1) + ' / ' + this.TUT.length + '</i>' +
+      '<b>' + step.t + '</b><span>' + step.s + '</span>';
+    if (p.innerHTML !== html) p.innerHTML = html;
+    p.classList.add('on');
   },
 
   renderTabs() {
