@@ -556,37 +556,9 @@ const UI = {
   },
 
   // ================= カード選択（ウェーブ突破ごと） =================
-  eligibleCards() {
-    const ids = Game.loadoutWeapons();
-    const run = Game.run;
-    return CARD_IDS.filter(id => {
-      const c = CARDS[id];
-      if (c.kind === 'weapon') return false;
-      if (Game.own(id) <= 0) return false;
-      if ((run.cards[id] || 0) >= Game.stackLimit(id)) return false;
-      if (c.kind === 'mod') return ids.includes(c.weapon);
-      if (c.kind === 'synergy') return c.requires.every(w => ids.includes(w));
-      return true;
-    });
-  },
-
-  rollDraft(n) {
-    const pool = this.eligibleCards();
-    if (!pool.length) return [];
-    const luck = Game.run.mods.luck;
-    const out = [];
-    for (let i = 0; i < n && out.length < pool.length; i++) {
-      const rem = pool.filter(id => !out.includes(id));
-      const rEnt = BAL.rarityOrder
-        .map(r => ({ r, w: BAL.rarityWeight[r], n: rem.filter(id => CARDS[id].rarity === r).length }))
-        .filter(e => e.n > 0);
-      if (!rEnt.length) break;
-      const pickR = Util.weighted(rEnt, e => Math.max(0.01, e.w * (1 + BAL.rarityDraftLuck[e.r] * luck * 0.05))).r;
-      const cand = rem.filter(id => CARDS[id].rarity === pickR);
-      out.push(Util.weighted(cand, id => Game.cardWeight(id)));
-    }
-    return out;
-  },
+  // 抽選の規則は src/draft.js に置いてある（測定器と同じものを使うため）
+  eligibleCards() { return Draft.eligible(); },
+  rollDraft(n) { return Draft.roll(n); },
 
   showDraft() {
     const run = Game.run;
