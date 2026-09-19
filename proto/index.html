@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>INKURIMENT — 参考画像プロトタイプ</title>
+<!--
+  【これは実験用のプロトタイプです】
+  src/ を一切読み込みません。localStorage も触りません。
+  既存ゲームのバランス・ステージ・カード・転生には影響しません。
+  目的は「参考画像のような、大量の敵が埋め尽くす戦闘」が成立するかの確認だけ。
+-->
+<link rel="stylesheet" href="proto.css">
+</head>
+<body>
+<div id="wrap">
+  <canvas id="cv"></canvas>
+
+  <div id="hud">
+    <div class="row">
+      <span class="k">敵</span><b id="hEn">0</b>
+      <span class="k">fps</span><b id="hFps">—</b>
+      <span class="k">◈</span><b id="hCoin">0</b>
+      <span class="k">撃破</span><b id="hKill">0</b>
+    </div>
+    <div class="row sub">
+      <span id="hMethod">密集: 密度</span>
+      <span id="hOverlap">重なり —</span>
+      <span id="hCost">移動 — ms</span>
+    </div>
+  </div>
+
+  <div id="tools">
+    <div class="grp">
+      <span class="lbl">武器</span>
+      <button class="w on" data-w="gatling">ガトリング</button>
+      <button class="w" data-w="sniper">スナイパー</button>
+      <button id="clear">全撤去</button>
+    </div>
+    <div class="grp">
+      <span class="lbl">敵数</span>
+      <button class="n" data-n="200">200</button>
+      <button class="n on" data-n="400">400</button>
+      <button class="n" data-n="600">600</button>
+      <button class="n" data-n="1000">1000</button>
+    </div>
+    <div class="grp">
+      <span class="lbl">密集</span>
+      <button class="m" data-m="none">なし</button>
+      <button class="m on" data-m="density">密度</button>
+      <button class="m" data-m="bucket">バケット</button>
+      <button class="m" data-m="both">併用</button>
+    </div>
+    <div class="grp">
+      <span class="lbl">速さ</span>
+      <button class="s" data-s="0.5">×0.5</button>
+      <button class="s on" data-s="1">×1</button>
+      <button class="s" data-s="2">×2</button>
+      <button id="fx" class="on">演出 ON</button>
+      <button id="panel">▼</button>
+    </div>
+  </div>
+
+  <div id="hint">地面をタップして武器を置く／置いた武器をドラッグして動かす</div>
+</div>
+<script src="proto.js"></script>
+</body>
+</html>

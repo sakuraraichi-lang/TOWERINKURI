@@ -1,0 +1,40 @@
+/* プロトタイプ専用。既存の style.css とは別物 */
+*{box-sizing:border-box;margin:0;padding:0;}
+:root{
+  --bg:#0b1016; --ink:#e8eef6; --dim:#8296ad;
+  --safe-t:env(safe-area-inset-top,0px);
+  --safe-b:env(safe-area-inset-bottom,0px);
+}
+html,body{height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
+  font:13px/1.45 system-ui,-apple-system,"Segoe UI","Hiragino Sans","Noto Sans JP",sans-serif;
+  -webkit-text-size-adjust:100%;}
+#wrap{position:fixed;inset:0;}
+#cv{display:block;touch-action:none;}
+
+#hud{position:fixed;left:8px;right:8px;top:calc(6px + var(--safe-t));pointer-events:none;
+  font-variant-numeric:tabular-nums;}
+#hud .row{display:flex;gap:10px;align-items:baseline;
+  background:rgba(8,13,20,.62);backdrop-filter:blur(6px);
+  border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:5px 9px;}
+#hud .row.sub{margin-top:4px;font-size:11px;color:var(--dim);gap:12px;}
+#hud .k{color:var(--dim);font-size:10px;}
+#hud b{font-size:15px;font-weight:650;}
+
+#tools{position:fixed;left:6px;right:6px;bottom:calc(6px + var(--safe-b));
+  display:flex;flex-direction:column;gap:5px;
+  background:rgba(8,13,20,.74);backdrop-filter:blur(8px);
+  border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:7px;}
+#tools.hide .grp:not(:last-child){display:none;}
+.grp{display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
+.lbl{color:var(--dim);font-size:10px;min-width:28px;}
+#tools button{flex:0 0 auto;min-height:34px;padding:0 11px;border-radius:8px;
+  border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);
+  color:var(--ink);font:inherit;font-size:12px;cursor:pointer;
+  -webkit-tap-highlight-color:transparent;}
+#tools button.on{background:#1d6fd4;border-color:#3f93ff;font-weight:650;}
+#tools button:active{transform:translateY(1px);}
+#clear{margin-left:auto;background:rgba(255,90,110,.14)!important;border-color:rgba(255,90,110,.35)!important;}
+
+#hint{position:fixed;left:0;right:0;bottom:calc(158px + var(--safe-b));text-align:center;
+  color:var(--dim);font-size:11px;pointer-events:none;transition:opacity .4s;}
+#hint.gone{opacity:0;}
