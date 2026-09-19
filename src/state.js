@@ -44,6 +44,8 @@ const Game = {
       tabs: { skill: false, load: false, pack: false, deck: false },
       // チュートリアルで今どこまで進んだか。**一度に1操作しか教えない**
       tut: 0,
+      // 換装。baseId -> swapId。パックの3択で入れ替えたスキル
+      swaps: {},
     };
     this.meta = { coins: 0, skills: {} };
   },
@@ -85,6 +87,9 @@ const Game = {
     if (!this.perm.stages) this.perm.stages = {};
     if (!this.perm.placements) this.perm.placements = {};
     if (!this.perm.heat) this.perm.heat = {};
+    if (!this.perm.swaps) this.perm.swaps = {};
+    // 定義から消えた換装は落とす（古いセーブが未知のidを持ち続けないように）
+    for (const k of Object.keys(this.perm.swaps)) if (!SWAP_BY_ID[this.perm.swaps[k]]) delete this.perm.swaps[k];
     if (typeof this.perm.deepest !== 'number') this.perm.deepest = this.clearedCount();
     // パックは今の定義と同じキーだけにする。
     // 昔の save には rare / epic が残っていて、開けられないまま数え続けていた

@@ -468,11 +468,15 @@ const UI = {
       const cost = Skill.cost(meta, s.id);
       const can = Game.canBuySkills() && Skill.canBuy(meta, perm, s.id);
       const maxed = lv >= s.max;
-      const row = Util.el('div', 'srow' + (can ? ' can' : ''));
+      // 換装していれば、そちらの名前と効果を出す
+      const n = Skill.node(s.id, perm);
+      const row = Util.el('div', 'srow' + (can ? ' can' : '') + (n.swapId ? ' swapped' : ''));
       row.innerHTML =
-        '<div class="sic">' + s.icon + '</div>' +
-        '<div class="sbody"><div class="sname">' + s.name + ' <em>Lv' + lv + (s.max !== Infinity ? '/' + s.max : '') + '</em></div>' +
-        '<div class="sdesc">' + Skill.desc(s) + '</div></div>' +
+        '<div class="sic">' + n.icon + '</div>' +
+        '<div class="sbody"><div class="sname">' + n.name +
+          (n.swapId ? ' <u>換装</u>' : '') +
+          ' <em>Lv' + lv + (s.max !== Infinity ? '/' + s.max : '') + '</em></div>' +
+        '<div class="sdesc">' + Skill.desc(n) + '</div></div>' +
         '<button class="sbuy"' + (can ? '' : ' disabled') + '>' + (maxed ? 'MAX' : '◈ ' + Util.fmt(cost)) + '</button>';
       const btn = row.querySelector('.sbuy');
       let hold = null;
@@ -613,8 +617,9 @@ const UI = {
   // ================= パック =================
   panelPacks(p) {
     const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>カードパック</b><span class="sub">コインでは買えない。<b>完璧クリア</b>・ステージ突破・転生・ミッションで手に入る。<br>' +
-      '<b>パックは分野で分かれている。</b>奥の分野は奥のステージまで行かないと掘れない</span>';
+    head.innerHTML = '<b>パック開封</b><span class="sub">コインでは買えない。<b>完璧クリア</b>・ステージ突破・転生・ミッションで手に入る。<br>' +
+      '<b>パックは分野で分かれている。</b>奥の分野は奥のステージまで行かないと掘れない。<br>' +
+      '武器本体のほか、<b>今あるアップグレードを別の効き方に入れ替える「換装」</b>が3択で出ることがある</span>';
     p.appendChild(head);
 
     for (const pid of PACK_IDS) {
@@ -642,6 +647,9 @@ const UI = {
     }
   },
 
+  // ================= 開封（ガチャ画面） =================
+  //   ① 封を切る（タップ） → ② 1枚ずつめくる → ③ 換装の3択 → ④ 受け取る
+  //   **武器本体が出たときは、ただのカードとして流さず止めて見せる。**
   openPack(pid) {
     if ((Game.perm.packs[pid] || 0) <= 0) return;
     Game.perm.packs[pid]--;
@@ -649,33 +657,101 @@ const UI = {
     const ids = Pack.open(pid, luck);
     const isNew = ids.map(id => Game.own(id) === 0);
     for (const id of ids) Game.grant(id, 1);
+
+    // 換装が出るかどうか。**買っていないノードは候補にならない**ので、
+    // 序盤は自然と出ない
+    const swaps = Util.chance(Pack.swapChance(pid))
+      ? Skill.swapChoices(Game.meta, Game.perm, 3) : [];
     Game.save();
 
     const pk = PACKS[pid];
-    const body = Util.el('div', 'packopen');
-    body.appendChild(Util.el('h3', null, pk.name + ' 開封'));
-    const row = Util.el('div', 'popenrow');
-    body.appendChild(row);
-    const hint = Util.el('div', 'note', 'タップでめくる');
-    body.appendChild(hint);
+    const body = Util.el('div', 'gacha');
+    body.style.setProperty('--pc', pk.color);
+    body.innerHTML =
+      '<div class="gtop"><b>' + pk.name + '</b><span>' + pk.size + '枚' +
+      (swaps.length ? ' ＋ 換装' : '') + '</span></div>' +
+      '<div class="gseal"><div class="gpack">⬢</div><div class="gsealtxt">タップで開封</div></div>' +
+      '<div class="gbody"></div>' +
+      '<div class="ghint"></div>';
+    const seal = body.querySelector('.gseal');
+    const stage = body.querySelector('.gbody');
+    const hint = body.querySelector('.ghint');
     this.openModal(body, true);
 
+    const finish = () => {
+      const close = Util.el('button', 'bigbtn', '受け取る');
+      close.addEventListener('click', () => { this.closeModal(); this.renderPanel(); });
+      body.appendChild(close);
+      hint.textContent = '';
+    };
+
+    // ---- ③ 換装の3択 ----
+    const showSwaps = () => {
+      stage.innerHTML = '';
+      const h = Util.el('div', 'gswaphead');
+      h.innerHTML = '<b>換装が出た</b><span>今あるアップグレードを1つ、別の効き方に入れ替えられる。' +
+        '<b>レベルと値段はそのまま</b>。強くなるのではなく、伸ばす方向が変わる</span>';
+      stage.appendChild(h);
+      for (const sw of swaps) {
+        const base = SKILL_BY_ID[sw.base];
+        const lv = Skill.lv(Game.meta, sw.base);
+        const cur = Skill.node(sw.base);
+        const row = Util.el('button', 'gswap');
+        row.innerHTML =
+          '<div class="sic">' + sw.icon + '</div>' +
+          '<div class="sbody">' +
+            '<div class="sname">' + sw.name + ' <em>Lv' + lv + '</em></div>' +
+            '<div class="sdesc">' + Skill.desc(sw) + '</div>' +
+            '<div class="sdesc was">' + cur.name + '：' + Skill.desc(cur) + '</div>' +
+          '</div>';
+        row.addEventListener('click', () => {
+          Skill.applySwap(Game.perm, sw.id);
+          Game.applyMods();
+          Game.save();
+          this.toastMsg(base.name + ' → ' + sw.name + ' に換装', '#c26bff');
+          stage.innerHTML = '';
+          stage.appendChild(Util.el('div', 'gdone', sw.name + ' に換装した'));
+          finish();
+        });
+        stage.appendChild(row);
+      }
+      const skip = Util.el('button', 'gskip', '今は換えない');
+      skip.addEventListener('click', () => { stage.innerHTML = ''; finish(); });
+      stage.appendChild(skip);
+      hint.textContent = '';
+    };
+
+    // ---- ② カードを1枚ずつ ----
+    const row = Util.el('div', 'popenrow');
     let i = 0;
     const flipNext = () => {
       if (i >= ids.length) return;
       const c = CARDS[ids[i]];
       row.appendChild(this.cardEl(c, { reveal: true, isNew: isNew[i] }));
-      if (BAL.rarity[c.rarity].glow >= 2) this.burst(BAL.rarity[c.rarity].color);
-      i++;
-      if (i >= ids.length) {
-        hint.textContent = '';
-        const close = Util.el('button', 'bigbtn', '受け取る');
-        close.addEventListener('click', () => { this.closeModal(); this.renderPanel(); });
-        body.appendChild(close);
+      // **武器本体は別格。** 派手に光らせて、出たことが分かるようにする
+      if (c.kind === 'weapon' && isNew[i]) {
+        this.burst(WEAPONS[c.weapon] ? WEAPONS[c.weapon].color : '#ffd24a');
+        this.toastMsg('新しい武器 ' + c.name, '#ffd24a');
+      } else if (BAL.rarity[c.rarity].glow >= 2) {
+        this.burst(BAL.rarity[c.rarity].color);
       }
+      i++;
+      hint.textContent = i < ids.length ? 'タップでめくる（' + i + ' / ' + ids.length + '）' : '';
+      if (i >= ids.length) { if (swaps.length) showSwaps(); else finish(); }
     };
-    body.addEventListener('click', (e) => { if (!e.target.closest('.bigbtn')) flipNext(); });
-    flipNext();
+
+    // ---- ① 封を切る ----
+    const unseal = () => {
+      seal.remove();
+      stage.appendChild(row);
+      this.burst(pk.color);
+      flipNext();
+    };
+    seal.addEventListener('click', unseal);
+    stage.addEventListener('click', (e) => {
+      if (e.target.closest('.gswap') || e.target.closest('.gskip')) return;
+      flipNext();
+    });
   },
 
   burst(color) {
@@ -758,14 +834,21 @@ const UI = {
   // 3択の抽選に入るカードを自分で組めるようにする場所だが、
   // カードの種類が増えてからでないと選ぶ意味が出ないので、今は説明だけ置く
   panelDeck(p) {
-    p.appendChild(Util.el('h3', null, 'デッキ'));
-    p.appendChild(Util.el('p', 'note',
-      'ウェーブ突破ごとの3択に、どのカードを入れるかを自分で組む場所です。' +
-      '**まだ作っていません。**カードが揃ってからでないと選ぶ意味が出ないので、先に置いてあります。'));
     const n = Object.keys(Game.perm.collection).length;
-    p.appendChild(Util.el('div', 'sgroup', '今の手札'));
-    p.appendChild(Util.el('p', 'note', 'カード ' + n + ' 種類を持っています。' +
-      '今は持っているもの全部が3択の抽選に入ります。'));
+    const head = Util.el('div', 'phead');
+    head.innerHTML = '<b>デッキ</b><span class="sub">ウェーブ突破ごとの3択に、' +
+      'どのカードを入れるかを自分で組む場所。<b>枠だけ置いてあります</b>（まだ組めません）。<br>' +
+      '今は持っているカード ' + n + ' 種類すべてが抽選に入ります</span>';
+    p.appendChild(head);
+
+    const grid = Util.el('div', 'deckslots');
+    for (let i = 0; i < 12; i++) {
+      const s = Util.el('div', 'dslot');
+      s.innerHTML = '<span>' + (i + 1) + '</span>';
+      grid.appendChild(s);
+    }
+    p.appendChild(grid);
+    p.appendChild(Util.el('div', 'note', '※ カードの種類が揃ってからでないと選ぶ意味が出ないので、中身は後から入れます。'));
   },
 
   // ================= カード選択（ウェーブ突破ごと） =================

@@ -640,7 +640,7 @@ function campaignRun(pick, opts) {
   if (opts.reset !== false) Game.newSave();
   const stages = [], allWaves = [], deaths = [];
   let total = 0, cleared = 0, attempts = 0, packsOpened = 0;
-  for (const stg of STAGES) {
+  for (const stg of MAIN_STAGES) {
     let ok = false, tries = 0, secs = 0, note = '';
     for (let i = 1; i <= HARD_CAP; i++) {
       // プレイヤーと同じように、持っているパックは開けてから出撃する
@@ -773,7 +773,7 @@ const HARD_CAP = 15;           // 安全弁。これを超えたら「未突破�
 function campaign() {
   Game.newSave();              // localStorage は触らない
   const rows = [];
-  for (const st of STAGES) {
+  for (const st of MAIN_STAGES) {
     const lo = LOADOUTS[st.id];
     let cleared = null;
     const log = [];
@@ -868,7 +868,7 @@ document.getElementById('run').addEventListener('click', () => {
 function curveRun(builds) {
   Game.newSave();
   const all = [];
-  for (const st of STAGES) {
+  for (const st of MAIN_STAGES) {
     const lo = builds[st.id] || LOADOUTS[st.id];
     let r = null;
     for (let i = 1; i <= HARD_CAP; i++) {
@@ -951,7 +951,7 @@ document.getElementById('runBuilds').addEventListener('click', () => {
       Game.newSave();
       const tries = [];
       let reached = 0;
-      for (const stg of STAGES) {
+      for (const stg of MAIN_STAGES) {
         let ok = false;
         let why = '未突破';
         for (let i = 1; i <= HARD_CAP; i++) {

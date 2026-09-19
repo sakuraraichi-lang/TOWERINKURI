@@ -384,3 +384,49 @@ body.on-battle #tabs{display:none;}
 
 /* 試作への入口が下部タブに重なっていた。タブの上へ逃がす */
 body.on-home #protoLink{bottom:calc(44px + var(--safe-b,0px));}
+
+/* ============ 開封（ガチャ画面） ============ */
+.gacha{--pc:#7f93a8;}
+.gacha .gtop{display:flex;align-items:baseline;justify-content:space-between;
+  padding-bottom:8px;margin-bottom:10px;border-bottom:1px solid var(--line);}
+.gacha .gtop b{font-size:16px;color:var(--pc);}
+.gacha .gtop span{font-size:10px;color:var(--dim);}
+/* 封。ここをタップして開ける */
+.gacha .gseal{display:grid;place-items:center;gap:10px;padding:26px 0 18px;cursor:pointer;}
+.gacha .gpack{width:104px;height:104px;display:grid;place-items:center;font-size:52px;
+  color:var(--pc);border:2px solid var(--pc);border-radius:18px;
+  background:radial-gradient(circle at 50% 35%, color-mix(in srgb, var(--pc) 28%, transparent), transparent 70%);
+  box-shadow:0 0 28px color-mix(in srgb, var(--pc) 35%, transparent);
+  animation:gpulse 1.6s ease-in-out infinite;}
+@keyframes gpulse{0%,100%{transform:scale(1);}50%{transform:scale(1.045);}}
+.gacha .gsealtxt{font-size:11px;color:var(--dim);}
+.gacha .ghint{font-size:10px;color:var(--dim);text-align:center;min-height:14px;margin-top:6px;}
+
+/* 換装の3択 */
+.gswaphead{margin:4px 0 10px;}
+.gswaphead > b{display:block;font-size:14px;color:#c9a6ff;margin-bottom:3px;}
+.gswaphead span{display:block;font-size:10px;color:var(--dim);line-height:1.6;}
+.gswap{display:flex;width:100%;text-align:left;align-items:center;gap:9px;padding:10px;
+  margin-bottom:7px;background:var(--panel2);border:1px solid rgba(194,107,255,.45);
+  border-radius:10px;}
+.gswap:active{background:#1d1630;}
+.gswap .sic{flex:0 0 32px;width:32px;height:32px;display:grid;place-items:center;
+  font-size:16px;background:#120e1e;border:1px solid rgba(194,107,255,.45);border-radius:8px;}
+.gswap .sname{font-size:13px;font-weight:800;}
+.gswap .sname em{font-style:normal;font-size:10px;color:var(--dim);margin-left:6px;}
+.gswap .sdesc{font-size:10px;color:#cbb6e8;line-height:1.5;margin-top:2px;}
+.gswap .sdesc.was{color:var(--dim);text-decoration:line-through;}
+.gskip{display:block;width:100%;padding:10px;margin-top:2px;font-size:11px;color:var(--dim);
+  background:transparent;border:1px dashed var(--line);border-radius:10px;}
+.gdone{padding:22px 0;text-align:center;font-size:13px;color:#c9a6ff;}
+
+/* 換装済みのノード */
+.srow.swapped{border-color:rgba(194,107,255,.4);}
+.srow.swapped .sname u{text-decoration:none;font-size:9px;font-weight:800;color:#221a33;
+  background:#c26bff;border-radius:6px;padding:1px 5px;margin-left:4px;vertical-align:1px;}
+
+/* ============ デッキ（枠だけ） ============ */
+.deckslots{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:8px;margin:10px 0;}
+.dslot{aspect-ratio:3/4;display:grid;place-items:center;border-radius:10px;
+  border:1px dashed var(--line);background:rgba(255,255,255,.015);}
+.dslot span{font-size:18px;font-weight:800;color:#1f2d3f;}

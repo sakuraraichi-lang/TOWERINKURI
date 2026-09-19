@@ -36,6 +36,7 @@ const Util = {
   randInt(a, b) { return Math.floor(a + Math.random() * (b - a + 1)); },
   pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; },
   chance(p) { return Math.random() < p; },
+  shuffle(a) { for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); const t = a[i]; a[i] = a[j]; a[j] = t; } return a; },
   clamp(v, lo, hi) { return v < lo ? lo : v > hi ? hi : v; },
   lerp(a, b, t) { return a + (b - a) * t; },
 

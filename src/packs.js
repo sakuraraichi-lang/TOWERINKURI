@@ -13,6 +13,7 @@
 const PACKS = {
   basic: {
     id: 'basic', name: '基本パック', size: 4, unlock: 0, color: '#7f93a8',
+    swapChance: 0.20,
     desc: '汎用カードと、初期装備まわりの強化',
     weights: { common: 78, rare: 19, epic: 2.7, legendary: 0.3 }, guarantee: null,
     // 汎用カード＋初期装備（ガトリング・スナイパー）の強化
@@ -21,6 +22,7 @@ const PACKS = {
   },
   arms: {
     id: 'arms', name: '兵装パック', size: 5, unlock: 1, color: '#ffd24a',
+    swapChance: 0.40,
     desc: '短射程・中射程・長射程。刀と手裏剣もここから',
     weights: { common: 48, rare: 39, epic: 11, legendary: 2 }, guarantee: 'rare',
     accepts: (c) => {
@@ -32,6 +34,7 @@ const PACKS = {
   },
   chem: {
     id: 'chem', name: '化学パック', size: 5, unlock: 2, color: '#8fd94a',
+    swapChance: 0.40,
     desc: '範囲攻撃・指定攻撃・支援。触手と泡もここから',
     weights: { common: 42, rare: 41, epic: 14, legendary: 3 }, guarantee: 'rare',
     accepts: (c) => {
@@ -43,6 +46,7 @@ const PACKS = {
   },
   syn: {
     id: 'syn', name: '連携パック', size: 4, unlock: 2, color: '#c26bff',
+    swapChance: 0.25,
     desc: 'シナジー専用。2種を組み合わせたときだけ効くカード',
     // シナジーの内訳に合わせる（コモン2 / レア5 / エピック2 / レジェンド0）。
     // コモンを0にしていると、コモンのシナジー2枚が永久に出ない
@@ -108,6 +112,10 @@ const Pack = {
 
   // ステージに紐づく分野のパックid
   forStage(stageId) { return STAGE_PACK[stageId] || 'basic'; },
+
+  // 開封で「換装の3択」が出る確率。
+  // **武器の分野を掘るパックほど出やすい。** 換装はカテゴリの伸ばし方を変えるものなので
+  swapChance(packId) { return PACKS[packId].swapChance || 0; },
 
   // 転生で貰えるパック。
   // **深く行くほど割に合うようにする。** 浅いところで転生を繰り返しても伸びない

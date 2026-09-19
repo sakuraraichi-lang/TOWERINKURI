@@ -114,8 +114,52 @@ const SKILLS = [
 const SKILL_BY_ID = {};
 for (const s of SKILLS) SKILL_BY_ID[s.id] = s;
 
+// ============ 換装（パックの3択で出る、既存ノードの差し替え） ============
+//
+//   **差し替わるのは「効き方」だけ。** 値段・上限・解放条件・カテゴリ・
+//   買ったレベルは元のまま引き継ぐ。強くなるのではなく、伸ばす方向が変わる。
+//
+//   eff は、同じ key を持つ既存ノードから写している（新しい数字を作らない）。
+//     rate 1.07 = mid_rate / rate 1.08 = target_rate
+//     crit 0.04 = long_crit / range 1.09 = short_rng / size 1.10 = area_size
+const SWAPS = [
+  { id: 'sw_mid_crit', base: 'mid_rate', name: '収束照準', icon: '◈', key: 'crit',
+    eff: 0.04, mode: 'add', tmpl: '中射程カテゴリの会心率 +{e}（会心倍率も上がる）' },
+  { id: 'sw_short_rate', base: 'short_rng', name: '速振り', icon: '◤', key: 'rate',
+    eff: 1.07, mode: 'mul', tmpl: '短射程カテゴリの発射レート ×{e}' },
+  { id: 'sw_long_rate', base: 'long_crit', name: '速射砲身', icon: '◎', key: 'rate',
+    eff: 1.08, mode: 'mul', tmpl: '長射程カテゴリの発射レート ×{e}' },
+  { id: 'sw_area_crit', base: 'area_size', name: '起爆同調', icon: '▲', key: 'crit',
+    eff: 0.04, mode: 'add', tmpl: '範囲攻撃カテゴリの会心率 +{e}（会心倍率も上がる）' },
+  { id: 'sw_target_rng', base: 'target_rate', name: '遠隔誘導', icon: '✛', key: 'range',
+    eff: 1.09, mode: 'mul', tmpl: '指定攻撃カテゴリの射程 ×{e}' },
+  { id: 'sw_sup_dmg', base: 'sup_pow', name: '過負荷回路', icon: '❉', key: 'dmg',
+    eff: 1.12, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}' },
+];
+
+const SWAP_BY_ID = {};
+const SWAPS_FOR = {};
+for (const s of SWAPS) {
+  SWAP_BY_ID[s.id] = s;
+  (SWAPS_FOR[s.base] || (SWAPS_FOR[s.base] = [])).push(s);
+}
+
 const Skill = {
   lv(meta, id) { return meta.skills[id] || 0; },
+
+  // 換装を当てはめたあとのノード定義。**ここ以外で SKILL_BY_ID を直に見ない**
+  node(id, perm) {
+    const base = SKILL_BY_ID[id];
+    const p = perm || ((typeof Game !== 'undefined' && Game.perm) ? Game.perm : null);
+    const sw = p && p.swaps && SWAP_BY_ID[p.swaps[id]];
+    if (!sw) return base;
+    return {
+      id: base.id, cat: base.cat, group: base.group,
+      cost0: base.cost0, costG: base.costG, max: base.max, unlock: base.unlock,
+      name: sw.name, icon: sw.icon, tmpl: sw.tmpl, eff: sw.eff, mode: sw.mode, key: sw.key,
+      swappedFrom: base.name, swapId: sw.id,
+    };
+  },
 
   // 表示文は eff から作る。計算式と同じ値を見ているので、ズレようがない
   desc(s) { return s.tmpl.split('{e}').join(String(s.eff)); },
@@ -127,7 +171,7 @@ const Skill = {
 
   // レベルぶんの効果量。mul なら累乗、add なら加算
   amount(meta, id) {
-    const s = SKILL_BY_ID[id];
+    const s = Skill.node(id);
     const lv = Skill.lv(meta, id);
     return s.mode === 'mul' ? Math.pow(s.eff, lv) : s.eff * lv;
   },
@@ -169,6 +213,24 @@ const Skill = {
     return node ? Skill.amount(meta, node.id) : 0;
   },
 
+  // 換装できる候補。**買っていないノードは換えられない**（換える意味が無い）
+  swapChoices(meta, perm, n) {
+    const pool = SWAPS.filter(sw =>
+      Skill.isUnlocked(perm, sw.base) &&
+      Skill.lv(meta, sw.base) > 0 &&
+      (!perm.swaps || perm.swaps[sw.base] !== sw.id));
+    Util.shuffle(pool);
+    return pool.slice(0, n || 3);
+  },
+
+  applySwap(perm, swapId) {
+    const sw = SWAP_BY_ID[swapId];
+    if (!sw) return false;
+    if (!perm.swaps) perm.swaps = {};
+    perm.swaps[sw.base] = sw.id;
+    return true;
+  },
+
   // アップグレード＋転生ボーナスを、出撃時の倍率一式にまとめる
   mods(meta, perm) {
     const A = (id) => Skill.amount(meta, id);
@@ -179,7 +241,8 @@ const Skill = {
     // ノードを足したら cat と key を書くだけで、ここを直す必要は無い
     const cat = {};
     for (const c of CATEGORY_IDS) cat[c] = {};
-    for (const s of SKILLS) {
+    for (const base of SKILLS) {
+      const s = Skill.node(base.id, perm);
       if (!s.cat || !s.key) continue;
       const v = A(s.id);
       cat[s.cat][s.key] = s.mode === 'mul' ? v : v;
