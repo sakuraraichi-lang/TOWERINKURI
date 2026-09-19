@@ -13,7 +13,8 @@
   --line:#272c38;
   --line2:#3a4150;
   --txt:#e9edf4;
-  --dim:#8a92a2;
+  --dim:#8a8f97;
+  --txt2:#b6b2aa;         /* 説明文。地の文なので彩度は持たせない */
   --acc:#ffb020;          /* 琥珀。ここが主役 */
   --acc2:#ff7a18;         /* 橙。差し色 */
   --gold:#ffd24a;
@@ -43,27 +44,9 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 #hud{position:absolute;inset:0;pointer-events:none;padding:8px 10px;
      padding-top:calc(8px + env(safe-area-inset-top,0px));
      display:flex;flex-direction:column;}
-.hrow{display:flex;gap:8px;}
-.hrow.top{justify-content:space-between;align-items:flex-start;}
-.hbox{background:rgba(8,10,14,.7);border:1px solid var(--line);
-      padding:5px 9px;backdrop-filter:blur(4px);}
-.hbox.coin{text-align:right;}
-.hbig{font-size:15px;font-weight:700;letter-spacing:.02em;line-height:1.15;}
-.hsub{font-size:10px;color:var(--dim);margin-top:1px;}
-.hsub.stg{color:var(--acc);}
-.ci{color:var(--gold);}
-
-.hrow.bars{margin-top:8px;margin-bottom:auto;flex-direction:column;gap:4px;max-width:340px;}
-.bar{position:relative;height:14px;background:rgba(8,10,14,.75);
-     border:1px solid var(--line);overflow:hidden;}
-.bar i{position:absolute;inset:0;width:0;transition:width .12s linear;}
-.bar.hp i{background:linear-gradient(90deg,#2f9e63,#48e08a);}
-.bar.xp i{background:linear-gradient(90deg,var(--acc2),var(--acc));}
-.bar.wv i{background:linear-gradient(90deg,#b06bff,#d8a8ff);}
-.bar span{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
-          font-size:9px;font-weight:700;text-shadow:0 1px 2px #000;}
-
-.hrow.ctrl{gap:8px;pointer-events:auto;align-items:center;}
+/* 旧HUDの .hrow / .hbox / .bar は、細いHUDに作り替えたときに
+   出力されなくなった。**使われていないCSSは残さない** */
+.hrow.ctrl{display:flex;gap:8px;pointer-events:auto;align-items:center;}
 .ctl{background:rgba(14,17,23,.9);border:1px solid var(--line2);
      padding:9px 16px;font-size:13px;font-weight:700;min-height:40px;}
 .ctl.sq{padding:9px 12px;min-width:46px;}
@@ -208,7 +191,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .card .crar{font-size:9px;font-weight:800;color:var(--rc);letter-spacing:.1em;}
 .card .cwep{font-size:9px;color:var(--dim);margin-top:1px;}
 .card .cname{font-size:12.5px;font-weight:800;margin-top:5px;line-height:1.25;}
-.card .cdesc{font-size:10px;color:#b4bcc9;margin-top:5px;line-height:1.55;}
+.card .cdesc{font-size:10px;color:var(--txt2);margin-top:5px;line-height:1.55;}
 .card .cfoot{font-size:10px;color:var(--dim);margin-top:7px;}
 .card .new{color:var(--gold);}
 .card.small .cdesc{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
@@ -284,7 +267,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   color:var(--ac,var(--acc));
   background:radial-gradient(circle at 50% 55%, rgba(255,176,32,.14), transparent 68%);
   text-shadow:0 0 18px rgba(255,176,32,.35);}
-.chcard .chdesc{font-size:10px;color:#aab2c0;line-height:1.55;flex:1;}
+.chcard .chdesc{font-size:10px;color:var(--txt2);line-height:1.55;flex:1;}
 .chcard .chval{margin-top:6px;font-size:10px;color:var(--dim);}
 .chcard .chval b{color:var(--gold);font-size:13px;margin-left:3px;}
 .chcard .chtype{margin-top:8px;padding-top:6px;border-top:1px solid var(--line);
@@ -326,12 +309,6 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .stmini{flex:0 0 58px;width:58px;height:50px;background:#06070a;border:1px solid var(--line);
         overflow:hidden;display:flex;}
 .mm{width:100%;height:100%;display:block;image-rendering:pixelated;}
-
-/* ============ パネルの折りたたみ ============ */
-.pcol{flex:0 0 auto;padding:11px 14px;font-size:15px;color:var(--dim);line-height:1;
-      border-left:1px solid var(--line);}
-#app.collapsed .pcol{transform:rotate(180deg);}
-#app.collapsed #panel{flex-basis:0;min-height:0;padding:0;overflow:hidden;border:none;}
 
 /* 実験用プロトタイプへの入口。ホームの上のバーに小さく置く。
    **以前は画面の隅に浮かせていて、出撃ボタンや操作列に重なっていた** */
@@ -591,7 +568,7 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 .tdhead{display:flex;align-items:center;gap:9px;}
 .tdhead .sic{border-color:var(--acc);}
 .tdhead .sname{font-size:14px;}
-.tdesc{font-size:11px;color:#b4bcc9;line-height:1.6;margin-top:8px;}
+.tdesc{font-size:11px;color:var(--txt2);line-height:1.6;margin-top:8px;}
 .tdesc .was{display:block;color:var(--dim);font-size:10px;margin-top:3px;}
 .tdbuy{display:flex;align-items:center;gap:9px;margin-top:10px;}
 .tdbuy .sbuy{flex:1;min-height:40px;font-size:13px;}

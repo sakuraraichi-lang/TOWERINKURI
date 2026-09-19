@@ -1,7 +1,7 @@
 /* プロトタイプ専用。既存の style.css とは別物 */
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{
-  --bg:#0b1016; --ink:#e8eef6; --dim:#8296ad; --accent:#ffd24a;
+  --bg:#0b0d12; --ink:#e9edf4; --dim:#8a8f97; --accent:#ffd24a;
   --safe-t:env(safe-area-inset-top,0px);
   --safe-b:env(safe-area-inset-bottom,0px);
 }
