@@ -12,6 +12,71 @@ const ENEMY_TYPES = {
   tank:  { name: 'tank',  hp: 3.4, spd: 0.58, r: 15, coin: 2.5, color: '#c8a05a', from: 6 },
 };
 
+// 敵同士の押し合い（2026-09-19 取り込み）
+//
+// これまで敵はすり抜けていて、ペアの98%が重なり、細い一本の線になっていた。
+// **専用の格子で、近いペアだけを1回ずつ見て押し離す。**
+// 既存の Grid（セル70）を使うと1体あたりの候補が多すぎて重いので、
+// 敵の直径くらいの格子を別に持つ。
+//   実測（PC、敵900体）: 既存Gridを使う素朴な方法 7.0ms → この方法 2.1ms
+const Crowd = {
+  head: null, next: null, w: 0, h: 0,
+
+  apply(run, dt) {
+    if (!BAL.crowdOn) return;
+    const es = run.enemies, n = es.length;
+    if (n < 2) return;
+    const st = run.stage;
+    const C = BAL.crowdCell;
+    this.w = Math.ceil(st.w / C); this.h = Math.ceil(st.h / C);
+    const cells = this.w * this.h;
+    if (!this.head || this.head.length !== cells) this.head = new Int32Array(cells);
+    this.head.fill(-1);
+    if (!this.next || this.next.length < n) this.next = new Int32Array(Math.max(n * 2, 2048));
+
+    for (let i = 0; i < n; i++) {
+      const e = es[i];
+      e.pushX = 0; e.pushY = 0;
+      let cx = (e.x / C) | 0, cy = (e.y / C) | 0;
+      if (cx < 0) cx = 0; if (cy < 0) cy = 0;
+      if (cx >= this.w) cx = this.w - 1; if (cy >= this.h) cy = this.h - 1;
+      const k = cy * this.w + cx;
+      this.next[i] = this.head[k]; this.head[k] = i;
+    }
+    // 同じ格子＋右・下の3つ。こうすると各ペアをちょうど1回だけ見られる
+    for (let cy = 0; cy < this.h; cy++) for (let cx = 0; cx < this.w; cx++) {
+      for (let i = this.head[cy * this.w + cx]; i !== -1; i = this.next[i]) {
+        const a = es[i];
+        for (let j = this.next[i]; j !== -1; j = this.next[j]) this.pair(a, es[j]);
+        if (cx + 1 < this.w) for (let j = this.head[cy * this.w + cx + 1]; j !== -1; j = this.next[j]) this.pair(a, es[j]);
+        if (cy + 1 < this.h) for (let dx = -1; dx <= 1; dx++) {
+          const nx = cx + dx; if (nx < 0 || nx >= this.w) continue;
+          for (let j = this.head[(cy + 1) * this.w + nx]; j !== -1; j = this.next[j]) this.pair(a, es[j]);
+        }
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      const e = es[i];
+      if (!e.pushX && !e.pushY) continue;
+      let px = e.pushX, py = e.pushY;
+      const cap = e.spd * dt * BAL.crowdCap;
+      const m = Math.hypot(px, py);
+      if (m > cap) { px = px / m * cap; py = py / m * cap; }
+      const nx = e.x + px, ny = e.y + py;
+      // 壁に押し出さない
+      if (st.walkable((nx / TILE) | 0, (ny / TILE) | 0)) { e.x = nx; e.y = ny; }
+    }
+  },
+
+  pair(a, b) {
+    const dx = a.x - b.x, dy = a.y - b.y, rr = a.r + b.r, d2 = dx * dx + dy * dy;
+    if (d2 >= rr * rr || d2 < 0.01) return;
+    const d = Math.sqrt(d2), f = (rr - d) * BAL.crowdPush;
+    const ix = dx / d * f, iy = dy / d * f;
+    a.pushX += ix; a.pushY += iy; b.pushX -= ix; b.pushY -= iy;
+  },
+};
+
 // 敵をセルに分けて近傍検索を速くする（スマホで敵900体でも落ちないように）
 const Grid = {
   cell: 70, map: new Map(),
@@ -93,6 +158,7 @@ const Combat = {
       color: boss ? '#ff2d55' : t.color,
       boss: !!boss, tname: t.name,     // 死因の内訳に使う
 
+      pushX: 0, pushY: 0,
       shock: 0, slow: 0, slowT: 0, stun: 0, chill: 0,
       burn: 0, burnT: 0, fvuln: 0, fvulnT: 0,
       grabT: 0, grabV: 0, dist: 1e9, counted: false,
@@ -505,6 +571,9 @@ const Combat = {
         continue;
       }
     }
+
+    // 敵が動き終わったあとで押し合う。**重なったまま進ませない**
+    Crowd.apply(run, dt);
 
     if (run.lives <= 0) { run.lives = 0; return 'dead'; }
 
