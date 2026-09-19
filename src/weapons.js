@@ -65,7 +65,7 @@ function baseStats(o) {
 const WEAPONS = {
   // ============ 初期装備 ============
   gatling: {
-    id: 'gatling', stock: 3, cat: 'mid', name: 'ガトリング', short: 'GAT', color: '#ffd24a', src: 'start',
+    id: 'gatling', stock: 3, cat: 'mid', name: 'ガトリング', short: 'GAT', icon: '🔫', color: '#ffd24a', src: 'start',
     desc: '毎秒大量の小口径弾。単発は弱いが手数で押す。',
     target: 'closest',
     base: baseStats({ arc: 0.34, dmg: 3.2, rate: 5.5, range: 195, spread: 0.07, speed: 640, bulletR: 2.6, turn: 9 }),
@@ -86,7 +86,7 @@ const WEAPONS = {
   },
 
   sniper: {
-    id: 'sniper', stock: 2, cat: 'long', name: 'スナイパー', short: 'SNP', color: '#6fe3ff', src: 'start',
+    id: 'sniper', stock: 2, cat: 'long', name: 'スナイパー', short: 'SNP', icon: '🎯', color: '#6fe3ff', src: 'start',
     // **貫通役。** 並んだ敵を撃ち抜くのが仕事なので、狙うのは「敵が濃いほう」。
     // 以前は最も硬い敵（＝たいてい後方のタンク）を狙っていて、
     // 1.28秒に1発しかないのに目の前の群れを素通りしていた
@@ -104,7 +104,7 @@ const WEAPONS = {
 
   // ============ ステージ報酬（王道TD＋化学兵器） ============
   missile: {
-    id: 'missile', stock: 2, cat: 'long', name: 'ミサイル', short: 'MSL', color: '#ff7a3c', src: 'stage',
+    id: 'missile', stock: 2, cat: 'long', name: 'ミサイル', short: 'MSL', icon: '🚀', color: '#ff7a3c', src: 'stage',
     desc: '誘導して着弾時に爆発。群れをまとめて吹き飛ばす。',
     target: 'lead',
     base: baseStats({ arc: 0.30, dmg: 16, rate: 1.0, range: 330, spread: 0.18, speed: 310, splash: 72, bulletR: 5, homing: 3.4, turn: 5 }),
@@ -118,7 +118,7 @@ const WEAPONS = {
   },
 
   tesla: {
-    id: 'tesla', stock: 2, cat: 'short', name: 'テスラコイル', short: 'TSL', color: '#b58bff', src: 'stage',
+    id: 'tesla', stock: 2, cat: 'short', name: 'テスラコイル', short: 'TSL', icon: '⚡', color: '#b58bff', src: 'stage',
     desc: '射程内の敵へ即着の電撃。連鎖して何体も巻き込む。',
     target: 'closest',
     base: baseStats({ arc: 0.55, dmg: 11, rate: 1.6, range: 170, chain: 2, chainFalloff: 0.82 }),
@@ -130,7 +130,7 @@ const WEAPONS = {
   },
 
   flame: {
-    id: 'flame', stock: 2, cat: 'area', name: '火炎放射器', short: 'FLM', color: '#ff6a2a', src: 'stage',
+    id: 'flame', stock: 2, cat: 'area', name: '火炎放射器', short: 'FLM', icon: '🔥', color: '#ff6a2a', src: 'stage',
     desc: '短射程の扇状に炎を吹き続ける。当たった敵は燃え続ける。',
     target: 'closest',
     base: baseStats({ arc: 0.50, dmg: 3.4, rate: 9, range: 130, cone: 0.42, burn: 0.55, burnDur: 3, turn: 5 }),
@@ -150,7 +150,7 @@ const WEAPONS = {
   },
 
   gas: {
-    id: 'gas', stock: 1, cat: 'area', name: '毒ガス散布機', short: 'GAS', color: '#8fd94a', src: 'stage',
+    id: 'gas', stock: 1, cat: 'area', name: '毒ガス散布機', short: 'GAS', icon: '☣', color: '#8fd94a', src: 'stage',
     desc: '毒の雲を通路に撒く。雲の中の敵は毒を受け続け、防御が落ちる。',
     target: 'lead',
     base: baseStats({ arc: 0.30, dmg: 7, rate: 0.42, range: 300, speed: 260, bulletR: 5,
@@ -168,7 +168,7 @@ const WEAPONS = {
   },
 
   cryo: {
-    id: 'cryo', stock: 1, cat: 'support', name: '凍結装置', short: 'CRY', color: '#7fe6ff', src: 'stage',
+    id: 'cryo', stock: 1, cat: 'support', name: '凍結装置', short: 'CRY', icon: '❄', color: '#7fe6ff', src: 'stage',
     desc: '周囲へ冷気を放つ。敵は大きく減速し、凍った敵は受けるダメージが増える。',
     target: 'closest',
     base: baseStats({ arc: 0.75, dmg: 6, rate: 0.9, range: 165, slow: 0.55, slowDur: 2.4 }),
@@ -182,7 +182,7 @@ const WEAPONS = {
 
   // ============ パック限定（なんでもあり枠） ============
   katana: {
-    id: 'katana', stock: 3, cat: 'short', name: '刀', short: 'KTN', color: '#f4f6fb', src: 'pack',
+    id: 'katana', stock: 3, cat: 'short', name: '刀', short: 'KTN', icon: '🗡', color: '#f4f6fb', src: 'pack',
     desc: '間合いに入った敵をまとめて斬る。射程は短いが一撃が重く、会心が乗る。',
     target: 'closest',
     base: baseStats({ arc: 0.80, dmg: 58, rate: 1.5, range: 100, cone: 1.5, crit: 0.2, critMul: 2.5, turn: 12 }),
@@ -197,7 +197,7 @@ const WEAPONS = {
   },
 
   shuriken: {
-    id: 'shuriken', stock: 3, cat: 'mid', name: '手裏剣', short: 'SHU', color: '#cdd9e8', src: 'pack',
+    id: 'shuriken', stock: 3, cat: 'mid', name: '手裏剣', short: 'SHU', icon: '✳', color: '#cdd9e8', src: 'pack',
     desc: '敵から敵へ跳ね回る投擲。密集しているほど手が付けられなくなる。',
     target: 'closest',
     base: baseStats({ arc: 0.38, dmg: 13, rate: 2.2, range: 230, speed: 520, bulletR: 5, bounce: 3, turn: 10 }),
@@ -210,7 +210,7 @@ const WEAPONS = {
   },
 
   tentacle: {
-    id: 'tentacle', stock: 1, cat: 'support', name: '触手', short: 'TNT', color: '#c85ab0', src: 'pack',
+    id: 'tentacle', stock: 1, cat: 'support', name: '触手', short: 'TNT', icon: '🐙', color: '#c85ab0', src: 'pack',
     desc: 'コアに一番近い敵を掴んで来た道へ引き戻す。掴まれている間は削られ続ける。',
     target: 'lead',
     base: baseStats({ arc: 0.34, dmg: 16, rate: 0.85, range: 210, knock: 105, knockDur: 1.3, turn: 9 }),
@@ -222,7 +222,7 @@ const WEAPONS = {
   },
 
   bubble: {
-    id: 'bubble', stock: 2, cat: 'target', name: '泡', short: 'BBL', color: '#8ad8ff', src: 'pack',
+    id: 'bubble', stock: 2, cat: 'target', name: '泡', short: 'BBL', icon: '🫧', color: '#8ad8ff', src: 'pack',
     desc: '敵を泡に閉じ込めて足を止める。泡が割れるとまとめてダメージ。',
     target: 'lead',
     base: baseStats({ arc: 0.34, dmg: 10, rate: 1.1, range: 250, speed: 220, bulletR: 9,
@@ -236,7 +236,7 @@ const WEAPONS = {
   },
 
   mortar: {
-    id: 'mortar', stock: 1, cat: 'target', name: '迫撃砲', short: 'MTR', color: '#e0b060', src: 'stage',
+    id: 'mortar', stock: 1, cat: 'target', name: '迫撃砲', short: 'MTR', icon: '💥', color: '#e0b060', src: 'stage',
     desc: '敵が最も密集している一点へ砲弾を撃ち込む。射程は長いが発射は遅い。',
     target: 'dense',
     base: baseStats({ arc: 0.26, dmg: 42, rate: 0.55, range: 420, speed: 240, bulletR: 6,

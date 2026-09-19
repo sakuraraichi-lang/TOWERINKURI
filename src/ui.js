@@ -58,7 +58,7 @@ const UI = {
     this.el.homeNext.addEventListener('click', () => this.movePick(1));
 
     // 版を出しておく。更新されているかの切り分けに使う
-    if (this.el.build) this.el.build.textContent = BUILD;
+    if (this.el.build) this.el.build.textContent = 'ver ' + BUILD;
 
     this.pick = Math.max(0, STAGES.findIndex(s => s.id === Game.perm.currentStage));
     // 最初はどのタブも開いていないので、ステージだけを見せる
@@ -452,6 +452,8 @@ const UI = {
     const p = this.el.panel;
     p.innerHTML = '';
     this.skillRows = null;
+    // スキルツリーだけは、下に詳細と購入ボタンを貼り付ける並びにする
+    p.classList.toggle('treemode', this.tab === 'skill' && Game.tabOpen('skill'));
 
     // **開いていないタブの中身は出さない。**
     // 一度に全部見せないのが狙いなので、ここで見えてしまうと意味が無い
@@ -670,8 +672,13 @@ const UI = {
         : (W - scroller.clientWidth) / 2;
     });
 
-    p.appendChild(this.treeDetail());
-    p.appendChild(this.treePoints());
+    // **詳細と購入ボタンはパネルの下に貼り付ける。**
+    // 前はツリーの後ろに流していたので、スマホだと節をタップしても
+    // 強化ボタンが画面の外にいて、いちいちスクロールが要った
+    const foot = Util.el('div', 'tfoot');
+    foot.appendChild(this.treeDetail());
+    foot.appendChild(this.treePoints());
+    p.appendChild(foot);
   },
 
   // 選んだ節の中身と、買うボタン
@@ -695,15 +702,14 @@ const UI = {
         '<div class="tdesc">' + Skill.lockReason(perm, id) + '</div>';
       return d;
     }
+    // **アイコン＋題名＋一行＋ボタン。** これ以上は詰めない
     d.innerHTML =
       '<div class="tdhead"><div class="sic">' + n.icon + '</div><div class="sbody">' +
         '<div class="sname">' + n.name + (n.swapId ? ' <u>換装</u>' : '') + '</div>' +
-        '<div class="sdesc">' + s.group + '</div></div>' +
-        '<div class="tdlv">Lv ' + lv + (s.max !== Infinity ? ' / ' + s.max : '') + '</div></div>' +
-      '<div class="tdesc">' + Skill.desc(n) +
-        (n.swapId ? '<span class="was">元：' + n.swappedFrom + '</span>' : '') + '</div>' +
+        '<div class="tdesc">' + Skill.shortDesc(n) + '</div></div>' +
+        '<div class="tdlv">Lv ' + lv + (s.max !== Infinity ? '<i>/' + s.max + '</i>' : '') + '</div></div>' +
       '<div class="tdbuy"><button class="sbuy"' + (can ? '' : ' disabled') + '>' +
-        (maxed ? 'MAX' : '◈ ' + Util.fmt(Skill.cost(meta, id)) + ' で強化') + '</button></div>';
+        (maxed ? 'MAX' : '◈ ' + Util.fmt(Skill.cost(meta, id))) + '</button></div>';
 
     const btn = d.querySelector('.sbuy');
     let hold = null;
@@ -798,10 +804,14 @@ const UI = {
       if (c.kind !== 'synergy') continue;
       const ok = c.requires.every(w => ids.includes(w));
       const owned = Game.own(id) > 0;
-      const row = Util.el('div', 'synrow' + (ok ? (owned ? ' on' : ' noown') : ' off'));
-      row.innerHTML = '<span class="dot" style="background:' + BAL.rarity[c.rarity].color + '"></span>' +
+      // **ぱっと見はアイコン2つと名前だけ。** 効果はタップしたときに出す
+      const row = Util.el('div', 'synrow canopen' + (ok ? (owned ? ' on' : ' noown') : ' off'));
+      const need = c.requires.map(w => (WEAPONS[w] && WEAPONS[w].icon) || '◆').join('');
+      row.innerHTML = '<span class="synico">' + need + '</span>' +
         '<b>' + c.name + '</b><em>' + (!ok ? '編成が不足' : owned ? '抽選に出る' : '未所持') + '</em>' +
-        '<span class="sdesc">' + c.desc + '</span>';
+        '<span class="sdesc">' +
+          c.requires.map(w => WEAPONS[w].name).join(' × ') + '　' + c.desc + '</span>';
+      row.addEventListener('click', () => row.classList.toggle('open'));
       syn.appendChild(row);
     }
     p.appendChild(syn);
@@ -1171,7 +1181,7 @@ const UI = {
       const stacks = (run.cards[id] || 0) + 1;
       const el = this.choiceCard({
         name: c.name,
-        desc: c.desc,
+        desc: this.shortDesc(c),
         icon: this.cardIcon(c),
         color: BAL.rarity[c.rarity].color,
         isNew: Game.own(id) === 0 || stacks === 1,
@@ -1222,14 +1232,29 @@ const UI = {
     return wrap;
   },
 
-  // 絵の素材が無いので、カテゴリの記号で代用する
+  // カードのアイコン。**どの武器のものかは絵で示し、文からは省く**
   cardIcon(c) {
-    if (c.kind === 'synergy') return '⧉';
-    if (c.weapon && WEAPONS[c.weapon]) {
-      const cat = CATEGORIES[WEAPONS[c.weapon].cat];
-      return (cat && cat.icon) || '◈';
+    if (c.kind === 'perm') return '◈';
+    if (c.kind === 'synergy') {
+      // シナジーは「関わる武器のアイコン2つ」。これだけで条件が分かる
+      return (c.requires || []).map(w => (WEAPONS[w] && WEAPONS[w].icon) || '◆').join('');
     }
+    if (c.weapon && WEAPONS[c.weapon]) return WEAPONS[c.weapon].icon || '◈';
     return '✦';
+  },
+
+  // 短い説明。**武器名は横のアイコンが示すので、文からは落とす。**
+  // 長い文章は、読もうとしてタップしたときだけ出す
+  shortDesc(c) {
+    let s = c.desc || '';
+    if (c.weapon && WEAPONS[c.weapon]) {
+      s = s.replace(new RegExp('^' + WEAPONS[c.weapon].name + 'の?'), '');
+      s = s.replace(new RegExp('^' + WEAPONS[c.weapon].name + '弾が?'), '');
+    }
+    s = s.replace(/^編成枠に装備。/, '');
+    const cut = s.indexOf('。');
+    if (cut > 0) s = s.slice(0, cut);
+    return s;
   },
 
   choiceCard(o) {
@@ -1255,20 +1280,24 @@ const UI = {
     let sub = '';
     if (o.count !== undefined) sub = o.count > 0 ? '×' + o.count : '未所持';
     else if (o.stacks) sub = o.stacks + ' / ' + o.limit + ' 枚目';
-    let wname;
-    if (c.kind === 'weapon') {
-      const w = WEAPONS[c.weapon];
-      wname = SRC_LABEL[w.src] + '・' + CATEGORIES[w.cat].name;
-    } else if (c.kind === 'synergy') wname = 'シナジー';
-    else if (c.kind === 'perm') wname = '遺物・転生で消えない';
-    else if (c.weapon) wname = WEAPONS[c.weapon].name;
-    else wname = '汎用';
+    // **アイコン＋題名＋一行。** 長い説明は、読もうとしてタップしたときだけ出す
+    const short = this.shortDesc(c);
+    const full = c.desc || '';
     el.innerHTML =
-      '<div class="crar">' + R.name + '</div>' +
-      '<div class="cwep">' + wname + '</div>' +
+      '<div class="chead"><span class="cico">' + this.cardIcon(c) + '</span>' +
+        '<span class="crar">' + R.name + '</span></div>' +
       '<div class="cname">' + c.name + '</div>' +
-      '<div class="cdesc">' + c.desc + '</div>' +
+      '<div class="cdesc">' + short + '</div>' +
       '<div class="cfoot">' + sub + (o.isNew ? ' <b class="new">NEW</b>' : '') + '</div>';
+
+    // 3択のカードはタップが「選ぶ」なので、そちらでは開かない
+    if (!o.pick && full !== short) {
+      el.classList.add('canopen');
+      el.addEventListener('click', () => {
+        const open = el.classList.toggle('open');
+        el.querySelector('.cdesc').textContent = open ? full : short;
+      });
+    }
     return el;
   },
 

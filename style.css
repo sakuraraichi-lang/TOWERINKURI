@@ -188,9 +188,16 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .card::before{content:'';position:absolute;inset:-40% -10% auto;height:90px;
               background:radial-gradient(ellipse at top,var(--rc),transparent 70%);opacity:.20;}
 .card.dim{opacity:.32;filter:grayscale(.8);}
-.card .crar{font-size:9px;font-weight:800;color:var(--rc);letter-spacing:.1em;}
-.card .cwep{font-size:9px;color:var(--dim);margin-top:1px;}
-.card .cname{font-size:12.5px;font-weight:800;margin-top:5px;line-height:1.25;}
+.card .chead{display:flex;align-items:center;gap:6px;}
+.card .cico{font-size:17px;line-height:1;}
+.card .crar{font-size:9px;font-weight:800;color:var(--rc);letter-spacing:.1em;margin-left:auto;}
+/* 長い説明はタップで開く。**読もうとした人にだけ出す** */
+.card.canopen{cursor:pointer;}
+.card.canopen::after{content:'＋';position:absolute;right:7px;bottom:6px;
+  font-size:10px;color:var(--dim);}
+.card.canopen.open::after{content:'−';}
+.card.open .cdesc{-webkit-line-clamp:unset;}
+.card .cname{font-size:12.5px;font-weight:800;margin-top:4px;line-height:1.25;}
 .card .cdesc{font-size:10px;color:var(--txt2);margin-top:5px;line-height:1.55;}
 .card .cfoot{font-size:10px;color:var(--dim);margin-top:7px;}
 .card .new{color:var(--gold);}
@@ -647,3 +654,32 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 .skipbtn:not(:disabled) u{color:var(--gold);}
 .skipbtn:disabled{opacity:.55;cursor:default;}
 .skipbtn:active:not(:disabled){transform:translateY(1px);}
+
+/* ============ スキルツリーの並び（スマホで強化ボタンが隠れない） ============ */
+/* **節をタップしたら、その場で強化できること。**
+   前は詳細をツリーの後ろに流していたので、画面外へ出てスクロールが要った */
+#panel.treemode{display:flex;flex-direction:column;overflow:hidden;padding-bottom:0;}
+#panel.treemode .phead{flex:0 0 auto;}
+#panel.treemode .warn{flex:0 0 auto;}
+#panel.treemode #tree{flex:1 1 auto;min-height:120px;overflow:auto;margin-bottom:0;}
+#panel.treemode .tfoot{flex:0 0 auto;padding-bottom:calc(10px + var(--safe-b));
+  background:var(--panel);border-top:1px solid var(--line);margin:0 -10px;padding-left:10px;padding-right:10px;}
+#panel.treemode .tdetail{margin-top:10px;}
+
+/* シナジー：ぱっと見はアイコン2つと名前だけ。タップで条件と効果 */
+.synrow .synico{flex:0 0 auto;font-size:14px;letter-spacing:-1px;}
+.synrow.canopen{cursor:pointer;position:relative;}
+.synrow .sdesc{display:none;}
+.synrow.open .sdesc{display:block;}
+.synrow.canopen::after{content:'＋';font-size:10px;color:var(--dim);margin-left:4px;}
+.synrow.canopen.open::after{content:'−';}
+
+/* ツリーの詳細を1行に詰める */
+.tdetail .tdhead{align-items:center;gap:10px;}
+.tdetail .tdhead .sic{width:34px;height:34px;flex:0 0 34px;font-size:17px;}
+.tdetail .tdesc{margin-top:2px;font-size:11px;color:var(--txt2);}
+.tdetail .tdlv{flex:0 0 auto;font-size:15px;font-weight:900;color:var(--gold);
+  font-variant-numeric:tabular-nums;}
+.tdetail .tdlv i{font-style:normal;font-size:10px;color:var(--dim);font-weight:700;}
+.tdetail .tdbuy{margin-top:9px;}
+.tdetail .tdbuy .sbuy{width:100%;min-height:42px;font-size:14px;}

@@ -172,6 +172,15 @@ const Skill = {
   // 表示文は eff から作る。計算式と同じ値を見ているので、ズレようがない
   desc(s) { return s.tmpl.split('{e}').join(String(s.eff)); },
 
+  // 短い表示。**カテゴリ名は枝の色と見出しが示すので、文からは落とす。**
+  //   「短射程カテゴリのダメージ ×1.15」→「ダメージ ×1.15」
+  shortDesc(s) {
+    return Skill.desc(s)
+      .replace(/^[^のカ]*カテゴリの/, '')
+      .replace(/（[^）]*）/g, '')
+      .trim();
+  },
+
   cost(meta, id) {
     const s = SKILL_BY_ID[id];
     return Math.ceil(s.cost0 * Math.pow(s.costG, Skill.lv(meta, id)));
