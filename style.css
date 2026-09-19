@@ -628,3 +628,22 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 .tpoints{justify-content:flex-start;gap:12px;}
 .tpoints span{flex:0 0 auto;}
 .tpoints b{flex:0 0 auto;}
+
+/* 版。更新されているかの切り分け用。目立たせない */
+#build{flex:0 0 auto;font-size:9px;color:#454b57;letter-spacing:.06em;
+  font-variant-numeric:tabular-nums;}
+
+/* 出撃とスキップの並び */
+.startrow{flex:0 0 auto;display:flex;gap:8px;align-items:stretch;}
+.startrow .bigstart{flex:1 1 auto;}
+.skipbtn{flex:0 0 auto;min-width:104px;padding:8px 12px;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+  background:#14181f;border:1px solid var(--line2);color:var(--txt);
+  font:inherit;font-size:13px;font-weight:800;letter-spacing:.04em;cursor:pointer;
+  clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));}
+.skipbtn u{text-decoration:none;font-size:9.5px;font-weight:700;color:var(--dim);
+  line-height:1.3;text-align:center;}
+.skipbtn:not(:disabled){border-color:var(--acc);color:var(--acc);}
+.skipbtn:not(:disabled) u{color:var(--gold);}
+.skipbtn:disabled{opacity:.55;cursor:default;}
+.skipbtn:active:not(:disabled){transform:translateY(1px);}

@@ -9,6 +9,30 @@
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "same-origin" }
       ]
+    },
+    {
+      "source": "/",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0, s-maxage=0" }
+      ]
+    },
+    {
+      "source": "/index.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0, s-maxage=0" }
+      ]
+    },
+    {
+      "source": "/proto",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0, s-maxage=0" }
+      ]
+    },
+    {
+      "source": "/proto/index.html",
+      "headers": [
+        { "key": "Cache-Control", "value": "no-store, max-age=0, s-maxage=0" }
+      ]
     }
   ]
 }

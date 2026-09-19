@@ -53,6 +53,10 @@ const Game = {
       upop: null,
       // 処理の重さを出すか（実機で敵数の上限を測るため）
       perf: false,
+      // スキップの解放と、スキップで配るものの根拠。**転生でも消えない**
+      clears: {},      // stageId -> 通算の突破回数
+      bestCoins: {},   // stageId -> 手で突破したときの最高コイン
+      bestPerfect: {}, // stageId -> 一度でも完璧クリアしたか
     };
     this.meta = { coins: 0, skills: {} };
   },
@@ -95,6 +99,9 @@ const Game = {
     if (!this.perm.placements) this.perm.placements = {};
     if (!this.perm.heat) this.perm.heat = {};
     if (!this.perm.swaps) this.perm.swaps = {};
+    if (!this.perm.clears) this.perm.clears = {};
+    if (!this.perm.bestCoins) this.perm.bestCoins = {};
+    if (!this.perm.bestPerfect) this.perm.bestPerfect = {};
     // 定義から消えた換装は落とす（古いセーブが未知のidを持ち続けないように）
     for (const k of Object.keys(this.perm.swaps)) if (!SWAP_BY_ID[this.perm.swaps[k]]) delete this.perm.swaps[k];
     if (typeof this.perm.deepest !== 'number') this.perm.deepest = this.clearedCount();
@@ -121,6 +128,53 @@ const Game = {
   },
 
   clearedCount() { return MAIN_STAGES.filter(s => this.stageRec(s.id).cleared).length; },
+
+  // ---------- スキップ ----------
+  //
+  //   **スキップしても何も失わない。** 手で突破したときと同じものが出る。
+  //   周回のたびに同じステージを手で殴り直させないのが目的で、
+  //   報酬を削ると「速く回りたいのに損をする」になって本末転倒になる。
+  //
+  //   代わりに**解放を慎重にする**：
+  //     ・転生を1回以上している（初周は全部自分で遊ぶ）
+  //     ・そのステージを**通算3回以上**突破している（1回では手応えを覚えていない）
+  //     ・**まだ突破していない**ステージは対象外（記録が無いので自動的にそうなる）
+  //   通算の突破回数は perm.clears に持つ。**転生でも消えない**
+  SKIP_MIN_CLEARS: 3,
+  SKIP_MIN_PRESTIGES: 1,
+
+  clearsOf(id) { return (this.perm.clears && this.perm.clears[id]) || 0; },
+
+  canSkip(id) {
+    if (STAGE_BY_ID[id] && STAGE_BY_ID[id].experimental) return false;
+    if (this.stageRec(id).cleared) return false;          // 今周でもう突破している
+    if (!this.stageUnlocked(id)) return false;
+    if ((this.perm.prestiges || 0) < this.SKIP_MIN_PRESTIGES) return false;
+    return this.clearsOf(id) >= this.SKIP_MIN_CLEARS;
+  },
+
+  skipWhy(id) {
+    if ((this.perm.prestiges || 0) < this.SKIP_MIN_PRESTIGES) return '転生すると使えます';
+    const n = this.clearsOf(id);
+    if (n < this.SKIP_MIN_CLEARS) return 'あと ' + (this.SKIP_MIN_CLEARS - n) + ' 回、自分で突破すると使えます';
+    return '';
+  },
+
+  // スキップで得るコイン。**前に手で突破したときの最高額**をそのまま渡す
+  skipCoins(id) { return Math.round((this.perm.bestCoins && this.perm.bestCoins[id]) || 0); },
+
+  // 戦わずに突破扱いにする。得るものは手で突破したときと同じ
+  skipStage(id) {
+    if (!this.canSkip(id)) return null;
+    const coins = this.skipCoins(id);
+    this.meta.coins += coins;
+    // 前に完璧クリアまで届いていたステージは、その記録どおり完璧扱いにする
+    const perfect = !!(this.perm.bestPerfect && this.perm.bestPerfect[id]);
+    const got = this.clearStage(id, perfect);
+    const missions = this.checkMissions();
+    this.save();
+    return { coins, perfect, stageGot: got, missions, stage: STAGE_BY_ID[id] };
+  },
 
   stageUnlocked(id) {
     const def = STAGE_BY_ID[id];
@@ -483,7 +537,15 @@ const Game = {
 
     const perfect = ok && r.leaked === 0;
     let stageGot = null;
-    if (ok) stageGot = this.clearStage(r.stageId, perfect);
+    if (ok) {
+      stageGot = this.clearStage(r.stageId, perfect);
+      // スキップの根拠になる記録。**転生でも消えない**ので、
+      // 次の周では「前に自分で出した成績」をそのまま受け取れる
+      const P = this.perm;
+      P.clears[r.stageId] = (P.clears[r.stageId] || 0) + 1;
+      P.bestCoins[r.stageId] = Math.max(P.bestCoins[r.stageId] || 0, r.coinsEarned);
+      if (perfect) P.bestPerfect[r.stageId] = true;
+    }
 
     this.openTabs();     // 出撃を終えたらタブが開く（totalRuns は beginBattle で数えている）
     const missions = this.checkMissions();

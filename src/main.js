@@ -118,6 +118,21 @@ const Main = {
 
   retreat() { this.finish(false); },
 
+  // 戦わずに突破扱いにする。**何も失わない**ので、確認だけ取って進める
+  doSkip() {
+    const st = STAGES[UI.pick];
+    if (!st || !Game.canSkip(st.id)) return;
+    const res = Game.skipStage(st.id);
+    if (!res) return;
+    // 次のステージへ自動で送る。スキップは「先へ進むため」の機能なので
+    const nx = res.stageGot && res.stageGot.next;
+    if (nx) { Game.perm.currentStage = nx.id; UI.pick = STAGES.findIndex(s => s.id === nx.id); }
+    Game.save();
+    UI.renderHome();
+    UI.renderPanel();
+    UI.showSkipResult(res);
+  },
+
   finish(ok) {
     const res = Game.endRun(ok);
     this.syncStartButton();

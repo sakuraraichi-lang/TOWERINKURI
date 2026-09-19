@@ -25,11 +25,12 @@ const UI = {
       panel: q('panel'), tabs: q('tabs'), modal: q('modal'),
       toast: q('toast'), badgePack: q('badgePack'),
       upop: q('upop'), stage: q('stage'), tut: q('tut'), perf: q('perf'),
+      build: q('build'),
       btnStart: q('btnStart'),
       homeCoin: q('homeCoin'), homeProg: q('homeProg'), homeLabel: q('homeLabel'),
       homeName: q('homeName'), homeMini: q('homeMini'),
       homeStat: q('homeStat'), homeStart: q('homeStart'),
-      homeRank: q('homeRank'), homeXp: q('homeXp'),
+      homeRank: q('homeRank'), homeXp: q('homeXp'), homeSkip: q('homeSkip'),
       homePrev: q('homePrev'), homeNext: q('homeNext'),
     };
 
@@ -51,8 +52,13 @@ const UI = {
     // 「残り◯」をタップすると、処理の重さの表示が出入りする
     if (this.el.hudWaveTxt) this.el.hudWaveTxt.addEventListener('click', () => this.togglePerf());
 
+    if (this.el.homeSkip) this.el.homeSkip.addEventListener('click', () => Main.doSkip());
+
     this.el.homePrev.addEventListener('click', () => this.movePick(-1));
     this.el.homeNext.addEventListener('click', () => this.movePick(1));
+
+    // 版を出しておく。更新されているかの切り分けに使う
+    if (this.el.build) this.el.build.textContent = BUILD;
 
     this.pick = Math.max(0, STAGES.findIndex(s => s.id === Game.perm.currentStage));
     // 最初はどのタブも開いていないので、ステージだけを見せる
@@ -116,6 +122,19 @@ const UI = {
 
     e.homeStart.disabled = !open;
     e.homeStart.innerHTML = open ? '出撃<s>▶</s>' : 'ロック中';
+
+    // スキップ。**条件を満たしたステージにだけ出す。**
+    // 出しっぱなしにすると「押せないボタン」が常に画面にいて邪魔になる
+    if (e.homeSkip) {
+      const can = Game.canSkip(st.id);
+      const near = open && !st.experimental && !rec.cleared &&
+                   Game.clearsOf(st.id) > 0 && !can;
+      e.homeSkip.style.display = (can || near) ? '' : 'none';
+      e.homeSkip.disabled = !can;
+      e.homeSkip.innerHTML = can
+        ? 'スキップ<u>◈ ' + Util.fmt(Game.skipCoins(st.id)) + '</u>'
+        : '<u>' + Game.skipWhy(st.id) + '</u>';
+    }
   },
 
   // 「実験場・広大」→「実験場・<em>広大</em>」。区切りが無ければ後ろ半分を色付け
@@ -1302,6 +1321,32 @@ const UI = {
       (leaked > 0 ? '<br>今回は <b>' + Util.fmt(leaked) + '</b> 体通した。' +
         '盤面の赤い枠が抜けられたルート。' : '');
     return el;
+  },
+
+  // スキップの結果。**手で突破したときと同じものが出た**ことを、そのまま並べる
+  showSkipResult(res) {
+    const body = Util.el('div');
+    body.appendChild(this.choiceHead('スキップ', res.stage.name + ' を突破扱いにしました'));
+    const st = Util.el('div', 'stats');
+    st.innerHTML =
+      '<div><span>受け取ったコイン</span><b>◈ ' + Util.fmt(res.coins) + '</b></div>' +
+      '<div><span>完璧クリア</span><b>' + (res.perfect ? '★★ 引き継ぎ' : '—') + '</b></div>';
+    body.appendChild(st);
+    body.appendChild(Util.el('div', 'note',
+      '前に自分で突破したときと同じ結果です。**削られたものはありません。**'
+        .replace(/\*\*(.+?)\*\*/g, '$1')));
+    if (res.stageGot && (res.stageGot.cards.length || Object.keys(res.stageGot.packs).length)) {
+      const bits = res.stageGot.cards.map(c => CARDS[c].name)
+        .concat(Object.entries(res.stageGot.packs).map(([k, v]) => PACKS[k].name + ' ×' + v));
+      body.appendChild(Util.el('div', 'reward', '初回突破の報酬: ' + bits.join(' / ')));
+    }
+    for (const m of (res.missions || [])) {
+      body.appendChild(Util.el('div', 'reward', 'ミッション達成: ' + m.name));
+    }
+    const ok = Util.el('button', 'bigbtn', '次へ');
+    ok.addEventListener('click', () => { this.closeModal(); this.renderHome(); });
+    body.appendChild(ok);
+    this.openModal(body, true);
   },
 
   showResult(res) {

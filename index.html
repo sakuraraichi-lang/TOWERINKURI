@@ -25,6 +25,7 @@
         <div class="hxp"><i id="homeXp"></i></div>
         <div class="hnum" id="homeProg"></div>
       </div>
+      <span id="build"></span>
       <a id="protoLink" href="/proto">試作 ▸</a>
       <div class="hpill"><s>◈</s><b id="homeCoin">0</b></div>
     </div>
@@ -41,7 +42,11 @@
       <button class="snav" id="homeNext" aria-label="次のステージ">▶</button>
     </div>
 
-    <button id="homeStart" class="bigstart">出撃<s>▶</s></button>
+    <div class="startrow">
+      <button id="homeStart" class="bigstart">出撃<s>▶</s></button>
+      <!-- スキップ。**何も失わない。**解放条件を満たしたステージにだけ出る -->
+      <button id="homeSkip" class="skipbtn">スキップ</button>
+    </div>
 
     <!-- タブの中身。ホームにいるときだけ出る -->
     <div id="panel"></div>
