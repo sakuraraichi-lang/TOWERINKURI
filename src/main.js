@@ -194,6 +194,18 @@ const Main = {
       const t = Render.tileAt(e.clientX, e.clientY);
       const onTile = unitAt(t.c, t.r);
 
+      // 着弾点を指している最中。**盤面のどこでも指せる**（壁の上でもよい）
+      if (UI.aiming) {
+        if (!Game.canBuild()) { no('戦闘中は変えられません'); return; }
+        Game.setAimPoint(UI.aiming, t.x, t.y);
+        Snd.place();
+        UI.aiming = null;
+        Game.save();
+        UI.renderTray();
+        e.preventDefault();
+        return;
+      }
+
       // 移動先を選んでいる最中
       if (UI.moving) {
         if (!Game.canBuild()) { no('戦闘中は動かせません'); return; }
@@ -227,6 +239,7 @@ const Main = {
       UI.selected = (onTile && UI.selected !== onTile) ? onTile : null;
       UI.placingType = null;
       UI.moving = null;
+      UI.aiming = null;
       UI.renderTray();
       e.preventDefault();
     });

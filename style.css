@@ -421,15 +421,17 @@ body.tabsoff #homeMain{flex:1 1 auto;}
   background:linear-gradient(90deg,#2f9e63,#7ee3a0);transition:transform .18s;}
 .hlife span{position:absolute;inset:0;display:grid;place-items:center;
   font-size:10px;font-weight:700;color:#06210f;}
-#hud .hbtm{display:flex;align-items:center;gap:6px;margin-top:auto;}
-.hwave{font-size:11px;color:var(--dim);}
-.readybtn{position:absolute;right:10px;bottom:calc(58px + var(--safe-b));
-  min-height:50px;padding:0 22px;border:none;
+/* **pointer-events を戻すのを忘れていて、✕・倍速・一時停止・音の4つとも
+   押せなくなっていた。** 親の #hud が none なので、ここで auto に戻す */
+#hud .hbtm{display:flex;align-items:center;gap:6px;margin-top:auto;pointer-events:auto;}
+.hwave{flex:1 1 auto;text-align:right;padding-right:4px;font-size:11px;color:var(--dim);}
+/* 準備完了は、小さい操作ボタンの**対岸（同じ行の右端）**に置く */
+.readybtn{flex:0 0 auto;min-height:44px;padding:0 18px;border:none;
   background:linear-gradient(180deg,#ffa347,#ef6a0c);color:#2a1200;
-  font:inherit;font-size:15px;font-weight:900;letter-spacing:.06em;
+  font:inherit;font-size:14px;font-weight:900;letter-spacing:.06em;
   cursor:pointer;pointer-events:auto;
-  clip-path:polygon(0 0,calc(100% - 13px) 0,100% 13px,100% 100%,13px 100%,0 calc(100% - 13px));
-  box-shadow:0 4px 18px rgba(255,138,31,.35);}
+  clip-path:polygon(0 0,calc(100% - 11px) 0,100% 11px,100% 100%,11px 100%,0 calc(100% - 11px));
+  box-shadow:0 3px 14px rgba(255,138,31,.3);}
 .readybtn.danger{background:linear-gradient(180deg,#ff8095,#d63b52);color:#fff;
   box-shadow:0 4px 16px rgba(214,59,82,.35);}
 .readybtn:active{transform:translateY(1px);}

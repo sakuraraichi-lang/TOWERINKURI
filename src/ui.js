@@ -336,15 +336,24 @@ const UI = {
       b.addEventListener('click', fn);
       return b;
     };
+    // 着弾点を持つ武器だけ、狙う場所を指せる
+    if (Game.usesAimPoint(u.def)) {
+      row.appendChild(mk(this.aiming === u ? '…タップ' : '着弾点', () => {
+        this.aiming = (this.aiming === u) ? null : u;
+        this.moving = null; this.placingType = null;
+        this.renderTray();
+      }));
+    }
     row.appendChild(mk('移動', () => {
-      this.moving = u; this.placingType = null; this.renderTray();
+      this.moving = u; this.aiming = null; this.placingType = null; this.renderTray();
     }));
     row.appendChild(mk('撤去', () => {
       if (Game.removeUnit(u)) { this.selected = null; this.moving = null; this.renderTray(); Game.save(); }
     }, 'danger'));
-    row.appendChild(mk('閉じる', () => { this.selected = null; this.moving = null; this.renderTray(); }));
+    row.appendChild(mk('閉じる', () => { this.selected = null; this.moving = null; this.aiming = null; this.renderTray(); }));
     p.appendChild(row);
 
+    if (this.aiming === u) p.appendChild(Util.el('div', 'trayhint', '撃ち込む場所をタップ'));
     if (this.moving) p.appendChild(Util.el('div', 'trayhint', '光っているところをタップ'));
     if (!build) p.appendChild(Util.el('div', 'trayhint', '戦闘中は動かせません'));
 

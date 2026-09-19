@@ -350,6 +350,8 @@ const Game = {
       angle: 0, cd: 0, target: null, aim: null, shots: 0, muzzle: 0,
     };
     u.angle = u.face;
+    // 着弾点を持つ武器は、置いた瞬間に既定の点を決める（空撃ちを避ける）
+    if (this.usesAimPoint(def)) { const p = this.defaultAimPoint(u); u.ax = p.x; u.ay = p.y; }
     run.units.push(u);
     this.applyMods();
     this.syncPlacements();
@@ -418,7 +420,51 @@ const Game = {
     if (!run) return;
     this.perm.placements[run.stageId] = run.units.map(u => ({
       w: u.id, c: u.c, r: u.r, a: +u.face.toFixed(4), arc: +u.arc.toFixed(4),
+      // 着弾点を持つ武器は、その点も覚える
+      ax: (u.ax === undefined || u.ax === null) ? null : Math.round(u.ax),
+      ay: (u.ay === undefined || u.ay === null) ? null : Math.round(u.ay),
     }));
+  },
+
+  // ---------- 着弾点（指定攻撃・ミサイル） ----------
+  // **武器に「どこを狙うか」を決めさせない。**プレイヤーが点を指す
+  usesAimPoint(def) { return !!(def && def.aimPoint); },
+
+  // 置いた直後の既定の着弾点。向いている方向の、射程の7割の位置
+  defaultAimPoint(u) {
+    const st = this.run && this.run.stage;
+    // 向いている方向へ、射程の中で**盤面に残る一番遠い点**を探す。
+    // そのまま7割の距離を取ると、盤の外を狙って空撃ちすることがあった
+    for (let f = 0.75; f >= 0.2; f -= 0.08) {
+      const d = u.s.range * f;
+      const x = u.x + Math.cos(u.face) * d, y = u.y + Math.sin(u.face) * d;
+      if (!st) return { x, y };
+      if (x > 4 && y > 4 && x < st.w - 4 && y < st.h - 4) return { x, y };
+    }
+    return { x: u.x, y: u.y };
+  },
+
+  // 着弾点を置く。**扇の中・射程の中にしか置けない**
+  setAimPoint(u, x, y) {
+    if (!this.canBuild() || !this.usesAimPoint(u.def)) return false;
+    const d = Util.dist(u.x, u.y, x, y);
+    if (d > u.s.range) {
+      const a = Util.angle(u.x, u.y, x, y);
+      x = u.x + Math.cos(a) * u.s.range;
+      y = u.y + Math.sin(a) * u.s.range;
+    }
+    let da = Util.angle(u.x, u.y, x, y) - u.face;
+    while (da > Math.PI) da -= Math.PI * 2;
+    while (da < -Math.PI) da += Math.PI * 2;
+    if (Math.abs(da) > u.arc) {
+      const a = u.face + Util.clamp(da, -u.arc, u.arc);
+      const dd = Math.min(d, u.s.range);
+      x = u.x + Math.cos(a) * dd;
+      y = u.y + Math.sin(a) * dd;
+    }
+    u.ax = x; u.ay = y;
+    this.syncPlacements();
+    return true;
   },
 
   // 保存された配置を読み戻す。編成から外れた武器や、置けない場所のものは捨てる
@@ -443,8 +489,15 @@ const Game = {
         face: p.a !== undefined ? p.a : this.defaultFacing(run.stage, p.c, p.r),
         arc: p.arc !== undefined ? p.arc : def.base.arc,
         angle: 0, cd: 0, target: null, aim: null, shots: 0, muzzle: 0,
+        ax: (p.ax === undefined || p.ax === null) ? undefined : p.ax,
+        ay: (p.ay === undefined || p.ay === null) ? undefined : p.ay,
       });
-      run.units[run.units.length - 1].angle = run.units[run.units.length - 1].face;
+      const nu = run.units[run.units.length - 1];
+      nu.angle = nu.face;
+      // 保存に着弾点が無い古いデータでも、必要な武器なら既定の点を入れておく
+      if (this.usesAimPoint(def) && nu.ax === undefined) {
+        const ap = this.defaultAimPoint(nu); nu.ax = ap.x; nu.ay = ap.y;
+      }
     }
   },
 

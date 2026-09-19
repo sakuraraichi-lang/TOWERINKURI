@@ -104,7 +104,7 @@ const WEAPONS = {
 
   // ============ ステージ報酬（王道TD＋化学兵器） ============
   missile: {
-    id: 'missile', stock: 2, cat: 'long', name: 'ミサイル', short: 'MSL', icon: '🚀', color: '#ff7a3c', src: 'stage', arcMin: 0.08, arcMax: 0.42,
+    id: 'missile', stock: 2, cat: 'long', name: 'ミサイル', short: 'MSL', icon: '🚀', color: '#ff7a3c', src: 'stage', arcMin: 0.08, arcMax: 0.42, aimPoint: true,
     desc: '誘導して着弾時に爆発。群れをまとめて吹き飛ばす。',
     target: 'lead',
     base: baseStats({ arc: 0.30, dmg: 16, rate: 1.0, range: 330, spread: 0.18, speed: 310, splash: 72, bulletR: 5, homing: 3.4, turn: 5 }),
@@ -222,7 +222,7 @@ const WEAPONS = {
   },
 
   bubble: {
-    id: 'bubble', stock: 2, cat: 'target', name: '泡', short: 'BBL', icon: '🫧', color: '#8ad8ff', src: 'pack', arcMin: 0.12, arcMax: 0.55,
+    id: 'bubble', stock: 2, cat: 'target', name: '泡', short: 'BBL', icon: '🫧', color: '#8ad8ff', src: 'pack', arcMin: 0.12, arcMax: 0.55, aimPoint: true,
     desc: '敵を泡に閉じ込めて足を止める。泡が割れるとまとめてダメージ。',
     target: 'lead',
     base: baseStats({ arc: 0.34, dmg: 10, rate: 1.1, range: 250, speed: 220, bulletR: 9,
@@ -236,7 +236,7 @@ const WEAPONS = {
   },
 
   mortar: {
-    id: 'mortar', stock: 1, cat: 'target', name: '迫撃砲', short: 'MTR', icon: '💥', color: '#e0b060', src: 'stage', arcMin: 0.08, arcMax: 0.45,
+    id: 'mortar', stock: 1, cat: 'target', name: '迫撃砲', short: 'MTR', icon: '💥', color: '#e0b060', src: 'stage', arcMin: 0.08, arcMax: 0.45, aimPoint: true,
     desc: '敵が最も密集している一点へ砲弾を撃ち込む。射程は長いが発射は遅い。',
     target: 'dense',
     base: baseStats({ arc: 0.26, dmg: 42, rate: 0.55, range: 420, speed: 240, bulletR: 6,

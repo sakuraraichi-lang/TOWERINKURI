@@ -437,39 +437,64 @@ const Combat = {
     return Math.abs(da) <= w.arc;
   },
 
+  // **武器に敵を探させない。**
+  //   以前は「最も密集した点」「最も硬い敵」などを武器が自分で選んでいた。
+  //   いまは、砲身が向いている線の上にいるものを拾うだけ。
+  //   着弾点を持つ武器（指定攻撃・ミサイル）は、その点にいるものを拾う
   findTarget(w, run) {
-    const mode = w.def.target;
-    if (mode === 'dense') {
-      // 照準固定：触手が掴んでいる一団があれば、そこへ撃ち込む
-      if (w.flags.aimGrab && run.grabTarget && !run.grabTarget.dead &&
-          Util.dist(w.x, w.y, run.grabTarget.x, run.grabTarget.y) <= w.s.range &&
-          this.inArc(w, run.grabTarget.x, run.grabTarget.y)) {
-        w.aim = { x: run.grabTarget.x, y: run.grabTarget.y, e: run.grabTarget };
-        return run.grabTarget;
-      }
-      const p = this.densestPoint(w, run);
-      w.aim = p;
-      return p ? p.e : null;
-    }
-    if (w.flags.followGrab && run.grabTarget && !run.grabTarget.dead &&
-        Util.dist(w.x, w.y, run.grabTarget.x, run.grabTarget.y) <= w.s.range &&
-        this.inArc(w, run.grabTarget.x, run.grabTarget.y)) return run.grabTarget;
-    if (w.flags.followSpot && run.spotTarget && !run.spotTarget.dead &&
-        Util.dist(w.x, w.y, run.spotTarget.x, run.spotTarget.y) <= w.s.range &&
-        this.inArc(w, run.spotTarget.x, run.spotTarget.y)) return run.spotTarget;
+    if (w.ax !== undefined && w.ax !== null) return this.nearPoint(w, run, w.ax, w.ay);
+    return this.targetAhead(w, run);
+  },
 
-    const near = Grid.query(w.x, w.y, w.s.range, _q);
-    let best = null, score = -Infinity;
+  // 指定した点のいちばん近くにいる敵（着弾点方式の武器が使う）
+  nearPoint(w, run, x, y) {
+    const near = Grid.query(x, y, 70, _q);
+    let best = null, bd = Infinity;
     for (const e of near) {
       if (e.dead) continue;
-      const d = Util.dist(w.x, w.y, e.x, e.y);
-      if (d > w.s.range + e.r) continue;
-      if (!this.inArc(w, e.x, e.y)) continue;   // 扇の外は撃てない
-      let sc;
-      if (mode === 'closest') sc = -d;
-      else if (mode === 'strongest') sc = e.hp;
-      else sc = -e.dist;                 // lead = コアに一番近い＝一番危ない
-      if (sc > score) { score = sc; best = e; }
+      const d = Util.dist2(x, y, e.x, e.y);
+      if (d < bd) { bd = d; best = e; }
+    }
+    return best;
+  },
+
+  // 砲身の動かし方。**敵を追わない。**
+  //   ふつうの武器 … 扇の端から端まで、一定の速さで往復する（首振り扇風機）
+  //   指定攻撃     … プレイヤーが決めた着弾点へ向ける（そこへ撃ち込むための武器）
+  aimUpdate(w, run, dt) {
+    if (w.ax !== undefined && w.ax !== null) {
+      // 着弾点が決まっている武器。扇の外へは向けない
+      let want = Util.angle(w.x, w.y, w.ax, w.ay);
+      let da = want - w.face;
+      while (da > Math.PI) da -= Math.PI * 2;
+      while (da < -Math.PI) da += Math.PI * 2;
+      want = w.face + Util.clamp(da, -w.arc, w.arc);
+      w.angle = Util.turnToward(w.angle, want, w.s.turn * dt);
+      w.aim = { x: w.ax, y: w.ay };
+      return;
+    }
+    const sp = (w.def.sweep || BAL.sweepSpeed) * dt;
+    if (w.sweepDir === undefined) { w.sweepDir = 1; w.sweepA = 0; }
+    w.sweepA += sp * w.sweepDir;
+    if (w.sweepA >= w.arc) { w.sweepA = w.arc; w.sweepDir = -1; }
+    else if (w.sweepA <= -w.arc) { w.sweepA = -w.arc; w.sweepDir = 1; }
+    w.angle = w.face + w.sweepA;
+    w.aim = null;
+  },
+
+  // 砲身の線が実際に通っている敵のうち、一番近いもの
+  targetAhead(w, run) {
+    const near = Grid.query(w.x, w.y, w.s.range, _q);
+    let best = null, bd = Infinity;
+    const ca = Math.cos(w.angle), sa = Math.sin(w.angle);
+    for (const e of near) {
+      if (e.dead) continue;
+      const dx = e.x - w.x, dy = e.y - w.y;
+      const along = dx * ca + dy * sa;                  // 砲身方向の距離
+      if (along < 0 || along > w.s.range + e.r) continue;
+      const off = Math.abs(-dx * sa + dy * ca);         // 線からの横ずれ
+      if (off > e.r + (w.s.bulletR || 3) + 2) continue; // 線が体に掛かっていない
+      if (along < bd) { bd = along; best = e; }
     }
     return best;
   },
@@ -610,30 +635,20 @@ const Combat = {
         }
       }
 
-      w.target = this.findTarget(w, run);
       if (w.muzzle > 0) w.muzzle -= dt;
-      // 砲身は扇の中でだけ振れる。向きそのものはプレイヤーが決めたまま動かない
-      const look = w.aim || w.target;
-      let want = w.face;
-      if (look) {
-        want = Util.angle(w.x, w.y, look.x, look.y);
-        let da = want - w.face;
-        while (da > Math.PI) da -= Math.PI * 2;
-        while (da < -Math.PI) da += Math.PI * 2;
-        want = w.face + Util.clamp(da, -w.arc, w.arc);
-      }
-      w.angle = Util.turnToward(w.angle, want, w.s.turn * dt);
+      this.aimUpdate(w, run, dt);
+      w.target = this.findTarget(w, run);
 
+      // **撃ちっぱなし。** 敵がいるかどうかで撃つ／撃たないを武器に決めさせない。
+      // 首を振り続ける扇風機のガトリング、というのがこの武器たちの姿
       const rate = w.s.rate * (w.flags.heat ? (1 + w.dyn.heat * (w.dyn.heatMax || 0)) : 1);
       w.cd -= dt;
       if (w.cd <= 0) {
-        if (w.target) {
-          w.cd = 1 / Math.max(0.02, rate);
-          w.muzzle = 0.07;
-          w.shots++;
-          w.group = Game.groupingOf(w);  // 扇の広さで決まる集弾率。fire から参照する
-          w.def.fire(w, run);
-        } else w.cd = 0;
+        w.cd = 1 / Math.max(0.02, rate);
+        w.muzzle = 0.07;
+        w.shots++;
+        w.group = Game.groupingOf(w);  // 扇の広さで決まる集弾率。fire から参照する
+        w.def.fire(w, run);
       }
     }
 
