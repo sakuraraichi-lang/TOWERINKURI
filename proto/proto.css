@@ -48,11 +48,11 @@ html,body{height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
 /* つまみは指で掴める大きさに */
 input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:26px;background:transparent;}
 input[type=range]::-webkit-slider-runnable-track{height:5px;border-radius:3px;
-  background:#2a3a4d;}
+  background:#2b313d;}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;
   margin-top:-10px;border-radius:50%;background:var(--accent);
   border:2px solid #0b1016;box-shadow:0 1px 5px rgba(0,0,0,.5);}
-input[type=range]::-moz-range-track{height:5px;border-radius:3px;background:#2a3a4d;}
+input[type=range]::-moz-range-track{height:5px;border-radius:3px;background:#2b313d;}
 input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;
   background:var(--accent);border:2px solid #0b1016;}
 .arow{display:flex;gap:6px;}
