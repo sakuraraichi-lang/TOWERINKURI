@@ -339,6 +339,25 @@ powershell -ExecutionPolicy Bypass -File tools/serve.ps1
 
 ## GitHub / Vercel
 
+**公開先**
+
+| URL | 中身 |
+|---|---|
+| https://towerinkuri.vercel.app/ | 既存ゲーム |
+| https://towerinkuri.vercel.app/proto | 参考画像プロトタイプ（実験台） |
+
+main に push すると Vercel が自動で配信する。反映は1〜3分。
+**試作の右上に版（日時）が出る**ので、届いているかはそれで確認できる。
+
+**踏んだ罠（同じことをしないため）**
+
+- `vercel.json` の `headers` に独自キーを足すとデプロイが失敗し、
+  前の成功版が配信され続ける。エラーはサイト側に出ないので気づきにくい
+- `cleanUrls: true` のせいで `/proto/index.html` は `/proto` になる。
+  末尾スラッシュが無いので、**相対パスの資産は `/` を基準にしてしまう**。
+  サブディレクトリの資産は絶対パス（`/proto/proto.js`）で書くこと
+
+
 リモートは設定済み（`origin` = `sakuraraichi-lang/TOWERINKURI`）。
 **push は認証プロンプトが必要なので、手元で実行してください。**
 
