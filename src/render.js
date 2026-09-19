@@ -167,12 +167,14 @@ const Render = {
           const v = traf[st.idx(c, r)] / mt;
           if (v <= 0.02) continue;
           const k = Math.pow(v, 0.6);
-          // 薄い青 -> 黄 -> 赤。濃いほど敵が長く居座る場所
+          // 薄い青 -> 黄 -> 赤。濃いほど敵が長く居座る場所。
+          // **タイルいっぱいには塗らない。** 全面を塗ると敵と弾が見えなくなるので、
+          // 内側に余白を残してマス目の境界を潰さないようにする
           const cr = Math.round(40 + 215 * k);
           const cg = Math.round(90 + 110 * (1 - Math.abs(k - 0.5) * 2));
           const cb = Math.round(210 * (1 - k));
-          ctx.fillStyle = 'rgba(' + cr + ',' + cg + ',' + cb + ',' + (0.07 + k * 0.26).toFixed(3) + ')';
-          ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
+          ctx.fillStyle = 'rgba(' + cr + ',' + cg + ',' + cb + ',' + (0.04 + k * 0.15).toFixed(3) + ')';
+          ctx.fillRect(c * TILE + 2, r * TILE + 2, TILE - 4, TILE - 4);
         }
       }
     }
@@ -182,8 +184,8 @@ const Render = {
           const v = leak[st.idx(c, r)] / ml;
           if (v <= 0.35) continue;           // 薄いところまで塗ると全面が赤くなる
           const k = (v - 0.35) / 0.65;
-          ctx.strokeStyle = 'rgba(255,70,90,' + (0.18 + k * 0.62).toFixed(3) + ')';
-          ctx.lineWidth = 1.5 + k * 2;
+          ctx.strokeStyle = 'rgba(255,70,90,' + (0.12 + k * 0.38).toFixed(3) + ')';
+          ctx.lineWidth = 1 + k * 1.5;
           ctx.setLineDash([5, 4]);
           ctx.strokeRect(c * TILE + 4, r * TILE + 4, TILE - 8, TILE - 8);
           ctx.setLineDash([]);
