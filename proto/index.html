@@ -7,10 +7,7 @@
 <!--
   【これは実験用のプロトタイプです】
   src/ を一切読み込みません。localStorage も触りません。
-  既存ゲームのバランス・ステージ・カード・転生には影響しません。
-  目的は「参考画像のような、大量の敵が埋め尽くす戦闘」が成立するかの確認だけ。
 -->
-<!-- 絶対パス。cleanUrls で /proto になると、相対パスは / を基準にしてしまう -->
 <link rel="stylesheet" href="/proto/proto.css">
 </head>
 <body>
@@ -23,19 +20,37 @@
       <span class="k">fps</span><b id="hFps">—</b>
       <span class="k">◈</span><b id="hCoin">0</b>
       <span class="k">撃破</span><b id="hKill">0</b>
-    </div>
-    <div class="row sub">
-      <span id="hMethod">密集: 密度</span>
-      <span id="hOverlap">重なり —</span>
-      <span id="hCost">移動 — ms</span>
       <span id="hBuild" class="ver">—</span>
+    </div>
+  </div>
+
+  <!-- 置く場所を選んでいる最中の案内。画面の邪魔をしないよう1行だけ -->
+  <div id="banner"><span id="bannerTxt"></span><button id="bannerCancel">やめる</button></div>
+
+  <!-- 選択中のユニットの調整。**バーで直感的に** -->
+  <div id="adjust">
+    <div class="ahead"><b id="aName">—</b><span id="aInfo"></span></div>
+    <label class="bar">
+      <span>向き</span>
+      <input id="bFace" type="range" min="0" max="360" step="1" value="270">
+      <i id="vFace">270°</i>
+    </label>
+    <label class="bar">
+      <span>射界</span>
+      <input id="bArc" type="range" min="0" max="100" step="1" value="50">
+      <i id="vArc">50°</i>
+    </label>
+    <div class="arow">
+      <button id="aMove">配置を変える</button>
+      <button id="aRemove">撤去</button>
+      <button id="aClose">閉じる</button>
     </div>
   </div>
 
   <div id="tools">
     <div class="grp">
       <span class="lbl">武器</span>
-      <button class="w on" data-w="gatling">ガトリング</button>
+      <button class="w" data-w="gatling">ガトリング</button>
       <button class="w" data-w="sniper">スナイパー</button>
       <button class="w" data-w="cryo">凍結</button>
       <button id="clear">全撤去</button>
@@ -46,36 +61,29 @@
       <button class="n on" data-n="400">400</button>
       <button class="n" data-n="600">600</button>
       <button class="n" data-n="1000">1000</button>
+      <button class="n" data-n="2000">2000</button>
     </div>
     <div class="grp">
       <span class="lbl">密集</span>
       <button class="m" data-m="none">なし</button>
-      <button class="m on" data-m="density">密度</button>
-      <button class="m" data-m="bucket">バケット</button>
+      <button class="m" data-m="density">密度</button>
+      <button class="m on" data-m="bucket">バケット</button>
       <button class="m" data-m="both">併用</button>
     </div>
     <div class="grp">
+      <span class="lbl">地形</span>
+      <button class="f on" data-f="small">標準</button>
+      <button class="f" data-f="wide">広大</button>
       <span class="lbl">速さ</span>
       <button class="s" data-s="0.5">×0.5</button>
       <button class="s on" data-s="1">×1</button>
       <button class="s" data-s="2">×2</button>
-      <button id="fx" class="on">演出 ON</button>
+      <button id="fx" class="on">演出</button>
       <button id="panel">▼</button>
     </div>
   </div>
 
-  <!-- 選択中のユニットの調整。選んだときだけ出る -->
-  <div id="selbar">
-    <span id="selName">—</span>
-    <button id="aim">向きを決める</button>
-    <button id="auto" class="on">自動</button>
-    <button id="narrow">◀ 狭</button>
-    <button id="wide">広 ▶</button>
-    <button id="remove">撤去</button>
-    <button id="deselect">閉じる</button>
-  </div>
-
-  <div id="hint">武器を選んで地面をタップ／置いたものをタップすると、次にタップした場所へ動く</div>
+  <div id="hint">武器を選ぶと、置ける場所（壁の上）が光ります</div>
 </div>
 <script src="/proto/proto.js"></script>
 </body>

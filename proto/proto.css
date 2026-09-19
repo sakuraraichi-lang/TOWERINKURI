@@ -1,7 +1,7 @@
 /* プロトタイプ専用。既存の style.css とは別物 */
 *{box-sizing:border-box;margin:0;padding:0;}
 :root{
-  --bg:#0b1016; --ink:#e8eef6; --dim:#8296ad;
+  --bg:#0b1016; --ink:#e8eef6; --dim:#8296ad; --accent:#ffd24a;
   --safe-t:env(safe-area-inset-top,0px);
   --safe-b:env(safe-area-inset-bottom,0px);
 }
@@ -11,20 +11,63 @@ html,body{height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
 #wrap{position:fixed;inset:0;}
 #cv{display:block;touch-action:none;}
 
+/* --- 画面の上。**盤面を隠さないよう1行だけ** --- */
 #hud{position:fixed;left:8px;right:8px;top:calc(6px + var(--safe-t));pointer-events:none;
   font-variant-numeric:tabular-nums;}
 #hud .row{display:flex;gap:10px;align-items:baseline;
-  background:rgba(8,13,20,.62);backdrop-filter:blur(6px);
+  background:rgba(8,13,20,.6);backdrop-filter:blur(6px);
   border:1px solid rgba(255,255,255,.07);border-radius:9px;padding:5px 9px;}
-#hud .row.sub{margin-top:4px;font-size:11px;color:var(--dim);gap:12px;}
 #hud .k{color:var(--dim);font-size:10px;}
 #hud b{font-size:15px;font-weight:650;}
+.ver{margin-left:auto;opacity:.5;font-size:10px;color:var(--dim);}
 
+/* --- 置き場所を選んでいる最中の案内 --- */
+#banner{position:fixed;left:8px;right:8px;top:calc(46px + var(--safe-t));
+  display:none;gap:8px;align-items:center;
+  background:rgba(255,210,74,.14);border:1px solid rgba(255,210,74,.45);
+  border-radius:9px;padding:6px 8px;font-size:12px;}
+#banner.show{display:flex;}
+#banner span{flex:1;}
+#banner button{min-height:30px;padding:0 10px;border-radius:7px;
+  border:1px solid rgba(255,255,255,.16);background:rgba(255,255,255,.07);
+  color:var(--ink);font:inherit;font-size:11px;}
+
+/* --- 調整パネル。バーで直感的に --- */
+#adjust{position:fixed;left:6px;right:6px;bottom:calc(6px + var(--safe-b));
+  display:none;flex-direction:column;gap:6px;z-index:5;
+  background:rgba(8,13,20,.86);backdrop-filter:blur(10px);
+  border:1px solid rgba(255,210,74,.38);border-radius:13px;padding:9px 10px;}
+#adjust.show{display:flex;}
+.ahead{display:flex;gap:8px;align-items:baseline;}
+.ahead b{font-size:13px;}
+.ahead span{font-size:11px;color:var(--dim);}
+.bar{display:flex;gap:9px;align-items:center;}
+.bar>span{font-size:11px;color:var(--dim);min-width:26px;}
+.bar>i{font-style:normal;font-size:11px;color:var(--ink);min-width:44px;text-align:right;
+  font-variant-numeric:tabular-nums;}
+/* つまみは指で掴める大きさに */
+input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:26px;background:transparent;}
+input[type=range]::-webkit-slider-runnable-track{height:5px;border-radius:3px;
+  background:#2a3a4d;}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:24px;height:24px;
+  margin-top:-10px;border-radius:50%;background:var(--accent);
+  border:2px solid #0b1016;box-shadow:0 1px 5px rgba(0,0,0,.5);}
+input[type=range]::-moz-range-track{height:5px;border-radius:3px;background:#2a3a4d;}
+input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;
+  background:var(--accent);border:2px solid #0b1016;}
+.arow{display:flex;gap:6px;}
+.arow button{flex:1;min-height:36px;border-radius:8px;
+  border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);
+  color:var(--ink);font:inherit;font-size:12px;-webkit-tap-highlight-color:transparent;}
+#aRemove{background:rgba(255,90,110,.16);border-color:rgba(255,90,110,.4);}
+
+/* --- 下の操作パネル --- */
 #tools{position:fixed;left:6px;right:6px;bottom:calc(6px + var(--safe-b));
   display:flex;flex-direction:column;gap:5px;
   background:rgba(8,13,20,.74);backdrop-filter:blur(8px);
   border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:7px;}
 #tools.hide .grp:not(:last-child){display:none;}
+#tools.away{display:none;}
 .grp{display:flex;gap:5px;align-items:center;flex-wrap:wrap;}
 .lbl{color:var(--dim);font-size:10px;min-width:28px;}
 #tools button{flex:0 0 auto;min-height:34px;padding:0 11px;border-radius:8px;
@@ -32,24 +75,10 @@ html,body{height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
   color:var(--ink);font:inherit;font-size:12px;cursor:pointer;
   -webkit-tap-highlight-color:transparent;}
 #tools button.on{background:#1d6fd4;border-color:#3f93ff;font-weight:650;}
+#tools .w.on{background:var(--accent);border-color:#ffe38a;color:#141a20;}
 #tools button:active{transform:translateY(1px);}
 #clear{margin-left:auto;background:rgba(255,90,110,.14)!important;border-color:rgba(255,90,110,.35)!important;}
 
-#hint{position:fixed;left:0;right:0;bottom:calc(158px + var(--safe-b));text-align:center;
+#hint{position:fixed;left:0;right:0;bottom:calc(172px + var(--safe-b));text-align:center;
   color:var(--dim);font-size:11px;pointer-events:none;transition:opacity .4s;}
 #hint.gone{opacity:0;}
-
-.ver{margin-left:auto;opacity:.55;}
-
-/* 選択中のユニットの調整バー。選んだときだけ出る */
-#selbar{position:fixed;left:6px;right:6px;bottom:calc(178px + var(--safe-b));
-  display:none;gap:5px;align-items:center;flex-wrap:wrap;
-  background:rgba(8,13,20,.82);backdrop-filter:blur(8px);
-  border:1px solid rgba(255,210,74,.35);border-radius:11px;padding:7px;}
-#selbar.show{display:flex;}
-#selbar span{font-size:11px;color:var(--dim);flex:1 1 100%;}
-#selbar button{min-height:34px;padding:0 12px;border-radius:8px;
-  border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.06);
-  color:var(--ink);font:inherit;font-size:12px;-webkit-tap-highlight-color:transparent;}
-#selbar #remove{margin-left:auto;background:rgba(255,90,110,.16);border-color:rgba(255,90,110,.4);}
-#selbar button.on{background:#1d6fd4;border-color:#3f93ff;font-weight:650;}
