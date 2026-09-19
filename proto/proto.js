@@ -15,6 +15,8 @@
 'use strict';
 
 // ===== 実験用のつまみ（ここだけ見れば全部変えられる）=====
+const BUILD = '09/19 20:23';   // 画面右下に出る。届いている版がこれで分かる
+
 const P = {
   // フィールド（縦持ちのスマホに合わせた比率。画面いっぱいに拡大される）
   W: 390, H: 690,
@@ -641,6 +643,7 @@ function loop(t) {
   hud(dtReal);
 }
 
+document.getElementById('hBuild').textContent = BUILD;
 resize();
 bakeTerrain();
 // 最初から敵を撒いておく。**空の画面から始めると密度の判断ができない**

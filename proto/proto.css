@@ -38,3 +38,5 @@ html,body{height:100%;background:var(--bg);color:var(--ink);overflow:hidden;
 #hint{position:fixed;left:0;right:0;bottom:calc(158px + var(--safe-b));text-align:center;
   color:var(--dim);font-size:11px;pointer-events:none;transition:opacity .4s;}
 #hint.gone{opacity:0;}
+
+.ver{margin-left:auto;opacity:.55;}
