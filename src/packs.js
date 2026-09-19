@@ -58,7 +58,7 @@ const PACK_IDS = ['basic', 'arms', 'chem', 'syn'];
 const STAGE_PACK = { st1: 'basic', st2: 'arms', st3: 'chem', st4: 'syn', st5: 'syn' };
 
 const Pack = {
-  clearedCount(perm) { return STAGES.filter(s => (perm.stages[s.id] || {}).cleared).length; },
+  clearedCount(perm) { return MAIN_STAGES.filter(s => (perm.stages[s.id] || {}).cleared).length; },
 
   isUnlocked(perm, id) {
     // 一度でも到達した深さで解放する（転生でステージ進行が戻っても、解放は戻さない）
@@ -118,7 +118,7 @@ const Pack = {
     const n = Util.clamp(Math.round(Math.pow(clearedStages, 1.7)) + Math.floor(prestiges / 4),
                          1, BAL.packPerPrestigeMax);
     // 出る分野は「そこまでに突破したステージ」の分野に限られる
-    const pool = STAGES.slice(0, clearedStages).map(s => Pack.forStage(s.id));
+    const pool = MAIN_STAGES.slice(0, clearedStages).map(s => Pack.forStage(s.id));
     for (let i = 0; i < n; i++) {
       const pick = pool[Math.floor(Math.random() * pool.length)];
       out[pick]++;
@@ -128,14 +128,14 @@ const Pack = {
 };
 
 // --- ミッション（パックの入手経路その3） ---
-function clearedStages(p) { return STAGES.filter(s => (p.stages[s.id] || {}).cleared).length; }
+function clearedStages(p) { return MAIN_STAGES.filter(s => (p.stages[s.id] || {}).cleared).length; }
 
 const MISSIONS = [
   { id: 'st1',      name: '最初のステージを突破',       reward: { basic: 1 }, check: (p) => clearedStages(p) >= 1 },
   { id: 'st3',      name: 'ステージを3つ突破',          reward: { arms: 1 },  check: (p) => clearedStages(p) >= 3 },
-  { id: 'stAll',    name: '全ステージを突破',           reward: { syn: 2 },   check: (p) => clearedStages(p) >= STAGES.length },
-  { id: 'perfect1', name: '初めての完璧クリア',         reward: { basic: 2 }, check: (p) => STAGES.some(s => (p.stages[s.id] || {}).perfect) },
-  { id: 'perfect3', name: '3ステージで完璧クリア',      reward: { chem: 1 },  check: (p) => STAGES.filter(s => (p.stages[s.id] || {}).perfect).length >= 3 },
+  { id: 'stAll',    name: '全ステージを突破',           reward: { syn: 2 },   check: (p) => clearedStages(p) >= MAIN_STAGES.length },
+  { id: 'perfect1', name: '初めての完璧クリア',         reward: { basic: 2 }, check: (p) => MAIN_STAGES.some(s => (p.stages[s.id] || {}).perfect) },
+  { id: 'perfect3', name: '3ステージで完璧クリア',      reward: { chem: 1 },  check: (p) => MAIN_STAGES.filter(s => (p.stages[s.id] || {}).perfect).length >= 3 },
   { id: 'kill1k',   name: '累計1,000体撃破',            reward: { basic: 1 }, check: (p) => p.totalKills >= 1000 },
   { id: 'kill50k',  name: '累計50,000体撃破',           reward: { arms: 2 },  check: (p) => p.totalKills >= 50000 },
   { id: 'kill1m',   name: '累計1,000,000体撃破',        reward: { chem: 2 },  check: (p) => p.totalKills >= 1000000 },

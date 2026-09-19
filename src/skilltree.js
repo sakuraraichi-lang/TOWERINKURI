@@ -120,7 +120,7 @@ const Skill = {
     if (s.cat) {
       return WEAPON_IDS.some(wid => WEAPONS[wid].cat === s.cat && (perm.collection['wc_' + wid] || 0) > 0);
     }
-    const cleared = STAGES.filter(x => (perm.stages[x.id] || {}).cleared).length;
+    const cleared = MAIN_STAGES.filter(x => (perm.stages[x.id] || {}).cleared).length;
     return cleared >= s.unlock;
   },
 

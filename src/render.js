@@ -26,13 +26,49 @@ const Render = {
   },
 
   // ステージ全体が収まるように拡大率と余白を決める
+  // 見る場所。**画面に収まるステージでは使わない**（cam は 0 のまま）
+  cam: { x: 0, y: 0 },
+  viewW: 0, viewH: 0,
+  camStage: null,
+
   fit() {
     const st = Game.run ? Game.run.stage : Stage.build(Game.perm ? (Game.perm.currentStage || 'st1') : 'st1');
     this.stage = st;
-    const s = Math.min(this.cssW / st.w, this.cssH / st.h);
+
+    // **画面に収まらないステージは、縮小せずに一部を切り取る。**
+    // 全部映すと1タイルが小さくなりすぎて、密集も配置も見えなくなる
+    const REF_W = 15 * TILE, REF_H = 21 * TILE;     // これまでのステージの広さ
+    const s = Math.min(this.cssW / Math.min(st.w, REF_W), this.cssH / Math.min(st.h, REF_H));
     this.scale = s;
-    this.offX = (this.cssW - st.w * s) / 2;
-    this.offY = (this.cssH - st.h * s) / 2;
+    this.viewW = this.cssW / s;
+    this.viewH = this.cssH / s;
+
+    if (this.camStage !== st.id) { this.cam.x = 0; this.cam.y = st.h; this.camStage = st.id; }
+    this.clampCam();
+
+    this.offX = (st.w * s <= this.cssW) ? (this.cssW - st.w * s) / 2 : -this.cam.x * s;
+    this.offY = (st.h * s <= this.cssH) ? (this.cssH - st.h * s) / 2 : -this.cam.y * s;
+  },
+
+  clampCam() {
+    const st = this.stage;
+    if (!st) return;
+    if (!Number.isFinite(this.cam.x)) this.cam.x = 0;
+    if (!Number.isFinite(this.cam.y)) this.cam.y = 0;
+    this.cam.x = Math.min(Math.max(0, st.w - this.viewW), Math.max(0, this.cam.x));
+    this.cam.y = Math.min(Math.max(0, st.h - this.viewH), Math.max(0, this.cam.y));
+  },
+
+  // なぞって動かせるか（画面に収まっていれば動かす必要が無い）
+  canPan() {
+    const st = this.stage;
+    return !!st && (st.w > this.viewW + 1 || st.h > this.viewH + 1);
+  },
+  panBy(dxPx, dyPx) {
+    if (!this.canPan()) return;
+    this.cam.x -= dxPx / this.scale;
+    this.cam.y -= dyPx / this.scale;
+    this.fit();
   },
 
   // 画面座標 -> ステージ座標
@@ -77,6 +113,7 @@ const Render = {
     this.numbers(ctx, run);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    this.miniMap(ctx);
   },
 
   tiles(ctx, st) {
@@ -154,6 +191,25 @@ const Render = {
         }
       }
     }
+  },
+
+  // 広いステージのとき、今どこを見ているかを小さく出す。
+  // **画面に収まるステージでは出さない**（邪魔にしかならない）
+  miniMap(ctx) {
+    if (!this.canPan()) return;
+    const st = this.stage;
+    const d = this.dpr;
+    const w = 46 * d, h = w * st.h / st.w;
+    const x = this.canvas.width - w - 10 * d, y = 10 * d;
+    ctx.save();
+    ctx.fillStyle = 'rgba(8,13,20,.62)';
+    ctx.fillRect(x, y, w, h);
+    ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1 * d;
+    ctx.strokeRect(x, y, w, h);
+    ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 1.4 * d;
+    ctx.strokeRect(x + this.cam.x / st.w * w, y + this.cam.y / st.h * h,
+                   Math.min(1, this.viewW / st.w) * w, Math.min(1, this.viewH / st.h) * h);
+    ctx.restore();
   },
 
   // 蓄積された通行量／漏れを盤面に塗る

@@ -527,7 +527,7 @@ const UI = {
     st.innerHTML =
       '<div><span>転生回数</span><b>' + perm.prestiges + '</b></div>' +
       '<div><span>永久倍率（火力・コイン）</span><b>×' + Util.fmt(Math.pow(BAL.prestigePower, perm.prestiges)) + '</b></div>' +
-      '<div><span>突破ステージ</span><b>' + Game.clearedCount() + ' / ' + STAGES.length + '</b></div>' +
+      '<div><span>突破ステージ</span><b>' + Game.clearedCount() + ' / ' + MAIN_STAGES.length + '</b></div>' +
       '<div><span>累計撃破</span><b>' + Util.fmt(perm.totalKills) + '</b></div>';
     p.appendChild(st);
 
@@ -677,6 +677,14 @@ const UI = {
   // 「完璧クリアすると何がもらえるか」を名指しで出す。
   // パックは分野で分かれているので、分野名まで言わないと狙う理由にならない
   perfectHint(stage, leaked) {
+    // **実験用のステージは報酬が出ない。** 出ると書くと嘘になる
+    if (stage.experimental) {
+      const el = Util.el('div', 'note');
+      el.innerHTML = '<b>実験用のステージ</b>です。比べるために置いてあるだけなので、' +
+        '<b>報酬もパックも出ません</b>し、進行にも影響しません。' +
+        (leaked > 0 ? '<br>今回は <b>' + Util.fmt(leaked) + '</b> 体通した。' : '');
+      return el;
+    }
     const rec = Game.stageRec(stage.id);
     const pk = PACKS[Pack.forStage(stage.id)];
     const n = rec.perfect ? 1 : 2;
@@ -695,11 +703,13 @@ const UI = {
     if (res.ok) {
       body.appendChild(Util.el('h3', null,
         res.perfect ? '★★ ' + res.stage.name + ' 完璧クリア！' : '★ ' + res.stage.name + ' 突破！'));
-      if (res.perfect) {
+      if (res.perfect && !res.stage.experimental) {
         body.appendChild(Util.el('div', 'reward', '🏆 1体も通さなかった。' +
           PACKS[Pack.forStage(res.stage.id)].name + 'を獲得' +
           (res.stageGot && res.stageGot.firstPerfect ? '（初回なので2個）' : '')));
         this.burst('#ffb020');
+      } else if (res.perfect) {
+        body.appendChild(Util.el('div', 'reward', '🏆 1体も通さなかった（実験用なので報酬は無し）'));
       } else {
         body.appendChild(this.perfectHint(res.stage, res.leaked));
       }

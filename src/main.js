@@ -145,7 +145,28 @@ const Main = {
     };
     const no = (msg) => UI.toastMsg(msg, '#ff8080');
 
+    // なぞった量。**9px以上動いたらタップではなく「見る場所を動かした」と見なす**
+    let down = null;
+    cv.addEventListener('pointerdown', (e) => {
+      down = { x: e.clientX, y: e.clientY, moved: false };
+      try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 無視 */ }
+    });
+    cv.addEventListener('pointermove', (e) => {
+      if (!down) return;
+      const dx = e.clientX - down.x, dy = e.clientY - down.y;
+      if (!down.moved && Math.hypot(dx, dy) < 9) return;
+      if (!Render.canPan()) { down.moved = true; return; }
+      down.moved = true;
+      Render.panBy(e.clientX - down.x, e.clientY - down.y);
+      down.x = e.clientX; down.y = e.clientY;
+      e.preventDefault();
+    });
+    cv.addEventListener('pointercancel', () => { down = null; });
+
     cv.addEventListener('pointerup', (e) => {
+      const wasPan = down && down.moved;
+      down = null;
+      if (wasPan) return;                    // 動かしたときは選ばない
       const run = Game.run;
       if (!run || run.over) return;
       const t = Render.tileAt(e.clientX, e.clientY);

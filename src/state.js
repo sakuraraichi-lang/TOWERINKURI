@@ -102,12 +102,15 @@ const Game = {
     return this.perm.stages[id];
   },
 
-  clearedCount() { return STAGES.filter(s => this.stageRec(s.id).cleared).length; },
+  clearedCount() { return MAIN_STAGES.filter(s => this.stageRec(s.id).cleared).length; },
 
   stageUnlocked(id) {
-    const i = STAGE_BY_ID[id].idx;
+    const def = STAGE_BY_ID[id];
+    // 実験用はいつでも遊べる。**本編の鎖には入れない**
+    if (def.experimental) return true;
+    const i = MAIN_STAGES.findIndex(s => s.id === id);
     if (i <= 0) return true;
-    return this.stageRec(STAGES[i - 1].id).cleared;
+    return this.stageRec(MAIN_STAGES[i - 1].id).cleared;
   },
 
   // perfect = 1体も抜けさせずに5ウェーブ凌いだ（完璧クリア）
@@ -119,19 +122,24 @@ const Game = {
     if (perfect) rec.perfect = true;
     this.perm.deepest = Math.max(this.perm.deepest || 0, this.clearedCount());
     const def = STAGE_BY_ID[id];
+    // 次のステージも本編の並びで探す（実験用へは送らない）
+    const mi = MAIN_STAGES.findIndex(s => s.id === id);
+    const nextStage = (mi >= 0) ? (MAIN_STAGES[mi + 1] || null) : null;
     const got = { first, perfect: !!perfect, firstPerfect,
-                  cards: [], packs: {}, stage: def, next: STAGES[def.idx + 1] || null };
+                  cards: [], packs: {}, stage: def, next: nextStage };
     const addPack = (k, n) => {
       this.perm.packs[k] = (this.perm.packs[k] || 0) + n;
       got.packs[k] = (got.packs[k] || 0) + n;
     };
-    if (first) {
+    // **実験用のステージは報酬を出さない。** 比較のために置いてあるだけで、
+    // ここで稼げてしまうと本編の経済がぶれる
+    if (first && !def.experimental) {
       for (const cid of (def.reward.cards || [])) { this.grant(cid, 1); got.cards.push(cid); }
       for (const k in (def.reward.packs || {})) addPack(k, def.reward.packs[k]);
     }
     // 完璧クリアはパックの入手経路。1体も通さない配置を組めた報酬。
     // 出るのは「そのステージの分野」なので、浅いところを完璧にしても奥の分野は掘れない
-    if (perfect) {
+    if (perfect && !def.experimental) {
       const kind = Pack.forStage(id);
       addPack(kind, 1);
       if (firstPerfect) addPack(kind, 1);
