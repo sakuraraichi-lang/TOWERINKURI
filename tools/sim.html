@@ -500,6 +500,58 @@ function digest(waves) {
   };
 }
 
+// **マップ構造の差。**
+//
+// ステージが進むと敵HPが上がるのは当たり前として、
+// 「マップが変わることでプレイヤーの配置判断が変わっているか」を数字にする。
+// タワーディフェンスなので、ここが同じなら「HP倍率違いの同じステージ」になってしまう
+function mapShape(stageId) {
+  const st = Stage.build(stageId);
+  let ground = 0, path = 0;
+  const gs = [];
+  for (let r = 0; r < st.rows; r++) for (let c = 0; c < st.cols; c++) {
+    if (st.buildable(c, r)) { ground++; gs.push({ c, r }); }
+    else if (st.walkable(c, r)) path++;
+  }
+  // 十字砲火が組めるか：その地面から、60度以上ひらいた2方向に通路が見えるか
+  const R = 6, A = Math.PI / 3;
+  let cross = 0;
+  const paths = [];
+  for (let r = 0; r < st.rows; r++) for (let c = 0; c < st.cols; c++)
+    if (st.walkable(c, r)) paths.push({ c, r });
+  for (const g of gs) {
+    const as = [];
+    for (const q of paths) {
+      const dc = q.c - g.c, dr = q.r - g.r;
+      if (dc * dc + dr * dr <= R * R) as.push(Math.atan2(dr, dc));
+    }
+    let ok = false;
+    for (let i = 0; i < as.length && !ok; i++)
+      for (let j = i + 1; j < as.length; j++) {
+        let d = Math.abs(as[i] - as[j]) % (2 * Math.PI);
+        if (d > Math.PI) d = 2 * Math.PI - d;
+        if (d >= A) { ok = true; break; }
+      }
+    if (ok) cross++;
+  }
+  // 経路が1本にまとまっているか、複数に分かれたままか。
+  // 合流が遅いほど「1箇所を固める」が効かず、配置を分散させられる
+  const shared = {};
+  for (const route of st.routes) for (const idx of route) shared[idx] = (shared[idx] || 0) + 1;
+  const overlap = Object.keys(shared).filter(k => shared[k] > 1).length;
+  const routeTiles = Object.keys(shared).length;
+  return {
+    stage: STAGE_BY_ID[stageId].name,
+    出現口: st.spawns.length,
+    経路長: st.routeLens.slice().sort((a, b) => a - b),
+    通路: path, 地面: ground,
+    十字砲火が組める地面: cross,
+    '十字砲火率%': Math.round(100 * cross / ground),
+    経路タイル: routeTiles,
+    '合流している割合%': routeTiles ? Math.round(100 * overlap / routeTiles) : 0,
+  };
+}
+
 // **転生の評価。** 「何分で転生するのが正解」を先に決めず、
 // 「今回のランで得た成長 ÷ かかった時間」を実測する。
 //   stopAfter ステージ突破したら転生する、を2周やって比べる
