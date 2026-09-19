@@ -137,14 +137,16 @@ const Render = {
           ctx.strokeStyle = '#181b22'; ctx.lineWidth = 1;
           ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
         } else if (ch === '#') {
-          // 地面（ユニットを置ける）
-          ctx.fillStyle = '#242a35';
+          // 地面（ユニットを置ける）。
+          // **通路との明暗差はしっかり開ける。** 近い明るさだと、
+          // どこが自分の陣地でどこが敵の道なのか一目で分からなかった
+          ctx.fillStyle = '#31384a';
           ctx.fillRect(x, y, TILE, TILE);
-          ctx.strokeStyle = 'rgba(255,170,80,0.09)'; ctx.lineWidth = 1;
+          ctx.strokeStyle = 'rgba(255,170,80,0.10)'; ctx.lineWidth = 1;
           ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
         } else {
-          // 通路（敵が通る）。暗く沈めて地面と区別する
-          ctx.fillStyle = '#08090c';
+          // 通路（敵が通る）。**ほぼ黒まで落とす**
+          ctx.fillStyle = '#05060a';
           ctx.fillRect(x, y, TILE, TILE);
         }
         if (ch === 'S') {
@@ -293,15 +295,18 @@ const Render = {
   },
 
   // 射界（扇）。画面に出ているこの形が、そのまま当たる範囲
+  // 射界の扇。**常時は出さない。**
+  //   全基ぶん重ねると盤面が扇で埋まり、敵も弾も読めなかった。
+  //   出すのは「今いじっている1基」と「置き場所を選んでいる最中」だけ
   arcs(ctx, run) {
     const sel = UI.selected;
-    const build = Game.canBuild();
+    const picking = !!(UI.placingType || UI.moving);
+    if (!sel && !picking) return;
+
     for (const u of run.units) {
       const isSel = sel === u;
-      if (!build && !isSel) {
-        // 戦闘中は選んでいるものだけ濃く出す（画面が埋まるので）
-        ctx.globalAlpha = 0.16;
-      } else ctx.globalAlpha = isSel ? 0.55 : 0.30;
+      if (!isSel && !picking) continue;
+      ctx.globalAlpha = isSel ? 0.55 : 0.14;
 
       const c = u.def.color;
       ctx.strokeStyle = c;
@@ -386,6 +391,11 @@ const Render = {
         ctx.closePath();
       } else ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
       ctx.fill();
+      // **輪郭を入れる。** 塗りだけだと、押し合って重なったときに
+      // ひとかたまりの染みに見えて、何体いるのか読めなかった
+      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
+      ctx.lineWidth = e.boss ? 2.2 : 1.4;
+      ctx.stroke();
       ctx.restore();
 
       if (e.stun > 0) {   // 泡に閉じ込められている
