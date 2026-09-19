@@ -411,23 +411,6 @@ const Combat = {
 
   // ================= 照準 =================
   // 指定攻撃（迫撃砲）用：射程内で最も敵が固まっている一点を探す
-  densestPoint(w, run) {
-    const near = Grid.query(w.x, w.y, w.s.range, _q);
-    const cand = near.filter(e => !e.dead && Util.dist(w.x, w.y, e.x, e.y) <= w.s.range &&
-                                  this.inArc(w, e.x, e.y));
-    if (!cand.length) return null;
-    let best = null, bestN = -1;
-    const R = Math.max(30, w.s.splash);
-    // 候補を間引いて総当たり（敵が多いときに重くならないように）
-    const step = Math.max(1, Math.floor(cand.length / 24));
-    for (let i = 0; i < cand.length; i += step) {
-      const a = cand[i];
-      let n = 0;
-      for (const b of cand) if (Util.dist2(a.x, a.y, b.x, b.y) <= R * R) n++;
-      if (n > bestN) { bestN = n; best = a; }
-    }
-    return best ? { x: best.x, y: best.y, n: bestN, e: best } : null;
-  },
 
   // 扇の中に入っているか
   inArc(w, x, y) {
