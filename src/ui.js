@@ -713,6 +713,21 @@ const UI = {
   treePoints() {
     const t = Util.el('div', 'tpoints');
     t.innerHTML = '<span>使用可能なコイン</span><b id="treeCoin">' + Util.fmt(Game.meta.coins) + '</b>';
+
+    // **周回のたびに同じ買い物を手で繰り返させない。**
+    // 安い順に買えるだけ買う（測定器が1周を回すときと同じ買い方）
+    const can = Game.canBuySkills() && Skill.canBuyAny(Game.meta, Game.perm);
+    const b = Util.el('button', 'sbuy tbuyall', 'まとめて購入');
+    b.disabled = !can;
+    b.addEventListener('click', () => {
+      const r = Skill.buyAll(Game.meta, Game.perm);
+      if (!r.n) return;
+      Game.applyMods();
+      Game.save();
+      this.toastMsg(r.n + '件 購入　◈ ' + Util.fmt(r.spent), '#ff8a1f');
+      this.refreshTree();
+    });
+    t.appendChild(b);
     return t;
   },
 

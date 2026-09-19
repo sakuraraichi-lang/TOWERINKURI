@@ -622,3 +622,9 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 #perf span{display:block;font-size:9.5px;color:var(--dim);margin-top:2px;}
 /* タップできると分かるように、下線を薄く引く */
 .hwave{cursor:pointer;border-bottom:1px dotted rgba(255,255,255,.18);}
+
+/* まとめ買い。使用可能コインの帯に並べる */
+.tpoints .tbuyall{margin-left:auto;min-width:106px;min-height:34px;}
+.tpoints{justify-content:flex-start;gap:12px;}
+.tpoints span{flex:0 0 auto;}
+.tpoints b{flex:0 0 auto;}

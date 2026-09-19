@@ -37,7 +37,9 @@ const Main = {
       e.currentTarget.textContent = Game.paused ? '▶' : '❙❙';
     });
     document.getElementById('btnSpeed').addEventListener('click', (e) => {
-      Game.speed = Game.speed === 1 ? 2 : Game.speed === 2 ? 3 : 1;
+      // ×4 は転生してから。再攻略のテンポを上げる報酬のひとつ
+      const top = Game.perm.prestiges >= 1 ? 4 : 3;
+      Game.speed = Game.speed >= top ? 1 : Game.speed + 1;
       e.currentTarget.textContent = '×' + Game.speed;
     });
     // ホームの「スタート」で戦場へ。**ここが唯一の入口**

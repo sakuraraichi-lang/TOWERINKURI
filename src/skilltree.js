@@ -222,6 +222,29 @@ const Skill = {
     return node ? Skill.amount(meta, node.id) : 0;
   },
 
+  // 安い順にまとめ買いする。**周回のたびに同じ買い物を手で繰り返させないため。**
+  //   測定器が1周を回すときと同じ買い方（安い順）なので、
+  //   実測の数字と、プレイヤーが押したときの結果がずれない。
+  //   **敵誘引だけは買わない。** 敵の数が増えるノードなので、勝手に押されると事故になる
+  buyAll(meta, perm, cap) {
+    let n = 0, spent = 0;
+    for (let i = 0; i < (cap || 500); i++) {
+      const ids = SKILLS.map(s => s.id)
+        .filter(id => id !== 'lure' && Skill.canBuy(meta, perm, id));
+      if (!ids.length) break;
+      ids.sort((a, b) => Skill.cost(meta, a) - Skill.cost(meta, b));
+      const c = Skill.cost(meta, ids[0]);
+      if (!Skill.buy(meta, perm, ids[0])) break;
+      spent += c; n++;
+    }
+    return { n, spent };
+  },
+
+  // まとめ買いで1つでも買えるか
+  canBuyAny(meta, perm) {
+    return SKILLS.some(s => s.id !== 'lure' && Skill.canBuy(meta, perm, s.id));
+  },
+
   // 換装できる候補。**買っていないノードは換えられない**（換える意味が無い）
   swapChoices(meta, perm, n) {
     const pool = SWAPS.filter(sw =>
