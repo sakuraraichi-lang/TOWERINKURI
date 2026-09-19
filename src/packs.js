@@ -44,6 +44,14 @@ const PACKS = {
       return c.kind === 'mod' || (c.kind === 'weapon' && w.src === 'pack');
     },
   },
+  // **転生でしか手に入らない。** 中身は遺物（転生で消えない永続パッシブ）
+  relic: {
+    id: 'relic', name: '遺物パック', size: 3, unlock: 0, color: '#ffb43c',
+    swapChance: 0,
+    desc: '転生でしか出ない。中身は転生で消えない永続強化',
+    weights: { common: 55, rare: 30, epic: 12, legendary: 3 }, guarantee: null,
+    accepts: (c) => c.kind === 'perm',
+  },
   syn: {
     id: 'syn', name: '連携パック', size: 4, unlock: 2, color: '#c26bff',
     swapChance: 0.25,
@@ -55,7 +63,7 @@ const PACKS = {
   },
 };
 
-const PACK_IDS = ['basic', 'arms', 'chem', 'syn'];
+const PACK_IDS = ['basic', 'arms', 'chem', 'syn', 'relic'];
 
 // ステージごとに「そのステージらしい分野」を割り当てる。
 // 完璧クリアの報酬はこれになるので、奥の分野は奥まで行かないと掘れない
@@ -120,8 +128,10 @@ const Pack = {
   // 転生で貰えるパック。
   // **深く行くほど割に合うようにする。** 浅いところで転生を繰り返しても伸びない
   prestigeReward(clearedStages, prestiges, packLuck) {
-    const out = { basic: 0, arms: 0, chem: 0, syn: 0 };
+    const out = { basic: 0, arms: 0, chem: 0, syn: 0, relic: 0 };
     if (clearedStages <= 0) return out;
+    // **遺物パックが転生の本体。** 深く行ってから転生するほど多い
+    out.relic = 3 + Math.floor(clearedStages * 0.8);
     // 1ステージ=1個、5ステージ=約15個。奥へ行くほど1回の転生が重くなる
     const n = Util.clamp(Math.round(Math.pow(clearedStages, 1.7)) + Math.floor(prestiges / 4),
                          1, BAL.packPerPrestigeMax);

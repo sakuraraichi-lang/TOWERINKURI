@@ -857,6 +857,8 @@ const UI = {
     for (const pid of PACK_IDS) {
       const pk = PACKS[pid];
       const n = Game.perm.packs[pid] || 0;
+      // 遺物パックは転生でしか出ない。一度も見ていないうちは並べない
+      if (pid === 'relic' && n === 0 && Game.perm.prestiges === 0) continue;
       const unlocked = Pack.isUnlocked(Game.perm, pid);
       const row = Util.el('div', 'prow' + (n > 0 && unlocked ? ' can' : ''));
       row.innerHTML = '<div class="pico" style="background:' + pk.color + '22;border-color:' + pk.color + '">⬢</div>' +
@@ -999,23 +1001,48 @@ const UI = {
     const perm = Game.perm;
     const head = Util.el('div', 'phead');
     head.innerHTML = '<b>転生</b><span class="sub">コインとアップグレードを全て失う代わりに、' +
-      'カードパックと永久倍率を得る</span>';
+      '<b>遺物パック</b>を得る。遺物は<b>転生でも消えない</b>強化で、次の周の立ち上がりが速くなる</span>';
     p.appendChild(head);
 
+    const R = Relic.mods(perm);
     const st = Util.el('div', 'stats');
     st.innerHTML =
       '<div><span>転生回数</span><b>' + perm.prestiges + '</b></div>' +
-      '<div><span>永久倍率（火力・コイン）</span><b>×' + Util.fmt(Math.pow(BAL.prestigePower, perm.prestiges)) + '</b></div>' +
+      '<div><span>遺物の枚数</span><b>' + R.count + '</b></div>' +
+      '<div><span>遺物：ダメージ</span><b>×' + Util.fmt(R.dmg) + '</b></div>' +
+      '<div><span>遺物：コイン</span><b>×' + Util.fmt(R.coin) + '</b></div>' +
       '<div><span>突破ステージ</span><b>' + Game.clearedCount() + ' / ' + MAIN_STAGES.length + '</b></div>' +
       '<div><span>累計撃破</span><b>' + Util.fmt(perm.totalKills) + '</b></div>';
     p.appendChild(st);
 
+    const cleared = Game.clearedCount();
     p.appendChild(Util.el('div', 'note', Game.canPrestige()
-      ? '今転生すると カードパック 約' +
-        Math.round(Math.pow(Game.clearedCount(), 1.7)) + '個 ＋ 火力とコインが永久に ×' +
-        BAL.prestigePower + '（累積）。奥まで突破してから転生するほど、もらえる数が増えます'
-      : 'ステージを ' + BAL.prestigeMinStages + ' 個突破すると転生できます（現在 ' + Game.clearedCount() + ' 個）'));
-    p.appendChild(Util.el('div', 'warn', '※ 転生するとステージの突破状況も戻ります。もう一度突破すれば初回報酬と初回完璧クリアの報酬を取り直せます（カードとパックは残ります）'));
+      ? '今転生すると <b>遺物パック ' + (3 + Math.floor(cleared * 0.8)) + '個</b> ＋ カードパック 約' +
+        Math.round(Math.pow(cleared, 1.7)) + '個。奥まで突破してから転生するほど、もらえる数が増えます'
+      : 'ステージを ' + BAL.prestigeMinStages + ' 個突破すると転生できます（現在 ' + cleared + ' 個）'));
+    p.appendChild(Util.el('div', 'warn', '※ 転生するとステージの突破状況も戻ります。もう一度突破すれば初回報酬と初回完璧クリアの報酬を取り直せます（カード・パック・遺物は残ります）'));
+
+    // 持っている遺物の一覧
+    const owned = Relic.owned(perm);
+    if (owned.length) {
+      const g = Util.el('div', 'sgroup');
+      g.innerHTML = '<span>遺物</span><i>転生で消えない</i>';
+      p.appendChild(g);
+      if (R.startLv > 0) {
+        p.appendChild(Util.el('div', 'reward',
+          '出撃するとき、アップグレードが最初から Lv+' + R.startLv + ' の状態になります'));
+      }
+      for (const o of owned) {
+        const row = Util.el('div', 'srow');
+        row.style.borderColor = BAL.rarity[o.card.rarity].color + '66';
+        row.innerHTML =
+          '<div class="sic" style="color:' + BAL.rarity[o.card.rarity].color + '">◈</div>' +
+          '<div class="sbody"><div class="sname">' + o.card.name +
+            ' <em>×' + o.n + '</em></div>' +
+          '<div class="sdesc">' + o.card.desc + '</div></div>';
+        p.appendChild(row);
+      }
+    }
 
     const btn = Util.el('button', 'bigbtn danger', '転生する');
     btn.disabled = !Game.canPrestige() || Game.phase === 'battle';
@@ -1199,6 +1226,7 @@ const UI = {
       const w = WEAPONS[c.weapon];
       wname = SRC_LABEL[w.src] + '・' + CATEGORIES[w.cat].name;
     } else if (c.kind === 'synergy') wname = 'シナジー';
+    else if (c.kind === 'perm') wname = '遺物・転生で消えない';
     else if (c.weapon) wname = WEAPONS[c.weapon].name;
     else wname = '汎用';
     el.innerHTML =

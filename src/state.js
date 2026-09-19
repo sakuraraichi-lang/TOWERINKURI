@@ -104,12 +104,14 @@ const Game = {
     for (const k of Object.keys(this.perm.packs)) if (PACK_IDS.indexOf(k) < 0) delete this.perm.packs[k];
     for (const k of PACK_IDS) if (typeof this.perm.packs[k] !== 'number') this.perm.packs[k] = 0;
     if (!STAGE_BY_ID[this.perm.currentStage]) this.perm.currentStage = 'st1';
+    Relic.invalidate();
     return true;
   },
 
   hardReset() {
     try { localStorage.removeItem(SAVE_KEY); for (const k of OLD_KEYS) localStorage.removeItem(k); } catch (e) {}
     this.newSave();
+    Relic.invalidate();
   },
 
   // ---------- ステージ ----------
@@ -167,7 +169,11 @@ const Game = {
 
   // ---------- コレクション ----------
   own(cardId) { return this.perm.collection[cardId] || 0; },
-  grant(cardId, n) { this.perm.collection[cardId] = (this.perm.collection[cardId] || 0) + (n || 1); },
+  grant(cardId, n) {
+    this.perm.collection[cardId] = (this.perm.collection[cardId] || 0) + (n || 1);
+    // 遺物は倍率を作るので、増えたら数え直させる
+    if (CARDS[cardId] && CARDS[cardId].kind === 'perm') Relic.invalidate();
+  },
 
   // 1回の出撃で重ねられる上限。所持枚数では絞らない
   // （絞ると、手持ちが薄いうちは3択の候補が1枚しか出ず、選ぶ意味が消えるため）
@@ -519,7 +525,8 @@ const Game = {
       this.perm.packsEarned = (this.perm.packsEarned || 0) + reward[k];
     }
     this.perm.prestiges++;
-    this.meta.coins = 0;
+    // 遺物「初動資金」のぶんだけ、次の周は資金を持って始まる
+    this.meta.coins = Relic.mods(this.perm).seed;
     this.meta.skills = {};
     // **ステージ進行も戻す。** もう一度突破すれば初回報酬と初回完璧の報酬を取り直せる。
     // deepest（到達した深さ）だけは戻さないので、パックの解放は保たれる

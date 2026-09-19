@@ -145,7 +145,15 @@ for (const s of SWAPS) {
 }
 
 const Skill = {
-  lv(meta, id) { return meta.skills[id] || 0; },
+  // 買ったレベル ＋ 遺物「初期投資」がくれる下駄。
+  // **下駄のぶんは値段にも乗る**（安いレベルを飛ばして始める、という意味）
+  lv(meta, id) {
+    const p = (typeof Game !== 'undefined' && Game.perm) ? Game.perm : null;
+    const base = (p && typeof Relic !== 'undefined') ? Relic.mods(p).startLv : 0;
+    const s = SKILL_BY_ID[id];
+    const lv = (meta.skills[id] || 0) + base;
+    return s ? Math.min(lv, s.max) : lv;
+  },
 
   // 換装を当てはめたあとのノード定義。**ここ以外で SKILL_BY_ID を直に見ない**
   node(id, perm) {
@@ -202,7 +210,8 @@ const Skill = {
   buy(meta, perm, id) {
     if (!Skill.canBuy(meta, perm, id)) return false;
     meta.coins -= Skill.cost(meta, id);
-    meta.skills[id] = Skill.lv(meta, id) + 1;
+    // **買った数だけを数える。** ここで Skill.lv を使うと遺物の下駄が二重に乗る
+    meta.skills[id] = (meta.skills[id] || 0) + 1;
     return true;
   },
 
@@ -234,8 +243,11 @@ const Skill = {
   // アップグレード＋転生ボーナスを、出撃時の倍率一式にまとめる
   mods(meta, perm) {
     const A = (id) => Skill.amount(meta, id);
-    // 転生は乗算。1周期ぶんの頭打ちを越えるための唯一の手段なので、加算では足りない
-    const pw = Math.pow(BAL.prestigePower, perm.prestiges);
+    // 転生で残る層。**以前は prestigePower^回数 の ×1.35 一本だった。**
+    // それだと1周で積む ×133 に対して 1% しかなく、実測で 2周目が 0.99〜1.10倍の速さ
+    // ＝ ほとんど楽にならなかったので、遺物カードに置き換えた
+    const R = Relic.mods(perm);
+    const pw = R.dmg;
 
     // カテゴリ別のノードを、定義から自動で組み立てる。
     // ノードを足したら cat と key を書くだけで、ここを直す必要は無い
@@ -249,19 +261,24 @@ const Skill = {
       if (s.key === 'dmg' && s.mode === 'mul') cat[s.cat].dmg = v * pw;
       if (s.key === 'crit') cat[s.cat].critMul = v * 3.75;   // 会心率1%につき倍率+0.0375
     }
-    for (const c of CATEGORY_IDS) if (cat[c].dmg === undefined && SKILLS.some(s => s.cat === c && s.key === 'dmg')) cat[c].dmg = pw;
+    for (const c of CATEGORY_IDS) {
+      if (cat[c].dmg === undefined && SKILLS.some(s => s.cat === c && s.key === 'dmg')) cat[c].dmg = pw;
+      // 遺物のレートは全カテゴリに掛かる（スキルのレートを持たないカテゴリにも）
+      cat[c].rate = (cat[c].rate || 1) * R.rate;
+    }
 
     return {
-      coin:   A('coin') * (1 + 0.06 * Skill.lv(meta, 'lure')) * pw,
-      lives:  A('core'),
+      coin:   A('coin') * (1 + 0.06 * Skill.lv(meta, 'lure')) * R.coin,
+      lives:  A('core') + R.lives,
       regen:  A('regen'),
       spawn:  1 + A('lure'),
       luck:   Skill.lv(meta, 'luck'),
       packLuck: Skill.lv(meta, 'pack'),
       picks:   1 + A('picks'),
       choices: BAL.draftSize + A('choices'),
-      units:   A('units'),
+      units:   A('units') + R.units,
       prestige: pw,
+      relic: R,
       cat,
     };
   },
