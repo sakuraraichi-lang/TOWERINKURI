@@ -683,3 +683,9 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 .tdetail .tdlv i{font-style:normal;font-size:10px;color:var(--dim);font-weight:700;}
 .tdetail .tdbuy{margin-top:9px;}
 .tdetail .tdbuy .sbuy{width:100%;min-height:42px;font-size:14px;}
+
+/* 版の説明。タップしたときだけ出す */
+#build{cursor:pointer;}
+#buildNote{display:none;flex:0 0 auto;font-size:10px;color:var(--dim);line-height:1.6;
+  padding:7px 9px;background:#0e1116;border-left:2px solid var(--acc);}
+#buildNote.on{display:block;}

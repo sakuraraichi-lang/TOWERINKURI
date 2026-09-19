@@ -25,7 +25,7 @@ const UI = {
       panel: q('panel'), tabs: q('tabs'), modal: q('modal'),
       toast: q('toast'), badgePack: q('badgePack'),
       upop: q('upop'), stage: q('stage'), tut: q('tut'), perf: q('perf'),
-      build: q('build'),
+      build: q('build'), buildNote: q('buildNote'),
       btnStart: q('btnStart'),
       homeCoin: q('homeCoin'), homeProg: q('homeProg'), homeLabel: q('homeLabel'),
       homeName: q('homeName'), homeMini: q('homeMini'),
@@ -59,7 +59,21 @@ const UI = {
     this.el.homeNext.addEventListener('click', () => this.movePick(1));
 
     // 版を出しておく。更新されているかの切り分けに使う
-    if (this.el.build) this.el.build.textContent = 'ver ' + BUILD;
+    // 版。**何の数字か分からないと表示の意味が無い**ので、タップで説明を出す。
+    // トーストは戦闘画面の中にあってホームでは見えないため、バーの下に出す
+    if (this.el.build) {
+      this.el.build.textContent = 'ver ' + BUILD;
+      this.el.build.title = 'このゲームの版。更新されているかの目印です';
+      this.el.build.addEventListener('click', () => {
+        Snd.resume(); Snd.ui();
+        const n = this.el.buildNote;
+        if (!n) return;
+        const on = n.classList.toggle('on');
+        n.textContent = on
+          ? 'ver ' + BUILD + ' ＝ このゲームの版です。「更新されていない気がする」ときに、ここが変わっているかで確かめられます'
+          : '';
+      });
+    }
 
     this.pick = Math.max(0, STAGES.findIndex(s => s.id === Game.perm.currentStage));
     // 最初はどのタブも開いていないので、ステージだけを見せる
