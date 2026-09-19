@@ -111,7 +111,7 @@ const Main = {
     UI.renderTray();
     UI.renderPanel();
     this.syncStartButton();
-    UI.toastMsg('ウェーブ 1 / ' + BAL.wavesPerStage, '#ffb020');
+    UI.toastMsg('ウェーブ 1 / ' + BAL.wavesPerStage, '#ff8a1f');
   },
 
   retreat() { this.finish(false); },
@@ -221,7 +221,7 @@ const Main = {
     UI.placingType = null;
     UI.selected = null;
     UI.renderTray();
-    UI.toastMsg('ウェーブ ' + Game.run.wave + ' / ' + BAL.wavesPerStage, '#ffb020');
+    UI.toastMsg('ウェーブ ' + Game.run.wave + ' / ' + BAL.wavesPerStage, '#ff8a1f');
   },
 
   // ---------- ループ ----------

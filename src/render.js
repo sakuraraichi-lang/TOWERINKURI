@@ -140,7 +140,7 @@ const Render = {
           // 地面（ユニットを置ける）
           ctx.fillStyle = '#242a35';
           ctx.fillRect(x, y, TILE, TILE);
-          ctx.strokeStyle = 'rgba(255,190,90,0.09)'; ctx.lineWidth = 1;
+          ctx.strokeStyle = 'rgba(255,170,80,0.09)'; ctx.lineWidth = 1;
           ctx.strokeRect(x + 0.5, y + 0.5, TILE - 1, TILE - 1);
         } else {
           // 通路（敵が通る）。暗く沈めて地面と区別する
@@ -159,25 +159,9 @@ const Render = {
     // 通行量と漏れルートのヒートマップ
     this.heat(ctx, st);
 
-    // 通路に進行方向の矢印を薄く出す
-    ctx.strokeStyle = 'rgba(255,190,90,0.18)';
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    for (let r = 0; r < st.rows; r++) {
-      for (let c = 0; c < st.cols; c++) {
-        if (!st.walkable(c, r)) continue;
-        const n = st.next[st.idx(c, r)];
-        if (!n) continue;
-        const a = Math.atan2(n.r - r, n.c - c);
-        const cx = c * TILE + TILE / 2, cy = r * TILE + TILE / 2;
-        const L = 6, tipx = cx + Math.cos(a) * L, tipy = cy + Math.sin(a) * L;
-        ctx.moveTo(tipx, tipy);
-        ctx.lineTo(cx + Math.cos(a + 2.5) * L, cy + Math.sin(a + 2.5) * L);
-        ctx.moveTo(tipx, tipy);
-        ctx.lineTo(cx + Math.cos(a - 2.5) * L, cy + Math.sin(a - 2.5) * L);
-      }
-    }
-    ctx.stroke();
+    // **進行方向の矢印は出さない。**
+    // 通路のどこをどう通るかは、敵が来てから目で見て分かればいい。
+    // 盤面いっぱいに散った記号は、敵と弾を読むのを邪魔していた
 
     // 置き場所を選んでいるとき。**盤面を落として、置けるところだけ光らせる。**
     // 薄く塗るだけでは「どこに置けるか分からない」ままだった
@@ -195,7 +179,7 @@ const Render = {
       for (let r = 0; r < st.rows; r++) {
         for (let c = 0; c < st.cols; c++) {
           if (!st.buildable(c, r) || occupied[c + ',' + r]) continue;
-          ctx.fillStyle = 'rgba(255,210,74,' + pulse.toFixed(3) + ')';
+          ctx.fillStyle = 'rgba(255,170,50,' + pulse.toFixed(3) + ')';
           ctx.fillRect(c * TILE + 2, r * TILE + 2, TILE - 4, TILE - 4);
         }
       }
@@ -215,7 +199,7 @@ const Render = {
     ctx.fillRect(x, y, w, h);
     ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1 * d;
     ctx.strokeRect(x, y, w, h);
-    ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 1.4 * d;
+    ctx.strokeStyle = '#ffb43c'; ctx.lineWidth = 1.4 * d;
     ctx.strokeRect(x + this.cam.x / st.w * w, y + this.cam.y / st.h * h,
                    Math.min(1, this.viewW / st.w) * w, Math.min(1, this.viewH / st.h) * h);
     ctx.restore();
@@ -287,9 +271,9 @@ const Render = {
     const t = run.tower;
     const hpR = Util.clamp(t.hp / t.maxHp, 0, 1);
     ctx.save();
-    ctx.shadowColor = '#ffb020'; ctx.shadowBlur = 22;
+    ctx.shadowColor = '#ff8a1f'; ctx.shadowBlur = 22;
     ctx.fillStyle = '#2a1f08';
-    ctx.strokeStyle = '#ffc93c'; ctx.lineWidth = 2.5;
+    ctx.strokeStyle = '#ffa32e'; ctx.lineWidth = 2.5;
     ctx.beginPath();
     for (let i = 0; i < 6; i++) {
       const a = -Math.PI / 2 + i * Math.PI / 3;
@@ -513,7 +497,7 @@ const Render = {
         const q = k * k;                       // 最初ゆっくり、あとで速く
         const x = f.x + (ex - f.x) * q, y = f.y + (ey - f.y) * q - Math.sin(k * Math.PI) * 14;
         ctx.globalAlpha = 1 - k * 0.55;
-        ctx.fillStyle = '#ffd24a';
+        ctx.fillStyle = '#ffb43c';
         ctx.beginPath(); ctx.arc(x, y, f.big ? 5 : 2.8, 0, 7); ctx.fill();
         ctx.globalAlpha = 1;
       } else if (f.type === 'trail') {
@@ -548,7 +532,7 @@ const Render = {
       const k = n.t / n.life;
       ctx.globalAlpha = 1 - k * k;
       ctx.font = (n.crit ? 'bold 15px ' : '11px ') + 'system-ui,sans-serif';
-      ctx.fillStyle = n.crit ? '#ffd24a' : n.color;
+      ctx.fillStyle = n.crit ? '#ffb43c' : n.color;
       ctx.fillText(n.txt, n.x, n.y);
     }
     ctx.globalAlpha = 1;

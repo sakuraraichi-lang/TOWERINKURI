@@ -1,9 +1,9 @@
 /* ---------------------------------------------------------------
    style.css : スマホ縦持ち優先。横長・PCでは左右2カラムになる
 
-   配色は「黒 × 琥珀／橙」。参考画像に合わせて、
+   配色は「黒 × 橙」。参考画像に合わせて、
    角を斜めに落とした板と、斜めのハザードストライプを共通の語彙にする。
-   **青系のアクセントは使わない。**
+   **青系のアクセントは使わない。** 黄色に寄りすぎないよう、主役は橙にする。
    --------------------------------------------------------------- */
 :root{
   --bg:#07080b;
@@ -15,9 +15,9 @@
   --txt:#e9edf4;
   --dim:#8a8f97;
   --txt2:#b6b2aa;         /* 説明文。地の文なので彩度は持たせない */
-  --acc:#ffb020;          /* 琥珀。ここが主役 */
-  --acc2:#ff7a18;         /* 橙。差し色 */
-  --gold:#ffd24a;
+  --acc:#ff8a1f;          /* 橙。ここが主役 */
+  --acc2:#ff5a0a;         /* 濃い橙。差し色 */
+  --gold:#ffb43c;        /* 通貨と数字。橙寄りの琥珀 */
   --danger:#ff5566;
   --ok:#7ee3a0;
   --safe-b: env(safe-area-inset-bottom, 0px);
@@ -34,7 +34,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 
 #app{display:flex;flex-direction:column;height:100%;width:100%;
      background:
-       radial-gradient(1200px 700px at 50% -10%, rgba(255,176,32,.07), transparent 65%),
+       radial-gradient(1200px 700px at 50% -10%, rgba(255,138,31,.07), transparent 65%),
        var(--bg);}
 
 /* ============ 戦場 ============ */
@@ -74,15 +74,15 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       font-size:10px;font-weight:700;color:var(--dim);letter-spacing:.02em;
       border:1px solid transparent;}
 #tabs button .ti{font-size:18px;line-height:1;filter:grayscale(1);opacity:.5;}
-#tabs button.on{color:var(--acc);border-color:rgba(255,176,32,.5);
-      background:linear-gradient(180deg,rgba(255,176,32,.14),rgba(255,176,32,.03));
+#tabs button.on{color:var(--acc);border-color:rgba(255,138,31,.5);
+      background:linear-gradient(180deg,rgba(255,138,31,.14),rgba(255,138,31,.03));
       clip-path:polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));}
 #tabs button.on .ti{filter:none;opacity:1;}
 #tabs button.lock{opacity:.3;}
 #tabs button.lock::after{content:'🔒';position:absolute;right:6px;top:4px;font-size:9px;}
-.badge{position:absolute;right:5px;top:2px;background:var(--acc2);color:#180c00;
+.badge{position:absolute;right:5px;top:2px;background:var(--acc2);color:#200a00;
        border-radius:8px;font-size:9px;font-weight:900;padding:1px 5px;
-       box-shadow:0 0 8px rgba(255,122,24,.6);}
+       box-shadow:0 0 8px rgba(255,90,10,.6);}
 
 /* ============ パネル ============ */
 #panel{flex:0 0 40vh;min-height:150px;overflow-y:auto;background:var(--panel);
@@ -102,7 +102,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       background:var(--panel2);border:1px solid var(--line);
       clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px));}
 .srow.locked{opacity:.38;}
-.srow.can{border-color:var(--acc);background:linear-gradient(180deg,rgba(255,176,32,.08),var(--panel2));}
+.srow.can{border-color:var(--acc);background:linear-gradient(180deg,rgba(255,138,31,.08),var(--panel2));}
 .sic{width:30px;height:30px;flex:0 0 30px;display:flex;align-items:center;justify-content:center;
      background:#0a0c11;border:1px solid var(--line2);font-size:15px;}
 .sbody{flex:1;min-width:0;}
@@ -110,11 +110,11 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .sname em{font-style:normal;color:var(--acc);font-size:11px;margin-left:4px;}
 .sname em.ok{color:var(--ok);}
 .sdesc{font-size:10.5px;color:var(--dim);line-height:1.5;margin-top:2px;}
-.sdesc.rw{color:#a08a63;margin-top:3px;}
-.sbuy{flex:0 0 auto;background:#1a1409;border:1px solid var(--acc);
+.sdesc.rw{color:#a8855c;margin-top:3px;}
+.sbuy{flex:0 0 auto;background:#2a1405;border:1px solid var(--acc);
       padding:8px 11px;font-size:11.5px;font-weight:800;color:var(--gold);min-width:74px;}
 .sbuy:disabled{opacity:.3;color:var(--dim);border-color:var(--line);background:#12151b;}
-.sbuy:active:not(:disabled){transform:translateY(1px);background:#2a2010;}
+.sbuy:active:not(:disabled){transform:translateY(1px);background:#3a1c08;}
 
 /* 編成 */
 .slots{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
@@ -147,7 +147,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .prow{display:flex;align-items:center;gap:9px;padding:9px;margin-bottom:7px;
       background:var(--panel2);border:1px solid var(--line);
       clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px));}
-.prow.can{border-color:var(--acc);box-shadow:0 0 14px rgba(255,176,32,.12);}
+.prow.can{border-color:var(--acc);box-shadow:0 0 14px rgba(255,138,31,.12);}
 .pico{width:34px;height:34px;flex:0 0 34px;border:1px solid;
       display:flex;align-items:center;justify-content:center;font-size:17px;}
 .mrow{display:flex;align-items:center;gap:8px;font-size:11px;padding:6px 8px;
@@ -162,17 +162,17 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .stats span{display:block;font-size:10px;color:var(--dim);}
 .stats b{font-size:14px;}
 .stats .new,.new{color:var(--gold);font-style:normal;font-size:11px;}
-.reward{background:rgba(255,176,32,.08);border:1px solid rgba(255,176,32,.38);
+.reward{background:rgba(255,138,31,.08);border:1px solid rgba(255,138,31,.38);
         padding:10px;font-size:12px;margin:10px 0;}
 .warn{background:rgba(255,90,60,.09);border:1px solid rgba(255,90,60,.4);
       padding:9px 10px;font-size:11px;line-height:1.6;margin:8px 0;color:#ffc0ae;}
 
 /* 大きいボタン。参考画像の黄色い台形ボタン */
 .bigbtn{display:block;width:100%;margin-top:12px;padding:15px;font-size:15px;font-weight:900;
-        letter-spacing:.08em;color:#1a1204;border:none;
-        background:linear-gradient(180deg,#ffd24a,#f0a613);
+        letter-spacing:.08em;color:#2a1200;border:none;
+        background:linear-gradient(180deg,#ffb43c,#ef6a0c);
         clip-path:polygon(0 0,calc(100% - 14px) 0,100% 14px,100% 100%,14px 100%,0 calc(100% - 14px));
-        box-shadow:0 4px 20px rgba(255,176,32,.28);}
+        box-shadow:0 4px 20px rgba(255,138,31,.28);}
 .bigbtn:disabled{background:#1b1f27;color:var(--dim);box-shadow:none;}
 .bigbtn:active:not(:disabled){transform:translateY(1px);}
 .bigbtn.danger{background:linear-gradient(180deg,#ff8095,#d63b52);color:#fff;
@@ -196,7 +196,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .card .new{color:var(--gold);}
 .card.small .cdesc{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
 .card.r-epic{box-shadow:0 0 16px rgba(194,107,255,.22);}
-.card.r-legendary{box-shadow:0 0 22px rgba(255,176,32,.34);}
+.card.r-legendary{box-shadow:0 0 22px rgba(255,138,31,.34);}
 .card.r-legendary::after{content:'';position:absolute;inset:0;
   background:linear-gradient(115deg,transparent 35%,rgba(255,255,255,.18) 48%,transparent 60%);
   animation:shine 2.4s linear infinite;}
@@ -227,7 +227,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   background:linear-gradient(180deg,#1b1f28,#0e1116);border:1px solid var(--acc);
   clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));}
 .chhead b{display:block;font-size:19px;font-weight:900;letter-spacing:.12em;color:var(--gold);
-  text-shadow:0 0 16px rgba(255,176,32,.55);}
+  text-shadow:0 0 16px rgba(255,138,31,.55);}
 .chhead span{display:block;font-size:10px;color:var(--dim);margin-top:3px;letter-spacing:.04em;}
 .chhead::before,.chhead::after{content:'';position:absolute;top:7px;bottom:7px;width:20px;
   color:var(--acc);opacity:.45;
@@ -242,7 +242,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   background:#0e1116;border:1px solid var(--line2);
   clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px));}
 .chslot.empty{color:#2b3140;font-size:22px;}
-.chslot.on{border-color:var(--acc);box-shadow:0 0 12px rgba(255,176,32,.25);}
+.chslot.on{border-color:var(--acc);box-shadow:0 0 12px rgba(255,138,31,.25);}
 .chslot u{position:absolute;right:3px;bottom:1px;text-decoration:none;
   font-size:9px;color:var(--dim);}
 
@@ -256,17 +256,17 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   clip-path:polygon(0 0,calc(100% - 13px) 0,100% 13px,100% 100%,13px 100%,0 calc(100% - 13px));}
 .chcard.pick{cursor:pointer;transition:transform .1s;}
 .chcard.pick:active{transform:scale(.975);}
-.chcard.hot{border-color:var(--acc);box-shadow:0 0 18px rgba(255,176,32,.2);}
+.chcard.hot{border-color:var(--acc);box-shadow:0 0 18px rgba(255,138,31,.2);}
 .chcard .chnew{position:absolute;left:0;top:0;padding:2px 7px 3px 5px;
-  font-size:9px;font-weight:900;letter-spacing:.06em;color:#1a1204;background:var(--gold);}
+  font-size:9px;font-weight:900;letter-spacing:.06em;color:#2a1200;background:var(--gold);}
 .chcard .chname{font-size:12px;font-weight:900;line-height:1.3;text-align:center;
   min-height:2.6em;display:flex;align-items:center;justify-content:center;
   padding:9px 2px;border-bottom:1px solid var(--line);}
 /* 絵の代わりの記号。**素材が無いので大きな記号で代用している** */
 .chcard .chart{display:grid;place-items:center;height:68px;margin:8px 0;font-size:34px;
   color:var(--ac,var(--acc));
-  background:radial-gradient(circle at 50% 55%, rgba(255,176,32,.14), transparent 68%);
-  text-shadow:0 0 18px rgba(255,176,32,.35);}
+  background:radial-gradient(circle at 50% 55%, rgba(255,138,31,.14), transparent 68%);
+  text-shadow:0 0 18px rgba(255,138,31,.35);}
 .chcard .chdesc{font-size:10px;color:var(--txt2);line-height:1.55;flex:1;}
 .chcard .chval{margin-top:6px;font-size:10px;color:var(--dim);}
 .chcard .chval b{color:var(--gold);font-size:13px;margin-left:3px;}
@@ -291,8 +291,8 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 #tray .chip{background:rgba(14,17,23,.92);border:1.5px solid var(--line2);
             min-width:46px;min-height:38px;padding:5px 8px;font-size:12px;font-weight:800;
             display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.1;}
-#tray .chip.on{background:#2a2010;border-color:var(--acc);
-            box-shadow:0 0 12px rgba(255,176,32,.45);}
+#tray .chip.on{background:#3a1c08;border-color:var(--acc);
+            box-shadow:0 0 12px rgba(255,138,31,.45);}
 #tray .chip i{font-style:normal;font-size:9px;}
 #tray .chip.unit{min-width:54px;}
 #tray .chip u{display:block;text-decoration:none;font-size:10px;color:var(--dim);
@@ -304,7 +304,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 /* ============ ステージ一覧 ============ */
 .strow{display:flex;align-items:center;gap:9px;padding:9px;margin-bottom:7px;
        background:var(--panel2);border:1px solid var(--line);}
-.strow.cur{border-color:var(--acc);box-shadow:0 0 12px rgba(255,176,32,.14);}
+.strow.cur{border-color:var(--acc);box-shadow:0 0 12px rgba(255,138,31,.14);}
 .strow.locked{opacity:.42;}
 .stmini{flex:0 0 58px;width:58px;height:50px;background:#06070a;border:1px solid var(--line);
         overflow:hidden;display:flex;}
@@ -339,8 +339,8 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 #home .hbar{display:flex;align-items:center;gap:9px;flex:0 0 auto;}
 .lvring{flex:0 0 46px;width:46px;height:46px;position:relative;display:grid;place-items:center;
   border:2px solid var(--acc);border-radius:50%;
-  background:radial-gradient(circle,rgba(255,176,32,.18),transparent 70%);
-  box-shadow:0 0 14px rgba(255,176,32,.25);}
+  background:radial-gradient(circle,rgba(255,138,31,.18),transparent 70%);
+  box-shadow:0 0 14px rgba(255,138,31,.25);}
 .lvring b{font-size:17px;font-weight:900;line-height:1;color:var(--gold);}
 .lvring i{position:absolute;bottom:-7px;font-style:normal;font-size:7.5px;letter-spacing:.1em;
   color:var(--acc);background:var(--bg);padding:0 3px;}
@@ -367,12 +367,12 @@ body.tabsoff #homeMain{flex:1 1 auto;}
   align-items:center;justify-content:center;}
 .heroart{position:relative;width:min(64vw,236px);aspect-ratio:1;
   display:grid;place-items:center;border-radius:50%;
-  background:radial-gradient(circle at 50% 42%, rgba(255,176,32,.16), rgba(255,122,24,.05) 55%, transparent 72%);}
+  background:radial-gradient(circle at 50% 42%, rgba(255,138,31,.16), rgba(255,90,10,.05) 55%, transparent 72%);}
 .heroart::before,.heroart::after{content:'';position:absolute;border-radius:50%;
-  border:1px solid rgba(255,176,32,.18);}
+  border:1px solid rgba(255,138,31,.18);}
 .heroart::before{inset:-4%;}
 .heroart::after{inset:-11%;border-style:dashed;opacity:.5;}
-.heroart .mm{width:74%;height:74%;filter:drop-shadow(0 0 14px rgba(255,176,32,.35));}
+.heroart .mm{width:74%;height:74%;filter:drop-shadow(0 0 14px rgba(255,138,31,.35));}
 .heroart.locked{filter:grayscale(1) brightness(.5);}
 .heroart .lk{position:absolute;font-size:42px;opacity:.75;}
 
@@ -393,12 +393,12 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 /* 出撃ボタン */
 .bigstart{flex:0 0 auto;min-height:58px;position:relative;
   display:flex;align-items:center;justify-content:center;gap:14px;
-  background:linear-gradient(180deg,#ffd970,#f0a613);color:#1a1204;
+  background:linear-gradient(180deg,#ffa347,#ef6a0c);color:#2a1200;
   font:inherit;font-size:19px;font-weight:900;letter-spacing:.1em;cursor:pointer;
   clip-path:polygon(0 0,calc(100% - 16px) 0,100% 16px,100% 100%,16px 100%,0 calc(100% - 16px));
-  box-shadow:0 5px 24px rgba(255,176,32,.3);}
+  box-shadow:0 5px 24px rgba(255,138,31,.3);}
 .bigstart s{text-decoration:none;display:grid;place-items:center;
-  width:34px;height:34px;border-radius:50%;background:#1a1204;color:var(--gold);font-size:15px;}
+  width:34px;height:34px;border-radius:50%;background:#2a1200;color:var(--gold);font-size:15px;}
 .bigstart:disabled{background:#1b1f27;color:var(--dim);box-shadow:none;}
 .bigstart:disabled s{background:#0d1014;color:var(--dim);}
 .bigstart:active:not(:disabled){transform:translateY(1px);}
@@ -418,11 +418,11 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 .hwave{font-size:11px;color:var(--dim);}
 .readybtn{position:absolute;right:10px;bottom:calc(58px + var(--safe-b));
   min-height:50px;padding:0 22px;border:none;
-  background:linear-gradient(180deg,#ffd970,#f0a613);color:#1a1204;
+  background:linear-gradient(180deg,#ffa347,#ef6a0c);color:#2a1200;
   font:inherit;font-size:15px;font-weight:900;letter-spacing:.06em;
   cursor:pointer;pointer-events:auto;
   clip-path:polygon(0 0,calc(100% - 13px) 0,100% 13px,100% 100%,13px 100%,0 calc(100% - 13px));
-  box-shadow:0 4px 18px rgba(255,176,32,.35);}
+  box-shadow:0 4px 18px rgba(255,138,31,.35);}
 .readybtn.danger{background:linear-gradient(180deg,#ff8095,#d63b52);color:#fff;
   box-shadow:0 4px 16px rgba(214,59,82,.35);}
 .readybtn:active{transform:translateY(1px);}
@@ -438,17 +438,24 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 /* **画面下のトレイに出すと、どの武器を触っているのか目で追えなかった。**
    盤面の武器のすぐ横に出し、はみ出すときだけ反対側へ回す */
 #upop{position:absolute;left:0;top:0;z-index:25;display:none;
-      width:190px;padding:8px 9px 9px;box-sizing:border-box;
+      width:196px;padding:0 0 9px;box-sizing:border-box;
       background:rgba(10,12,17,.95);border:1px solid var(--acc);
       clip-path:polygon(0 0,calc(100% - 11px) 0,100% 11px,100% 100%,11px 100%,0 calc(100% - 11px));
       box-shadow:0 6px 22px rgba(0,0,0,.7);backdrop-filter:blur(3px);
       pointer-events:auto;touch-action:none;}
 #upop.on{display:block;}
-#upop .usel{display:flex;flex-direction:column;line-height:1.35;margin-bottom:5px;}
+/* 取っ手。**ここだけがドラッグを受ける。** バーの操作と喧嘩させない */
+#upop .uhandle{position:relative;display:flex;flex-direction:column;line-height:1.35;
+      padding:7px 9px 6px 9px;margin-bottom:6px;cursor:grab;touch-action:none;
+      background:linear-gradient(180deg,rgba(255,138,31,.16),transparent);
+      border-bottom:1px solid var(--line);}
+#upop.drag .uhandle{cursor:grabbing;}
+#upop .ugrip{position:absolute;right:8px;top:9px;width:16px;height:9px;
+      background-image:repeating-linear-gradient(180deg,var(--line2) 0 1px,transparent 1px 4px);}
 #upop .usel b{font-size:12px;}
 #upop .usel span{font-size:10px;color:var(--txt);font-variant-numeric:tabular-nums;}
 
-#upop .ubar{display:flex;align-items:center;gap:7px;margin:3px 0;}
+#upop .ubar{display:flex;align-items:center;gap:7px;margin:3px 9px;}
 #upop .ubar span{flex:0 0 26px;font-size:10px;color:var(--dim);}
 #upop .ubar input[type=range]{flex:1 1 auto;width:100%;height:24px;margin:0;
       -webkit-appearance:none;appearance:none;background:transparent;}
@@ -457,17 +464,18 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 /* つまみは24px。**指で掴める大きさが要る** */
 #upop .ubar input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;
       width:24px;height:24px;margin-top:-10px;border-radius:50%;
-      background:var(--gold);border:2px solid #7a5406;box-shadow:0 1px 4px rgba(0,0,0,.6);}
+      background:var(--gold);border:2px solid #7a3406;box-shadow:0 1px 4px rgba(0,0,0,.6);}
 #upop .ubar input[type=range]::-moz-range-track{height:4px;background:#2b313d;}
 #upop .ubar input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;
-      background:var(--gold);border:2px solid #7a5406;}
+      background:var(--gold);border:2px solid #7a3406;}
 #upop .ubar input[type=range]:disabled{opacity:.4;}
 
-#upop .urow{display:flex;gap:5px;margin-top:7px;}
+#upop .urow{display:flex;gap:5px;margin:8px 9px 0;}
 #upop .chip{flex:1 1 0;background:#14181f;border:1.5px solid var(--line2);
       min-height:32px;padding:5px 4px;font-size:11px;font-weight:800;}
 #upop .chip.danger{border-color:var(--danger);color:#ffb7bf;}
 #upop .trayhint{display:block;margin-top:6px;font-size:10px;color:var(--dim);text-align:center;}
+#upop.drag{opacity:.9;box-shadow:0 10px 30px rgba(0,0,0,.8);}
 
 /* ============ チュートリアル ============ */
 /* **一度に1操作しか出さない。** 盤面と「準備完了」を隠さない高さに置く */
@@ -505,22 +513,22 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 .gswaphead > b{display:block;font-size:14px;color:var(--gold);margin-bottom:3px;}
 .gswaphead span{display:block;font-size:10px;color:var(--dim);line-height:1.6;}
 .gswap{display:flex;width:100%;text-align:left;align-items:center;gap:9px;padding:10px;
-  margin-bottom:7px;background:var(--panel2);border:1px solid rgba(255,176,32,.45);
+  margin-bottom:7px;background:var(--panel2);border:1px solid rgba(255,138,31,.45);
   clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));}
-.gswap:active{background:#241b0c;}
+.gswap:active{background:#2e1a08;}
 .gswap .sic{flex:0 0 32px;width:32px;height:32px;display:grid;place-items:center;
-  font-size:16px;background:#16120a;border:1px solid rgba(255,176,32,.45);}
+  font-size:16px;background:#1a1208;border:1px solid rgba(255,138,31,.45);}
 .gswap .sname{font-size:13px;font-weight:800;}
 .gswap .sname em{font-style:normal;font-size:10px;color:var(--dim);margin-left:6px;}
-.gswap .sdesc{font-size:10px;color:#e0cfa8;line-height:1.5;margin-top:2px;}
+.gswap .sdesc{font-size:10px;color:#e8c7a0;line-height:1.5;margin-top:2px;}
 .gswap .sdesc.was{color:var(--dim);text-decoration:line-through;}
 .gskip{display:block;width:100%;padding:10px;margin-top:2px;font-size:11px;color:var(--dim);
   background:transparent;border:1px dashed var(--line2);}
 .gdone{padding:22px 0;text-align:center;font-size:13px;color:var(--gold);}
 
 /* 換装済みのノード */
-.srow.swapped{border-color:rgba(255,122,24,.55);}
-.srow.swapped .sname u{text-decoration:none;font-size:9px;font-weight:900;color:#180c00;
+.srow.swapped{border-color:rgba(255,90,10,.55);}
+.srow.swapped .sname u{text-decoration:none;font-size:9px;font-weight:900;color:#200a00;
   background:var(--acc2);padding:1px 5px;margin-left:4px;vertical-align:1px;}
 
 /* ============ デッキ（枠だけ） ============ */
@@ -544,16 +552,16 @@ body.tabsoff #homeMain{flex:1 1 auto;}
   color:var(--dim);cursor:pointer;transition:transform .1s;}
 .tnode:active{transform:translate(-50%,-50%) scale(.93);}
 .tnode.have{border-color:var(--acc);color:var(--gold);
-  background:radial-gradient(circle,rgba(255,176,32,.2),#0e1116 72%);
-  box-shadow:0 0 14px rgba(255,176,32,.3);}
+  background:radial-gradient(circle,rgba(255,138,31,.2),#0e1116 72%);
+  box-shadow:0 0 14px rgba(255,138,31,.3);}
 .tnode.can{border-color:var(--gold);color:var(--gold);animation:tpulse 1.7s ease-in-out infinite;}
-@keyframes tpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,210,74,.45);}
-                  55%{box-shadow:0 0 0 7px rgba(255,210,74,0);}}
+@keyframes tpulse{0%,100%{box-shadow:0 0 0 0 rgba(255,170,50,.45);}
+                  55%{box-shadow:0 0 0 7px rgba(255,170,50,0);}}
 .tnode.locked{opacity:.32;cursor:default;}
 .tnode.swapped{border-color:var(--acc2);color:#ffb37a;}
 .tnode.sel{outline:2px solid var(--txt);outline-offset:3px;}
 .tnode u{position:absolute;bottom:-8px;text-decoration:none;font-size:9px;font-weight:900;
-  color:#1a1204;background:var(--gold);padding:0 5px;line-height:13px;border-radius:7px;}
+  color:#2a1200;background:var(--gold);padding:0 5px;line-height:13px;border-radius:7px;}
 .tnode.locked u{display:none;}
 .tnode.root{width:52px;height:52px;font-size:22px;border-color:var(--acc);color:var(--gold);}
 .tlabel{position:absolute;transform:translate(-50%,0);width:80px;text-align:center;
@@ -597,3 +605,6 @@ body:not(.tabsoff) .snav{height:44px;}
 body:not(.tabsoff) .bigstart{min-height:46px;font-size:16px;gap:10px;}
 body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 
+
+/* 調整パネルを出しているあいだ、チュートリアルの帯は上へ逃がす */
+#stage.popopen #tut{top:calc(96px + env(safe-area-inset-top,0px));bottom:auto;}

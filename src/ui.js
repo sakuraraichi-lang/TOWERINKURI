@@ -147,9 +147,6 @@ const UI = {
     }
     if (!document.body.classList.contains('on-battle')) return;
 
-    // なぞって視点を動かしても、調整バーは武器についていく
-    if (this.selected) this.placeUnitPop();
-
     this._sk = (this._sk || 0) + 1;
     if (this._sk % 12 === 0) this.refreshSkills();
     if (!r) return;
@@ -210,22 +207,32 @@ const UI = {
         : this.placingType ? '光っている地面をタップ' : 'ユニットを選んで配置／置いたものをタップで調整'));
   },
 
-  // 選んだ武器の調整を、**その武器のすぐ横に**出す。
-  // 画面下だと、どれを触っているのか目で追えなかった
+  // 選んだ武器の調整。
+  // **武器の横には出さない。** 武器そのものと射界に被って、いじりたい対象が隠れていた。
+  // 決まった場所に出して、掴んで好きなところへ動かせるようにする
   renderUnitPop() {
     const p = this.el.upop;
     if (!p) return;
     const u = this.selected;
-    if (!u || !Game.run || Game.run.over) { p.classList.remove('on'); p.innerHTML = ''; return; }
+    if (!u || !Game.run || Game.run.over) {
+      p.classList.remove('on'); p.innerHTML = '';
+      this.el.stage.classList.remove('popopen');
+      return;
+    }
     const build = Game.canBuild();
 
     p.innerHTML = '';
     p.classList.add('on');
+    // 調整パネルが出ているあいだ、チュートリアルの帯は上に逃がす（重なるため）
+    this.el.stage.classList.add('popopen');
 
-    const info = Util.el('div', 'usel');
-    info.innerHTML = '<b style="color:' + u.def.color + '">' + u.def.name + '</b>' +
+    // 掴んで動かす取っ手。ここだけがドラッグを受ける
+    const info = Util.el('div', 'usel uhandle');
+    info.innerHTML = '<i class="ugrip"></i>' +
+      '<b style="color:' + u.def.color + '">' + u.def.name + '</b>' +
       '<span id="uInfo">射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) +
       '°　集弾 ' + Math.round(Game.groupingOf(u) * 100) + '%</span>';
+    this.bindPopDrag(info);
     p.appendChild(info);
 
     // **向きも射界もバーで決める。**なぞって向けるのはスマホでうまく効かなかった
@@ -278,22 +285,56 @@ const UI = {
     this.placeUnitPop();
   },
 
-  // 武器の横に置く。**画面からはみ出すときは反対側へ回す**
+  // 決まった場所に置く。**武器には寄せない。**
+  //   既定は左下（盤面の手前側）。「準備完了」と操作列を避ける高さ。
+  //   一度動かしたらその位置を覚え、次に開いたときも同じところに出る
   placeUnitPop() {
     const p = this.el.upop;
-    const u = this.selected;
-    if (!p || !u || !p.classList.contains('on')) return;
+    if (!p || !p.classList.contains('on')) return;
     const host = this.el.stage.getBoundingClientRect();
-    const at = Render.toClient(u.x, u.y);
-    const w = p.offsetWidth || 190, h = p.offsetHeight || 150;
-    const gap = TILE * Render.scale * 0.7;
+    const w = p.offsetWidth || 196, h = p.offsetHeight || 158;
+    const pos = Game.perm && Game.perm.upop;
 
-    let x = at.x - host.left + gap;
-    if (x + w > host.width - 6) x = at.x - host.left - gap - w;
-    let y = at.y - host.top - h / 2;
-
+    let x, y;
+    if (pos && Number.isFinite(pos.x) && Number.isFinite(pos.y)) {
+      x = pos.x; y = pos.y;
+    } else {
+      x = 10;
+      y = host.height - h - 122;      // 操作列とチュートリアル帯の上
+    }
     p.style.left = Util.clamp(x, 6, Math.max(6, host.width - w - 6)) + 'px';
     p.style.top = Util.clamp(y, 6, Math.max(6, host.height - h - 6)) + 'px';
+  },
+
+  // 取っ手を掴んで動かす。指を離したところを覚える
+  bindPopDrag(handle) {
+    const p = this.el.upop;
+    let st = null;
+    handle.addEventListener('pointerdown', (e) => {
+      const host = this.el.stage.getBoundingClientRect();
+      st = { px: e.clientX, py: e.clientY, x: p.offsetLeft, y: p.offsetTop, host };
+      handle.setPointerCapture(e.pointerId);
+      p.classList.add('drag');
+      e.preventDefault();
+    });
+    handle.addEventListener('pointermove', (e) => {
+      if (!st) return;
+      const w = p.offsetWidth, h = p.offsetHeight;
+      const x = Util.clamp(st.x + (e.clientX - st.px), 6, Math.max(6, st.host.width - w - 6));
+      const y = Util.clamp(st.y + (e.clientY - st.py), 6, Math.max(6, st.host.height - h - 6));
+      p.style.left = x + 'px';
+      p.style.top = y + 'px';
+      e.preventDefault();
+    });
+    const end = () => {
+      if (!st) return;
+      st = null;
+      p.classList.remove('drag');
+      Game.perm.upop = { x: p.offsetLeft, y: p.offsetTop };
+      Game.save();
+    };
+    handle.addEventListener('pointerup', end);
+    handle.addEventListener('pointercancel', end);
   },
 
   // ============ チュートリアル ============
@@ -302,7 +343,7 @@ const UI = {
   TUT: [
     { t: '左上の武器をひとつ選ぶ',      s: 'GAT はガトリング、SNP はスナイパー' },
     { t: '光っている地面をタップして置く', s: '置けるのは地面（壁）の上だけ' },
-    { t: '武器の横のバーで、向きを敵のほうへ', s: '射界を広げると守備範囲が増え、集弾が落ちる' },
+    { t: '調整パネルのバーで、向きを敵のほうへ', s: 'パネルは上をつまんで好きな場所へ動かせる' },
     { t: '右下の「準備完了」で始まる',    s: '置き直しはウェーブの合間にできる' },
     { t: 'あとは眺めるだけ',            s: '倒すと ◈ が増える。負けても持ち帰れる' },
   ],
@@ -416,7 +457,7 @@ const UI = {
           UI.pick = STAGES.findIndex(x => x.id === s.id);
           Game.save();
           this.renderHome();
-          this.toastMsg(s.name + ' を選択', '#ffb020');
+          this.toastMsg(s.name + ' を選択', '#ff8a1f');
         });
         row.appendChild(b);
       }
@@ -433,7 +474,7 @@ const UI = {
         let col = null;
         if (ch === '#') col = '#3b3527';        // 置ける地面（壁）
         else if (ch === 'S') col = '#ff5566';   // 出現口
-        else if (ch === 'C') col = '#ffc93c';   // コア
+        else if (ch === 'C') col = '#ffa32e';   // コア
         else if (ch === '.') col = '#0c0e13';   // 通路
         if (col) out += '<rect x="' + c + '" y="' + r + '" width="1" height="1" fill="' + col + '"/>';
       }
@@ -504,7 +545,7 @@ const UI = {
     const dots = [];
     branches.forEach((b, gi) => {
       const x = gi * COL + COL / 2;
-      const col = b.cat ? CATEGORIES[b.cat].color : '#ffb020';
+      const col = b.cat ? CATEGORIES[b.cat].color : '#ff8a1f';
       const lit = b.nodes.some(s => Skill.lv(Game.meta, s.id) > 0);
       const o = lit ? .85 : .25;
       // 幹から枝へ。**曲げて描くと、どこから分かれたのかが目で追える**
@@ -891,8 +932,8 @@ const UI = {
       row.appendChild(this.cardEl(c, { reveal: true, isNew: isNew[i] }));
       // **武器本体は別格。** 派手に光らせて、出たことが分かるようにする
       if (c.kind === 'weapon' && isNew[i]) {
-        this.burst(WEAPONS[c.weapon] ? WEAPONS[c.weapon].color : '#ffd24a');
-        this.toastMsg('新しい武器 ' + c.name, '#ffd24a');
+        this.burst(WEAPONS[c.weapon] ? WEAPONS[c.weapon].color : '#ffb43c');
+        this.toastMsg('新しい武器 ' + c.name, '#ffb43c');
       } else if (BAL.rarity[c.rarity].glow >= 2) {
         this.burst(BAL.rarity[c.rarity].color);
       }
@@ -1198,7 +1239,7 @@ const UI = {
         body.appendChild(Util.el('div', 'reward', '🏆 1体も通さなかった。' +
           PACKS[Pack.forStage(res.stage.id)].name + 'を獲得' +
           (res.stageGot && res.stageGot.firstPerfect ? '（初回なので2個）' : '')));
-        this.burst('#ffb020');
+        this.burst('#ff8a1f');
       } else if (res.perfect) {
         body.appendChild(Util.el('div', 'reward', '🏆 1体も通さなかった（実験用なので報酬は無し）'));
       } else {
@@ -1209,7 +1250,7 @@ const UI = {
         const row = Util.el('div', 'popenrow');
         for (const cid of res.stageGot.cards) row.appendChild(this.cardEl(CARDS[cid], { reveal: true, isNew: true }));
         body.appendChild(row);
-        this.burst('#ffb020');
+        this.burst('#ff8a1f');
       }
       const pk = res.stageGot ? Object.entries(res.stageGot.packs).map(([k, v]) => PACKS[k].name + ' ×' + v).join(' / ') : '';
       if (pk) body.appendChild(Util.el('div', 'reward', '🎁 ' + pk));

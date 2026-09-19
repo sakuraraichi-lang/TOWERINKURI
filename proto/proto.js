@@ -231,7 +231,7 @@ function crowdBucket(dt) {
 // ===== 武器 =====
 // arc = 扇の半角(rad)。**狭いほど集弾が上がり、広いほど守備範囲が増える**
 const WEAPONS = {
-  gatling: { name: 'ガトリング', color: '#ffd24a', range: 108, rate: 13, dmg: 7,
+  gatling: { name: 'ガトリング', color: '#ffb43c', range: 108, rate: 13, dmg: 7,
     speed: 380, pierce: 0, kind: 'bullet', arc: 0.45, arcMin: 0.10, arcMax: 1.20 },
   sniper:  { name: 'スナイパー', color: '#6fe3ff', range: 250, rate: 0.9, dmg: 34,
     speed: 0, pierce: 99, kind: 'beam', arc: 0.22, arcMin: 0.06, arcMax: 0.90 },
@@ -544,7 +544,7 @@ function draw() {
     ctx.fillStyle = 'rgba(4,8,13,.55)';
     ctx.fillRect(0, 0, FW, FH);
     const sp = spots();
-    ctx.fillStyle = 'rgba(255,210,74,' + (0.16 + 0.07 * Math.sin(S.t * 5)).toFixed(3) + ')';
+    ctx.fillStyle = 'rgba(255,170,50,' + (0.16 + 0.07 * Math.sin(S.t * 5)).toFixed(3) + ')';
     for (let i = 0; i < sp.length; i += 2) {
       const x = sp[i], y = sp[i + 1];
       if (x < L || x > R || y < T || y > B) continue;
@@ -578,9 +578,9 @@ function draw() {
     }
   }
 
-  ctx.strokeStyle = '#ffc93c'; ctx.lineWidth = 2;
+  ctx.strokeStyle = '#ffa32e'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(CORE.x, CORE.y, CORE.r + Math.sin(S.t * 2) * 1.5, 0, 7); ctx.stroke();
-  ctx.fillStyle = 'rgba(255,176,32,.18)'; ctx.fill();
+  ctx.fillStyle = 'rgba(255,138,31,.18)'; ctx.fill();
 
   for (const e of S.enemies) {
     if (e.x < L || e.x > R || e.y < T || e.y > B) continue;
@@ -614,7 +614,7 @@ function draw() {
     if (u.flash > 0) { ctx.fillStyle = 'rgba(255,240,180,.9)'; ctx.beginPath(); ctx.arc(13, 0, 4, 0, 7); ctx.fill(); }
     ctx.restore();
     if (on) {
-      ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2;
+      ctx.strokeStyle = '#ffb43c'; ctx.lineWidth = 2;
       ctx.beginPath(); ctx.arc(u.x, u.y, 15 + Math.sin(S.t * 6) * 1.2, 0, 7); ctx.stroke();
     }
   }
@@ -628,7 +628,7 @@ function draw() {
   for (const c of S.coins) {
     const k = c.t / c.life, ex = cam.x + 26, ey = cam.y + 14;
     const x = c.x + (ex - c.x) * k * k, y = c.y + (ey - c.y) * k * k;
-    ctx.fillStyle = 'rgba(255,210,74,' + (1 - k * 0.7).toFixed(2) + ')';
+    ctx.fillStyle = 'rgba(255,170,50,' + (1 - k * 0.7).toFixed(2) + ')';
     ctx.beginPath(); ctx.arc(x, y, 2.6, 0, 7); ctx.fill();
   }
   ctx.restore();
@@ -638,7 +638,7 @@ function draw() {
     const mw = 40, mh = mw * FH / FW, mx = cam.w - mw - 8, my = 8;
     ctx.fillStyle = 'rgba(8,13,20,.6)'; ctx.fillRect(mx, my, mw, mh);
     ctx.strokeStyle = 'rgba(255,255,255,.22)'; ctx.lineWidth = 1; ctx.strokeRect(mx, my, mw, mh);
-    ctx.strokeStyle = '#ffd24a';
+    ctx.strokeStyle = '#ffb43c';
     ctx.strokeRect(mx + cam.x / FW * mw, my + cam.y / FH * mh, cam.w / FW * mw, cam.h / FH * mh);
   }
 }

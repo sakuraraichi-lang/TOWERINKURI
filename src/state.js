@@ -21,8 +21,11 @@ const Game = {
   phase: 'prep',        // prep / battle / over
   paused: false,
   speed: 1,
-  showHeat: true,       // 通行量ヒートマップを出すか
-  showLeak: true,       // 漏れたルートを出すか
+  // **敵のルートと溜まり場はプレイヤーに開示しない。**
+  // 予測を配るより、盤面が見やすいことを優先する。
+  // 記録自体は続ける（測定器がこれを読む）
+  showHeat: false,
+  showLeak: false,
 
   // ---------- セーブ ----------
   newSave() {
@@ -46,6 +49,8 @@ const Game = {
       tut: 0,
       // 換装。baseId -> swapId。パックの3択で入れ替えたスキル
       swaps: {},
+      // 武器の調整ポップアップを置いた場所（プレイヤーが動かせる）
+      upop: null,
     };
     this.meta = { coins: 0, skills: {} };
   },
