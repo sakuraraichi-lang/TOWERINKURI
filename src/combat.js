@@ -269,6 +269,7 @@ const Combat = {
       src: w, wid: w.id,
       range: s.range * 1.35,
       ox: w.x, oy: w.y,
+      hits: 0,                       // 何体を貫いたか。軌跡の太さになる
       target: null,
     });
   },
@@ -718,13 +719,21 @@ const Combat = {
           break;
         }
 
+        b.hits++;
         if (b.pierce > 0) {
           b.pierce--;
           if (!b.hit) b.hit = new Set();
           b.hit.add(e);
         } else { consumed = true; break; }
       }
-      if (consumed) run.bullets.splice(i, 1);
+      if (consumed) {
+        // **貫通したことを見せる。** カウンタを減らすだけでは何も伝わらない
+        if (b.long && b.hits > 0 && run.fx.length < 150) {
+          this.fx(run, { type: 'trail', x1: b.ox, y1: b.oy, x2: b.x, y2: b.y,
+                         n: b.hits, color: b.color, life: 0.22 });
+        }
+        run.bullets.splice(i, 1);
+      }
     }
 
     // --- 演出 ---

@@ -430,6 +430,14 @@ const Render = {
           ctx.quadraticCurveTo(mx, my, f.e.x, f.e.y);
           ctx.stroke();
         }
+      } else if (f.type === 'trail') {
+        // 貫通の軌跡。**当たった数だけ太くなる**ので、何体抜いたかが見える
+        ctx.globalAlpha = (1 - k) * 0.9;
+        ctx.strokeStyle = f.color;
+        ctx.lineWidth = 1.2 + Math.min(f.n, 8) * 0.7;
+        ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y2); ctx.stroke();
+        ctx.lineCap = 'butt';
       } else if (f.type === 'bolt') {
         ctx.globalAlpha = 1 - k;
         ctx.save();

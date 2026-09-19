@@ -87,9 +87,12 @@ const WEAPONS = {
 
   sniper: {
     id: 'sniper', stock: 2, cat: 'long', name: 'スナイパー', short: 'SNP', color: '#6fe3ff', src: 'start',
-    desc: '長射程・高威力の単発。最も硬い敵を撃ち抜く。',
-    target: 'strongest',
-    base: baseStats({ arc: 0.16, dmg: 34, rate: 0.78, range: 430, spread: 0.012, speed: 1500, pierce: 1, bulletR: 4, turn: 3.5 }),
+    // **貫通役。** 並んだ敵を撃ち抜くのが仕事なので、狙うのは「敵が濃いほう」。
+    // 以前は最も硬い敵（＝たいてい後方のタンク）を狙っていて、
+    // 1.28秒に1発しかないのに目の前の群れを素通りしていた
+    desc: '長射程・高威力の単発。並んだ敵を撃ち抜く。',
+    target: 'dense',
+    base: baseStats({ arc: 0.16, dmg: 34, rate: 0.78, range: 430, spread: 0.012, speed: 1500, pierce: 3, bulletR: 4, turn: 3.5 }),
     fire(w, run) {
       for (let i = 0; i < w.s.count; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (i === 0 ? 1 : w.s.count);
