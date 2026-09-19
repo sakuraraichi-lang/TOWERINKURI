@@ -37,6 +37,7 @@ const UI = {
     this.el.tabs.addEventListener('click', (e) => {
       const b = e.target.closest('[data-tab]');
       if (!b) return;
+      Snd.resume(); Snd.ui();
       if (!Game.tabOpen(b.dataset.tab)) {
         this.toastMsg(this.lockWhy(b.dataset.tab), '#ff8080');
         return;
@@ -302,9 +303,10 @@ const UI = {
       this.tutAimed = true;
       Game.save();
     }));
-    const arcPct = Math.round((u.arc - BAL.arcMin) / (BAL.arcMax - BAL.arcMin) * 100);
+    const ar = Game.arcRange(u.def);
+    const arcPct = Math.round((u.arc - ar.min) / Math.max(0.001, ar.max - ar.min) * 100);
     p.appendChild(bar('射界', 0, 100, arcPct, (v) => {
-      const want = BAL.arcMin + (BAL.arcMax - BAL.arcMin) * (v / 100);
+      const want = ar.min + (ar.max - ar.min) * (v / 100);
       Game.setArc(u, want - u.arc);
       this.tutAimed = true;
       const el = document.getElementById('uInfo');
@@ -1021,6 +1023,7 @@ const UI = {
 
     // ---- ① 封を切る ----
     const unseal = () => {
+      Snd.pack();
       seal.remove();
       stage.appendChild(row);
       this.burst(pk.color);

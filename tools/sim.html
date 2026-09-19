@@ -50,6 +50,7 @@
 <script src="../src/packs.js"></script>
 <script src="../src/state.js"></script>
 <script src="../src/draft.js"></script>
+<script src="../src/audio.js"></script>
 <script src="../src/combat.js"></script>
 <script>
 // 【重要】計測は localStorage に一切書かない。
@@ -171,7 +172,7 @@ function arcCandidates() {
 }
 
 // 近似評価：その地点・その向きで、幅ごとの「通路の重み × 集弾率」
-function arcScores(st, c, r, face, range) {
+function arcScores(st, c, r, face, range, _arcDef) {
   const g = st.center(c, r);
   const seen = [];
   let maxD = 1;
@@ -197,7 +198,7 @@ function arcScores(st, c, r, face, range) {
     let cover = 0;
     for (const t of seen) if (t.da <= arc) cover += t.w;
     // 集弾率は本体と同じ式を使う（ui.js/state.js の groupingOf）
-    const grouping = Game.groupingOf({ arc });
+    const grouping = Game.groupingOf({ arc, def: _arcDef });
     return { arc, cover: +cover.toFixed(2), grouping: +grouping.toFixed(3),
              score: +(cover * grouping).toFixed(2) };
   });
@@ -207,10 +208,11 @@ function arcScores(st, c, r, face, range) {
 function applyArc(u, st) {
   if (ARC_MODE === 'base') return u.arc;
   let want;
-  if (ARC_MODE === 'min') want = BAL.arcMin;
-  else if (ARC_MODE === 'max') want = BAL.arcMax;
+  const _ar = Game.arcRange(u.def);
+  if (ARC_MODE === 'min') want = _ar.min;
+  else if (ARC_MODE === 'max') want = _ar.max;
   else {
-    const rows = arcScores(st, u.c, u.r, u.face, u.s.range);
+    const rows = arcScores(st, u.c, u.r, u.face, u.s.range, u.def);
     want = rows.reduce((a, b) => (b.score > a.score ? b : a), rows[0]).arc;
   }
   Game.setArc(u, want - u.arc);

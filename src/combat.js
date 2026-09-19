@@ -215,6 +215,7 @@ const Combat = {
     e.dead = true;
     run.kills++;
     Game.perm.totalKills++;
+    Snd.kill(e.boss);
 
     const coin = e.coin * run.coinMul * run.mods.coin;
     Game.meta.coins += coin;
@@ -246,6 +247,7 @@ const Combat = {
 
   // ================= 攻撃のかたち =================
   spawnBullet(w, run, angle, o) {
+    Snd.shot(w.id);
     if (run.bullets.length > 1200) run.bullets.shift();
     o = o || {};
     const s = w.s;
@@ -330,6 +332,7 @@ const Combat = {
   },
 
   pulse(w, run, range, dmg, opts) {
+    Snd.shot(w.id);
     dmg *= (w.group !== undefined ? w.group : 1);   // 即着系は出力が散るぶん1体あたりが落ちる
     const near = Grid.query(w.x, w.y, range + 20, _q);
     for (const e of near) {
@@ -568,6 +571,7 @@ const Combat = {
         run.lives -= cost;
         run.leaked++;
         run.livesLost += cost;
+        Snd.leak();
         // 何に抜けられたか。死因を「どの敵に負けたか」まで残す
         const tn = e.boss ? 'boss' : (e.tname || 'grunt');
         run.leakBy[tn] = (run.leakBy[tn] || 0) + 1;

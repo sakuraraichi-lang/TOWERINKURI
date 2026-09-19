@@ -53,6 +53,7 @@ const Game = {
       upop: null,
       // 処理の重さを出すか（実機で敵数の上限を測るため）
       perf: false,
+      mute: false,        // 音を止めているか
       // スキップの解放と、スキップで配るものの根拠。**転生でも消えない**
       clears: {},      // stageId -> 通算の突破回数
       bestCoins: {},   // stageId -> 手で突破したときの最高コイン
@@ -385,16 +386,30 @@ const Game = {
     return true;
   },
 
+  // 絞れる幅は**武器ごとに違う**。
+  //   扇は「首振り扇風機」で、その範囲をずっと撫で続けるもの。
+  //   だから全部の武器が同じ幅に広げられると、常に広げたほうが得になってしまう。
+  //   スナイパーはほぼ直線まで絞れて貫通を活かす。火炎放射器は絞れず広く焼く
+  arcRange(def) {
+    return {
+      min: (def && def.arcMin !== undefined) ? def.arcMin : BAL.arcMin,
+      max: (def && def.arcMax !== undefined) ? def.arcMax : BAL.arcMax,
+    };
+  },
+
   setArc(u, delta) {
     if (!this.canBuild()) return false;
-    u.arc = Util.clamp(u.arc + delta, BAL.arcMin, BAL.arcMax);
+    const r = this.arcRange(u.def);
+    u.arc = Util.clamp(u.arc + delta, r.min, r.max);
     this.syncPlacements();
     return true;
   },
 
-  // 扇の広さから集弾率を出す。狭く絞るほど弾がまとまる
+  // 扇の広さから集弾率を出す。**その武器が絞れる幅の中で**どれだけ絞れているか
   groupingOf(u) {
-    const t = Util.clamp((u.arc - BAL.arcMin) / (BAL.arcMax - BAL.arcMin), 0, 1);
+    const r = this.arcRange(u.def);
+    const span = Math.max(0.001, r.max - r.min);
+    const t = Util.clamp((u.arc - r.min) / span, 0, 1);
     return 1 - t * BAL.spreadPenalty;
   },
 

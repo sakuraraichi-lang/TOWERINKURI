@@ -32,6 +32,15 @@ const Main = {
       if (Game.run && Game.run.phase === 'build') { this.nextWave(); return; }
       this.retreat();
     });
+    const bm = document.getElementById('btnMute');
+    if (bm) {
+      bm.textContent = Game.perm.mute ? '🔇' : '🔊';
+      bm.addEventListener('click', (e) => {
+        Snd.resume();
+        Snd.setMute(!Game.perm.mute);
+        e.currentTarget.textContent = Game.perm.mute ? '🔇' : '🔊';
+      });
+    }
     document.getElementById('btnPause').addEventListener('click', (e) => {
       Game.paused = !Game.paused;
       e.currentTarget.textContent = Game.paused ? '▶' : '❙❙';
@@ -80,6 +89,7 @@ const Main = {
 
   // ---------- ホームへ ----------
   toHome() {
+    Snd.bgmStop();
     UI.placingType = null; UI.selected = null; UI.moving = null;
     Game.paused = false;
     UI.setScreen('home');
@@ -110,6 +120,7 @@ const Main = {
       return;
     }
     Game.beginBattle();
+    Snd.resume(); Snd.waveStart(); Snd.bgmStart();
     UI.renderTray();
     UI.renderPanel();
     this.syncStartButton();
@@ -154,7 +165,7 @@ const Main = {
       if (!run) return null;
       return run.units.find(u => u.c === c && u.r === r) || null;
     };
-    const no = (msg) => UI.toastMsg(msg, '#ff8080');
+    const no = (msg) => { Snd.deny(); UI.toastMsg(msg, '#ff8080'); };
 
     // なぞった量。**9px以上動いたらタップではなく「見る場所を動かした」と見なす**
     let down = null;
@@ -189,6 +200,7 @@ const Main = {
         if (onTile) { no('そこには別のユニットがいます'); return; }
         if (!run.stage.buildable(t.c, t.r)) { no('地面にしか置けません'); return; }
         Game.moveUnit(UI.moving, t.c, t.r);
+        Snd.place();
         UI.moving = null;
         Game.save();
         UI.renderTray();
@@ -202,6 +214,7 @@ const Main = {
         if (!run.stage.buildable(t.c, t.r)) { no('地面にしか置けません'); return; }
         const u = Game.placeUnit(UI.placingType, t.c, t.r);
         if (!u) { no('そこには置けません'); return; }
+        Snd.place();
         Game.save();
         UI.selected = u;
         UI.placingType = null;
@@ -235,6 +248,7 @@ const Main = {
 
   nextWave() {
     Game.startNextWave();
+    Snd.waveStart();
     UI.placingType = null;
     UI.selected = null;
     UI.renderTray();
@@ -254,12 +268,13 @@ const Main = {
     if (run && Game.phase === 'battle' && !run.over && !Game.paused && !UI.draftOpen) {
       for (let i = 0; i < Game.speed; i++) {
         const sig = Combat.update(run, dt);
-        if (sig === 'dead') { this.finish(false); break; }
-        if (sig === 'stageclear') { this.finish(true); break; }
+        if (sig === 'dead') { Snd.dead(); this.finish(false); break; }
+        if (sig === 'stageclear') { Snd.stageClear(); this.finish(true); break; }
         if (sig === 'waveclear') {
           // ウェーブを1つ凌ぐごとにカードを引ける。そのままビルドフェーズで止まる
           run.lives = Math.min(run.livesMax, run.lives + run.mods.regen);
           run.pendingPicks += run.mods.picks;
+          Snd.waveClear();
           UI.toastMsg('ウェーブ ' + run.wave + ' 突破', '#7ee3a0');
           UI.renderTray();
           break;
