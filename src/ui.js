@@ -674,18 +674,34 @@ const UI = {
   },
 
   // ================= 結果 =================
+  // 「完璧クリアすると何がもらえるか」を名指しで出す。
+  // パックは分野で分かれているので、分野名まで言わないと狙う理由にならない
+  perfectHint(stage, leaked) {
+    const rec = Game.stageRec(stage.id);
+    const pk = PACKS[Pack.forStage(stage.id)];
+    const n = rec.perfect ? 1 : 2;
+    const el = Util.el('div', 'note');
+    el.innerHTML = '1体も通さずに凌ぐと<b>完璧クリア</b>。<b style="color:' + pk.color + '">' +
+      pk.name + ' ×' + n + '</b> が手に入る' +
+      (rec.perfect ? '' : '（このステージ初の完璧クリアなので2個）') + '。<br>' +
+      '<span class="dim">' + pk.desc + '</span>' +
+      (leaked > 0 ? '<br>今回は <b>' + Util.fmt(leaked) + '</b> 体通した。' +
+        '盤面の赤い枠が抜けられたルート。' : '');
+    return el;
+  },
+
   showResult(res) {
     const body = Util.el('div');
     if (res.ok) {
       body.appendChild(Util.el('h3', null,
         res.perfect ? '★★ ' + res.stage.name + ' 完璧クリア！' : '★ ' + res.stage.name + ' 突破！'));
       if (res.perfect) {
-        body.appendChild(Util.el('div', 'reward', '🏆 1体も通さなかった。カードパックを獲得'));
+        body.appendChild(Util.el('div', 'reward', '🏆 1体も通さなかった。' +
+          PACKS[Pack.forStage(res.stage.id)].name + 'を獲得' +
+          (res.stageGot && res.stageGot.firstPerfect ? '（初回なので2個）' : '')));
         this.burst('#ffb020');
       } else {
-        body.appendChild(Util.el('div', 'note',
-          '1体も通さずに凌ぐと「完璧クリア」になり、カードパックが手に入る（今回は ' +
-          Util.fmt(res.leaked) + ' 体通した）'));
+        body.appendChild(this.perfectHint(res.stage, res.leaked));
       }
       if (res.stageGot && res.stageGot.first && res.stageGot.cards.length) {
         body.appendChild(Util.el('div', 'sgroup', '新しい武器カードを獲得'));
@@ -698,6 +714,7 @@ const UI = {
       if (pk) body.appendChild(Util.el('div', 'reward', '🎁 ' + pk));
     } else {
       body.appendChild(Util.el('h3', null, '防衛線が抜かれた'));
+      body.appendChild(this.perfectHint(res.stage, res.leaked));
     }
 
     const st = Util.el('div', 'stats');
@@ -710,10 +727,6 @@ const UI = {
       '<div><span>通した敵</span><b>' + Util.fmt(res.leaked) + '</b></div>';
     body.appendChild(st);
 
-    if (res.leaked > 0) {
-      body.appendChild(Util.el('div', 'warn',
-        '敵 ' + Util.fmt(res.leaked) + ' 体に抜けられました。盤面の赤い枠が、抜けられたルートです。'));
-    }
     if (res.missions && res.missions.length) {
       body.appendChild(Util.el('div', 'sgroup', 'ミッション達成'));
       for (const m of res.missions) body.appendChild(Util.el('div', 'note', '✔ ' + m.name));

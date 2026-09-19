@@ -107,6 +107,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .slot.filled{border-style:solid;}
 .sw{font-size:17px;font-weight:900;letter-spacing:.04em;}
 .sw.dim,.sn.dim{color:var(--dim);}
+.note .dim{color:var(--dim);}
 .sn{font-size:11.5px;margin-top:3px;font-weight:700;}
 .sx{font-size:9.5px;color:var(--dim);margin-top:3px;}
 .synbox{margin-top:12px;}
