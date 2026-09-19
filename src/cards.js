@@ -25,16 +25,16 @@ const CARDS = {
   // ============ 武器カード ============
   wc_gatling:  C({ id: 'wc_gatling',  kind: 'weapon', weapon: 'gatling',  rarity: 'common', name: 'ガトリング砲',   desc: '編成枠に装備。毎秒大量の小口径弾。' }),
   wc_sniper:   C({ id: 'wc_sniper',   kind: 'weapon', weapon: 'sniper',   rarity: 'common', name: '狙撃タレット',   desc: '編成枠に装備。長射程・高威力の単発。' }),
-  wc_missile:  C({ id: 'wc_missile',  kind: 'weapon', weapon: 'missile',  rarity: 'rare',   name: 'ミサイルポッド', desc: '編成枠に装備。誘導して着弾時に爆発。' }),
-  wc_tesla:    C({ id: 'wc_tesla',    kind: 'weapon', weapon: 'tesla',    rarity: 'rare',   name: 'テスラコイル',   desc: '編成枠に装備。即着の連鎖電撃。' }),
+  wc_missile:  C({ id: 'wc_missile',  kind: 'weapon', weapon: 'missile',  rarity: 'rare',   name: 'ミサイルポッド', desc: '編成枠に装備。指した一点へ誘導弾を撃ち込み続ける。' }),
+  wc_tesla:    C({ id: 'wc_tesla',    kind: 'weapon', weapon: 'tesla',    rarity: 'rare',   name: 'テスラコイル',   desc: '編成枠に装備。砲身の先へ即着の連鎖電撃。' }),
   wc_flame:    C({ id: 'wc_flame',    kind: 'weapon', weapon: 'flame',    rarity: 'epic',   name: '火炎放射器',     desc: '編成枠に装備。扇状に炎を吹き、燃焼を残す。' }),
-  wc_gas:      C({ id: 'wc_gas',      kind: 'weapon', weapon: 'gas',      rarity: 'epic',   name: '毒ガス散布機',   desc: '編成枠に装備。通路に毒の雲を撒く。' }),
+  wc_gas:      C({ id: 'wc_gas',      kind: 'weapon', weapon: 'gas',      rarity: 'epic',   name: '毒ガス散布機',   desc: '編成枠に装備。砲身の先へ毒の雲を撒き続ける。' }),
   wc_cryo:     C({ id: 'wc_cryo',     kind: 'weapon', weapon: 'cryo',     rarity: 'legendary', name: '凍結装置',    desc: '編成枠に装備。周囲へ冷気を放ち、敵を鈍らせる。' }),
-  wc_mortar:   C({ id: 'wc_mortar',   kind: 'weapon', weapon: 'mortar',   rarity: 'rare',   name: '迫撃砲',         desc: '編成枠に装備。敵が最も密集した一点へ撃ち込む。' }),
+  wc_mortar:   C({ id: 'wc_mortar',   kind: 'weapon', weapon: 'mortar',   rarity: 'rare',   name: '迫撃砲',         desc: '編成枠に装備。指した一点へ砲弾を撃ち込み続ける。' }),
   wc_katana:   C({ id: 'wc_katana',   kind: 'weapon', weapon: 'katana',   rarity: 'rare',   name: '刀',             desc: '編成枠に装備。間合いの敵をまとめて斬る。' }),
   wc_shuriken: C({ id: 'wc_shuriken', kind: 'weapon', weapon: 'shuriken', rarity: 'rare',   name: '手裏剣',         desc: '編成枠に装備。敵から敵へ跳ね回る。' }),
-  wc_tentacle: C({ id: 'wc_tentacle', kind: 'weapon', weapon: 'tentacle', rarity: 'epic',   name: '触手',           desc: '編成枠に装備。敵を掴んで来た道へ引き戻す。' }),
-  wc_bubble:   C({ id: 'wc_bubble',   kind: 'weapon', weapon: 'bubble',   rarity: 'epic',   name: '泡',             desc: '編成枠に装備。敵を泡に閉じ込める。' }),
+  wc_tentacle: C({ id: 'wc_tentacle', kind: 'weapon', weapon: 'tentacle', rarity: 'epic',   name: '触手',           desc: '編成枠に装備。砲身の先の敵を掴んで来た道へ引き戻す。' }),
+  wc_bubble:   C({ id: 'wc_bubble',   kind: 'weapon', weapon: 'bubble',   rarity: 'epic',   name: '泡',             desc: '編成枠に装備。指した一点へ泡を撃ち続け、敵を閉じ込める。' }),
 
   // ============ ガトリング ============
   gat_belt: C({ id: 'gat_belt', kind: 'mod', weapon: 'gatling', rarity: 'common', maxStack: 5,
