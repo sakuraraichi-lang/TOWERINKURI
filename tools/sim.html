@@ -964,7 +964,7 @@ document.getElementById('runBuilds').addEventListener('click', () => {
       const m = Skill.mods(Game.meta, Game.perm);
       const lv = SKILLS.reduce((a, x) => a + Skill.lv(Game.meta, x.id), 0);
       html += '<tr><td>' + name + '</td>' +
-        '<td class="' + (reached === STAGES.length ? 'ok' : 'ng') + '">' + reached + ' / ' + STAGES.length + '</td>' +
+        '<td class="' + (reached === MAIN_STAGES.length ? 'ok' : 'ng') + '">' + reached + ' / ' + MAIN_STAGES.length + '</td>' +
         '<td>' + tries.join(' , ') + '</td>' +
         '<td>' + lv + ' / ×' + m.cat.mid.dmg.toFixed(1) + ' / ×' + m.cat.long.dmg.toFixed(1) + '</td></tr>';
     }
