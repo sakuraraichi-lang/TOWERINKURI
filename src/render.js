@@ -430,6 +430,16 @@ const Render = {
           ctx.quadraticCurveTo(mx, my, f.e.x, f.e.y);
           ctx.stroke();
         }
+      } else if (f.type === 'coin') {
+        // 撃破した場所から、画面上のコイン表示のほうへ飛ばす
+        const st = this.stage;
+        const ex = st.w - 26, ey = 18;
+        const q = k * k;                       // 最初ゆっくり、あとで速く
+        const x = f.x + (ex - f.x) * q, y = f.y + (ey - f.y) * q - Math.sin(k * Math.PI) * 14;
+        ctx.globalAlpha = 1 - k * 0.55;
+        ctx.fillStyle = '#ffd24a';
+        ctx.beginPath(); ctx.arc(x, y, f.big ? 5 : 2.8, 0, 7); ctx.fill();
+        ctx.globalAlpha = 1;
       } else if (f.type === 'trail') {
         // 貫通の軌跡。**当たった数だけ太くなる**ので、何体抜いたかが見える
         ctx.globalAlpha = (1 - k) * 0.9;

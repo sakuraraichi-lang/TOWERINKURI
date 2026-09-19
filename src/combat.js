@@ -107,6 +107,8 @@ const Grid = {
 const _q = [];
 
 const Combat = {
+  coinFx: 0,        // 同時に飛んでいるコインの数。**多すぎると盤面が見えなくなる**
+
 
   // ================= ウェーブ =================
   gw(run) { return globalWave(run.stageIdx, run.wave); },
@@ -232,6 +234,12 @@ const Combat = {
 
     if (run.fx.length < 180) {
       this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * (e.boss ? 4 : 1.5), color: e.color, life: e.boss ? 0.5 : 0.22 });
+      // **倒す＝儲かる、を目で見えるようにする。**
+      // これまでHUDの数字が静かに増えるだけで、報酬を得た実感が無かった
+      if (this.coinFx < 26) {
+        this.coinFx++;
+        this.fx(run, { type: 'coin', x: e.x, y: e.y, big: !!e.boss, life: 0.5 });
+      }
     }
     if (e.boss) this.shake(run, 16);
   },
@@ -739,7 +747,10 @@ const Combat = {
     // --- 演出 ---
     for (let i = run.fx.length - 1; i >= 0; i--) {
       const f = run.fx[i]; f.t += dt;
-      if (f.t >= f.life) run.fx.splice(i, 1);
+      if (f.t >= f.life) {
+        if (f.type === 'coin') this.coinFx = Math.max(0, this.coinFx - 1);
+        run.fx.splice(i, 1);
+      }
     }
     for (let i = run.nums.length - 1; i >= 0; i--) {
       const n = run.nums[i]; n.t += dt; n.y -= dt * 34;
