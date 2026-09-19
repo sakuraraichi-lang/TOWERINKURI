@@ -578,9 +578,9 @@ function draw() {
     }
   }
 
-  ctx.strokeStyle = '#7fb6ff'; ctx.lineWidth = 2;
+  ctx.strokeStyle = '#ffc93c'; ctx.lineWidth = 2;
   ctx.beginPath(); ctx.arc(CORE.x, CORE.y, CORE.r + Math.sin(S.t * 2) * 1.5, 0, 7); ctx.stroke();
-  ctx.fillStyle = 'rgba(80,150,255,.18)'; ctx.fill();
+  ctx.fillStyle = 'rgba(255,176,32,.18)'; ctx.fill();
 
   for (const e of S.enemies) {
     if (e.x < L || e.x > R || e.y < T || e.y > B) continue;

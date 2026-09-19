@@ -74,7 +74,7 @@ input[type=range]::-moz-range-thumb{width:22px;height:22px;border-radius:50%;
   border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.05);
   color:var(--ink);font:inherit;font-size:12px;cursor:pointer;
   -webkit-tap-highlight-color:transparent;}
-#tools button.on{background:#1d6fd4;border-color:#3f93ff;font-weight:650;}
+#tools button.on{background:#7a5406;border-color:var(--accent);font-weight:650;}
 #tools .w.on{background:var(--accent);border-color:#ffe38a;color:#141a20;}
 #tools button:active{transform:translateY(1px);}
 #clear{margin-left:auto;background:rgba(255,90,110,.14)!important;border-color:rgba(255,90,110,.35)!important;}
