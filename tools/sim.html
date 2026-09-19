@@ -165,6 +165,84 @@ function aimField(st, range, arc) {
   return out;
 }
 
+// ---------------------------------------------------------------
+// 扇の幅の実験（2026-09-19 追加）
+//
+// **これまで測定器は扇の幅を一度も変えていなかった。**
+// 「絞ると集弾率が上がる／広げると守備範囲が増える」という中核のメカニクスが
+// 測定にまったく入っていなかったので、幅を比べられるようにする。
+//
+// ARC_MODE
+//   'base'   … 武器の初期値のまま（これまでの挙動）
+//   'min'    … 最大まで絞る
+//   'max'    … 最大まで広げる
+//   'approx' … 下の近似評価で選ぶ
+//
+// **【重要】'approx' は近似です。**
+// 「扇に入る通路の重み × 集弾率」が最大になる幅を選ぶだけで、
+//   ・敵が実際にどこに固まるか
+//   ・弾が飛んでいる間に敵が動くこと
+//   ・味方同士の射線の重なり
+// を一切見ていません。**どの幅が本当に強いかは、実際に戦闘を回して比べます。**
+// 近似がその答えと一致するとは限らず、一致しない場合はそれ自体が結果です。
+// ---------------------------------------------------------------
+let ARC_MODE = 'base';
+
+// 幅の候補。BAL の刻みに合わせる
+function arcCandidates() {
+  const out = [];
+  for (let a = BAL.arcMin; a <= BAL.arcMax + 1e-9; a += BAL.arcStep) out.push(+a.toFixed(4));
+  if (out[out.length - 1] < BAL.arcMax - 1e-9) out.push(BAL.arcMax);
+  return out;
+}
+
+// 近似評価：その地点・その向きで、幅ごとの「通路の重み × 集弾率」
+function arcScores(st, c, r, face, range) {
+  const g = st.center(c, r);
+  const seen = [];
+  let maxD = 1;
+  for (let rr = 0; rr < st.rows; rr++) for (let cc = 0; cc < st.cols; cc++) {
+    if (!st.walkable(cc, rr)) continue;
+    const d = st.dist[st.idx(cc, rr)];
+    if (d < 1e9 && d > maxD) maxD = d;
+  }
+  for (let rr = 0; rr < st.rows; rr++) for (let cc = 0; cc < st.cols; cc++) {
+    if (!st.walkable(cc, rr)) continue;
+    const d = st.dist[st.idx(cc, rr)];
+    if (d >= 1e9) continue;
+    const p = st.center(cc, rr);
+    const dx = p.x - g.x, dy = p.y - g.y;
+    const dist = Math.hypot(dx, dy);
+    if (dist > range || dist < 1) continue;
+    let da = Math.atan2(dy, dx) - face;
+    while (da > Math.PI) da -= Math.PI * 2;
+    while (da < -Math.PI) da += Math.PI * 2;
+    seen.push({ da: Math.abs(da), w: 1 + (1 - d / maxD) });
+  }
+  return arcCandidates().map(arc => {
+    let cover = 0;
+    for (const t of seen) if (t.da <= arc) cover += t.w;
+    // 集弾率は本体と同じ式を使う（ui.js/state.js の groupingOf）
+    const grouping = Game.groupingOf({ arc });
+    return { arc, cover: +cover.toFixed(2), grouping: +grouping.toFixed(3),
+             score: +(cover * grouping).toFixed(2) };
+  });
+}
+
+// 置いたユニットに ARC_MODE の幅を与える
+function applyArc(u, st) {
+  if (ARC_MODE === 'base') return u.arc;
+  let want;
+  if (ARC_MODE === 'min') want = BAL.arcMin;
+  else if (ARC_MODE === 'max') want = BAL.arcMax;
+  else {
+    const rows = arcScores(st, u.c, u.r, u.face, u.s.range);
+    want = rows.reduce((a, b) => (b.score > a.score ? b : a), rows[0]).arc;
+  }
+  Game.setArc(u, want - u.arc);
+  return u.arc;
+}
+
 // 【比較用】以前の配置。通路に隣接するタイルにしか置かない。
 // これを残してあるのは、「ビルド差が逆転している」という観測が
 // ゲーム側の話なのか、この配置のせいなのかを同じ条件で見比べるため
@@ -252,6 +330,7 @@ function autoPlaceRange(run) {
     if (!u) continue;
     taken[pick.c + ',' + pick.r] = 1;
     Game.aimUnit(u, pick.a);
+    applyArc(u, st);
   }
 }
 
@@ -275,7 +354,11 @@ function withBal(over, fn) {
 
 function runStage(stageId, loadout, buys, opts) {
   opts = opts || {};
-  return withBal(opts.bal, () => runStageInner(stageId, loadout, buys, opts));
+  const keepArc = ARC_MODE;
+  if (opts.arc) ARC_MODE = opts.arc;
+  try {
+    return withBal(opts.bal, () => runStageInner(stageId, loadout, buys, opts));
+  } finally { ARC_MODE = keepArc; }
 }
 
 function runStageInner(stageId, loadout, buys, opts) {
@@ -402,6 +485,10 @@ function runStageInner(stageId, loadout, buys, opts) {
     death, offers, waves,
     // 「シナジーが弱い」のか「シナジーのカードが来ていない」のかを分けるため、
     // 実際に取れたカードと、その編成で出るはずのシナジーを両方残す
+    // どの幅で戦ったのか。近似の予測が当たっているかを見るのに要る
+    arcMode: ARC_MODE,
+    arcAvg: run.units.length ? +(run.units.reduce((a,u)=>a+u.arc,0)/run.units.length).toFixed(3) : 0,
+    groupAvg: run.units.length ? +(run.units.reduce((a,u)=>a+Game.groupingOf(u),0)/run.units.length).toFixed(3) : 0,
     cards: Object.assign({}, run.cards),
     synOwned: Object.keys(run.cards).filter(id => CARDS[id].kind === 'synergy'),
     synPossible: CARD_IDS.filter(id => CARDS[id].kind === 'synergy' &&
