@@ -133,78 +133,58 @@ const Main = {
   },
 
   // ---------- 配置（地面の上・ビルドフェーズのみ） ----------
+  // **なぞって向けるのはやめた。** スマホで狙いづらく、移動に使えるジェスチャも残らない。
+  //   武器を選ぶ    → 置ける場所が光る → タップで設置
+  //   置いたものをタップ → 選択（向き・射界はバーで決める）
+  //   「配置を変える」 → また光る → タップで移動
   bindPlacement(cv) {
-    let aiming = null;     // 向きを変えている最中のユニット
-    let downAt = null;
-
     const unitAt = (c, r) => {
       const run = Game.run;
       if (!run) return null;
       return run.units.find(u => u.c === c && u.r === r) || null;
     };
+    const no = (msg) => UI.toastMsg(msg, '#ff8080');
 
-    cv.addEventListener('pointerdown', (e) => {
+    cv.addEventListener('pointerup', (e) => {
       const run = Game.run;
       if (!run || run.over) return;
       const t = Render.tileAt(e.clientX, e.clientY);
-      downAt = { x: e.clientX, y: e.clientY };
-
       const onTile = unitAt(t.c, t.r);
 
-      // 置く
+      // 移動先を選んでいる最中
+      if (UI.moving) {
+        if (!Game.canBuild()) { no('戦闘中は動かせません'); return; }
+        if (onTile) { no('そこには別のユニットがいます'); return; }
+        if (!run.stage.buildable(t.c, t.r)) { no('地面にしか置けません'); return; }
+        Game.moveUnit(UI.moving, t.c, t.r);
+        UI.moving = null;
+        Game.save();
+        UI.renderTray();
+        e.preventDefault();
+        return;
+      }
+
+      // 新しく置く
       if (UI.placingType && !onTile) {
-        if (!Game.canBuild()) { UI.toastMsg('戦闘中は配置を変えられません', '#ff8080'); return; }
-        if (!run.stage.buildable(t.c, t.r)) { UI.toastMsg('地面にしか置けません', '#ff8080'); return; }
+        if (!Game.canBuild()) { no('戦闘中は配置を変えられません'); return; }
+        if (!run.stage.buildable(t.c, t.r)) { no('地面にしか置けません'); return; }
         const u = Game.placeUnit(UI.placingType, t.c, t.r);
-        if (!u) { UI.toastMsg('そこには置けません', '#ff8080'); return; }
+        if (!u) { no('そこには置けません'); return; }
         Game.save();
         UI.selected = u;
-        aiming = u;
-        try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 無視 */ }
-        UI.renderTray();
-        e.preventDefault();
-        return;
-      }
-
-      // 選ぶ／向きを変える
-      if (onTile) {
-        UI.selected = (UI.selected === onTile) ? null : onTile;
         UI.placingType = null;
-        if (UI.selected && Game.canBuild()) {
-          aiming = UI.selected;
-          try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 無視 */ }
-        }
         UI.renderTray();
         e.preventDefault();
         return;
       }
 
-      // 何も無いところ：選択中なら、そこへ向ける
-      if (UI.selected && Game.canBuild()) {
-        const p = Render.toStage(e.clientX, e.clientY);
-        Game.aimUnit(UI.selected, Util.angle(UI.selected.x, UI.selected.y, p.x, p.y));
-        aiming = UI.selected;
-        try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 無視 */ }
-        UI.renderTray();
-        e.preventDefault();
-      }
-    });
-
-    cv.addEventListener('pointermove', (e) => {
-      if (!aiming || !Game.canBuild()) return;
-      const p = Render.toStage(e.clientX, e.clientY);
-      const d = Math.hypot(p.x - aiming.x, p.y - aiming.y);
-      if (d < 10) return;            // 真上では向きが決まらない
-      Game.aimUnit(aiming, Util.angle(aiming.x, aiming.y, p.x, p.y));
+      // 選ぶ／選択を外す
+      UI.selected = (onTile && UI.selected !== onTile) ? onTile : null;
+      UI.placingType = null;
+      UI.moving = null;
+      UI.renderTray();
       e.preventDefault();
     });
-
-    const end = () => {
-      if (aiming) { Game.save(); UI.renderTray(); }
-      aiming = null; downAt = null;
-    };
-    cv.addEventListener('pointerup', end);
-    cv.addEventListener('pointercancel', end);
     cv.addEventListener('contextmenu', (e) => e.preventDefault());
   },
 

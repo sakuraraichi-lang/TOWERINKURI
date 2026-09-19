@@ -133,15 +133,24 @@ const Render = {
     }
     ctx.stroke();
 
-    // 設置モードのとき、置ける地面を光らせる
-    if (UI.placingType && Game.canBuild()) {
+    // 置き場所を選んでいるとき。**盤面を落として、置けるところだけ光らせる。**
+    // 薄く塗るだけでは「どこに置けるか分からない」ままだった
+    const picking = (UI.placingType || UI.moving) && Game.canBuild();
+    if (picking) {
+      ctx.fillStyle = 'rgba(4,8,13,0.5)';
+      ctx.fillRect(0, 0, st.cols * TILE, st.rows * TILE);
+
       const occupied = {};
-      if (Game.run) for (const u of Game.run.units) occupied[u.c + ',' + u.r] = 1;
+      if (Game.run) for (const u of Game.run.units) {
+        if (u === UI.moving) continue;          // 動かす本人の足元は空きとして扱う
+        occupied[u.c + ',' + u.r] = 1;
+      }
+      const pulse = 0.16 + 0.08 * Math.sin((Game.run ? Game.run.time : 0) * 5);
       for (let r = 0; r < st.rows; r++) {
         for (let c = 0; c < st.cols; c++) {
           if (!st.buildable(c, r) || occupied[c + ',' + r]) continue;
-          ctx.fillStyle = 'rgba(78,168,255,0.16)';
-          ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
+          ctx.fillStyle = 'rgba(255,210,74,' + pulse.toFixed(3) + ')';
+          ctx.fillRect(c * TILE + 2, r * TILE + 2, TILE - 4, TILE - 4);
         }
       }
     }

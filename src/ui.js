@@ -10,7 +10,8 @@ const UI = {
   tab: 'skill',
   el: {},
   draftOpen: false,
-  placingType: null,   // 設置しようとしている武器id
+  placingType: null,     // 設置しようとしている武器id
+  moving: null,          // 「配置を変える」で移動先を選んでいるユニット
   selected: null,      // 選んでいるユニット
   skillRows: null,
 
@@ -92,14 +93,39 @@ const UI = {
     const build = Game.canBuild();
 
     if (this.selected) {
-      // ユニットを選んでいるときは、その調整パネルにする
+      // ユニットを選んでいるときは、その調整パネル。
+      // **向きも射界もバーで決める。**なぞって向けるのはスマホでうまく効かなかった
       const u = this.selected;
-      const grp = Math.round(Game.groupingOf(u) * 100);
       const info = Util.el('div', 'usel');
       info.innerHTML = '<b style="color:' + u.def.color + '">' + u.def.name + '</b>' +
-        '<span>射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) + '°　集弾 ' + grp + '%</span>' +
-        '<span class="dim">盤面をなぞると向きが変わる</span>';
+        '<span id="uInfo">射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) +
+        '°　集弾 ' + Math.round(Game.groupingOf(u) * 100) + '%</span>';
       t.appendChild(info);
+
+      const bar = (label, min, max, val, oninput) => {
+        const wrap = Util.el('label', 'ubar');
+        wrap.appendChild(Util.el('span', null, label));
+        const r = Util.el('input');
+        r.type = 'range'; r.min = min; r.max = max; r.step = 1; r.value = val;
+        r.disabled = !build;
+        r.addEventListener('input', () => oninput(+r.value));
+        wrap.appendChild(r);
+        return wrap;
+      };
+      let deg = Math.round(u.face * 180 / Math.PI); if (deg < 0) deg += 360;
+      t.appendChild(bar('向き', 0, 359, deg, (v) => {
+        Game.aimUnit(u, v * Math.PI / 180);
+        Game.save();
+      }));
+      const arcPct = Math.round((u.arc - BAL.arcMin) / (BAL.arcMax - BAL.arcMin) * 100);
+      t.appendChild(bar('射界', 0, 100, arcPct, (v) => {
+        const want = BAL.arcMin + (BAL.arcMax - BAL.arcMin) * (v / 100);
+        Game.setArc(u, want - u.arc);
+        const el = document.getElementById('uInfo');
+        if (el) el.textContent = '射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) +
+          '°　集弾 ' + Math.round(Game.groupingOf(u) * 100) + '%';
+        Game.save();
+      }));
 
       const mk = (label, fn, cls) => {
         const b = Util.el('button', 'chip ' + (cls || ''), label);
@@ -107,12 +133,14 @@ const UI = {
         b.addEventListener('click', fn);
         return b;
       };
-      t.appendChild(mk('◀狭', () => { Game.setArc(u, -BAL.arcStep); this.renderTray(); }));
-      t.appendChild(mk('広▶', () => { Game.setArc(u, BAL.arcStep); this.renderTray(); }));
+      t.appendChild(mk('配置を変える', () => {
+        this.moving = u; this.placingType = null; this.renderTray();
+      }));
       t.appendChild(mk('撤去', () => {
-        if (Game.removeUnit(u)) { this.selected = null; this.renderTray(); Game.save(); }
+        if (Game.removeUnit(u)) { this.selected = null; this.moving = null; this.renderTray(); Game.save(); }
       }, 'danger'));
-      t.appendChild(mk('閉じる', () => { this.selected = null; this.renderTray(); }));
+      t.appendChild(mk('閉じる', () => { this.selected = null; this.moving = null; this.renderTray(); }));
+      if (this.moving) t.appendChild(Util.el('span', 'trayhint', '光っているところをタップ'));
       if (!build) t.appendChild(Util.el('span', 'trayhint', '戦闘中は動かせません'));
       return;
     }

@@ -259,6 +259,18 @@ const Game = {
     return u;
   },
 
+  // 置いたものを別の地面へ移す。**撤去して置き直すと向きと射界が消えるので、そのまま運ぶ**
+  moveUnit(u, c, r) {
+    const run = this.run;
+    if (!run || !this.canBuild()) return false;
+    if (!run.stage.buildable(c, r)) return false;
+    if (run.units.some(o => o !== u && o.c === c && o.r === r)) return false;
+    const pos = run.stage.center(c, r);
+    u.c = c; u.r = r; u.x = pos.x; u.y = pos.y;
+    this.syncPlacements();
+    return true;
+  },
+
   removeUnit(u) {
     const run = this.run;
     if (!run || !this.canBuild()) return false;
