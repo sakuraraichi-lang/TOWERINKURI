@@ -80,6 +80,15 @@ const Render = {
     };
   },
 
+  // ステージ座標 -> 画面座標（調整ポップアップを武器の横に置くのに使う）
+  toClient(x, y) {
+    const r = this.canvas.getBoundingClientRect();
+    return {
+      x: r.left + this.offX + x * this.scale,
+      y: r.top + this.offY + y * this.scale,
+    };
+  },
+
   tileAt(clientX, clientY) {
     const p = this.toStage(clientX, clientY);
     return { c: Math.floor(p.x / TILE), r: Math.floor(p.y / TILE), x: p.x, y: p.y };

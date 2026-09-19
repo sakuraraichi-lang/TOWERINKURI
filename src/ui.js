@@ -24,6 +24,7 @@ const UI = {
       hudWaveTxt: q('hudWaveTxt'), tray: q('tray'),
       panel: q('panel'), tabs: q('tabs'), modal: q('modal'),
       toast: q('toast'), badgePack: q('badgePack'),
+      upop: q('upop'), stage: q('stage'),
       btnStart: q('btnStart'),
       homeCoin: q('homeCoin'), homeProg: q('homeProg'), homeLabel: q('homeLabel'),
       homeName: q('homeName'), homeDesc: q('homeDesc'), homeMini: q('homeMini'),
@@ -116,6 +117,9 @@ const UI = {
     }
     if (!document.body.classList.contains('on-battle')) return;
 
+    // なぞって視点を動かしても、調整バーは武器についていく
+    if (this.selected) this.placeUnitPop();
+
     this._sk = (this._sk || 0) + 1;
     if (this._sk % 12 === 0) this.refreshSkills();
     if (!r) return;
@@ -148,59 +152,7 @@ const UI = {
     t.classList.add('on');
 
     const build = Game.canBuild();
-
-    if (this.selected) {
-      // ユニットを選んでいるときは、その調整パネル。
-      // **向きも射界もバーで決める。**なぞって向けるのはスマホでうまく効かなかった
-      const u = this.selected;
-      const info = Util.el('div', 'usel');
-      info.innerHTML = '<b style="color:' + u.def.color + '">' + u.def.name + '</b>' +
-        '<span id="uInfo">射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) +
-        '°　集弾 ' + Math.round(Game.groupingOf(u) * 100) + '%</span>';
-      t.appendChild(info);
-
-      const bar = (label, min, max, val, oninput) => {
-        const wrap = Util.el('label', 'ubar');
-        wrap.appendChild(Util.el('span', null, label));
-        const r = Util.el('input');
-        r.type = 'range'; r.min = min; r.max = max; r.step = 1; r.value = val;
-        r.disabled = !build;
-        r.addEventListener('input', () => oninput(+r.value));
-        wrap.appendChild(r);
-        return wrap;
-      };
-      let deg = Math.round(u.face * 180 / Math.PI); if (deg < 0) deg += 360;
-      t.appendChild(bar('向き', 0, 359, deg, (v) => {
-        Game.aimUnit(u, v * Math.PI / 180);
-        Game.save();
-      }));
-      const arcPct = Math.round((u.arc - BAL.arcMin) / (BAL.arcMax - BAL.arcMin) * 100);
-      t.appendChild(bar('射界', 0, 100, arcPct, (v) => {
-        const want = BAL.arcMin + (BAL.arcMax - BAL.arcMin) * (v / 100);
-        Game.setArc(u, want - u.arc);
-        const el = document.getElementById('uInfo');
-        if (el) el.textContent = '射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) +
-          '°　集弾 ' + Math.round(Game.groupingOf(u) * 100) + '%';
-        Game.save();
-      }));
-
-      const mk = (label, fn, cls) => {
-        const b = Util.el('button', 'chip ' + (cls || ''), label);
-        b.disabled = !build;
-        b.addEventListener('click', fn);
-        return b;
-      };
-      t.appendChild(mk('配置を変える', () => {
-        this.moving = u; this.placingType = null; this.renderTray();
-      }));
-      t.appendChild(mk('撤去', () => {
-        if (Game.removeUnit(u)) { this.selected = null; this.moving = null; this.renderTray(); Game.save(); }
-      }, 'danger'));
-      t.appendChild(mk('閉じる', () => { this.selected = null; this.moving = null; this.renderTray(); }));
-      if (this.moving) t.appendChild(Util.el('span', 'trayhint', '光っているところをタップ'));
-      if (!build) t.appendChild(Util.el('span', 'trayhint', '戦闘中は動かせません'));
-      return;
-    }
+    this.renderUnitPop();
 
     for (const cid of Game.perm.loadout) {
       if (!cid || !CARDS[cid]) continue;
@@ -225,6 +177,90 @@ const UI = {
     t.appendChild(Util.el('span', 'trayhint',
       !build ? '戦闘中は配置を変えられません'
         : this.placingType ? '光っている地面をタップ' : 'ユニットを選んで配置／置いたものをタップで調整'));
+  },
+
+  // 選んだ武器の調整を、**その武器のすぐ横に**出す。
+  // 画面下だと、どれを触っているのか目で追えなかった
+  renderUnitPop() {
+    const p = this.el.upop;
+    if (!p) return;
+    const u = this.selected;
+    if (!u || !Game.run || Game.run.over) { p.classList.remove('on'); p.innerHTML = ''; return; }
+    const build = Game.canBuild();
+
+    p.innerHTML = '';
+    p.classList.add('on');
+
+    const info = Util.el('div', 'usel');
+    info.innerHTML = '<b style="color:' + u.def.color + '">' + u.def.name + '</b>' +
+      '<span id="uInfo">射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) +
+      '°　集弾 ' + Math.round(Game.groupingOf(u) * 100) + '%</span>';
+    p.appendChild(info);
+
+    // **向きも射界もバーで決める。**なぞって向けるのはスマホでうまく効かなかった
+    const bar = (label, min, max, val, oninput) => {
+      const wrap = Util.el('label', 'ubar');
+      wrap.appendChild(Util.el('span', null, label));
+      const r = Util.el('input');
+      r.type = 'range'; r.min = min; r.max = max; r.step = 1; r.value = val;
+      r.disabled = !build;
+      r.addEventListener('input', () => oninput(+r.value));
+      wrap.appendChild(r);
+      return wrap;
+    };
+    let deg = Math.round(u.face * 180 / Math.PI); if (deg < 0) deg += 360;
+    p.appendChild(bar('向き', 0, 359, deg, (v) => {
+      Game.aimUnit(u, v * Math.PI / 180);
+      Game.save();
+    }));
+    const arcPct = Math.round((u.arc - BAL.arcMin) / (BAL.arcMax - BAL.arcMin) * 100);
+    p.appendChild(bar('射界', 0, 100, arcPct, (v) => {
+      const want = BAL.arcMin + (BAL.arcMax - BAL.arcMin) * (v / 100);
+      Game.setArc(u, want - u.arc);
+      const el = document.getElementById('uInfo');
+      if (el) el.textContent = '射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) +
+        '°　集弾 ' + Math.round(Game.groupingOf(u) * 100) + '%';
+      Game.save();
+    }));
+
+    const row = Util.el('div', 'urow');
+    const mk = (label, fn, cls) => {
+      const b = Util.el('button', 'chip ' + (cls || ''), label);
+      b.disabled = !build;
+      b.addEventListener('click', fn);
+      return b;
+    };
+    row.appendChild(mk('移動', () => {
+      this.moving = u; this.placingType = null; this.renderTray();
+    }));
+    row.appendChild(mk('撤去', () => {
+      if (Game.removeUnit(u)) { this.selected = null; this.moving = null; this.renderTray(); Game.save(); }
+    }, 'danger'));
+    row.appendChild(mk('閉じる', () => { this.selected = null; this.moving = null; this.renderTray(); }));
+    p.appendChild(row);
+
+    if (this.moving) p.appendChild(Util.el('div', 'trayhint', '光っているところをタップ'));
+    if (!build) p.appendChild(Util.el('div', 'trayhint', '戦闘中は動かせません'));
+
+    this.placeUnitPop();
+  },
+
+  // 武器の横に置く。**画面からはみ出すときは反対側へ回す**
+  placeUnitPop() {
+    const p = this.el.upop;
+    const u = this.selected;
+    if (!p || !u || !p.classList.contains('on')) return;
+    const host = this.el.stage.getBoundingClientRect();
+    const at = Render.toClient(u.x, u.y);
+    const w = p.offsetWidth || 190, h = p.offsetHeight || 150;
+    const gap = TILE * Render.scale * 0.7;
+
+    let x = at.x - host.left + gap;
+    if (x + w > host.width - 6) x = at.x - host.left - gap - w;
+    let y = at.y - host.top - h / 2;
+
+    p.style.left = Util.clamp(x, 6, Math.max(6, host.width - w - 6)) + 'px';
+    p.style.top = Util.clamp(y, 6, Math.max(6, host.height - h - 6)) + 'px';
   },
 
   renderTabs() {
