@@ -214,7 +214,10 @@ const Game = {
   unitCap(weaponId) {
     const def = WEAPONS[weaponId];
     if (!def) return 0;
-    return def.stock + BAL.unitBonus + Skill.amount(this.meta, 'units');
+    // 全武器共通の「増設基盤」と、カテゴリごとの設置数ノードの両方が効く
+    return def.stock + BAL.unitBonus
+         + Skill.amount(this.meta, 'units')
+         + Skill.unitBonusFor(this.meta, def.cat);
   },
 
   unitCount(weaponId) {

@@ -37,6 +37,9 @@ const SKILLS = [
   { id: 'short_rng', name: '間合い拡張', icon: '◤', group: '短射程', cat: 'short', key: 'range',
     eff: 1.09, mode: 'mul', tmpl: '短射程カテゴリの射程 ×{e}',
     cost0: 45, costG: 1.36, max: 30, unlock: 0 },
+  { id: 'short_unit', name: '前線基盤', icon: '◤', group: '短射程', cat: 'short', key: 'units',
+    eff: 1, mode: 'add', tmpl: '短射程カテゴリの武器を置ける数 +{e} 基',
+    cost0: 260, costG: 2.6, max: 4, unlock: 0 },
 
   { id: 'mid_dmg', name: '汎用弾薬', icon: '◈', group: '中射程', cat: 'mid', key: 'dmg',
     eff: 1.13, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
@@ -44,6 +47,9 @@ const SKILLS = [
   { id: 'mid_rate', name: '給弾機構', icon: '◈', group: '中射程', cat: 'mid', key: 'rate',
     eff: 1.07, mode: 'mul', tmpl: '中射程カテゴリの発射レート ×{e}',
     cost0: 40, costG: 1.34, max: 40, unlock: 0 },
+  { id: 'mid_unit', name: '量産設備', icon: '◈', group: '中射程', cat: 'mid', key: 'units',
+    eff: 1, mode: 'add', tmpl: '中射程カテゴリの武器を置ける数 +{e} 基',
+    cost0: 260, costG: 2.6, max: 4, unlock: 0 },
 
   { id: 'long_dmg', name: '徹甲弾頭', icon: '◎', group: '長射程', cat: 'long', key: 'dmg',
     eff: 1.18, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
@@ -51,6 +57,9 @@ const SKILLS = [
   { id: 'long_crit', name: '照準計算機', icon: '◎', group: '長射程', cat: 'long', key: 'crit',
     eff: 0.04, mode: 'add', tmpl: '長射程カテゴリの会心率 +{e}（会心倍率も上がる）',
     cost0: 90, costG: 1.42, max: 20, unlock: 0 },
+  { id: 'long_unit', name: '狙撃陣地', icon: '◎', group: '長射程', cat: 'long', key: 'units',
+    eff: 1, mode: 'add', tmpl: '長射程カテゴリの武器を置ける数 +{e} 基',
+    cost0: 260, costG: 2.6, max: 4, unlock: 0 },
 
   { id: 'area_dmg', name: '高熱反応', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'dmg',
     eff: 1.14, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
@@ -58,6 +67,9 @@ const SKILLS = [
   { id: 'area_size', name: '拡散増幅', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'size',
     eff: 1.10, mode: 'mul', tmpl: '範囲攻撃カテゴリの効果範囲 ×{e}（扇・爆風・撒いた場すべて）',
     cost0: 70, costG: 1.38, max: 25, unlock: 0 },
+  { id: 'area_unit', name: '散布基盤', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'units',
+    eff: 1, mode: 'add', tmpl: '範囲攻撃カテゴリの武器を置ける数 +{e} 基',
+    cost0: 260, costG: 2.6, max: 4, unlock: 0 },
 
   { id: 'target_dmg', name: '成形炸薬', icon: '✛', group: '指定攻撃', cat: 'target', key: 'dmg',
     eff: 1.16, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
@@ -65,6 +77,9 @@ const SKILLS = [
   { id: 'target_rate', name: '装填補助', icon: '✛', group: '指定攻撃', cat: 'target', key: 'rate',
     eff: 1.08, mode: 'mul', tmpl: '指定攻撃カテゴリの発射レート ×{e}',
     cost0: 65, costG: 1.36, max: 30, unlock: 0 },
+  { id: 'target_unit', name: '支持架台', icon: '✛', group: '指定攻撃', cat: 'target', key: 'units',
+    eff: 1, mode: 'add', tmpl: '指定攻撃カテゴリの武器を置ける数 +{e} 基',
+    cost0: 260, costG: 2.6, max: 4, unlock: 0 },
 
   { id: 'sup_pow', name: '制圧出力', icon: '❉', group: '支援', cat: 'support', key: 'dur',
     eff: 1.12, mode: 'mul', tmpl: '支援カテゴリの 減速・拘束・感電の持続 ×{e}',
@@ -72,6 +87,9 @@ const SKILLS = [
   { id: 'sup_rng', name: '照射範囲', icon: '❉', group: '支援', cat: 'support', key: 'range',
     eff: 1.10, mode: 'mul', tmpl: '支援カテゴリの射程・効果範囲 ×{e}',
     cost0: 55, costG: 1.34, max: 25, unlock: 0 },
+  { id: 'support_unit', name: '支援拠点', icon: '❉', group: '支援', cat: 'support', key: 'units',
+    eff: 1, mode: 'add', tmpl: '支援カテゴリの武器を置ける数 +{e} 基',
+    cost0: 260, costG: 2.6, max: 4, unlock: 0 },
 
   // ============ カード側の枠を増やす ============
   { id: 'picks', name: '増設スロット', icon: '★', group: 'カード',
@@ -142,6 +160,13 @@ const Skill = {
     meta.coins -= Skill.cost(meta, id);
     meta.skills[id] = Skill.lv(meta, id) + 1;
     return true;
+  },
+
+  // そのカテゴリの「置ける数」の加算ぶん。
+  // **設置数は倍率ではなく加算なので、mods を通さず直接引けるようにしておく**
+  unitBonusFor(meta, cat) {
+    const node = SKILLS.find(s => s.cat === cat && s.key === 'units');
+    return node ? Skill.amount(meta, node.id) : 0;
   },
 
   // アップグレード＋転生ボーナスを、出撃時の倍率一式にまとめる
