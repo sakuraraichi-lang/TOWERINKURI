@@ -184,36 +184,36 @@ const CARDS = {
     apply(run) { const w = run.wp('mortar'); if (w) { w.s.count += 3; w.s.dmg *= 0.8; } } }),
 
   // ============ シナジー（2種を同時編成しているときだけ抽選に出る） ============
-  syn_charged: C({ id: 'syn_charged', kind: 'synergy', requires: ['gatling', 'tesla'], rarity: 'rare', maxStack: 3,
+  syn_charged: C({ id: 'syn_charged', kind: 'synergy', requires: ['gatling', 'tesla'], rarity: 'common', maxStack: 4,
     name: '帯電弾', desc: '【ガトリング＋テスラ】ガトリング弾が着弾時に2連鎖の電撃を起こす',
     apply(run) { const w = run.wp('gatling'); if (w) { w.flags.charged = true; w.dyn.chargedChain = (w.dyn.chargedChain || 0) + 2; } } }),
-  syn_spotter: C({ id: 'syn_spotter', kind: 'synergy', requires: ['sniper', 'missile'], rarity: 'epic', maxStack: 2,
+  syn_spotter: C({ id: 'syn_spotter', kind: 'synergy', requires: ['sniper', 'missile'], rarity: 'rare', maxStack: 3,
     name: '曳光指示', desc: '【スナイパー＋ミサイル】スナイパーが撃った敵をミサイルが最優先で狙い、ダメージ ×1.6',
     apply(run) { const s = run.wp('sniper'), m = run.wp('missile');
       if (s) s.flags.spot = true;
       if (m) { m.flags.followSpot = true; m.s.dmg *= 1.6; } } }),
-  syn_implode: C({ id: 'syn_implode', kind: 'synergy', requires: ['missile', 'tesla'], rarity: 'epic', maxStack: 2,
+  syn_implode: C({ id: 'syn_implode', kind: 'synergy', requires: ['missile', 'tesla'], rarity: 'rare', maxStack: 3,
     name: '電磁爆縮', desc: '【ミサイル＋テスラ】ミサイルの爆発が感電を付与し、爆風 ×1.35',
     apply(run) { const m = run.wp('missile'); if (m) { m.flags.implode = true; m.s.splash *= 1.35; m.s.shockDur = Math.max(m.s.shockDur, 2.5); } } }),
-  syn_resonance: C({ id: 'syn_resonance', kind: 'synergy', requires: ['gatling', 'sniper'], rarity: 'legendary', maxStack: 1,
+  syn_resonance: C({ id: 'syn_resonance', kind: 'synergy', requires: ['gatling', 'sniper'], rarity: 'epic', maxStack: 2,
     name: '弾道共鳴', desc: '【ガトリング＋スナイパー】ガトリング命中ごとにスナイパーのダメージ +0.6%（上限 +400%）',
     apply(run) { const g = run.wp('gatling'); if (g) g.flags.resonance = true; } }),
 
-  syn_backdraft: C({ id: 'syn_backdraft', kind: 'synergy', requires: ['flame', 'gas'], rarity: 'epic', maxStack: 2,
+  syn_backdraft: C({ id: 'syn_backdraft', kind: 'synergy', requires: ['flame', 'gas'], rarity: 'rare', maxStack: 3,
     name: '爆燃', desc: '【火炎放射器＋毒ガス】毒の雲に炎が届くと引火して大爆発する',
     apply(run) { const f = run.wp('flame'); if (f) f.flags.ignite = true; run.backdraft += 1; } }),
-  syn_shatterblade: C({ id: 'syn_shatterblade', kind: 'synergy', requires: ['cryo', 'katana'], rarity: 'epic', maxStack: 2,
+  syn_shatterblade: C({ id: 'syn_shatterblade', kind: 'synergy', requires: ['cryo', 'katana'], rarity: 'rare', maxStack: 3,
     name: '兜割り', desc: '【凍結装置＋刀】凍っている敵に対して刀の斬撃が必ず会心になる',
     apply(run) { const k = run.wp('katana'); if (k) k.flags.frostCrit = true; } }),
-  syn_staticfoam: C({ id: 'syn_staticfoam', kind: 'synergy', requires: ['bubble', 'tesla'], rarity: 'rare', maxStack: 3,
+  syn_staticfoam: C({ id: 'syn_staticfoam', kind: 'synergy', requires: ['bubble', 'tesla'], rarity: 'common', maxStack: 4,
     name: '感電泡', desc: '【泡＋テスラ】泡に閉じ込めた敵が感電し、雷の連鎖が必ずそこを通る',
     apply(run) { const b = run.wp('bubble'); if (b) { b.flags.staticFoam = true; b.s.shockDur = Math.max(b.s.shockDur, 3); } } }),
-  syn_hangman: C({ id: 'syn_hangman', kind: 'synergy', requires: ['tentacle', 'missile'], rarity: 'legendary', maxStack: 1,
+  syn_hangman: C({ id: 'syn_hangman', kind: 'synergy', requires: ['tentacle', 'missile'], rarity: 'epic', maxStack: 2,
     name: '吊るし上げ', desc: '【触手＋ミサイル】掴まれている敵にミサイルが殺到し、その敵へのダメージ ×2.2',
     apply(run) { const t = run.wp('tentacle'); if (t) t.flags.hang = true;
       const m = run.wp('missile'); if (m) m.flags.followGrab = true; } }),
 
-  syn_fixfire: C({ id: 'syn_fixfire', kind: 'synergy', requires: ['tentacle', 'mortar'], rarity: 'epic', maxStack: 2,
+  syn_fixfire: C({ id: 'syn_fixfire', kind: 'synergy', requires: ['tentacle', 'mortar'], rarity: 'rare', maxStack: 3,
     name: '照準固定', desc: '【触手＋迫撃砲】掴んで足を止めた一団へ、迫撃砲が必ず撃ち込む。ダメージ ×1.5',
     apply(run) { const t = run.wp('tentacle'); if (t) t.flags.hang = true;
       const m = run.wp('mortar'); if (m) { m.flags.aimGrab = true; m.s.dmg *= 1.5; } } }),

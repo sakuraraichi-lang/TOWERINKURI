@@ -42,9 +42,11 @@ const PACKS = {
     },
   },
   syn: {
-    id: 'syn', name: '連携パック', size: 4, unlock: 3, color: '#c26bff',
+    id: 'syn', name: '連携パック', size: 4, unlock: 2, color: '#c26bff',
     desc: 'シナジー専用。2種を組み合わせたときだけ効くカード',
-    weights: { common: 0, rare: 46, epic: 40, legendary: 14 }, guarantee: 'epic',
+    // シナジーの内訳に合わせる（コモン2 / レア5 / エピック2 / レジェンド0）。
+    // コモンを0にしていると、コモンのシナジー2枚が永久に出ない
+    weights: { common: 26, rare: 50, epic: 24, legendary: 0 }, guarantee: 'rare',
     accepts: (c) => c.kind === 'synergy',
   },
 };
@@ -53,7 +55,7 @@ const PACK_IDS = ['basic', 'arms', 'chem', 'syn'];
 
 // ステージごとに「そのステージらしい分野」を割り当てる。
 // 完璧クリアの報酬はこれになるので、奥の分野は奥まで行かないと掘れない
-const STAGE_PACK = { st1: 'basic', st2: 'arms', st3: 'arms', st4: 'chem', st5: 'syn' };
+const STAGE_PACK = { st1: 'basic', st2: 'arms', st3: 'chem', st4: 'syn', st5: 'syn' };
 
 const Pack = {
   clearedCount(perm) { return STAGES.filter(s => (perm.stages[s.id] || {}).cleared).length; },
