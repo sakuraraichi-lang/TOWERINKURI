@@ -876,8 +876,15 @@ const UI = {
     const y = this.el.panel.scrollTop;
     this.renderPanel();
     const sc2 = document.getElementById('tree');
-    if (sc2) { sc2.scrollLeft = x; sc2.scrollTop = ty; }
-    this.el.panel.scrollTop = y;
+    // **2回戻す。** 描き直した直後はまだ中身の幅が確定しておらず、
+    // 横位置が途中までしか戻らない（406 まで出せる場所で 203 に丸められていた）
+    const put = () => {
+      const e = document.getElementById('tree');
+      if (e) { e.scrollLeft = x; e.scrollTop = ty; }
+      this.el.panel.scrollTop = y;
+    };
+    if (sc2) put();
+    setTimeout(put, 0);
   },
 
   // ================= 編成 =================
