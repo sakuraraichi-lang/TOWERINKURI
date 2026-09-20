@@ -51,6 +51,21 @@ const CARDS = {
     // 「置いておくだけで加速し続ける」になってしまう（BAL.heatCap で頭打ち）
     name: '加熱暴走', desc: '当て続けるほど発射レート上昇（上限 +120%）。当たらないと冷える',
     apply(run) { const w = run.wp('gatling'); if (w) { w.flags.heat = true; w.dyn.heatMax = BAL.heatCap; } } }),
+  // ---- 扇を「広げるほど得」にするカード ----
+  //
+  //   扇を広げるのは、これまで一方的に損だった（集弾率が落ちるだけ）。
+  //   広さそのものを利益に変える道を用意して、**絞る／広げるを選ばせる**。
+  //   広げても漏れやすさは変わらないので、そこが対価として残る。
+  gat_barrels: C({ id: 'gat_barrels', kind: 'mod', weapon: 'gatling', rarity: 'rare', maxStack: 2,
+    name: '多銃身', desc: '射界を広げているほど同時発射が増える（最大まで広げて +3）',
+    apply(run) { const w = run.wp('gatling'); if (w) { w.flags.wideCount = true; w.dyn.wideCount = (w.dyn.wideCount || 0) + 3; } } }),
+  gat_loose: C({ id: 'gat_loose', kind: 'mod', weapon: 'gatling', rarity: 'epic', maxStack: 1,
+    name: '暴発装薬', desc: 'ダメージ ×1.7。ただし集弾率が最低で固定される',
+    apply(run) { const w = run.wp('gatling'); if (w) { w.s.dmg *= 1.7; w.flags.looseGroup = true; } } }),
+  shk_sweep: C({ id: 'shk_sweep', kind: 'mod', weapon: 'shuriken', rarity: 'rare', maxStack: 3,
+    name: '薙ぎ払い', desc: '射界を広げているほどダメージが上がる（最大まで広げて ×1.6）',
+    apply(run) { const w = run.wp('shuriken'); if (w) { w.flags.wideDmg = true; w.dyn.wideDmg = (w.dyn.wideDmg || 0) + 0.6; } } }),
+
   gat_wall: C({ id: 'gat_wall', kind: 'mod', weapon: 'gatling', rarity: 'legendary', maxStack: 1,
     name: '弾幕結界', desc: '同時発射 +4 / レート ×1.3 / 射程 ×0.85。視界が弾で埋まる',
     apply(run) { const w = run.wp('gatling'); if (w) { w.s.count += 4; w.s.rate *= 1.3; w.s.range *= 0.85; w.s.spread = Math.max(w.s.spread, 0.1); } } }),

@@ -114,10 +114,26 @@ const SKILLS = [
 const SKILL_BY_ID = {};
 for (const s of SKILLS) SKILL_BY_ID[s.id] = s;
 
-// ============ 換装（パックの3択で出る、既存ノードの差し替え） ============
+// ============ 換装 ============
 //
-//   **差し替わるのは「効き方」だけ。** 値段・上限・解放条件・カテゴリ・
-//   買ったレベルは元のまま引き継ぐ。強くなるのではなく、伸ばす方向が変わる。
+//   【何と何を入れ替えるのか】
+//     スキルツリーの**特定の1ノードだけ**を、別の効き方に差し替える。
+//     どのノードに刺さるかは `base` が持っている（1つの部品は1つのノード専用）。
+//     例：`sw_short_rate 速振り` は `short_rng 突破力` にしか刺さらない。
+//
+//   【何が変わって、何が変わらないか】
+//     変わる   … 名前・アイコン・効き方（key / eff / mode）
+//     変わらない … 値段・上限・解放条件・カテゴリ・**買ったレベル**
+//     つまり強くなるのではなく、**伸ばす方向が変わる**だけ。
+//
+//   【どこで手に入り、どこで付け替えるのか】
+//     手に入る … パック開封の3択（`Pack.swapChance` の確率で出る）。
+//                **選んだ1つだけが手持ちになる。選ばなかった2つは手に入らない。**
+//     付け替え … 一度手に入れた部品は `perm.swapsOwned` に残り、
+//                **スキルツリーで、そのノードをタップすればいつでも付け替えられる。**
+//                元の効き方にも、いつでも戻せる（`Skill.setSwap(perm, base, null)`）。
+//     → だからパックで「今は換えない」を選んでも、**あとから直せる**。
+//        ただし部品そのものは、選ばなければ手に入らない。
 //
 //   eff は、同じ key を持つ既存ノードから写している（新しい数字を作らない）。
 //     rate 1.07 = mid_rate / rate 1.08 = target_rate
@@ -254,21 +270,42 @@ const Skill = {
     return SKILLS.some(s => s.id !== 'lure' && Skill.canBuy(meta, perm, s.id));
   },
 
-  // 換装できる候補。**買っていないノードは換えられない**（換える意味が無い）
+  // パックで出す換装の候補。**買っていないノードは換えられない**（換える意味が無い）。
+  // すでに持っている部品は出さない（持っているものはツリーで付け替えられるため）
   swapChoices(meta, perm, n) {
     const pool = SWAPS.filter(sw =>
       Skill.isUnlocked(perm, sw.base) &&
       Skill.lv(meta, sw.base) > 0 &&
-      (!perm.swaps || perm.swaps[sw.base] !== sw.id));
+      !(perm.swapsOwned && perm.swapsOwned[sw.id]));
     Util.shuffle(pool);
     return pool.slice(0, n || 3);
   },
 
+  // 部品を持っているか／そのノード用に持っている部品は何か
+  ownsSwap(perm, swapId) { return !!(perm.swapsOwned && perm.swapsOwned[swapId]); },
+  ownedSwapsFor(perm, baseId) {
+    return (SWAPS_FOR[baseId] || []).filter(sw => Skill.ownsSwap(perm, sw.id));
+  },
+  // そのノードに刺さりうる部品が、そもそも世の中に在るか（説明に使う）
+  hasSwapFor(baseId) { return !!(SWAPS_FOR[baseId] || []).length; },
+
+  // パックで選んだ＝**手に入れて、そのまま付ける**
   applySwap(perm, swapId) {
     const sw = SWAP_BY_ID[swapId];
     if (!sw) return false;
+    if (!perm.swapsOwned) perm.swapsOwned = {};
+    perm.swapsOwned[sw.id] = 1;
+    return Skill.setSwap(perm, sw.base, sw.id);
+  },
+
+  // ツリーから付け替える。swapId に null を渡すと元の効き方へ戻る。
+  // **持っていない部品は付けられない**
+  setSwap(perm, baseId, swapId) {
     if (!perm.swaps) perm.swaps = {};
-    perm.swaps[sw.base] = sw.id;
+    if (!swapId) { delete perm.swaps[baseId]; return true; }
+    const sw = SWAP_BY_ID[swapId];
+    if (!sw || sw.base !== baseId || !Skill.ownsSwap(perm, swapId)) return false;
+    perm.swaps[baseId] = swapId;
     return true;
   },
 

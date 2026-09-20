@@ -47,7 +47,11 @@ const Game = {
       tabs: { skill: false, load: false, pack: false, deck: false },
       // チュートリアルで今どこまで進んだか。**一度に1操作しか教えない**
       tut: 0,
-      // 換装。baseId -> swapId。パックの3択で入れ替えたスキル
+      // 換装。**持ち物と、今どこに付いているかを分けて持つ**
+      //   swapsOwned … パックで手に入れた部品（swapId -> 1）。転生で消えない
+      //   swaps      … 今その部品がどのノードに付いているか（baseId -> swapId）
+      // 分けてあるので、**一度手に入れた部品はツリーでいつでも付け外しできる**
+      swapsOwned: {},
       swaps: {},
       // 武器の調整ポップアップを置いた場所（プレイヤーが動かせる）
       upop: null,
@@ -100,6 +104,10 @@ const Game = {
     if (!this.perm.placements) this.perm.placements = {};
     if (!this.perm.heat) this.perm.heat = {};
     if (!this.perm.swaps) this.perm.swaps = {};
+    if (!this.perm.swapsOwned) this.perm.swapsOwned = {};
+    // 古いセーブ（持ち物の概念が無かった頃）は、付いている部品を持ち物にも入れる
+    for (const k of Object.keys(this.perm.swaps)) this.perm.swapsOwned[this.perm.swaps[k]] = 1;
+    for (const k of Object.keys(this.perm.swapsOwned)) if (!SWAP_BY_ID[k]) delete this.perm.swapsOwned[k];
     if (!this.perm.clears) this.perm.clears = {};
     if (!this.perm.bestCoins) this.perm.bestCoins = {};
     if (!this.perm.bestPerfect) this.perm.bestPerfect = {};
@@ -343,7 +351,7 @@ const Game = {
     const def = WEAPONS[weaponId];
     const pos = run.stage.center(c, r);
     const u = {
-      id: weaponId, def, s: Object.assign({}, def.base), flags: {}, dyn: { heat: 0 },
+      id: weaponId, def, s: Object.assign({}, def.base), flags: {}, dyn: { heat: 0 }, n: 1,
       c, r, x: pos.x, y: pos.y,
       face: this.defaultFacing(run.stage, c, r),
       arc: def.base.arc,
@@ -418,6 +426,8 @@ const Game = {
     // 指定攻撃には掛けない。**あちらは着弾円の面積で密度が決まる**ので、
     // ここで倍率も掛けると「絞ると強い」を二重取りすることになる
     if (this.usesAimPoint(u.def)) return 1;
+    // 暴発装薬：**絞っても散る。** 絞る意味が消えるので、広げる側が正解になる
+    if (u.flags && u.flags.looseGroup) return 1 - BAL.spreadPenalty;
     return 1 - this.arcT(u) * BAL.spreadPenalty;
   },
 
@@ -500,7 +510,7 @@ const Game = {
       const def = WEAPONS[p.w];
       const pos = run.stage.center(p.c, p.r);
       run.units.push({
-        id: p.w, def, s: Object.assign({}, def.base), flags: {}, dyn: { heat: 0 },
+        id: p.w, def, s: Object.assign({}, def.base), flags: {}, dyn: { heat: 0 }, n: 1,
         c: p.c, r: p.r, x: pos.x, y: pos.y,
         face: p.a !== undefined ? p.a : this.defaultFacing(run.stage, p.c, p.r),
         arc: p.arc !== undefined ? p.arc : def.base.arc,

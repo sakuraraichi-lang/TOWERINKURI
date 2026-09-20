@@ -256,6 +256,8 @@ const Combat = {
     if (g < 1) angle += Util.rand(-1, 1) * (1 - g) * BAL.spreadRad;
     const speed = s.speed * (o.speedMul || 1);
     let dmg = s.dmg * (o.dmgMul || 1);
+    // 散撃砲身：**扇の広さがそのまま威力になる。** 広げる側にも見返りを置く
+    if (w.flags.wideDmg) dmg *= 1 + Game.arcT(w) * w.dyn.wideDmg;
     if (w.id === 'sniper' && run.resonance > 0) dmg *= (1 + run.resonance);
 
     run.bullets.push({
@@ -412,6 +414,16 @@ const Combat = {
     this.shake(run, Math.min(10, radius * 0.06));
   },
 
+  // この発射で撃つ弾数。
+  // **扇を広げるのが得になるカード**（多銃身）がここに乗る。
+  // 広げるとカバー範囲は増えるが集弾率が落ちる、という一方通行だったので、
+  // 「広さそのものを利益に変える」道をカードで用意している
+  shotCount(w) {
+    let n = w.s.count;
+    if (w.flags.wideCount) n += Math.round(Game.arcT(w) * w.dyn.wideCount);
+    return Math.max(1, Math.round(n));
+  },
+
   // ================= 指定攻撃（着弾円） =================
   //
   //   **この分類だけは、砲身から敵へ弾が飛ばない。**
@@ -426,7 +438,7 @@ const Combat = {
     const p = w.aim;
     if (!p) return;
     const R = Game.spotR(w);
-    const n = Math.max(1, Math.round(w.s.count));
+    const n = w.n || 1;
     for (let i = 0; i < n; i++) {
       // 円の中に一様に散らす（sqrt を掛けないと中心に寄る）
       const a = Util.rand(0, Math.PI * 2);
@@ -693,6 +705,7 @@ const Combat = {
         w.muzzle = 0.07;
         w.shots++;
         w.group = Game.groupingOf(w);  // 扇の広さで決まる集弾率。fire から参照する
+        w.n = this.shotCount(w);       // この発射で撃つ弾数。fire から参照する
         w.def.fire(w, run);
       }
     }

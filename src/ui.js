@@ -762,6 +762,39 @@ const UI = {
     btn.addEventListener('pointerleave', stop);
     btn.addEventListener('pointercancel', stop);
     this.treeBuyBtn = btn;
+
+    // ---- 換装：**付け替えはここでやる。** パックで受け取った部品の置き場 ----
+    if (Skill.hasSwapFor(id)) {
+      const owned = Skill.ownedSwapsFor(perm, id);
+      const sw = Util.el('div', 'tdswap');
+      if (!owned.length) {
+        sw.innerHTML = '<div class="tdswhead">換装</div>' +
+          '<div class="tdswnone">この節に差せる部品があります。<b>パックから出ます。</b></div>';
+      } else {
+        sw.innerHTML = '<div class="tdswhead">換装　<i>レベルと値段はそのまま</i></div>';
+        const line = Util.el('div', 'tdswrow');
+        const mk = (label, icon, desc, on, onclick) => {
+          const b = Util.el('button', 'swopt' + (on ? ' on' : ''));
+          b.innerHTML = '<span class="swi">' + icon + '</span>' +
+            '<span class="swn">' + label + '</span>' +
+            '<span class="swd">' + desc + '</span>';
+          b.addEventListener('click', () => { if (!on) onclick(); });
+          return b;
+        };
+        line.appendChild(mk('元のまま', s.icon, Skill.shortDesc(s), !n.swapId, () => {
+          Skill.setSwap(Game.perm, id, null);
+          Game.applyMods(); Game.save(); Snd.ui(); this.refreshTree();
+        }));
+        for (const o of owned) {
+          line.appendChild(mk(o.name, o.icon, Skill.shortDesc(o), n.swapId === o.id, () => {
+            Skill.setSwap(Game.perm, id, o.id);
+            Game.applyMods(); Game.save(); Snd.ui(); this.refreshTree();
+          }));
+        }
+        sw.appendChild(line);
+      }
+      d.appendChild(sw);
+    }
     return d;
   },
 
@@ -998,20 +1031,24 @@ const UI = {
     const showSwaps = () => {
       stage.innerHTML = '';
       stage.appendChild(this.choiceHead('換装',
-        '今あるアップグレードを1つ、別の効き方に入れ替える　レベルと値段はそのまま'));
+        'スキルツリーの節を1つ、別の効き方に差し替える部品　レベルと値段はそのまま'));
       const row = Util.el('div', 'chrow');
       for (const sw of swaps) {
         const base = SKILL_BY_ID[sw.base];
         const lv = Skill.lv(Game.meta, sw.base);
         const cur = Skill.node(sw.base);
+        // **何と何が入れ替わるのかを、両方その場に出す。**
+        // 新しい効果だけ見せても、何を手放すのか分からず選べない
         const el = this.choiceCard({
           name: sw.name,
-          desc: Skill.desc(sw),
+          desc: '<span class="swfrom">' + cur.icon + ' ' + cur.name + '：' + Skill.shortDesc(cur) + '</span>' +
+                '<span class="swarrow">▼ ここに差す</span>' +
+                '<span class="swto">' + sw.icon + ' ' + sw.name + '：' + Skill.shortDesc(sw) + '</span>',
           icon: sw.icon,
           color: 'var(--acc2)',
           isNew: true,
-          type: cur.name + ' と入れ替え',
-          foot: '引き継ぐレベル <b>' + lv + '</b>',
+          type: base.group + 'の節「' + base.name + '」用',
+          foot: 'Lv <b>' + lv + '</b> はそのまま引き継ぐ',
         });
         el.addEventListener('click', () => {
           Skill.applySwap(Game.perm, sw.id);
@@ -1025,7 +1062,12 @@ const UI = {
         row.appendChild(el);
       }
       stage.appendChild(row);
-      const skip = Util.el('button', 'gskip', '今は換えない');
+      // **選ばなかったらどうなるのか／あとでどうするのかを、その場に書く。**
+      // ここが無いと「今は換えない」を押したあと、戻し方が分からない
+      stage.appendChild(Util.el('div', 'swnote',
+        '選んだ部品は手持ちに残り、スキルツリーの節をタップすればいつでも付け外しできます。' +
+        '元の効き方にも戻せます。選ばなかった部品は手に入りません。'));
+      const skip = Util.el('button', 'gskip', 'どれも受け取らない');
       skip.addEventListener('click', () => { stage.innerHTML = ''; finish(); });
       stage.appendChild(skip);
       hint.textContent = '';

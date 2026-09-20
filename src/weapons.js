@@ -87,15 +87,15 @@ const WEAPONS = {
     desc: '毎秒大量の小口径弾。単発は弱いが手数で押す。',
     base: baseStats({ arc: 0.34, dmg: 3.2, rate: 5.5, range: 195, spread: 0.07, speed: 640, bulletR: 2.6, turn: 9 }),
     fire(w, run) {
-      for (let i = 0; i < w.s.count; i++) {
-        const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.s.count > 1 ? w.s.count * 0.7 : 1);
+      for (let i = 0; i < w.n; i++) {
+        const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n * 0.7 : 1);
         Combat.spawnBullet(w, run, a, { color: '#ffd24a' });
       }
       // 加熱は **当たっているあいだだけ**溜まる。
       // 撃ちっぱなしにした以上、撃った回数で溜めると空撃ちで速くなってしまう
       if (w.flags.heat && w.target) w.dyn.heat = Math.min(1, w.dyn.heat + 0.05);
       if (w.flags.tracerBarrage) {
-        w.dyn.tracer = (w.dyn.tracer || 0) + w.s.count;
+        w.dyn.tracer = (w.dyn.tracer || 0) + w.n;
         if (w.dyn.tracer >= 10) {
           w.dyn.tracer = 0;
           Combat.spawnBullet(w, run, w.angle, { color: '#ff7a3c', speedMul: 0.5, dmgMul: 2.2, splash: 55, bulletR: 5, homing: 3 });
@@ -112,8 +112,8 @@ const WEAPONS = {
     desc: '長射程・高威力の単発。並んだ敵を撃ち抜く。',
     base: baseStats({ arc: 0.16, dmg: 34, rate: 0.78, range: 430, spread: 0.012, speed: 1500, pierce: 3, bulletR: 4, turn: 3.5 }),
     fire(w, run) {
-      for (let i = 0; i < w.s.count; i++) {
-        const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (i === 0 ? 1 : w.s.count);
+      for (let i = 0; i < w.n; i++) {
+        const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (i === 0 ? 1 : w.n);
         Combat.spawnBullet(w, run, a, { color: '#6fe3ff', long: true });
       }
       Combat.shake(run, 2.2);
@@ -208,8 +208,8 @@ const WEAPONS = {
     desc: '敵から敵へ跳ね回る投擲。密集しているほど手が付けられなくなる。',
     base: baseStats({ arc: 0.38, dmg: 13, rate: 2.2, range: 230, speed: 520, bulletR: 5, bounce: 3, turn: 10 }),
     fire(w, run) {
-      for (let i = 0; i < w.s.count; i++) {
-        const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.s.count > 1 ? w.s.count : 1);
+      for (let i = 0; i < w.n; i++) {
+        const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n : 1);
         Combat.spawnBullet(w, run, a, { color: '#cdd9e8', spin: true });
       }
     },
