@@ -15,8 +15,10 @@ const CATEGORIES = {
              desc: '間合いは狭いが、入った敵をまとめて溶かす' },
   mid:     { id: 'mid',     name: '中射程',   icon: '◈', color: '#ffd24a',
              desc: '扱いやすい距離と手数。通路の脇に置く定番' },
+  // ミサイルを指定攻撃へ移したので、いまここはスナイパー1本。
+  // 「広い範囲を1基で見る」のは指定攻撃の仕事になったため、説明もそれに合わせた
   long:    { id: 'long',    name: '長射程',   icon: '◎', color: '#6fe3ff',
-             desc: '盤面の広い範囲を1基で見られる。単発が重い' },
+             desc: '遠くの一線を撃ち抜く。狙いを絞るほど報われる' },
   area:    { id: 'area',    name: '範囲攻撃', icon: '▲', color: '#ff6a2a',
              desc: '一度に広い面を焼く。密集しているほど強い' },
   target:  { id: 'target',  name: '指定攻撃', icon: '✛', color: '#c9a0ff',
