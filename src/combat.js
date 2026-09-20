@@ -80,10 +80,18 @@ const Crowd = {
 // 敵をセルに分けて近傍検索を速くする（スマホで敵900体でも落ちないように）
 const Grid = {
   cell: 70, map: new Map(),
+
+  // セルの鍵は**数値**。`gx + ',' + gy` だと、引くたびに文字列を1つ作る。
+  //   第10章の実測で targetAhead が全体の65%（1回 11µs・1秒あたり2,400回）を
+  //   食っていて、その中身がほとんどこの文字列の生成だった。
+  //   盤は 15×21タイル なので、余裕を見て ±512セルまで衝突しない形にする
+  key(gx, gy) { return (gx + 512) * 4096 + (gy + 512); },
+
   build(enemies) {
     this.map.clear();
+    const c = this.cell;
     for (const e of enemies) {
-      const k = ((e.x / this.cell) | 0) + ',' + ((e.y / this.cell) | 0);
+      const k = this.key((e.x / c) | 0, (e.y / c) | 0);
       let a = this.map.get(k);
       if (!a) { a = []; this.map.set(k, a); }
       a.push(e);
@@ -96,7 +104,7 @@ const Grid = {
     const y0 = ((y - r) / c) | 0, y1 = ((y + r) / c) | 0;
     for (let gx = x0; gx <= x1; gx++) {
       for (let gy = y0; gy <= y1; gy++) {
-        const a = this.map.get(gx + ',' + gy);
+        const a = this.map.get(this.key(gx, gy));
         if (a) for (const e of a) out.push(e);
       }
     }
@@ -566,6 +574,13 @@ const Combat = {
   //
   //   探すのは「砲身の線の上」だけでよいので、線に沿ってセルを辿る。
   //   セル数が射程に**比例**するだけになる（2乗ではなくなる）
+  //   **いま持っている当たりより外側は見ない。** 1回 11µs → 3.26µs（3.4倍）。
+  //
+  //   一度これを「結果が変わるから」と却下しかけた。同じシードで1回ずつ比べて
+  //   撃破数が違ったからだが、**測定器はシードを固定しても毎回わずかに違う**
+  //   （原因未特定。組み込み前から同じ）。1回の差は雑音だった。
+  //   4回ずつ回した平均は 5,192撃破 対 5,201撃破（差 0.2%、振れ幅 ±10%の中）、
+  //   到達章は両方 8/8 で変わらず、全体は 23.0秒 → 16.0秒（1.44倍）
   targetAhead(w, run) {
     const ca = Math.cos(w.angle), sa = Math.sin(w.angle);
     const range = w.s.range;
@@ -575,15 +590,16 @@ const Combat = {
     const seen = _seenCells;
     seen.clear();
     for (let d = 0; d <= range + cs; d += cs * 0.5) {
+      if (best && d - pad - cs > bd) break;
       const x = w.x + ca * Math.min(d, range), y = w.y + sa * Math.min(d, range);
       const gx0 = ((x - pad) / cs) | 0, gx1 = ((x + pad) / cs) | 0;
       const gy0 = ((y - pad) / cs) | 0, gy1 = ((y + pad) / cs) | 0;
       for (let gx = gx0; gx <= gx1; gx++) {
         for (let gy = gy0; gy <= gy1; gy++) {
-          const k = gx * 10007 + gy;          // 文字列を作らない。セルの重複判定用
+          const k = Grid.key(gx, gy);
           if (seen.has(k)) continue;
           seen.add(k);
-          const arr = Grid.map.get(gx + ',' + gy);
+          const arr = Grid.map.get(k);
           if (!arr) continue;
           for (const e of arr) {
             if (e.dead) continue;
