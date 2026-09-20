@@ -191,6 +191,115 @@ let REAL_MS = 4000;
 // 1回の出撃に許すゲーム内の分数。1章は約2分なので、6分あれば十分に余裕がある
 let TIME_MIN = 6;
 
+// ---------------------------------------------------------------
+// シード固定と、到達章の分布
+//
+//   **1回の到達章は根拠にならない。** 上の事故（'slow' を壁と誤認）の直後に
+//   「転生なしで第16章」と書いたが、それも**1シードの1回**だった。
+//   運が絡む以上、同じ条件を複数シードで回して**分布**で見ないと、
+//   「緩い／厳しい」は言えない。
+//
+//   本体のコードはすべて素の Math.random を呼ぶので、
+//   グローバルを差し替えるだけで全体が決定的になる
+// ---------------------------------------------------------------
+const _sysRandom = Math.random;
+function seedRng(seed) {
+  let t = seed >>> 0;
+  Math.random = function () {
+    t += 0x6D2B79F5;
+    let r = t;
+    r = Math.imul(r ^ (r >>> 15), r | 1);
+    r ^= r + Math.imul(r ^ (r >>> 7), r | 61);
+    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
+  };
+}
+function unseedRng() { Math.random = _sysRandom; }
+
+// 周1と周2の到達章を、シードを変えて何本も取る。
+//   note が '打切' の行は **測れていない行**。壁として数えないこと
+function reachDist(seeds, opts) {
+  opts = opts || {};
+  const rows = [];
+  for (const sd of seeds) {
+    seedRng(sd);
+    const a = campaignRun(sg => LOADOUTS[sg.id], Object.assign({}, opts, { label: '周1' }));
+    const la = a.stages[a.stages.length - 1] || {};
+    const row = { seed: sd, 周1到達: a.cleared, 周1分: a.totalMin, 周1打切: la.note || '' };
+    if (Game.canPrestige()) {
+      const got = Game.prestige();
+      const b = campaignRun(sg => LOADOUTS[sg.id],
+        Object.assign({}, opts, { reset: false, label: '周2' }));
+      const lb = b.stages[b.stages.length - 1] || {};
+      row.遺物パック = got.reward;
+      row.周2到達 = b.cleared; row.周2分 = b.totalMin; row.周2打切 = lb.note || '';
+    } else {
+      row.周2到達 = '転生不可';
+    }
+    rows.push(row);
+  }
+  unseedRng();
+  return rows;
+}
+
+// 長い測定は**非同期で回す。** campaignRun は同期なので、30章×15回リトライ×
+// 実時間上限30秒が重なると、ブラウザが何分も固まって外から様子が見えなくなる。
+// 章と章のあいだで1回イベントループに返し、途中経過を window.DIST に置く
+async function reachDistAsync(seeds, opts) {
+  opts = opts || {};
+  const yieldNow = () => new Promise(r => setTimeout(r, 0));
+  const st = window.DIST = { rows: [], done: false, now: '', t0: performance.now() };
+
+  async function lap(label, reset) {
+    if (reset) Game.newSave();
+    let cleared = 0, sec = 0, note = '', lastName = '';
+    for (const stg of MAIN_STAGES) {
+      st.now = label + ' ' + stg.name;
+      await yieldNow();
+      let ok = false;
+      for (let i = 1; i <= HARD_CAP; i++) {
+        if (opts.noPacks !== true) openAllPacks();
+        const r = runStage(stg.id, LOADOUTS[stg.id], 90, opts);
+        sec += r.sec;
+        if (r.res === 'clear') { ok = true; cleared++; break; }
+        if (r.res === 'timeout' || r.res === 'slow') { note = '打切'; break; }
+      }
+      lastName = stg.name;
+      if (!ok) break;
+    }
+    return { cleared, min: +(sec / 60).toFixed(1), note, last: lastName };
+  }
+
+  for (const sd of seeds) {
+    seedRng(sd);
+    const a = await lap('周1 seed' + sd, true);
+    const row = { seed: sd, 周1到達: a.cleared, 周1分: a.min, 周1打切: a.note, 周1最後: a.last };
+    if (Game.canPrestige()) {
+      row.遺物パック = Game.prestige().reward;
+      const b = await lap('周2 seed' + sd, false);
+      row.周2到達 = b.cleared; row.周2分 = b.min; row.周2打切 = b.note; row.周2最後 = b.last;
+    } else { row.周2到達 = '転生不可'; row.周2打切 = ''; }
+    st.rows.push(row);
+  }
+  unseedRng();
+  st.done = true;
+  st.実秒 = +((performance.now() - st.t0) / 1000).toFixed(1);
+  return st.rows;
+}
+
+// 分布のまとめ。**打切の行は除いて数える**
+function reachStat(rows, key, noteKey) {
+  const v = rows.filter(r => !r[noteKey] && typeof r[key] === 'number').map(r => r[key]);
+  const cut = rows.filter(r => r[noteKey]).length;
+  if (!v.length) return { n: 0, 打切: cut };
+  v.sort((x, y) => x - y);
+  return {
+    n: v.length, 打切: cut,
+    最小: v[0], 中央: v[(v.length - 1) >> 1], 最大: v[v.length - 1],
+    平均: +(v.reduce((a, x) => a + x, 0) / v.length).toFixed(1),
+    全部: v.join(','),
+  };
+}
+
 // 幅の候補。BAL の刻みに合わせる
 function arcCandidates() {
   const out = [];
