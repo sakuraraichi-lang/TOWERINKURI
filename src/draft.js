@@ -27,8 +27,9 @@ const Draft = {
     });
   },
 
-  // n枚の選択肢を作る。先にレアリティを決めてから、その中で選ぶ。
-  // こうしないと、枚数の多いコモンばかりが並ぶ
+  // n枚の選択肢を作る。**先にレア度を決めてから、その中で等確率に選ぶ。**
+  //   レア度の重みは BAL.rarityWeight に固定してあり、所持枚数では動かない。
+  //   ダブりは Game.rankMul（ランクアップ）に回る（2026-09-21 の決定）
   roll(n) {
     const pool = this.eligible();
     if (!pool.length) return [];
@@ -42,7 +43,7 @@ const Draft = {
       if (!rEnt.length) break;
       const pickR = Util.weighted(rEnt, e => Math.max(0.01, e.w * (1 + BAL.rarityDraftLuck[e.r] * luck * 0.05))).r;
       const cand = rem.filter(id => CARDS[id].rarity === pickR);
-      // ダブりは「出やすさ」に変換してあるので、持っているほど顔を出す
+      // **レア度の中では等確率。** ダブりは出やすさではなくランクに回る
       out.push(Util.weighted(cand, id => Game.cardWeight(id)));
     }
     return out;

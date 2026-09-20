@@ -110,7 +110,7 @@ const SKILLS = [
     cost0: 300, costG: 1.80, max: 12, unlock: 3 },
 
   // ============ 危険と引き換え ============
-  { id: 'lure', name: '敵誘引', icon: '☠', group: '危険',
+  { id: 'lure', name: '敵誘引', icon: '◌', group: '危険',
     eff: 0.12, mode: 'add', tmpl: '敵の出現数 +{e}倍 / コイン獲得 +6%（危険だが儲かる）',
     cost0: 40, costG: 1.45, max: 60, unlock: 1 },
 ];

@@ -188,6 +188,9 @@ let ARC_MODE = 'base';
 //   「そこが限界」ではない。
 let REAL_MS = 4000;
 
+// 1回の出撃に許すゲーム内の分数。1章は約2分なので、6分あれば十分に余裕がある
+let TIME_MIN = 6;
+
 // 幅の候補。BAL の刻みに合わせる
 function arcCandidates() {
   const out = [];
@@ -366,7 +369,7 @@ function replaceUnits(run) {
   for (const id in run.cards) {
     const c = CARDS[id];
     if (!c.apply) continue;
-    for (let i = 0; i < run.cards[id]; i++) c.apply(run);
+    for (let i = 0; i < run.cards[id]; i++) Game.applyCard(id, run);
   }
 }
 
@@ -554,7 +557,11 @@ function runStageInner(stageId, loadout, buys, opts) {
   // **打ち切りは「負け」ではない。** ウェーブが長くなると1ステージが
   // この時間を超え、倒せているのに res が付かないまま抜けてしまう。
   // それを失敗と数えると、同じステージを何度もやり直して測定が止まる
-  const TIME_CAP = 60 * 60 * 20;
+  // ゲーム内の上限。**1章は5ウェーブ＝およそ2分**なので、
+  //   20分も回す意味がない。長く取ると、詰まっている出撃1回に
+  //   実時間で数十秒かかり、30章の測定が帰ってこなくなる（実測）。
+  //   6分で決着が付かないなら、それは実質的に負け
+  const TIME_CAP = 60 * 60 * TIME_MIN;
   // **実時間の上限も置く。**
   //   ゲーム内20分ぶんを回すのに、敵200体だと実時間で数分かかる。
   //   30章を測ろうとしたら1回の出撃が帰ってこなくなった（実測）。
@@ -584,7 +591,7 @@ function runStageInner(stageId, loadout, buys, opts) {
       const id = p[0];
       run.cards[id] = (run.cards[id] || 0) + 1;
       cardsTaken++;
-      if (CARDS[id].apply) CARDS[id].apply(run);
+      Game.applyCard(id, run);
     }
     // ウェーブを凌いだら置き直す。**カードを引いたあと**＝本体と同じ順番
     if (justCleared && REPLACE_MODE && !run.over) replaceUnits(run);

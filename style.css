@@ -48,17 +48,24 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
        var(--bg);}
 
 /* ============ 戦場 ============ */
-#stage{position:relative;flex:1 1 auto;min-height:0;}
-#cv{display:block;width:100%;height:100%;touch-action:none;}
+/* 戦場は4つの領域。**上・左・中央・下。どれも重ならない。**
+   以前は盤面の上にボタンを浮かせていて、
+   置きたい場所にユニット選択ボタンが被って置けないことがあった */
+#stage{flex:1 1 auto;min-height:0;display:none;
+       grid-template-rows:auto 1fr auto;grid-template-columns:100%;
+       padding:6px 8px calc(6px + var(--safe-b));
+       padding-top:calc(6px + env(safe-area-inset-top,0px));gap:6px;}
 
-#hud{position:absolute;inset:0;pointer-events:none;padding:8px 10px;
-     padding-top:calc(8px + env(safe-area-inset-top,0px));
-     display:flex;flex-direction:column;}
+.btop{display:flex;align-items:center;gap:8px;min-height:0;flex-wrap:wrap;}
+.bmain{display:flex;gap:6px;min-height:0;min-width:0;}
+.bfield{position:relative;flex:1 1 auto;min-width:0;min-height:0;}
+#cv{display:block;width:100%;height:100%;touch-action:none;}
+.bbtm{display:flex;align-items:center;gap:6px;min-height:0;}
 /* 旧HUDの .hrow / .hbox / .bar は、細いHUDに作り替えたときに
    出力されなくなった。**使われていないCSSは残さない** */
 .hrow.ctrl{display:flex;gap:8px;pointer-events:auto;align-items:center;}
 .ctl{background:rgba(14,17,23,.9);border:1px solid var(--line2);
-     padding:9px 16px;font-size:13px;font-weight:700;min-height:40px;}
+     padding:8px 12px;font-size:13px;font-weight:700;min-height:40px;}
 .ctl.sq{padding:9px 12px;min-width:46px;}
 .ctl.danger{border-color:var(--danger);color:#ffb7bf;}
 .ctl.go{border-color:var(--acc);color:var(--acc);}
@@ -70,6 +77,20 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 @keyframes toast{0%{opacity:0;transform:translate(-50%,10px) scale(.9);}
                  18%{opacity:1;transform:translate(-50%,0) scale(1);}
                  75%{opacity:1;}100%{opacity:0;transform:translate(-50%,-22px);}}
+
+/* ホームの設定ボタンと、その中身 */
+.cfgbtn{font-size:15px;color:var(--dim);padding:2px 6px;line-height:1;}
+.cfgbtn.on{color:var(--acc);}
+#cfgBox{display:none;margin:0 0 8px;padding:9px 11px;background:var(--panel2);
+  border:1px solid var(--line2);font-size:11px;line-height:1.7;
+  clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));}
+#cfgBox.on{display:block;}
+.cfgrow{display:flex;align-items:center;gap:9px;cursor:pointer;padding:5px 0;}
+.cfgrow .box{width:20px;height:20px;flex:0 0 20px;display:grid;place-items:center;
+  background:#0a0c11;border:1.5px solid var(--line2);color:var(--acc);font-size:13px;font-weight:900;}
+.cfgrow.on .box{border-color:var(--acc);background:#2a1405;}
+.cfgrow b{font-size:12px;font-weight:700;color:var(--txt);}
+.cfgrow span{display:block;font-size:10px;color:var(--dim);margin-top:1px;}
 
 /* ============ 下部タブ ============ */
 /* 参考画像に合わせて、アイコン＋ラベル。選択中は箱で囲う */
@@ -136,6 +157,18 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .sn{font-size:11.5px;margin-top:3px;font-weight:700;}
 .sx{font-size:9.5px;color:var(--dim);margin-top:3px;}
 .synbox{margin-top:12px;}
+/* シナジーは3列 × 縦スクロール。**縦に伸び続けない構造にする** */
+.syngrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;
+  max-height:184px;overflow-y:auto;overscroll-behavior:contain;padding-right:2px;}
+.syncell{display:flex;flex-direction:column;align-items:center;gap:2px;
+  padding:7px 4px;background:var(--panel2);border:1px solid var(--line);text-align:center;}
+.syncell.on{border-color:var(--ok);}
+.syncell.off{opacity:.34;}
+.syncell.noown{opacity:.6;}
+.syncell .si{font-size:14px;line-height:1.1;letter-spacing:1px;}
+.syncell .sn{font-size:10.5px;font-weight:800;color:var(--txt);line-height:1.2;}
+.syncell .sc{font-size:8.5px;color:var(--dim);letter-spacing:.02em;}
+.syncell .se{font-size:9px;color:var(--txt2);line-height:1.3;}
 .synrow{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:7px 8px;margin-bottom:5px;
         background:var(--panel2);border:1px solid var(--line);font-size:11px;}
 .synrow.off{opacity:.36;}
@@ -263,7 +296,10 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .chslot u{position:absolute;right:3px;bottom:1px;text-decoration:none;
   font-size:9px;color:var(--dim);}
 
-.chrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+/* **高さを固定する。** 文章量で高さが変わると、押すたびにボタンが動く */
+.chrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;align-items:stretch;}
+.chrow .chcard{min-height:212px;display:flex;flex-direction:column;}
+.chrow .chcard .chdesc{flex:1 1 auto;display:flex;flex-direction:column;justify-content:center;}
 @media(max-width:400px){.chrow{gap:5px;}}
 
 /* 1枚ぶん */
@@ -290,6 +326,30 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .chcard .chtype{margin-top:8px;padding-top:6px;border-top:1px solid var(--line);
   font-size:9.5px;color:var(--acc);letter-spacing:.04em;}
 .chcard .chtype::before{content:'▲ ';font-size:8px;}
+
+/* ---- 3択の状態表示。**絵だけで、所持・ダブり・選択を分からせる** ---- */
+/* 右上の菱形＝手持ち枚数（ランク）。1枚のときは出さない */
+.chcard .chrank{position:absolute;right:5px;top:5px;display:flex;gap:2px;align-items:center;}
+.chcard .chrank i{width:5px;height:5px;background:var(--ac);transform:rotate(45deg);
+  box-shadow:0 0 4px var(--ac);}
+.chcard .chrank u{text-decoration:none;font-size:8px;color:var(--ac);line-height:1;}
+.chcard .chrank b{font-size:9px;font-weight:900;color:var(--ac);line-height:1;margin-left:1px;}
+/* 下の丸＝この出撃で積んだ枚数。白抜きの1つが「いま押すと埋まる枠」 */
+.chpip{display:flex;gap:4px;justify-content:center;margin-top:7px;}
+.chpip i{width:6px;height:6px;border-radius:50%;background:#222836;
+  border:1px solid var(--line);}
+.chpip i.f{background:var(--ac);border-color:var(--ac);}
+.chpip i.n{background:transparent;border-color:var(--ac);
+  animation:pipnext 1.1s ease-in-out infinite;}
+.chpip u{text-decoration:none;font-size:8px;color:var(--dim);line-height:1;}
+@keyframes pipnext{0%,100%{box-shadow:0 0 0 rgba(255,255,255,0);}
+  50%{box-shadow:0 0 7px var(--ac);}}
+/* 選んだ1枚が残り、他が退く */
+.chrow.done .chcard{opacity:.28;transform:scale(.94);pointer-events:none;
+  transition:opacity .22s,transform .22s;}
+.chrow.done .chcard.sel{opacity:1;transform:scale(1.04);
+  box-shadow:0 0 26px var(--ac);border-color:var(--ac);}
+
 .chfoot{margin-top:12px;}
 
 /* ============ 横長・PC ============ */
@@ -302,21 +362,23 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 }
 
 /* ============ 武器トレイ（配置） ============ */
-#tray{display:none;gap:6px;margin-bottom:6px;pointer-events:auto;
-      align-items:center;flex-wrap:wrap;}
+#tray{display:none;flex-direction:column;gap:5px;flex:0 0 auto;
+      overflow-y:auto;overscroll-behavior:contain;width:58px;
+      scrollbar-width:none;}
+#tray::-webkit-scrollbar{display:none;}
 #tray.on{display:flex;}
-#tray .chip{background:rgba(14,17,23,.92);border:1.5px solid var(--line2);
+#tray .chip{width:100%;padding:6px 2px;background:rgba(14,17,23,.92);border:1.5px solid var(--line2);
             min-width:46px;min-height:38px;padding:5px 8px;font-size:12px;font-weight:800;
             display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.1;}
 #tray .chip.on{background:#3a1c08;border-color:var(--acc);
             box-shadow:0 0 12px rgba(255,138,31,.45);}
 #tray .chip i{font-style:normal;font-size:9px;}
-#tray .chip.unit{min-width:54px;}
+#tray .chip.unit{min-width:0;}
 #tray .chip u{display:block;text-decoration:none;font-size:10px;color:var(--dim);
               font-variant-numeric:tabular-nums;margin-top:1px;}
 #tray .chip.full u{color:var(--danger);}
 #tray .chip.danger{border-color:var(--danger);color:#ffb7bf;}
-#tray .trayhint{font-size:10px;color:var(--dim);text-shadow:0 1px 3px #000;}
+#tray .trayhint{font-size:9px;color:var(--dim);line-height:1.35;text-shadow:0 1px 3px #000;}
 
 /* ============ ステージ一覧 ============ */
 .strow{display:flex;align-items:center;gap:9px;padding:9px;margin-bottom:7px;
@@ -338,7 +400,8 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
    **1画面にいっぺんに詰め込まない。**
    ホーム＝選んで始めるだけ／戦場＝盤面と最小限の表示だけ
    ============================================================ */
-body.on-home #stage{display:none;}
+body.on-home #stage{display:none !important;}
+body.on-battle #stage{display:grid;}
 body.on-home #tabs{display:flex;order:99;}
 body.on-battle #home{display:none;}
 body.on-battle #tabs{display:none;}
@@ -421,25 +484,23 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 .bigstart:active:not(:disabled){transform:translateY(1px);}
 
 /* --- 戦場の最小HUD --- */
-#hud .htop{display:flex;align-items:center;gap:10px;}
+
 .hphase{font-size:12px;font-weight:700;background:rgba(10,12,17,.75);
   border:1px solid var(--line2);padding:4px 9px;letter-spacing:.04em;
   clip-path:polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,7px 100%,0 calc(100% - 7px));}
-.hlife{position:relative;flex:1;max-width:200px;height:16px;
+.hlife{position:relative;flex:1 1 90px;max-width:220px;height:16px;
   background:rgba(10,12,17,.75);border:1px solid var(--line2);overflow:hidden;}
 .hlife i{position:absolute;inset:0;width:100%;transform-origin:left;
   background:linear-gradient(90deg,#2f9e63,#7ee3a0);transition:transform .18s;}
 .hlife span{position:absolute;inset:0;display:grid;place-items:center;
   font-size:10px;font-weight:700;color:#06210f;}
-/* **pointer-events を戻すのを忘れていて、✕・倍速・一時停止・音の4つとも
-   押せなくなっていた。** 親の #hud が none なので、ここで auto に戻す */
-#hud .hbtm{display:flex;align-items:center;gap:6px;margin-top:auto;pointer-events:auto;}
+
 .hwave{flex:1 1 auto;text-align:right;padding-right:4px;font-size:11px;color:var(--dim);}
 /* 準備完了は、小さい操作ボタンの**対岸（同じ行の右端）**に置く */
-.readybtn{flex:0 0 auto;min-height:44px;padding:0 18px;border:none;
+.readybtn{flex:0 0 auto;min-height:44px;padding:0 16px;border:none;
   background:linear-gradient(180deg,#ffa347,#ef6a0c);color:#2a1200;
   font:inherit;font-size:14px;font-weight:900;letter-spacing:.06em;
-  cursor:pointer;pointer-events:auto;
+  cursor:pointer;
   clip-path:polygon(0 0,calc(100% - 11px) 0,100% 11px,100% 100%,11px 100%,0 calc(100% - 11px));
   box-shadow:0 3px 14px rgba(255,138,31,.3);}
 .readybtn.danger{background:linear-gradient(180deg,#ff8095,#d63b52);color:#fff;
@@ -584,7 +645,7 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 .tnode.locked u{display:none;}
 .tnode.root{width:52px;height:52px;font-size:22px;border-color:var(--acc);color:var(--gold);}
 .tlabel{position:absolute;transform:translate(-50%,0);width:80px;text-align:center;
-  font-size:8.5px;color:var(--dim);line-height:1.25;pointer-events:none;}
+  font-size:8.5px;color:var(--txt2);line-height:1.25;pointer-events:none;}
 .tgroup{position:absolute;transform:translate(-50%,-50%);font-size:9px;font-weight:800;
   letter-spacing:.06em;white-space:nowrap;pointer-events:none;}
 
@@ -595,7 +656,7 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 .tdhead{display:flex;align-items:center;gap:9px;}
 .tdhead .sic{border-color:var(--acc);}
 .tdhead .sname{font-size:14px;}
-.tdesc{font-size:11px;color:var(--txt2);line-height:1.6;margin-top:8px;}
+.tdesc{font-size:11px;color:var(--txt);line-height:1.6;margin-top:8px;}
 .tdesc .was{display:block;color:var(--dim);font-size:10px;margin-top:3px;}
 .tdbuy{display:flex;align-items:center;gap:9px;margin-top:10px;}
 .tdbuy .sbuy{flex:1;min-height:40px;font-size:13px;}
@@ -606,7 +667,7 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 .tdswap{margin-top:11px;padding-top:10px;border-top:1px dashed var(--line2);}
 .tdswhead{font-size:10px;letter-spacing:.14em;color:var(--acc);font-weight:800;}
 .tdswhead i{font-style:normal;color:var(--dim);letter-spacing:.04em;font-weight:400;}
-.tdswnone{font-size:11px;color:var(--dim);line-height:1.6;margin-top:6px;}
+.tdswnone{font-size:11px;color:var(--txt2);line-height:1.6;margin-top:6px;}
 .tdswnone b{color:var(--txt2);font-weight:700;}
 .tdswrow{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;}
 .swopt{flex:1 1 128px;display:grid;grid-template-columns:auto 1fr;gap:2px 7px;
@@ -614,7 +675,7 @@ body.tabsoff #homeMain{flex:1 1 auto;}
   background:#0e1116;border:1px solid var(--line2);color:var(--txt2);}
 .swopt .swi{grid-row:span 2;font-size:15px;}
 .swopt .swn{font-size:12px;font-weight:800;color:var(--txt);}
-.swopt .swd{font-size:10px;color:var(--dim);line-height:1.4;}
+.swopt .swd{font-size:10px;color:var(--txt2);line-height:1.4;}
 .swopt.on{border-color:var(--acc);background:#1a1108;cursor:default;}
 .swopt.on .swn{color:var(--acc);}
 .swopt.on .swn::after{content:' ● 装着中';font-size:9px;letter-spacing:.06em;}
@@ -631,7 +692,7 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 .tpoints{display:flex;align-items:center;justify-content:center;gap:10px;
   margin:10px 0 0;padding:10px;background:#0e1116;border:1px solid var(--acc);
   clip-path:polygon(0 0,calc(100% - 13px) 0,100% 13px,100% 100%,13px 100%,0 calc(100% - 13px));}
-.tpoints span{font-size:10px;color:var(--dim);letter-spacing:.1em;}
+.tpoints span{font-size:10px;color:var(--txt2);letter-spacing:.1em;}
 .tpoints b{font-size:19px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums;}
 
 /* タブを開いているあいだは、的を一行に畳んでパネルに場所を譲る */

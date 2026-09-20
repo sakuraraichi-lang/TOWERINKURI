@@ -26,6 +26,7 @@ const UI = {
       toast: q('toast'), badgePack: q('badgePack'),
       upop: q('upop'), stage: q('stage'), tut: q('tut'), perf: q('perf'),
       build: q('build'), buildNote: q('buildNote'),
+      btnCfg: q('btnCfg'), cfgBox: q('cfgBox'),
       btnStart: q('btnStart'),
       homeCoin: q('homeCoin'), homeProg: q('homeProg'), homeLabel: q('homeLabel'),
       homeName: q('homeName'), homeMini: q('homeMini'),
@@ -33,6 +34,10 @@ const UI = {
       homeRank: q('homeRank'), homeXp: q('homeXp'), homeSkip: q('homeSkip'),
       homePrev: q('homePrev'), homeNext: q('homeNext'),
     };
+
+    if (this.el.btnCfg) {
+      this.el.btnCfg.addEventListener('click', () => { Snd.ui(); this.toggleCfg(); });
+    }
 
     this.el.tabs.addEventListener('click', (e) => {
       const b = e.target.closest('[data-tab]');
@@ -172,6 +177,37 @@ const UI = {
     if (name === 'home') { this.renderHome(); this.renderTabs(); this.renderPanel(); }
   },
 
+  // ================= 設定 =================
+  // **ホームの ⚙ から開く。** 出しっぱなしにしない
+  toggleCfg() {
+    const b = this.el.cfgBox, t = this.el.btnCfg;
+    if (!b) return;
+    const on = !b.classList.contains('on');
+    b.classList.toggle('on', on);
+    if (t) t.classList.toggle('on', on);
+    if (on) this.renderCfg();
+  },
+
+  renderCfg() {
+    const b = this.el.cfgBox;
+    if (!b) return;
+    b.innerHTML = '';
+    const row = (key, name, desc) => {
+      const on = !!Game.perm[key];
+      const el = Util.el('label', 'cfgrow' + (on ? ' on' : ''));
+      el.innerHTML = '<span class="box">' + (on ? '✔' : '') + '</span>' +
+        '<span><b>' + name + '</b><span>' + desc + '</span></span>';
+      el.addEventListener('click', () => {
+        Game.perm[key] = !Game.perm[key];
+        Game.save(); Snd.ui(); this.renderCfg();
+      });
+      return el;
+    };
+    b.appendChild(row('autoWave', '次のウェーブへ自動で進む',
+      '切ると、カードを選んだあと配置を直す時間が入ります'));
+    b.appendChild(row('perf', '処理の重さを表示', 'fps と1フレームの時間'));
+  },
+
   // ================= 処理の重さ =================
   // **実機で何体まで出せるかを測るための表示。** 既定では出さない。
   // fps は「上限を掛ける前の実時間」から出すので、重くなると素直に下がる
@@ -283,7 +319,9 @@ const UI = {
     const p = this.el.upop;
     if (!p) return;
     const u = this.selected;
-    if (!u || !Game.run || Game.run.over) {
+    // **戦闘が始まったら閉じる。** 触れないものを開いたままにしない
+    if (!Game.canBuild()) { this.selected = null; this.aiming = null; this.moving = null; }
+    if (!u || !Game.run || Game.run.over || !Game.canBuild()) {
       p.classList.remove('on'); p.innerHTML = '';
       this.el.stage.classList.remove('popopen');
       return;
@@ -830,13 +868,15 @@ const UI = {
   },
 
   // 買った直後の描き直し。**横スクロールの位置を保つ**
+  // 買った直後の描き直し。**縦横のスクロール位置をそのまま保つ**
   refreshTree() {
     const sc = document.getElementById('tree');
     const x = sc ? sc.scrollLeft : 0;
+    const ty = sc ? sc.scrollTop : 0;
     const y = this.el.panel.scrollTop;
     this.renderPanel();
     const sc2 = document.getElementById('tree');
-    if (sc2) sc2.scrollLeft = x;
+    if (sc2) { sc2.scrollLeft = x; sc2.scrollTop = ty; }
     this.el.panel.scrollTop = y;
   },
 
@@ -872,22 +912,26 @@ const UI = {
     const ids = Game.loadoutWeapons();
     const syn = Util.el('div', 'synbox');
     syn.appendChild(Util.el('div', 'sgroup', 'この編成で狙えるシナジー'));
+    // **3列 × 縦スクロール。** 縦に並べると、増えたぶんだけ画面が伸び続けていた
+    const grid = Util.el('div', 'syngrid');
     for (const id of CARD_IDS) {
       const c = CARDS[id];
       if (c.kind !== 'synergy') continue;
       const ok = c.requires.every(w => ids.includes(w));
       const owned = Game.own(id) > 0;
-      // **ぱっと見はアイコン2つと名前だけ。** 効果はタップしたときに出す
-      const row = Util.el('div', 'synrow canopen' + (ok ? (owned ? ' on' : ' noown') : ' off'));
-      const need = c.requires.map(w => (WEAPONS[w] && WEAPONS[w].icon) || '◆').join('');
-      row.innerHTML = '<span class="synico">' + need + '</span>' +
-        '<b>' + c.name + '</b><em>' + (!ok ? '編成が不足' : owned ? '抽選に出る' : '未所持') + '</em>' +
-        '<span class="sdesc">' +
-          c.requires.map(w => WEAPONS[w].name).join(' × ') + '　' +
-          c.desc.replace(/^【[^】]*】/, '') + '</span>';
-      row.addEventListener('click', () => row.classList.toggle('open'));
-      syn.appendChild(row);
+      const cell = Util.el('div', 'syncell' + (ok ? (owned ? ' on' : ' noown') : ' off'));
+      const icons = c.requires.map(w => (WEAPONS[w] && WEAPONS[w].icon) || '◆').join(' ');
+      const pair = c.requires.map(w => (WEAPONS[w] && WEAPONS[w].short) || '??').join(' × ');
+      cell.innerHTML = '<span class="si">' + icons + '</span>' +
+        '<span class="sn">' + c.name + '</span>' +
+        '<span class="sc">' + pair + '</span>' +
+        '<span class="se">' + this.shortDesc(c) + '</span>';
+      // 長い全文は、読もうとしてタップしたときだけ
+      cell.addEventListener('click', () => this.openModal(
+        this.cardEl(c, { count: Game.own(id) }), true));
+      grid.appendChild(cell);
     }
+    syn.appendChild(grid);
     p.appendChild(syn);
   },
 
@@ -967,9 +1011,7 @@ const UI = {
   // ================= パック =================
   panelPacks(p) {
     const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>パック開封</b><span class="sub">コインでは買えない。<b>完璧クリア</b>・ステージ突破・転生・ミッションで手に入る。<br>' +
-      '<b>パックは分野で分かれている。</b>奥の分野は奥のステージまで行かないと掘れない。<br>' +
-      '武器本体のほか、<b>今あるアップグレードを別の効き方に入れ替える「換装」</b>が3択で出ることがある</span>';
+    head.innerHTML = '<b>パック開封</b><span class="sub">コインでは買えません</span>';
     p.appendChild(head);
 
     for (const pid of PACK_IDS) {
@@ -1251,6 +1293,13 @@ const UI = {
       : 'ステージを ' + BAL.prestigeMinStages + ' 個突破すると転生できます（現在 ' + cleared + ' 個）'));
     p.appendChild(Util.el('div', 'warn', '※ 転生するとステージの突破状況も戻ります。もう一度突破すれば初回報酬と初回完璧クリアの報酬を取り直せます（カード・パック・遺物は残ります）'));
 
+    // **転生ボタンは遺物一覧より前に置く。**
+    // 後ろに置くと、遺物が増えるほどスクロールしないと押せなくなる
+    const btn = Util.el('button', 'bigbtn danger', '転生する');
+    btn.disabled = !Game.canPrestige() || Game.phase === 'battle';
+    btn.addEventListener('click', () => this.confirmPrestige());
+    p.appendChild(btn);
+
     // 持っている遺物の一覧
     const owned = Relic.owned(perm);
     if (owned.length) {
@@ -1272,11 +1321,6 @@ const UI = {
         p.appendChild(row);
       }
     }
-
-    const btn = Util.el('button', 'bigbtn danger', '転生する');
-    btn.disabled = !Game.canPrestige() || Game.phase === 'battle';
-    btn.addEventListener('click', () => this.confirmPrestige());
-    p.appendChild(btn);
 
     const reset = Util.el('button', 'linkbtn', 'セーブデータを全消去');
     reset.addEventListener('click', () => {
@@ -1323,11 +1367,10 @@ const UI = {
   // 3択の抽選に入るカードを自分で組めるようにする場所だが、
   // カードの種類が増えてからでないと選ぶ意味が出ないので、今は説明だけ置く
   panelDeck(p) {
-    const n = Object.keys(Game.perm.collection).length;
+    // **まだ組めないので、説明も出さない。** 枠だけ見せる。
+    // 中身が入ったら、ここに組む画面を作る
     const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>デッキ</b><span class="sub">ウェーブ突破ごとの3択に、' +
-      'どのカードを入れるかを自分で組む場所。<b>枠だけ置いてあります</b>（まだ組めません）。<br>' +
-      '今は持っているカード ' + n + ' 種類すべてが抽選に入ります</span>';
+    head.innerHTML = '<b>デッキ</b>';
     p.appendChild(head);
 
     const grid = Util.el('div', 'deckslots');
@@ -1337,7 +1380,6 @@ const UI = {
       grid.appendChild(s);
     }
     p.appendChild(grid);
-    p.appendChild(Util.el('div', 'note', '※ カードの種類が揃ってからでないと選ぶ意味が出ないので、中身は後から入れます。'));
   },
 
   // ================= カード選択（ウェーブ突破ごと） =================
@@ -1363,28 +1405,34 @@ const UI = {
     const row = Util.el('div', 'chrow');
     for (const id of ids) {
       const c = CARDS[id];
-      const stacks = (run.cards[id] || 0) + 1;
       const el = this.choiceCard({
         name: c.name,
         desc: this.shortDesc(c),
         icon: this.cardIcon(c),
         color: BAL.rarity[c.rarity].color,
-        isNew: Game.own(id) === 0 || stacks === 1,
+        // NEW は出さない。**下の丸が「この出撃でまだ0枚」を示しているので重複する**
         type: c.kind === 'weapon' ? '武器を編成に追加'
             : c.kind === 'synergy' ? 'シナジー'
             : (c.weapon ? WEAPONS[c.weapon].name + ' 強化' : '全体強化'),
-        foot: BAL.rarity[c.rarity].name + '　' + stacks + ' / ' + Game.stackLimit(id) + ' 枚目',
+        rank: Game.cardRank(id), rankMul: Game.rankMul(id),
+        pips: { have: run.cards[id] || 0, limit: Game.stackLimit(id) },
         hot: BAL.rarity[c.rarity].glow >= 2,
       });
       el.addEventListener('click', () => {
+        if (row.classList.contains('done')) return;   // 二度押しで2枚取らせない
+        // **選んだ瞬間を目で分からせる。** 選んだ1枚が残り、他が退く
+        row.classList.add('done');
+        el.classList.add('sel');
         run.cards[id] = (run.cards[id] || 0) + 1;
-        if (CARDS[id].apply) CARDS[id].apply(run);
+        Game.applyCard(id, run);
         run.pendingPicks = Math.max(0, run.pendingPicks - 1);
         this.draftOpen = false;
-        this.closeModal();
-        this.toastMsg('取得: ' + c.name, BAL.rarity[c.rarity].color);
-        if (run.pendingPicks > 0) setTimeout(() => this.showDraft(), 220);
-        else Game.paused = false;
+        setTimeout(() => {
+          this.closeModal();
+          this.toastMsg('取得: ' + c.name, BAL.rarity[c.rarity].color);
+          if (run.pendingPicks > 0) this.showDraft();
+          else Game.paused = false;
+        }, 260);
       });
       row.appendChild(el);
     }
@@ -1447,12 +1495,36 @@ const UI = {
     el.style.setProperty('--ac', o.color || 'var(--acc)');
     el.innerHTML =
       (o.isNew ? '<span class="chnew">NEW</span>' : '') +
+      this.rankBadge(o.rank, o.rankMul) +
       '<div class="chname">' + o.name + '</div>' +
       '<div class="chart">' + o.icon + '</div>' +
       '<div class="chdesc">' + o.desc + '</div>' +
+      (o.pips ? this.stackPips(o.pips) : '') +
       (o.foot ? '<div class="chval">' + o.foot + '</div>' : '') +
       '<div class="chtype">' + o.type + '</div>';
     return el;
+  },
+
+  // ---- ダブり・所持・選択を **絵で** 示す部品（文は増やさない） ----
+  //
+  //   右上の菱形 … 手持ちの枚数＝ランク。1枚のときは出さない（出すと常に付いて意味が薄れる）
+  //   下の丸     … この出撃で何枚積んだか。塗り＝積み済み、白抜き＝いま押すと埋まる枠
+  //   倍率を数字で添えるのは、説明文の「×1.32」が実際と食い違うのを防ぐため。
+  //   説明文そのものは書き換えない（代償や上限は倍率が乗らないので、嘘になる）
+  rankBadge(rank, mul) {
+    if (!rank || rank <= 1) return '';
+    const n = Math.min(rank, 5);
+    const m = (mul || 1).toFixed(2);
+    return '<span class="chrank">' + '<i></i>'.repeat(n) + (rank > 5 ? '<u>+</u>' : '') +
+           '<b>×' + m + '</b></span>';
+  },
+  stackPips(p) {
+    const lim = Math.min(p.limit, 8);
+    let s = '<div class="chpip">';
+    for (let i = 0; i < lim; i++)
+      s += '<i class="' + (i < p.have ? 'f' : i === p.have ? 'n' : '') + '"></i>';
+    if (p.limit > lim) s += '<u>+</u>';
+    return s + '</div>';
   },
 
   // ================= カードの見た目 =================

@@ -120,6 +120,9 @@ const Main = {
       return;
     }
     Game.beginBattle();
+    // **戦闘に入ったら、編成のための表示は全部畳む。**
+    // 向きのスライダーや配置調整が開いたままだと、触れないものが盤面に残る
+    UI.selected = null; UI.placingType = null; UI.moving = null; UI.aiming = null;
     Snd.resume(); Snd.waveStart(); Snd.bgmStart();
     UI.renderTray();
     UI.renderPanel();
@@ -284,7 +287,7 @@ const Main = {
         if (sig === 'dead') { Snd.dead(); this.finish(false); break; }
         if (sig === 'stageclear') { Snd.stageClear(); this.finish(true); break; }
         if (sig === 'waveclear') {
-          // ウェーブを1つ凌ぐごとにカードを引ける。そのままビルドフェーズで止まる
+          // ウェーブを1つ凌ぐごとにカードを引ける
           run.lives = Math.min(run.livesMax, run.lives + run.mods.regen);
           run.pendingPicks += run.mods.picks;
           Snd.waveClear();
@@ -294,6 +297,13 @@ const Main = {
         }
       }
       if (!run.over && run.pendingPicks > 0 && !UI.draftOpen) UI.showDraft();
+      // カードを選び終えていて、設定が「自動で次へ」なら、そのまま次のウェーブへ。
+      // 設定はホームの ⚙ で切り替える
+      else if (!run.over && run.phase === 'build' && run.pendingPicks === 0
+               && !UI.draftOpen && Game.perm.autoWave && run.wave > 0
+               && run.wave < BAL.wavesPerStage) {
+        this.nextWave();
+      }
     }
 
     Render.draw(run);

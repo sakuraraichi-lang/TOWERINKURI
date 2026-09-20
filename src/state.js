@@ -59,6 +59,8 @@ const Game = {
       // 処理の重さを出すか（実機で敵数の上限を測るため）
       perf: false,
       mute: false,        // 音を止めているか
+      // カードを選んだあと、自動で次のウェーブへ進むか。ホームの ⚙ で切り替える
+      autoWave: true,
       // スキップの解放と、スキップで配るものの根拠。**転生でも消えない**
       clears: {},      // stageId -> 通算の突破回数
       bestCoins: {},   // stageId -> 手で突破したときの最高コイン
@@ -112,6 +114,7 @@ const Game = {
     if (!this.perm.clears) this.perm.clears = {};
     if (!this.perm.bestCoins) this.perm.bestCoins = {};
     if (!this.perm.bestPerfect) this.perm.bestPerfect = {};
+    if (typeof this.perm.autoWave !== 'boolean') this.perm.autoWave = true;
     // 定義から消えた換装は落とす（古いセーブが未知のidを持ち続けないように）
     for (const k of Object.keys(this.perm.swaps)) if (!SWAP_BY_ID[this.perm.swaps[k]]) delete this.perm.swaps[k];
     if (typeof this.perm.deepest !== 'number') this.perm.deepest = this.clearedCount();
@@ -268,9 +271,48 @@ const Game = {
     return c.maxStack || 1;
   },
 
-  // ダブりは「出やすさ」に変換する。持っているほど3択に顔を出す
-  cardWeight(cardId) {
-    return 1 + 0.45 * Math.max(0, this.own(cardId) - 1);
+  // **出やすさは所持枚数で変えない（2026-09-21）。**
+  //   以前は「持っているほど3択に顔を出す」形だったが、
+  //   ユーザーの決定で **レア度ごとの排出率を固定**し、
+  //   ダブりは下の cardRank（ランクアップ）に回すことにした。
+  //   狙っていない方向へビルドが勝手に寄るのを止めるため
+  cardWeight() { return 1; },
+
+  // ダブりで上がるランク。**1枚目がランク1。** 同じカードを重ねるほど効果が伸びる。
+  //   効果量は CARDS[].apply が rankMul を掛けて使う
+  cardRank(cardId) { return Math.max(1, this.own(cardId)); },
+
+  // ランクごとの効果倍率。**1枚目は等倍。** 1枚増えるごとに +12%
+  //   累乗にしないのは、上限なしの累乗が必ず壊れるから（集金効率の事故）
+  rankMul(cardId) { return 1 + 0.12 * (this.cardRank(cardId) - 1); },
+
+  // ---------- カードの効果量に、ランクを通す ----------
+  //
+  //   カード47枚の apply を1つずつ書き換えずに済むよう、
+  //   **効果量だけをここに通す。** apply を呼ぶ直前に _rkMul を立てる。
+  //
+  //     rk(1.32) … 倍率もの。ランク2なら 1 + 0.32×1.12 = 1.358
+  //     rka(2)   … 加算もの。ランク2なら 2×1.12 = 2.24
+  //
+  //   倍率を「そのまま累乗」にしないのは、上限なしの累乗が必ず壊れるため
+  //   **下振れ（×1未満の代償）はランクで悪化させない。**
+  //   ランクアップは「強くなる」ことなので、代償まで一緒に伸ばすと
+  //   ダブるほど弱くなるカードが出る（弾頭肥大の連射 ×0.55 が ×0.17 になる）
+  //
+  //   **整数で数えるもの（銃身の数・貫通・連鎖・跳弾・ライフ）は rki。**
+  //   12%ずつ増やすと 4→4.48 のような端数になり、数える側が切り捨てて
+  //   「ランクを上げたのに何も起きない」になる。丸めて、数ランクごとに1本増える形にする
+  _rkMul: 1,
+  rk(v) { return v < 1 ? v : 1 + (v - 1) * this._rkMul; },
+  rka(v) { return v < 0 ? v : v * this._rkMul; },
+  rki(v) { return Math.round(this.rka(v)); },
+
+  // カードを1枚適用する。**ランクを通すのはここだけ**
+  applyCard(id, run) {
+    const c = CARDS[id];
+    if (!c || !c.apply) return;
+    this._rkMul = this.rankMul(id);
+    try { c.apply(run); } finally { this._rkMul = 1; }
   },
 
   ownedWeaponIds() { return WEAPON_IDS.filter(wid => this.own('wc_' + wid) > 0); },

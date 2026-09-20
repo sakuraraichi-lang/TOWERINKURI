@@ -26,11 +26,13 @@
         <div class="hnum" id="homeProg"></div>
       </div>
       <span id="build"></span>
-      <a id="protoLink" href="/proto">試作 ▸</a>
+      <button id="btnCfg" class="cfgbtn" title="設定">⚙</button>
       <div class="hpill"><s>◈</s><b id="homeCoin">0</b></div>
     </div>
     <!-- 版の説明。**「ver とは何か」が分からないと表示の意味が無い**ので、タップで出す -->
     <div id="buildNote"></div>
+    <!-- 設定。⚙ で開く -->
+    <div id="cfgBox"></div>
 
     <div id="homeMain">
       <button class="snav" id="homePrev" aria-label="前のステージ">◀</button>
@@ -55,35 +57,39 @@
   </div>
 
   <!-- ============ 戦場 ============ -->
+  <!-- 4つの領域に分ける。**どれも重ならない。**
+       盤面の上にボタンを浮かせていたせいで、
+       置きたいところにユニット選択ボタンが被って置けないことがあった -->
   <div id="stage">
-    <canvas id="cv"></canvas>
 
-    <!-- 選んだ武器の調整。**盤面の武器のすぐ横に出す。**
-         画面下のトレイに出すと、どの武器を触っているのか分からなかった -->
-    <div id="upop"></div>
-
-    <!-- **戦闘中に常時見えるのは、ここだけ。** -->
-    <div id="hud">
-      <div class="htop">
-        <div class="hphase" id="hudPhase">準備フェーズ</div>
-        <div class="hlife"><i id="hudHpBar"></i><span id="hudHp"></span></div>
-      </div>
-      <!-- 処理の重さ。**既定では出さない。**「残り◯」の文字をタップで出し入れする -->
+    <!-- 上：戦闘情報 -->
+    <div class="btop">
+      <div class="hphase" id="hudPhase">準備フェーズ</div>
+      <div class="hlife"><i id="hudHpBar"></i><span id="hudHp"></span></div>
       <div id="perf"></div>
-      <div id="toast"></div>
-      <div id="tray"></div>
-      <!-- 下の操作列。**左に小さい操作、右の対岸に「準備完了」** -->
-      <div class="hbtm">
-        <button id="btnHome" class="ctl sq" title="ホームへ戻る">✕</button>
-        <button id="btnSpeed" class="ctl sq">×1</button>
-        <button id="btnPause" class="ctl sq">❙❙</button>
-        <button id="btnMute" class="ctl sq" title="音">🔊</button>
-        <div class="hwave" id="hudWaveTxt"></div>
-        <button id="btnStart" class="readybtn">準備完了</button>
-      </div>
+    </div>
 
-      <!-- チュートリアル。**一度に1操作しか出さない** -->
-      <div id="tut"></div>
+    <div class="bmain">
+      <!-- 左：ユニット -->
+      <div id="tray"></div>
+
+      <!-- 中央：盤面 -->
+      <div class="bfield">
+        <canvas id="cv"></canvas>
+        <div id="upop"></div>
+        <div id="toast"></div>
+        <div id="tut"></div>
+      </div>
+    </div>
+
+    <!-- 下：操作 -->
+    <div class="bbtm">
+      <button id="btnHome" class="ctl sq" title="ホームへ戻る">✕</button>
+      <button id="btnSpeed" class="ctl sq">×1</button>
+      <button id="btnPause" class="ctl sq">❙❙</button>
+      <button id="btnMute" class="ctl sq" title="音">🔊</button>
+      <div class="hwave" id="hudWaveTxt"></div>
+      <button id="btnStart" class="readybtn">準備完了</button>
     </div>
   </div>
 
