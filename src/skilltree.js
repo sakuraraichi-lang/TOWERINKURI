@@ -169,8 +169,14 @@ const Skill = {
   // **下駄のぶんは値段にも乗る**（安いレベルを飛ばして始める、という意味）
   lv(meta, id) {
     const p = (typeof Game !== 'undefined' && Game.perm) ? Game.perm : null;
-    const base = (p && typeof Relic !== 'undefined') ? Relic.mods(p).startLv : 0;
     const s = SKILL_BY_ID[id];
+    // **設置枠には遺物の下駄を履かせない。**
+    //   遊んでもらった結果「転生エピックの基数追加で無強化プレイができる、
+    //   転生2回でゲームが崩壊する」という報告が出た。
+    //   設置枠は火力・カバー範囲・漏れにくさが同時に増えて他の全強化と掛け算になるので、
+    //   踏破したステージ数以外では絶対に増えないようにする（maxPerClear と同じ理屈）
+    const base = (p && typeof Relic !== 'undefined' && !(s && s.maxPerClear))
+      ? Relic.mods(p).startLv : 0;
     const lv = (meta.skills[id] || 0) + base;
     return s ? Math.min(lv, Skill.maxOf(p, id)) : lv;
   },

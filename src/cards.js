@@ -288,8 +288,10 @@ const CARDS = {
     name: '律動核',   tmpl: '全ての武器の発射レート +{p}' }),
   rl_seed:  P({ id: 'rl_seed',  rarity: 'rare', key: 'seed', eff: 400, mode: 'flat',
     name: '初動資金', tmpl: '転生した直後に コイン +{e}' }),
-  rl_unit:  P({ id: 'rl_unit',  rarity: 'rare', key: 'units', eff: 1, mode: 'flat',
-    name: '常設基盤', tmpl: 'どの武器も置ける数が +{e} 基' }),
+  // **設置枠を配るのをやめた。** これが「転生2回でゲーム崩壊」の正体で、
+  // しかも集計側が読んでいなかったので、説明文だけが嘘をついている状態でもあった
+  rl_unit:  P({ id: 'rl_unit',  rarity: 'rare', key: 'lives', eff: 6, mode: 'flat',
+    name: '常設装甲', tmpl: 'ライフ +{e}' }),
 
   rl_dmg3:  P({ id: 'rl_dmg3',  rarity: 'epic', key: 'dmg',  eff: 1.25, mode: 'mul',
     name: '増幅炉',   tmpl: '全ての武器のダメージ ×{e}' }),

@@ -980,8 +980,12 @@ const UI = {
         '<div class="sdesc">' + (unlocked
           ? pk.desc + '<br>' + pk.size + '枚入り' + (pk.guarantee ? ' / ' + BAL.rarity[pk.guarantee].name + '以上1枚確定' : '')
           : 'ステージを ' + pk.unlock + ' 個突破すると解放') + '</div></div>' +
-        '<button class="sbuy"' + (n > 0 && unlocked ? '' : ' disabled') + '>開封</button>';
-      row.querySelector('.sbuy').addEventListener('click', () => this.openPack(pid));
+        '<button class="sbuy"' + (n > 0 && unlocked ? '' : ' disabled') + '>開封</button>' +
+        // **1枚ずつ開けるのは、溜まってくると作業になる。** まとめて開けられるようにする
+        '<button class="sbuy bulk"' + (n > 1 && unlocked ? '' : ' disabled') + '>×' + n + '</button>';
+      const btns = row.querySelectorAll('.sbuy');
+      btns[0].addEventListener('click', () => this.openPack(pid));
+      btns[1].addEventListener('click', () => this.openPackBulk(pid));
       p.appendChild(row);
     }
 
@@ -998,6 +1002,103 @@ const UI = {
   // ================= 開封（ガチャ画面） =================
   //   ① 封を切る（タップ） → ② 1枚ずつめくる → ③ 換装の3択 → ④ 受け取る
   //   **武器本体が出たときは、ただのカードとして流さず止めて見せる。**
+  // 持っているぶんを全部いっぺんに開ける。
+  //   **1枚ずつめくる演出は、溜まってくるとただの作業になる。**
+  //   中身は1枚ずつ開けたときと完全に同じ（同じ Pack.open を回数ぶん呼ぶだけ）。
+  //   換装だけは選ばせる必要があるので、まとめたあとに順番に出す
+  openPackBulk(pid) {
+    const n = Game.perm.packs[pid] || 0;
+    if (n <= 0) return;
+    Snd.resume();
+    const luck = Skill.mods(Game.meta, Game.perm).packLuck;
+    const got = {};            // cardId -> 枚数
+    const fresh = {};          // 初めて手に入れたか
+    const swaps = [];
+    for (let k = 0; k < n; k++) {
+      for (const id of Pack.open(pid, luck)) {
+        if (Game.own(id) === 0 && !got[id]) fresh[id] = true;
+        got[id] = (got[id] || 0) + 1;
+        Game.grant(id, 1);
+      }
+      if (Util.chance(Pack.swapChance(pid))) {
+        const c = Skill.swapChoices(Game.meta, Game.perm, 3);
+        if (c.length) swaps.push(c);
+      }
+    }
+    Game.perm.packs[pid] = 0;
+    Game.save();
+    Snd.pack();
+
+    const pk = PACKS[pid];
+    const ids = Object.keys(got).sort((a, b) =>
+      BAL.rarityOrder.indexOf(CARDS[b].rarity) - BAL.rarityOrder.indexOf(CARDS[a].rarity));
+    const newCount = Object.keys(fresh).length;
+
+    const body = Util.el('div', 'gacha');
+    body.style.setProperty('--pc', pk.color);
+    body.innerHTML =
+      '<div class="gtop"><b>' + pk.name + ' ×' + n + '</b>' +
+      '<span>' + ids.reduce((a, id) => a + got[id], 0) + '枚　新規 ' + newCount + '種</span></div>' +
+      '<div class="gbody"></div><div class="ghint"></div>';
+    const stage = body.querySelector('.gbody');
+    const grid = Util.el('div', 'bulkgrid');
+    for (const id of ids) grid.appendChild(this.cardEl(CARDS[id], { small: true, count: got[id], isNew: !!fresh[id] }));
+    stage.appendChild(grid);
+    this.openModal(body, true);
+    if (newCount) this.burst('#ffb43c');
+
+    // 換装は選ばせる。出た回数ぶん、順番に
+    let si = 0;
+    const nextSwap = () => {
+      if (si >= swaps.length) {
+        const close = Util.el('button', 'bigbtn', '受け取る');
+        close.addEventListener('click', () => { this.closeModal(); this.renderPanel(); });
+        body.appendChild(close);
+        return;
+      }
+      const set = swaps[si++];
+      stage.innerHTML = '';
+      stage.appendChild(this.choiceHead('換装 ' + si + ' / ' + swaps.length,
+        'スキルツリーの節を1つ、別の効き方に差し替える部品　レベルと値段はそのまま'));
+      const row = Util.el('div', 'chrow');
+      for (const sw of set) {
+        const base = SKILL_BY_ID[sw.base];
+        const cur = Skill.node(sw.base);
+        const el = this.choiceCard({
+          name: sw.name,
+          desc: '<span class="swfrom">' + cur.icon + ' ' + cur.name + '：' + Skill.shortDesc(cur) + '</span>' +
+                '<span class="swarrow">▼ ここに差す</span>' +
+                '<span class="swto">' + sw.icon + ' ' + sw.name + '：' + Skill.shortDesc(sw) + '</span>',
+          icon: sw.icon, color: 'var(--acc2)', isNew: true,
+          type: base.group + 'の節「' + base.name + '」用',
+          foot: 'Lv <b>' + Skill.lv(Game.meta, sw.base) + '</b> はそのまま引き継ぐ',
+        });
+        el.addEventListener('click', () => {
+          Skill.applySwap(Game.perm, sw.id); Game.applyMods(); Game.save();
+          this.toastMsg(base.name + ' → ' + sw.name + ' に換装', '#ff7a18');
+          nextSwap();
+        });
+        row.appendChild(el);
+      }
+      stage.appendChild(row);
+      stage.appendChild(Util.el('div', 'swnote',
+        '選んだ部品は手持ちに残り、スキルツリーの節をタップすればいつでも付け外しできます。' +
+        '元の効き方にも戻せます。選ばなかった部品は手に入りません。'));
+      const skip = Util.el('button', 'gskip', 'どれも受け取らない');
+      skip.addEventListener('click', nextSwap);
+      stage.appendChild(skip);
+    };
+    if (swaps.length) {
+      const go = Util.el('button', 'bigbtn', '換装を選ぶ（' + swaps.length + '回）');
+      go.addEventListener('click', () => { go.remove(); nextSwap(); });
+      body.appendChild(go);
+    } else {
+      const close = Util.el('button', 'bigbtn', '受け取る');
+      close.addEventListener('click', () => { this.closeModal(); this.renderPanel(); });
+      body.appendChild(close);
+    }
+  },
+
   openPack(pid) {
     if ((Game.perm.packs[pid] || 0) <= 0) return;
     Game.perm.packs[pid]--;

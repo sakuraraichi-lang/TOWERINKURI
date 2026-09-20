@@ -10,7 +10,14 @@
 //   積み方
 //     add  … 枚数ぶん加算してから 1+合計 を掛ける。**後半で1枚の価値が薄まる＝暴走しない**
 //     mul  … 枚数ぶん累乗。エピック以上だけ
-//     flat … そのまま加算（ライフ・設置数・初期コイン・初期レベル）
+//     flat … そのまま加算（ライフ・初期コイン・初期レベル）
+//
+//   **設置枠を配る遺物は置かない。**
+//   遊んでもらった結果「転生エピックの基数追加で無強化プレイができる、
+//   転生2回でゲームが崩壊する」という報告が出た。
+//   設置枠は火力・カバー範囲・漏れにくさが同時に増え、他の全強化と掛け算になるので、
+//   踏破したステージ数以外では増えない（unitCap / Skill.maxOf / Skill.lv を参照）。
+//   key:'units' の集計は、実際どこからも読まれていない死に道だったので落とした
 // ---------------------------------------------------------------
 'use strict';
 
@@ -28,7 +35,7 @@ const Relic = {
     const col = (perm && perm.collection) || {};
     const add = { dmg: 0, coin: 0, rate: 0 };
     const mul = { dmg: 1, coin: 1, rate: 1 };
-    let lives = 0, units = 0, seed = 0, startLv = 0;
+    let lives = 0, seed = 0, startLv = 0;
 
     for (const id of RELIC_IDS) {
       const n = col[id] || 0;
@@ -37,7 +44,6 @@ const Relic = {
       if (c.mode === 'add') add[c.key] += c.eff * n;
       else if (c.mode === 'mul') mul[c.key] *= Math.pow(c.eff, n);
       else if (c.key === 'lives') lives += c.eff * n;
-      else if (c.key === 'units') units += c.eff * n;
       else if (c.key === 'seed') seed += c.eff * n;
       else if (c.key === 'startLv') startLv += c.eff * n;
     }
@@ -46,7 +52,7 @@ const Relic = {
       dmg: (1 + add.dmg) * mul.dmg,
       coin: (1 + add.coin) * mul.coin,
       rate: (1 + add.rate) * mul.rate,
-      lives, units, seed, startLv,
+      lives, seed, startLv,
       count: RELIC_IDS.reduce((a, id) => a + (col[id] || 0), 0),
     };
     return this._cache;

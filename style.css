@@ -22,13 +22,23 @@
   --ok:#7ee3a0;
   --safe-b: env(safe-area-inset-bottom, 0px);
 }
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+/* スマホで邪魔になるブラウザ既定の挙動を全部止める。
+   **viewport の user-scalable=no は iOS が無視する**ので、
+   ダブルタップ拡大は touch-action で止める。
+   長押しの「コピー」吹き出しと青い選択は callout と user-select で止める */
+*{box-sizing:border-box;
+  -webkit-tap-highlight-color:transparent;
+  -webkit-touch-callout:none;
+  touch-action:manipulation;          /* スクロールとピンチは残し、ダブルタップ拡大だけ殺す */
+  user-select:none;-webkit-user-select:none;}
+*::selection{background:transparent;}
+*::-moz-selection{background:transparent;}
 html,body{
   margin:0;padding:0;height:100%;overflow:hidden;
   background:var(--bg);color:var(--txt);
   font-family:system-ui,-apple-system,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;
   overscroll-behavior:none;
-  user-select:none;-webkit-user-select:none;
+  -webkit-text-size-adjust:100%;text-size-adjust:100%;
 }
 button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:none;}
 
@@ -721,3 +731,8 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 /* お金では買えない上限（設置枠）の理由 */
 .tdcap{margin-top:7px;font-size:10px;line-height:1.5;color:var(--acc);
   padding:6px 9px;background:#150e06;border-left:2px solid var(--acc);}
+
+/* まとめて開封したときの一覧。**1枚ずつめくらないので、密度を上げて全部見せる** */
+.bulkgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px;
+  max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:2px;}
+.prow .sbuy.bulk{min-width:52px;margin-left:5px;padding:8px 6px;}
