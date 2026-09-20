@@ -5,14 +5,30 @@
 //     ステージ初回突破 / 初回の完璧クリア / ミッション / 転生
 //
 //   **パックは分野で分かれている。** 1つのパックに全カードが入っているわけではない。
-//   「ステージ1をクリアして即転生」を繰り返しても、その周辺の分野しか掘れない。
-//   奥の分野は、奥のステージまで行かないと手に入らない
+//
+//   【解放の考え方・2026-09-20 改定】
+//     以前は解放条件が「突破したステージ数」だけで、**遺物パックが0面解放**だった。
+//     遺物は転生でしか消えない恒久強化なのに、**転生を知る前に触れてしまう**状態で、
+//     長期の報酬を序盤に食い切っていた。
+//
+//     そこで**解放の軸を「転生した回数」に移した**（unlockP）。
+//     ステージ進行は転生でリセットされるので、そこに長期の解放を紐づけると
+//     2周目以降に意味が無くなるため。
+//
+//       基本パック … 2ステージ突破（ここだけステージ基準。導入で要るので）
+//       遺物パック … **転生1回**  ← 恒久強化はここから
+//       兵装パック … 転生2回
+//       化学パック … 転生3回
+//       連携パック … 転生4回
+//
+//     **まだ解放していないパックは配らない。**（Pack.grantable）
+//     配る先が無いときはコインに振り替える（報酬が消えないように）
 // ---------------------------------------------------------------
 'use strict';
 
 const PACKS = {
   basic: {
-    id: 'basic', name: '基本パック', size: 4, unlock: 0, color: '#7f93a8',
+    id: 'basic', name: '基本パック', size: 4, unlock: 2, unlockP: 0, color: '#7f93a8',
     swapChance: 0.20,
     desc: '汎用カードと、初期装備まわりの強化',
     weights: { common: 78, rare: 19, epic: 2.7, legendary: 0.3 }, guarantee: null,
@@ -21,7 +37,7 @@ const PACKS = {
       (c.kind === 'mod' && WEAPONS[c.weapon] && WEAPONS[c.weapon].src === 'start'),
   },
   arms: {
-    id: 'arms', name: '兵装パック', size: 5, unlock: 1, color: '#ffd24a',
+    id: 'arms', name: '兵装パック', size: 5, unlock: 0, unlockP: 2, color: '#ffd24a',
     swapChance: 0.40,
     desc: '短射程・中射程・長射程。刀と手裏剣もここから',
     weights: { common: 48, rare: 39, epic: 11, legendary: 2 }, guarantee: 'rare',
@@ -33,7 +49,7 @@ const PACKS = {
     },
   },
   chem: {
-    id: 'chem', name: '化学パック', size: 5, unlock: 2, color: '#8fd94a',
+    id: 'chem', name: '化学パック', size: 5, unlock: 0, unlockP: 3, color: '#8fd94a',
     swapChance: 0.40,
     desc: '範囲攻撃・指定攻撃・支援。触手と泡もここから',
     weights: { common: 42, rare: 41, epic: 14, legendary: 3 }, guarantee: 'rare',
@@ -46,14 +62,14 @@ const PACKS = {
   },
   // **転生でしか手に入らない。** 中身は遺物（転生で消えない永続パッシブ）
   relic: {
-    id: 'relic', name: '遺物パック', size: 3, unlock: 0, color: '#ffb43c',
+    id: 'relic', name: '遺物パック', size: 3, unlock: 0, unlockP: 1, color: '#ffb43c',
     swapChance: 0,
     desc: '転生でしか出ない。中身は転生で消えない永続強化',
     weights: { common: 55, rare: 30, epic: 12, legendary: 3 }, guarantee: null,
     accepts: (c) => c.kind === 'perm',
   },
   syn: {
-    id: 'syn', name: '連携パック', size: 4, unlock: 2, color: '#c26bff',
+    id: 'syn', name: '連携パック', size: 4, unlock: 0, unlockP: 4, color: '#c26bff',
     swapChance: 0.25,
     desc: 'シナジー専用。2種を組み合わせたときだけ効くカード',
     // シナジーの内訳に合わせる（コモン2 / レア5 / エピック2 / レジェンド0）。
@@ -73,8 +89,34 @@ const Pack = {
   clearedCount(perm) { return MAIN_STAGES.filter(s => (perm.stages[s.id] || {}).cleared).length; },
 
   isUnlocked(perm, id) {
-    // 一度でも到達した深さで解放する（転生でステージ進行が戻っても、解放は戻さない）
-    return Math.max(this.clearedCount(perm), perm.deepest || 0) >= PACKS[id].unlock;
+    const pk = PACKS[id];
+    // ステージ側は「一度でも到達した深さ」で見る（転生で戻っても解放は戻さない）
+    const depth = Math.max(this.clearedCount(perm), perm.deepest || 0);
+    if (depth < (pk.unlock || 0)) return false;
+    return (perm.prestiges || 0) >= (pk.unlockP || 0);
+  },
+
+  // なぜ開いていないのかを一言で（画面に出す）
+  lockReason(perm, id) {
+    const pk = PACKS[id];
+    const depth = Math.max(this.clearedCount(perm), perm.deepest || 0);
+    if (depth < (pk.unlock || 0)) return 'ステージを ' + pk.unlock + ' 個突破すると解放';
+    const need = (pk.unlockP || 0) - (perm.prestiges || 0);
+    if (need > 0) return need === 1 && !(perm.prestiges || 0)
+      ? '初めて転生すると解放'
+      : 'あと ' + need + ' 回 転生すると解放';
+    return '';
+  },
+
+  // **まだ解放していないパックは配らない。**
+  //   配れないときは null を返す。呼び出し側がコインに振り替える
+  grantable(perm, id) {
+    if (this.isUnlocked(perm, id)) return id;
+    // 同じ役どころで、すでに開いているものへ落とす
+    for (const k of ['syn', 'chem', 'arms', 'basic']) {
+      if (k !== id && this.isUnlocked(perm, k)) return k;
+    }
+    return null;
   },
 
   rollRarity(pack, packLuck) {

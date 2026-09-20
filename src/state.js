@@ -31,7 +31,8 @@ const Game = {
   newSave() {
     this.perm = {
       collection: Object.assign({}, STARTER_CARDS),
-      packs: { basic: 1, arms: 0, chem: 0, syn: 0 },
+      // **最初はパックを持っていない。** 基本パックは2ステージ突破で解放される
+      packs: { basic: 0, arms: 0, chem: 0, syn: 0, relic: 0 },
       deepest: 0,        // 転生を挟んでも戻らない「到達した深さ」。パックの解放条件に使う
       prestiges: 0,
       totalKills: 0,
@@ -213,11 +214,7 @@ const Game = {
     const nextStage = (mi >= 0) ? (MAIN_STAGES[mi + 1] || null) : null;
     const got = { first, perfect: !!perfect, firstPerfect,
                   cards: [], packs: {}, stage: def, next: nextStage };
-    const addPack = (k, n) => {
-      this.perm.packs[k] = (this.perm.packs[k] || 0) + n;
-      got.packs[k] = (got.packs[k] || 0) + n;
-      this.perm.packsEarned = (this.perm.packsEarned || 0) + n;
-    };
+    const addPack = (k, n) => this.addPack(k, n, got);
     // **実験用のステージは報酬を出さない。** 比較のために置いてあるだけで、
     // ここで稼げてしまうと本編の経済がぶれる
     if (first && !def.experimental) {
@@ -233,6 +230,26 @@ const Game = {
     }
     this.save();
     return got;
+  },
+
+  // ---------- パックを配る（唯一の入口） ----------
+  //
+  //   **まだ解放していないパックは配らない。** 解放前に個数だけ増えても、
+  //   開けられないので「持っているのに触れない」という状態ができるだけ。
+  //   配り先が無いときはコインに振り替えて、報酬そのものは消さない
+  addPack(k, n, sink) {
+    const id = Pack.grantable(this.perm, k);
+    if (!id) {
+      // まだ何も開いていない（＝ゲームのいちばん最初）。コインで返す
+      const coins = 120 * n;
+      this.meta.coins += coins;
+      if (sink) sink.coins = (sink.coins || 0) + coins;
+      return null;
+    }
+    this.perm.packs[id] = (this.perm.packs[id] || 0) + n;
+    this.perm.packsEarned = (this.perm.packsEarned || 0) + n;
+    if (sink) sink.packs[id] = (sink.packs[id] || 0) + n;
+    return id;
   },
 
   // ---------- コレクション ----------
@@ -264,10 +281,7 @@ const Game = {
       if (this.perm.missions[m.id]) continue;
       if (m.check(this.perm)) {
         this.perm.missions[m.id] = true;
-        for (const k in m.reward) {
-          this.perm.packs[k] = (this.perm.packs[k] || 0) + m.reward[k];
-          this.perm.packsEarned = (this.perm.packsEarned || 0) + m.reward[k];
-        }
+        for (const k in m.reward) this.addPack(k, m.reward[k]);
         got.push(m);
       }
     }
@@ -682,12 +696,12 @@ const Game = {
     if (!this.canPrestige()) return null;
     const cleared = this.clearedCount();
     const mods = Skill.mods(this.meta, this.perm);
-    const reward = Pack.prestigeReward(cleared, this.perm.prestiges, mods.packLuck);
-    for (const k in reward) {
-      this.perm.packs[k] = (this.perm.packs[k] || 0) + reward[k];
-      this.perm.packsEarned = (this.perm.packsEarned || 0) + reward[k];
-    }
+    // **回数を先に増やす。** 遺物パックは「転生1回」で解放されるので、
+    // 増やす前に配ると、初回転生の報酬である遺物パックが自分自身の条件で弾かれる
     this.perm.prestiges++;
+    const reward = Pack.prestigeReward(cleared, this.perm.prestiges - 1, mods.packLuck);
+    const sink = { packs: {} };
+    for (const k in reward) if (reward[k] > 0) this.addPack(k, reward[k], sink);
     // 遺物「初動資金」のぶんだけ、次の周は資金を持って始まる
     this.meta.coins = Relic.mods(this.perm).seed;
     this.meta.skills = {};
@@ -699,6 +713,6 @@ const Game = {
     this.phase = 'prep';
     const missions = this.checkMissions();
     this.save();
-    return { reward, missions, prestiges: this.perm.prestiges, resetStages: cleared };
+    return { reward: sink.packs, missions, prestiges: this.perm.prestiges, resetStages: cleared };
   },
 };

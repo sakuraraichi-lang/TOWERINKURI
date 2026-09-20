@@ -971,15 +971,15 @@ const UI = {
     for (const pid of PACK_IDS) {
       const pk = PACKS[pid];
       const n = Game.perm.packs[pid] || 0;
-      // 遺物パックは転生でしか出ない。一度も見ていないうちは並べない
-      if (pid === 'relic' && n === 0 && Game.perm.prestiges === 0) continue;
+      // 遺物パックは初回転生で解放される。それまでは存在も見せない
+      if (pid === 'relic' && !Pack.isUnlocked(Game.perm, pid)) continue;
       const unlocked = Pack.isUnlocked(Game.perm, pid);
       const row = Util.el('div', 'prow' + (n > 0 && unlocked ? ' can' : ''));
       row.innerHTML = '<div class="pico" style="background:' + pk.color + '22;border-color:' + pk.color + '">⬢</div>' +
         '<div class="sbody"><div class="sname">' + pk.name + ' <em>×' + n + '</em></div>' +
         '<div class="sdesc">' + (unlocked
           ? pk.desc + '<br>' + pk.size + '枚入り' + (pk.guarantee ? ' / ' + BAL.rarity[pk.guarantee].name + '以上1枚確定' : '')
-          : 'ステージを ' + pk.unlock + ' 個突破すると解放') + '</div></div>' +
+          : Pack.lockReason(Game.perm, pid)) + '</div></div>' +
         '<button class="sbuy"' + (n > 0 && unlocked ? '' : ' disabled') + '>開封</button>' +
         // **1枚ずつ開けるのは、溜まってくると作業になる。** まとめて開けられるようにする
         '<button class="sbuy bulk"' + (n > 1 && unlocked ? '' : ' disabled') + '>×' + n + '</button>';
