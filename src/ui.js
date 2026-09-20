@@ -1421,7 +1421,7 @@ const UI = {
         type: c.kind === 'weapon' ? '武器を編成に追加'
             : c.kind === 'synergy' ? 'シナジー'
             : (c.weapon ? WEAPONS[c.weapon].name + ' 強化' : '全体強化'),
-        rank: Game.cardRank(id), rankMul: Game.rankMul(id),
+        rank: Game.cardRank(id), rankMul: c.noRank ? 1 : Game.rankMul(id),
         pips: { have: run.cards[id] || 0, limit: Game.stackLimit(id) },
         hot: BAL.rarity[c.rarity].glow >= 2,
       });
@@ -1521,9 +1521,9 @@ const UI = {
   rankBadge(rank, mul) {
     if (!rank || rank <= 1) return '';
     const n = Math.min(rank, 5);
-    const m = (mul || 1).toFixed(2);
-    return '<span class="chrank">' + '<i></i>'.repeat(n) + (rank > 5 ? '<u>+</u>' : '') +
-           '<b>×' + m + '</b></span>';
+    // ランクで伸びないカードは倍率を出さない（×1.00 と出すのは嘘に近い）
+    const m = (mul || 1) > 1.0001 ? '<b>×' + mul.toFixed(2) + '</b>' : '';
+    return '<span class="chrank">' + '<i></i>'.repeat(n) + (rank > 5 ? '<u>+</u>' : '') + m + '</span>';
   },
   stackPips(p) {
     const lim = Math.min(p.limit, 8);

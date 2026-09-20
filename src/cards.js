@@ -10,6 +10,10 @@
 
 function C(o) { return o; }
 
+//   noRank … **ランクを上げても効果が変わらないカード。**
+//   「必ず会心になる」のような二択や、上限そのものを触るものは、
+//   数字を伸ばす場所が無い。3択の札に倍率を出すと嘘になるので印を付ける
+
 // 遺物カード。**説明文は tmpl と eff から作る。**
 //   {e} … 効果量そのまま   {p} … 百分率（加算のとき見やすい）
 function P(o) {
@@ -46,7 +50,7 @@ const CARDS = {
   gat_ap: C({ id: 'gat_ap', kind: 'mod', weapon: 'gatling', rarity: 'rare', maxStack: 3,
     name: '徹甲弾', desc: 'ガトリング弾が貫通 +1、ダメージ ×1.18',
     apply(run) { const w = run.wp('gatling'); if (w) { w.s.pierce += Game.rki(1); w.s.dmg *= Game.rk(1.18); } } }),
-  gat_heat: C({ id: 'gat_heat', kind: 'mod', weapon: 'gatling', rarity: 'epic', maxStack: 1,
+  gat_heat: C({ id: 'gat_heat', noRank: true, kind: 'mod', weapon: 'gatling', rarity: 'epic', maxStack: 1,
     // **上限がある。** 撃ちっぱなしになったので、重ねるほど速くなる形だと
     // 「置いておくだけで加速し続ける」になってしまう（BAL.heatCap で頭打ち）
     name: '加熱暴走', desc: '当て続けるほど発射レート上昇（上限 +120%）。当たらないと冷える',
@@ -91,7 +95,7 @@ const CARDS = {
     apply(run) { const w = run.wp('sniper'); if (w) { w.s.pierce += 99; w.s.speed *= Game.rk(1.6); w.s.dmg *= Game.rk(1.3); } } }),
   snp_exec: C({ id: 'snp_exec', kind: 'mod', weapon: 'sniper', rarity: 'legendary', maxStack: 1,
     name: '執行', desc: 'スナイパーが命中させた敵は、残りHP18%以下なら即死',
-    apply(run) { const w = run.wp('sniper'); if (w) w.s.execThr = Math.max(w.s.execThr, 0.18); } }),
+    apply(run) { const w = run.wp('sniper'); if (w) w.s.execThr = Math.max(w.s.execThr, Game.rka(0.18)); } }),
 
   // ============ ミサイル ============
   msl_warhead: C({ id: 'msl_warhead', kind: 'mod', weapon: 'missile', rarity: 'common', maxStack: 5,
@@ -119,13 +123,13 @@ const CARDS = {
     apply(run) { const w = run.wp('tesla'); if (w) w.s.chain += Game.rki(2); } }),
   tsl_shock: C({ id: 'tsl_shock', kind: 'mod', weapon: 'tesla', rarity: 'rare', maxStack: 3,
     name: '感電', desc: 'テスラが当てた敵は3秒間、あらゆる被ダメージ +25%',
-    apply(run) { const w = run.wp('tesla'); if (w) w.s.shockDur = Math.max(w.s.shockDur, 3) + 0.5; } }),
+    apply(run) { const w = run.wp('tesla'); if (w) w.s.shockDur = Math.max(w.s.shockDur, Game.rka(3)) + Game.rka(0.5); } }),
   tsl_over: C({ id: 'tsl_over', kind: 'mod', weapon: 'tesla', rarity: 'epic', maxStack: 2,
     name: '過負荷', desc: '連鎖 +3。連鎖しても威力が減衰せず、むしろ1段ごとに +12%',
-    apply(run) { const w = run.wp('tesla'); if (w) { w.s.chain += Game.rki(3); w.s.chainFalloff = Math.max(w.s.chainFalloff, 1.0) + 0.12; } } }),
+    apply(run) { const w = run.wp('tesla'); if (w) { w.s.chain += Game.rki(3); w.s.chainFalloff = Math.max(w.s.chainFalloff, 1.0) + Game.rka(0.12); } } }),
   tsl_god: C({ id: 'tsl_god', kind: 'mod', weapon: 'tesla', rarity: 'legendary', maxStack: 1,
     name: '雷神', desc: '5秒ごとに画面全体へ落雷。テスラのダメージの3倍',
-    apply(run) { const w = run.wp('tesla'); if (w) { w.flags.thunderGod = true; w.dyn.godCd = 5; } } }),
+    apply(run) { const w = run.wp('tesla'); if (w) { w.flags.thunderGod = true; w.dyn.godEvery = 5 / Game.rka(1); w.dyn.godCd = w.dyn.godEvery; } } }),
 
   // ============ 火炎放射器 ============
   flm_fuel: C({ id: 'flm_fuel', kind: 'mod', weapon: 'flame', rarity: 'common', maxStack: 5,
@@ -147,8 +151,8 @@ const CARDS = {
     apply(run) { const w = run.wp('gas'); if (w) { w.s.fieldR *= Game.rk(1.35); w.s.fieldDur *= Game.rk(1.3); } } }),
   gas_nerve: C({ id: 'gas_nerve', kind: 'mod', weapon: 'gas', rarity: 'legendary', maxStack: 1,
     name: '神経ガス', desc: '雲の中の敵は 50%減速し、受けるダメージ +45%。毒 ×1.6',
-    apply(run) { const w = run.wp('gas'); if (w) { w.s.dmg *= Game.rk(1.6); w.s.slow = Math.max(w.s.slow, 0.5);
-      w.s.fieldVuln = Math.max(w.s.fieldVuln, 0.45); } } }),
+    apply(run) { const w = run.wp('gas'); if (w) { w.s.dmg *= Game.rk(1.6); w.s.slow = Math.min(0.85, Math.max(w.s.slow, Game.rka(0.5)));
+      w.s.fieldVuln = Math.max(w.s.fieldVuln, Game.rka(0.45)); } } }),
 
   // ============ 凍結装置 ============
   cry_deep: C({ id: 'cry_deep', kind: 'mod', weapon: 'cryo', rarity: 'common', maxStack: 5,
@@ -170,7 +174,8 @@ const CARDS = {
     apply(run) { const w = run.wp('katana'); if (w) { w.s.rate *= Game.rk(1.5); w.s.crit += Game.rka(0.15); } } }),
   ktn_mugen: C({ id: 'ktn_mugen', kind: 'mod', weapon: 'katana', rarity: 'legendary', maxStack: 1,
     name: '無限刃', desc: '斬るたびに間合いが +6%（最大2倍まで）。斬り続けるほど手が付けられない',
-    apply(run) { const w = run.wp('katana'); if (w) { w.flags.mugen = true; w.dyn.mugenBase = w.s.range; } } }),
+    apply(run) { const w = run.wp('katana'); if (w) { w.flags.mugen = true; w.dyn.mugenBase = w.s.range;
+      w.dyn.mugenStep = 1 + 0.06 * Game.rka(1); w.dyn.mugenMax = 2 * Game.rka(1); } } }),
 
   // ============ 手裏剣 ============
   shu_multi: C({ id: 'shu_multi', kind: 'mod', weapon: 'shuriken', rarity: 'common', maxStack: 5,
@@ -181,7 +186,7 @@ const CARDS = {
     apply(run) { const w = run.wp('shuriken'); if (w) w.s.bounce += Game.rki(3); } }),
   shu_poison: C({ id: 'shu_poison', kind: 'mod', weapon: 'shuriken', rarity: 'epic', maxStack: 2,
     name: '毒手裏剣', desc: '命中で毒を付与。跳ねるたびにダメージ +12%（減衰しない）',
-    apply(run) { const w = run.wp('shuriken'); if (w) { w.s.burn = Math.max(w.s.burn, 0.35); w.s.burnDur = Math.max(w.s.burnDur, 3); w.flags.ramp = true; } } }),
+    apply(run) { const w = run.wp('shuriken'); if (w) { w.s.burn = Math.max(w.s.burn, Game.rka(0.35)); w.s.burnDur = Math.max(w.s.burnDur, Game.rka(3)); w.flags.ramp = true; } } }),
 
   // ============ 触手 ============
   tnt_grip: C({ id: 'tnt_grip', kind: 'mod', weapon: 'tentacle', rarity: 'common', maxStack: 5,
@@ -203,7 +208,7 @@ const CARDS = {
     apply(run) { const w = run.wp('bubble'); if (w) w.s.rate *= Game.rk(1.55); } }),
   bbl_acid: C({ id: 'bbl_acid', kind: 'mod', weapon: 'bubble', rarity: 'epic', maxStack: 2,
     name: '酸泡', desc: '割れたときのダメージ ×2.4。さらに酸だまりを残す',
-    apply(run) { const w = run.wp('bubble'); if (w) { w.s.splashMul *= Game.rk(2.4); w.flags.acid = true; w.s.fieldR = 60; w.s.fieldDur = 3.5; } } }),
+    apply(run) { const w = run.wp('bubble'); if (w) { w.s.splashMul *= Game.rk(2.4); w.flags.acid = true; w.s.fieldR = Game.rka(60); w.s.fieldDur = Game.rka(3.5); } } }),
 
   // ============ 迫撃砲 ============
   mtr_shell: C({ id: 'mtr_shell', kind: 'mod', weapon: 'mortar', rarity: 'common', maxStack: 5,
@@ -229,20 +234,22 @@ const CARDS = {
       if (m) m.dyn.spotMul = (m.dyn.spotMul || 1) * Game.rk(1.6); } }),
   syn_implode: C({ id: 'syn_implode', kind: 'synergy', requires: ['missile', 'tesla'], rarity: 'rare', maxStack: 3,
     name: '電磁爆縮', desc: '【ミサイル＋テスラ】ミサイルの爆発が感電を付与し、爆風 ×1.35',
-    apply(run) { const m = run.wp('missile'); if (m) { m.flags.implode = true; m.s.splash *= Game.rk(1.35); m.s.shockDur = Math.max(m.s.shockDur, 2.5); } } }),
+    apply(run) { const m = run.wp('missile'); if (m) { m.flags.implode = true; m.s.splash *= Game.rk(1.35); m.s.shockDur = Math.max(m.s.shockDur, Game.rka(2.5)); } } }),
   syn_resonance: C({ id: 'syn_resonance', kind: 'synergy', requires: ['gatling', 'sniper'], rarity: 'epic', maxStack: 2,
     name: '弾道共鳴', desc: '【ガトリング＋スナイパー】ガトリング命中ごとにスナイパーのダメージ +0.6%（上限 +400%）',
-    apply(run) { const g = run.wp('gatling'); if (g) g.flags.resonance = true; } }),
+    apply(run) { const g = run.wp('gatling'); if (g) { g.flags.resonance = true;
+      run.resonanceStep = Math.max(run.resonanceStep || 0, Game.rka(0.006));
+      run.resonanceMax = Math.max(run.resonanceMax || 0, Game.rka(4.0)); } } }),
 
   syn_backdraft: C({ id: 'syn_backdraft', kind: 'synergy', requires: ['flame', 'gas'], rarity: 'rare', maxStack: 3,
     name: '爆燃', desc: '【火炎放射器＋毒ガス】毒の雲に炎が届くと引火して大爆発する',
     apply(run) { const f = run.wp('flame'); if (f) f.flags.ignite = true; run.backdraft += Game.rka(1); } }),
-  syn_shatterblade: C({ id: 'syn_shatterblade', kind: 'synergy', requires: ['cryo', 'katana'], rarity: 'rare', maxStack: 3,
+  syn_shatterblade: C({ id: 'syn_shatterblade', noRank: true, kind: 'synergy', requires: ['cryo', 'katana'], rarity: 'rare', maxStack: 3,
     name: '兜割り', desc: '【凍結装置＋刀】凍っている敵に対して刀の斬撃が必ず会心になる',
     apply(run) { const k = run.wp('katana'); if (k) k.flags.frostCrit = true; } }),
   syn_staticfoam: C({ id: 'syn_staticfoam', kind: 'synergy', requires: ['bubble', 'tesla'], rarity: 'common', maxStack: 4,
     name: '感電泡', desc: '【泡＋テスラ】泡に閉じ込めた敵が感電し、雷の連鎖が必ずそこを通る',
-    apply(run) { const b = run.wp('bubble'); if (b) { b.flags.staticFoam = true; b.s.shockDur = Math.max(b.s.shockDur, 3); } } }),
+    apply(run) { const b = run.wp('bubble'); if (b) { b.flags.staticFoam = true; b.s.shockDur = Math.max(b.s.shockDur, Game.rka(3)); } } }),
   syn_hangman: C({ id: 'syn_hangman', kind: 'synergy', requires: ['tentacle', 'missile'], rarity: 'epic', maxStack: 2,
     name: '吊るし上げ', desc: '【触手＋ミサイル】掴まれている敵への着弾ダメージ ×2.2',
     apply(run) { const t = run.wp('tentacle'); if (t) t.flags.hang = true;

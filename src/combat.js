@@ -347,7 +347,8 @@ const Combat = {
       this.damage(run, e, dmg, o);
       hits++;
     }
-    if (w.flags.mugen && hits > 0) w.s.range = Math.min(w.dyn.mugenBase * 2, w.s.range * 1.06);
+    if (w.flags.mugen && hits > 0)
+      w.s.range = Math.min(w.dyn.mugenBase * (w.dyn.mugenMax || 2), w.s.range * (w.dyn.mugenStep || 1.06));
     if (w.flags.ignite) {
       for (let i = run.fields.length - 1; i >= 0; i--) {
         const f = run.fields[i];
@@ -732,7 +733,7 @@ const Combat = {
       if (w.flags.thunderGod) {
         w.dyn.godCd -= dt;
         if (w.dyn.godCd <= 0) {
-          w.dyn.godCd = 5;
+          w.dyn.godCd = w.dyn.godEvery || 5;
           for (const e of run.enemies.slice(0, 150)) {
             if (e.dead) continue;
             this.damage(run, e, w.s.dmg * 3, { shock: Math.max(2, w.s.shockDur), color: '#d8c7ff' });
@@ -817,7 +818,8 @@ const Combat = {
           burn: b.burn, burnDur: b.burnDur, color: b.color,
         });
 
-        if (b.src && b.src.flags.resonance && b.wid === 'gatling') run.resonance = Math.min(4.0, run.resonance + 0.006);
+        if (b.src && b.src.flags.resonance && b.wid === 'gatling')
+          run.resonance = Math.min(run.resonanceMax || 4.0, run.resonance + (run.resonanceStep || 0.006));
         // 曳光指示：スナイパーが撃ち抜いた敵に印が残る。
         // **ミサイルの狙いは変えない。**印の付いた敵に落ちたときだけ効く
         if (b.src && b.src.flags.spot && b.wid === 'sniper' && !e.dead) e.spotT = 3;

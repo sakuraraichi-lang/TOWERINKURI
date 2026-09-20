@@ -284,7 +284,11 @@ const Game = {
 
   // ランクごとの効果倍率。**1枚目は等倍。** 1枚増えるごとに +12%
   //   累乗にしないのは、上限なしの累乗が必ず壊れるから（集金効率の事故）
-  rankMul(cardId) { return 1 + 0.12 * (this.cardRank(cardId) - 1); },
+  rankMul(cardId) {
+    // 伸ばす数字を持たないカード（noRank）は、何枚あっても等倍
+    if (CARDS[cardId] && CARDS[cardId].noRank) return 1;
+    return 1 + 0.12 * (this.cardRank(cardId) - 1);
+  },
 
   // ---------- カードの効果量に、ランクを通す ----------
   //
@@ -305,13 +309,24 @@ const Game = {
   _rkMul: 1,
   rk(v) { return v < 1 ? v : 1 + (v - 1) * this._rkMul; },
   rka(v) { return v < 0 ? v : v * this._rkMul; },
-  rki(v) { return Math.round(this.rka(v)); },
+  //   **端数は次の1枚に繰り越す。** 1枚ずつ丸めると、
+  //   「+1 を5枚重ねてランク2」でも合計5本のままになり、ランクが死ぬ。
+  //   合計で丸めれば5枚目に +2 が来て、ちゃんと6本になる
+  rki(v) {
+    const acc = this._rkAcc || (this._rkAcc = {});
+    const k = this._rkKey + '|' + v;
+    const prev = acc[k] || 0, now = prev + this.rka(v);
+    acc[k] = now;
+    return Math.round(now) - Math.round(prev);
+  },
 
   // カードを1枚適用する。**ランクを通すのはここだけ**
   applyCard(id, run) {
     const c = CARDS[id];
     if (!c || !c.apply) return;
     this._rkMul = this.rankMul(id);
+    this._rkAcc = run._rkAcc || (run._rkAcc = {});
+    this._rkKey = id;
     try { c.apply(run); } finally { this._rkMul = 1; }
   },
 
@@ -663,6 +678,7 @@ const Game = {
     run.lives = run.livesMax;
     run.wave = 1;
     run.cards = {};
+    run._rkAcc = {};   // 積んだ枚数を戻すので、繰り越しも戻す
     run.pendingPicks = 0;
     this.phase = 'battle';
     this.stageRec(run.stageId).attempts++;
