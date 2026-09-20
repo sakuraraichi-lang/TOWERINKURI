@@ -259,39 +259,52 @@ function reachDist(seeds, opts) {
 // 長い測定は**非同期で回す。** campaignRun は同期なので、30章×15回リトライ×
 // 実時間上限30秒が重なると、ブラウザが何分も固まって外から様子が見えなくなる。
 // 章と章のあいだで1回イベントループに返し、途中経過を window.DIST に置く
+//   **実時間では打ち切らない。** 実時間の上限は「測定器が遅いかどうか」でしかなく、
+//   それで止めた行を到達章として並べると、**軽くした版ほど深く見える**という
+//   嘘の結果になる（実際 0921c で第14章、同じバランスの 0921d で第17章と出た）。
+//   代わりに**ゲーム内の上限（TIME_MIN）と挑戦回数（tries）で区切る。**
+//   どちらもゲーム側の条件なので、打ち切りではなく「抜けられなかった」と読める。
+//
+//   章ごとに何回目で抜けたかも残す。**壁がどこかは、到達章よりこちらに出る**
 async function reachDistAsync(seeds, opts) {
   opts = opts || {};
+  const tries = opts.tries || 6;
   const yieldNow = () => new Promise(r => setTimeout(r, 0));
   const st = window.DIST = { rows: [], done: false, now: '', t0: performance.now() };
 
   async function lap(label, reset) {
     if (reset) Game.newSave();
     let cleared = 0, sec = 0, note = '', lastName = '';
+    const tryLog = [];
     for (const stg of MAIN_STAGES) {
       st.now = label + ' ' + stg.name;
       await yieldNow();
-      let ok = false;
-      for (let i = 1; i <= HARD_CAP; i++) {
+      let ok = false, used = 0;
+      for (let i = 1; i <= tries; i++) {
         if (opts.noPacks !== true) openAllPacks();
         const r = runStage(stg.id, LOADOUTS[stg.id], 90, opts);
-        sec += r.sec;
+        sec += r.sec; used = i;
         if (r.res === 'clear') { ok = true; cleared++; break; }
-        if (r.res === 'timeout' || r.res === 'slow') { note = '打切'; break; }
+        // 'slow' が出たら測定器が追いつかなかった行。**隠さず印を残す**
+        if (r.res === 'slow') { note = '打切'; break; }
       }
+      tryLog.push(used);
       lastName = stg.name;
-      if (!ok) break;
+      if (!ok) { if (!note) note = ''; break; }
     }
-    return { cleared, min: +(sec / 60).toFixed(1), note, last: lastName };
+    return { cleared, min: +(sec / 60).toFixed(1), note, last: lastName, tries: tryLog.join(',') };
   }
 
   for (const sd of seeds) {
     seedRng(sd);
     const a = await lap('周1 seed' + sd, true);
-    const row = { seed: sd, 周1到達: a.cleared, 周1分: a.min, 周1打切: a.note, 周1最後: a.last };
+    const row = { seed: sd, 周1到達: a.cleared, 周1分: a.min, 周1打切: a.note,
+                  周1最後: a.last, 周1挑戦回数: a.tries };
     if (Game.canPrestige()) {
       row.遺物パック = Game.prestige().reward;
       const b = await lap('周2 seed' + sd, false);
       row.周2到達 = b.cleared; row.周2分 = b.min; row.周2打切 = b.note; row.周2最後 = b.last;
+      row.周2挑戦回数 = b.tries;
     } else { row.周2到達 = '転生不可'; row.周2打切 = ''; }
     st.rows.push(row);
   }
