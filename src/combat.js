@@ -124,13 +124,18 @@ const Combat = {
   startWave(run) {
     run.phase = 'spawn';
     run.toSpawn = this.waveCount(run);
+    // **湧き間隔は「そのウェーブの総数」で割る。**
+    // 残り数で割ると、減るほど間隔が伸びて最後の1体に湧き秒数まるごとかかる
+    run.waveTotal = run.toSpawn;
     run.spawnTimer = 0;
     run.spawnPick = 0;
   },
 
+  // 湧き終わるまでの秒数を、そのウェーブの敵の数で割る。
+  // **敵が何体でも、湧きにかかる時間は一定**になる
   spawnInterval(run) {
-    const v = BAL.spawnIntervalBase * Math.pow(BAL.spawnIntervalDecay, this.gw(run));
-    return Math.max(BAL.spawnIntervalMin, v);
+    const n = Math.max(1, run.waveTotal || this.waveCount(run));
+    return Math.max(BAL.spawnIntervalMin, BAL.spawnSeconds / n);
   },
 
   pickType(g) {

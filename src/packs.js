@@ -83,7 +83,19 @@ const PACK_IDS = ['basic', 'arms', 'chem', 'syn', 'relic'];
 
 // ステージごとに「そのステージらしい分野」を割り当てる。
 // 完璧クリアの報酬はこれになるので、奥の分野は奥まで行かないと掘れない
-const STAGE_PACK = { st1: 'basic', st2: 'arms', st3: 'chem', st4: 'syn', st5: 'syn' };
+// 章ごとの「分野」。完璧クリアの報酬はこれになる。
+// **30章あるので、1枚ずつ手で書かず幕で決める。**
+// 奥の分野は奥まで行かないと掘れない、という性質は変わらない
+function stagePackOf(stageId) {
+  const i = MAIN_STAGES.findIndex(s => s.id === stageId);
+  const ch = i < 0 ? 1 : i + 1;
+  if (ch <= 4) return 'basic';      // I   導入
+  if (ch <= 8) return 'arms';       // II  最初の壁
+  if (ch <= 14) return 'chem';      // III 恒久層
+  if (ch <= 20) return 'arms';      // IV  自動化
+  if (ch <= 27) return 'chem';      // V   特化
+  return 'syn';                     // VI  決着
+}
 
 const Pack = {
   clearedCount(perm) { return MAIN_STAGES.filter(s => (perm.stages[s.id] || {}).cleared).length; },
@@ -161,7 +173,7 @@ const Pack = {
   },
 
   // ステージに紐づく分野のパックid
-  forStage(stageId) { return STAGE_PACK[stageId] || 'basic'; },
+  forStage(stageId) { return stagePackOf(stageId); },
 
   // 開封で「換装の3択」が出る確率。
   // **武器の分野を掘るパックほど出やすい。** 換装はカテゴリの伸ばし方を変えるものなので
@@ -191,11 +203,13 @@ const Pack = {
 function clearedStages(p) { return MAIN_STAGES.filter(s => (p.stages[s.id] || {}).cleared).length; }
 
 const MISSIONS = [
-  { id: 'st1',      name: '最初のステージを突破',       reward: { basic: 1 }, check: (p) => clearedStages(p) >= 1 },
-  { id: 'st3',      name: 'ステージを3つ突破',          reward: { arms: 1 },  check: (p) => clearedStages(p) >= 3 },
-  { id: 'stAll',    name: '全ステージを突破',           reward: { syn: 2 },   check: (p) => clearedStages(p) >= MAIN_STAGES.length },
+  { id: 'st1',      name: '第1章を突破',               reward: { basic: 1 }, check: (p) => clearedStages(p) >= 1 },
+  { id: 'st3',      name: '第3章まで突破',             reward: { arms: 1 },  check: (p) => clearedStages(p) >= 3 },
+  { id: 'st8',      name: '第8章まで突破',             reward: { chem: 1 },  check: (p) => clearedStages(p) >= 8 },
+  { id: 'st15',     name: '第15章まで突破',            reward: { chem: 2 },  check: (p) => clearedStages(p) >= 15 },
+  { id: 'stAll',    name: '全30章を突破',              reward: { syn: 2 },   check: (p) => clearedStages(p) >= MAIN_STAGES.length },
   { id: 'perfect1', name: '初めての完璧クリア',         reward: { basic: 2 }, check: (p) => MAIN_STAGES.some(s => (p.stages[s.id] || {}).perfect) },
-  { id: 'perfect3', name: '3ステージで完璧クリア',      reward: { chem: 1 },  check: (p) => MAIN_STAGES.filter(s => (p.stages[s.id] || {}).perfect).length >= 3 },
+  { id: 'perfect3', name: '3章で完璧クリア',           reward: { chem: 1 },  check: (p) => MAIN_STAGES.filter(s => (p.stages[s.id] || {}).perfect).length >= 3 },
   { id: 'kill1k',   name: '累計1,000体撃破',            reward: { basic: 1 }, check: (p) => p.totalKills >= 1000 },
   { id: 'kill50k',  name: '累計50,000体撃破',           reward: { arms: 2 },  check: (p) => p.totalKills >= 50000 },
   { id: 'kill1m',   name: '累計1,000,000体撃破',        reward: { chem: 2 },  check: (p) => p.totalKills >= 1000000 },

@@ -32,7 +32,7 @@ const Render = {
   camStage: null,
 
   fit() {
-    const st = Game.run ? Game.run.stage : Stage.build(Game.perm ? (Game.perm.currentStage || 'st1') : 'st1');
+    const st = Game.run ? Game.run.stage : Stage.build(Game.perm ? (Game.perm.currentStage || 'ch1') : 'ch1');
     this.stage = st;
 
     // **画面に収まらないステージは、縮小せずに一部を切り取る。**

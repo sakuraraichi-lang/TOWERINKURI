@@ -40,8 +40,8 @@ const Game = {
       packsEarned: 0,     // **遊んで手に入れた**パックの数（最初から持っている1個は数えない）
       missions: {},
       loadout: ['wc_gatling', 'wc_sniper', null, null],
-      stages: { st1: { cleared: false, perfect: false, bestWave: 0, attempts: 0 } },
-      currentStage: 'st1',
+      stages: { ch1: { cleared: false, perfect: false, bestWave: 0, attempts: 0 } },
+      currentStage: 'ch1',
       placements: {},
       heat: {},          // stageId -> { traffic: [], leak: [] }
       // **タブは最初から全部出さない。** 遊んで意味が分かった順に開く
@@ -120,7 +120,7 @@ const Game = {
     if (!this.perm.packs) this.perm.packs = {};
     for (const k of Object.keys(this.perm.packs)) if (PACK_IDS.indexOf(k) < 0) delete this.perm.packs[k];
     for (const k of PACK_IDS) if (typeof this.perm.packs[k] !== 'number') this.perm.packs[k] = 0;
-    if (!STAGE_BY_ID[this.perm.currentStage]) this.perm.currentStage = 'st1';
+    if (!STAGE_BY_ID[this.perm.currentStage]) this.perm.currentStage = 'ch1';
     Relic.invalidate();
     return true;
   },
@@ -553,8 +553,8 @@ const Game = {
 
   // 盤面とユニットだけ用意した状態。敵は出さない
   startPrep(stageId) {
-    stageId = stageId || this.perm.currentStage || 'st1';
-    if (!this.stageUnlocked(stageId)) stageId = 'st1';
+    stageId = stageId || this.perm.currentStage || 'ch1';
+    if (!this.stageUnlocked(stageId)) stageId = 'ch1';
     this.perm.currentStage = stageId;
     this.phase = 'prep';
 
@@ -708,7 +708,7 @@ const Game = {
     // **ステージ進行も戻す。** もう一度突破すれば初回報酬と初回完璧の報酬を取り直せる。
     // deepest（到達した深さ）だけは戻さないので、パックの解放は保たれる
     this.perm.stages = {};
-    this.perm.currentStage = 'st1';
+    this.perm.currentStage = 'ch1';
     this.run = null;
     this.phase = 'prep';
     const missions = this.checkMissions();

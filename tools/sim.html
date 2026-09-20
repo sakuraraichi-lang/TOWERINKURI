@@ -68,13 +68,23 @@ const UI = {
   rollDraft(n) { return Draft.roll(n); },
 };
 
-const LOADOUTS = {
-  st1: ['gatling', 'sniper'],
-  st2: ['gatling', 'sniper', 'missile'],
-  st3: ['gatling', 'sniper', 'missile', 'tesla'],
-  st4: ['flame', 'mortar', 'missile', 'tesla'],
-  st5: ['flame', 'mortar', 'gas', 'tesla'],
-};
+// 30章ぶんの編成。**章ごとに手で書かない。**
+// 設計書 §4-3 の武器解放の割付に合わせて、その章までに持っている武器から選ぶ
+// **実ゲームの初期所持（STARTER_CARDS）に合わせること。**
+// ここを勝手に「ガトリング1種」にしていて、第1章が 撃破1／漏れ20 で即死していた。
+// 「初期武器を1種に絞る」は設計書 §13 の未承認の提案であって、まだ入っていない
+const WEAPON_AT = [
+  [1, 'gatling'], [1, 'sniper'], [5, 'missile'], [8, 'tesla'],
+  [11, 'flame'], [14, 'gas'], [17, 'cryo'], [20, 'mortar'],
+];
+function loadoutFor(stageId) {
+  const i = MAIN_STAGES.findIndex(s => s.id === stageId);
+  const ch = i < 0 ? 1 : i + 1;
+  const have = WEAPON_AT.filter(w => ch >= w[0]).map(w => w[1]);
+  // 編成枠は4。**新しいものを優先する**（古い武器は章が進むと相対的に弱くなるため）
+  return have.slice(-BAL.loadoutSlots);
+}
+const LOADOUTS = new Proxy({}, { get: (_, k) => loadoutFor(String(k)) });
 
 // 計測用の自動配置。
 // 本体は手で置く前提なので、ここでは「通路に面した地面へ、経路に沿って散らして置く」
@@ -162,6 +172,10 @@ function aimField(st, range, arc) {
 // 近似がその答えと一致するとは限らず、一致しない場合はそれ自体が結果です。
 // ---------------------------------------------------------------
 let ARC_MODE = 'base';
+
+// 1回の出撃に許す実時間（ミリ秒）。超えたら 'slow' で打ち切る。
+// **測定器が帰ってこないほうが困る**ので、精度より打ち切りを優先する
+let REAL_MS = 4000;
 
 // 幅の候補。BAL の刻みに合わせる
 function arcCandidates() {
@@ -501,8 +515,7 @@ function runStageInner(stageId, loadout, buys, opts) {
     // 上限に当たっていなければ何体だったか。当たると敵の増加がHPだけになる
     const nRaw = Math.floor((BAL.waveCountBase + g * BAL.waveCountPerWave) * run.mods.spawn);
     // 湧き切るまでに必ずかかる時間。ウェーブの長さのうち、これは戦闘ではなく待ち時間
-    const spawnSec = n * Math.max(BAL.spawnIntervalMin,
-      BAL.spawnIntervalBase * Math.pow(BAL.spawnIntervalDecay, g));
+    const spawnSec = n * Math.max(BAL.spawnIntervalMin, BAL.spawnSeconds / Math.max(1, n));
     const sec = (t - wT) / 60;
     const dealt = run.dealt - wDealt;
     const coins = Game.meta.coins - wCoins;
@@ -531,7 +544,14 @@ function runStageInner(stageId, loadout, buys, opts) {
   // この時間を超え、倒せているのに res が付かないまま抜けてしまう。
   // それを失敗と数えると、同じステージを何度もやり直して測定が止まる
   const TIME_CAP = 60 * 60 * 20;
+  // **実時間の上限も置く。**
+  //   ゲーム内20分ぶんを回すのに、敵200体だと実時間で数分かかる。
+  //   30章を測ろうとしたら1回の出撃が帰ってこなくなった（実測）。
+  //   測定器が止まると何も分からないので、実時間でも打ち切る
+  const REAL_CAP = (typeof REAL_MS === 'number') ? REAL_MS : 4000;
+  const realT0 = performance.now();
   while (t < TIME_CAP) {
+    if ((t & 255) === 0 && performance.now() - realT0 > REAL_CAP) { res = 'slow'; snapWave(false); break; }
     const sig = Combat.update(run, 1 / 60);
     t++;
     if (sig === 'dead') { res = 'dead'; snapWave(false); break; }
@@ -634,8 +654,6 @@ function openAllPacks() {
 // 調整前後・敵誘引あり無し・ビルド別を、**同じコードで**回して比べる
 // ---------------------------------------------------------------
 
-// 案2を入れる前の値。調整前後を同じセッションで比べるために残してある
-const BAL_BEFORE = { spawnIntervalBase: 0.22, spawnIntervalDecay: 0.97 };
 
 // 1周（突破できるところまで）。pick はステージを受けて編成を返す
 function campaignRun(pick, opts) {
@@ -653,7 +671,7 @@ function campaignRun(pick, opts) {
       for (const w of r.waves) allWaves.push(w);
       if (r.death) deaths.push(r.death);
       if (r.res === 'clear') { ok = true; cleared++; break; }
-      if (r.res === 'timeout') { note = '打切'; break; }
+      if (r.res === 'timeout' || r.res === 'slow') { note = '打切'; break; }
     }
     stages.push({ stage: stg.name, ok, tries, sec: +secs.toFixed(1), note });
     if (!ok) break;
@@ -784,7 +802,7 @@ function campaign() {
       const r = runStage(st.id, lo, 90);
       log.push(r);
       if (r.res === 'clear') { cleared = i; break; }
-      if (r.res === 'timeout') break;   // 難易度ではなく長さの問題。繰り返しても同じ
+      if (r.res === 'timeout' || r.res === 'slow') break;   // 難易度ではなく長さの問題
     }
     // **突破できたときだけ**戦力を記録する。
     // 打ち切りで終わった回の値を混ぜると「突破時点の戦力」ではなくなる
@@ -989,7 +1007,7 @@ document.getElementById('runCards').addEventListener('click', () => {
       Game.newSave();
       Game.meta.skills.picks = picks;
       Game.perm.loadout = ['wc_gatling', 'wc_sniper', null, null];
-      const rp = Game.startPrep('st1');
+      const rp = Game.startPrep('ch1');
       autoPlace(rp);
       Game.beginBattle();
       const run = Game.run;
