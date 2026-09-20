@@ -184,8 +184,23 @@ const Pack = {
   prestigeReward(clearedStages, prestiges, packLuck) {
     const out = { basic: 0, arms: 0, chem: 0, syn: 0, relic: 0 };
     if (clearedStages <= 0) return out;
-    // **遺物パックが転生の本体。** 深く行ってから転生するほど多い
-    out.relic = 3 + Math.floor(clearedStages * 0.8);
+    // **遺物パックが転生の本体。**
+    //
+    //   枚数は勘で決めていない。設計書 §6-2 の恒久倍率
+    //     F(P) = 前回到達章の必要戦力 N × 5
+    //   を満たす最小の遺物枚数を、実際に Relic.mods を回して二分探索した結果：
+    //
+    //     周2（到達6章） 要求 F x1.32e3 … 98枚（33パック）
+    //     周3（到達9章） 要求 F x3.74e4 … +52枚（18パック）
+    //     周4以降                        … +52〜63枚（18〜21パック）
+    //
+    //   **初回だけ多く、以降はほぼ一定**というのが実測から出た形。
+    //   以前は 3 + 突破数×0.8 で、6章突破しても7パック＝21枚しか出ず、
+    //   周2の要求 x1320 に対して x5 程度しか届いていなかった（重大度A）。
+    //
+    //   深さの項（× 0.5）は残してある。**深く行ってから転生するほど多い**ので、
+    //   要求を超えて積める＝次の周がさらに楽になる
+    out.relic = Math.round(18 + clearedStages * 0.5) + (prestiges === 0 ? 12 : 0);
     // 1ステージ=1個、5ステージ=約15個。奥へ行くほど1回の転生が重くなる
     const n = Util.clamp(Math.round(Math.pow(clearedStages, 1.7)) + Math.floor(prestiges / 4),
                          1, BAL.packPerPrestigeMax);

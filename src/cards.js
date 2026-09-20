@@ -269,22 +269,24 @@ const CARDS = {
   //   ウェーブ間の3択には出ない（kind:'perm' を draft.js で弾いている）。
   //
   //   効果量は eff だけが持ち、説明文も計算も eff から作る（skilltree.js と同じ作法）。
-  //   mode:'add' … 同じ遺物を重ねるほど加算で積む。**後半で1枚の価値が薄まる＝暴走しない**
-  //   mode:'mul' … 累乗で積む。エピック以上だけ。エンドレスで枠を増やす予定
-  rl_dmg1:  P({ id: 'rl_dmg1',  rarity: 'common', key: 'dmg',  eff: 0.08, mode: 'add',
+  //   mode:'add' … 枚数ぶん加算する。**種類ごとに cap（上限）がある。**
+  //                上限が無いと、9周ぶん集めたときに ×480 まで伸びた（実測）。
+  //                桁を作るのは土台（relics.js の Legacy）の役で、遺物は色付け
+  //   mode:'mul' … 廃止した。効果量を少し動かすだけで「足りない」と「発散」に振れたため
+  rl_dmg1:  P({ id: 'rl_dmg1',  rarity: 'common', key: 'dmg',  eff: 0.08, mode: 'add', cap: 1.0,
     name: '増幅片',   tmpl: '全ての武器のダメージ +{p}' }),
-  rl_coin1: P({ id: 'rl_coin1', rarity: 'common', key: 'coin', eff: 0.08, mode: 'add',
+  rl_coin1: P({ id: 'rl_coin1', rarity: 'common', key: 'coin', eff: 0.08, mode: 'add', cap: 1.0,
     name: '蓄財片',   tmpl: '獲得コイン +{p}' }),
-  rl_rate1: P({ id: 'rl_rate1', rarity: 'common', key: 'rate', eff: 0.08, mode: 'add',
+  rl_rate1: P({ id: 'rl_rate1', rarity: 'common', key: 'rate', eff: 0.08, mode: 'add', cap: 0.5,
     name: '律動片',   tmpl: '全ての武器の発射レート +{p}' }),
   rl_life1: P({ id: 'rl_life1', rarity: 'common', key: 'lives', eff: 2, mode: 'flat',
     name: '防壁片',   tmpl: 'ライフ +{e}' }),
 
-  rl_dmg2:  P({ id: 'rl_dmg2',  rarity: 'rare', key: 'dmg',  eff: 0.20, mode: 'add',
+  rl_dmg2:  P({ id: 'rl_dmg2',  rarity: 'rare', key: 'dmg',  eff: 0.20, mode: 'add', cap: 1.5,
     name: '増幅核',   tmpl: '全ての武器のダメージ +{p}' }),
-  rl_coin2: P({ id: 'rl_coin2', rarity: 'rare', key: 'coin', eff: 0.20, mode: 'add',
+  rl_coin2: P({ id: 'rl_coin2', rarity: 'rare', key: 'coin', eff: 0.20, mode: 'add', cap: 1.5,
     name: '蓄財核',   tmpl: '獲得コイン +{p}' }),
-  rl_rate2: P({ id: 'rl_rate2', rarity: 'rare', key: 'rate', eff: 0.20, mode: 'add',
+  rl_rate2: P({ id: 'rl_rate2', rarity: 'rare', key: 'rate', eff: 0.20, mode: 'add', cap: 0.8,
     name: '律動核',   tmpl: '全ての武器の発射レート +{p}' }),
   rl_seed:  P({ id: 'rl_seed',  rarity: 'rare', key: 'seed', eff: 400, mode: 'flat',
     name: '初動資金', tmpl: '転生した直後に コイン +{e}' }),
@@ -293,13 +295,16 @@ const CARDS = {
   rl_unit:  P({ id: 'rl_unit',  rarity: 'rare', key: 'lives', eff: 6, mode: 'flat',
     name: '常設装甲', tmpl: 'ライフ +{e}' }),
 
-  rl_dmg3:  P({ id: 'rl_dmg3',  rarity: 'epic', key: 'dmg',  eff: 1.25, mode: 'mul',
-    name: '増幅炉',   tmpl: '全ての武器のダメージ ×{e}' }),
-  rl_coin3: P({ id: 'rl_coin3', rarity: 'epic', key: 'coin', eff: 1.25, mode: 'mul',
-    name: '蓄財炉',   tmpl: '獲得コイン ×{e}' }),
+  // **累乗をやめた。** 桁を作るのは土台（relics.js の Legacy）の役で、
+  // 遺物は色付け。累乗のままだと9周で ×5,700万まで膨らみ、
+  // しかも効果量を少し動かすだけで「足りない」と「発散」に振れた（実測）
+  rl_dmg3:  P({ id: 'rl_dmg3',  rarity: 'epic', key: 'dmg',  eff: 0.35, mode: 'add', cap: 2.0,
+    name: '増幅炉',   tmpl: '全ての武器のダメージ +{p}' }),
+  rl_coin3: P({ id: 'rl_coin3', rarity: 'epic', key: 'coin', eff: 0.35, mode: 'add', cap: 2.0,
+    name: '蓄財炉',   tmpl: '獲得コイン +{p}' }),
 
-  rl_core:  P({ id: 'rl_core',  rarity: 'legendary', key: 'dmg', eff: 1.6, mode: 'mul',
-    name: '特異点炉', tmpl: '全ての武器のダメージ ×{e}' }),
+  rl_core:  P({ id: 'rl_core',  rarity: 'legendary', key: 'dmg', eff: 0.80, mode: 'add', cap: 3.0,
+    name: '特異点炉', tmpl: '全ての武器のダメージ +{p}' }),
   // **これが「登り直す時間」を消す本命。** 倍率ではなく、買う手数を減らす
   rl_invest: P({ id: 'rl_invest', rarity: 'legendary', key: 'startLv', eff: 1, mode: 'flat',
     name: '初期投資', tmpl: '出撃するとき、アップグレードが最初から Lv+{e} の状態になる' }),
