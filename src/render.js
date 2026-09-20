@@ -3,6 +3,9 @@
 // ---------------------------------------------------------------
 'use strict';
 
+// 線の弾のまとめ先。**毎フレーム作り直さない**（1フレームに何百回も通る）
+const _bulGroups = new Map();
+
 const Render = {
   canvas: null, ctx: null, dpr: 1,
   scale: 1, offX: 0, offY: 0,
@@ -635,8 +638,18 @@ const Render = {
     }
   },
 
+  // 弾。**色と太さでまとめてから「にじみ → 本体 → 白い芯」の3枚を重ねる。**
+  //   平らな棒1本だったのを、曳光弾らしく光らせるため。
+  //
+  //   **速くはならない。** 851発（第9章の実測ピーク）で比べたところ
+  //   1発ずつ描く旧実装 0.305ms に対して 0.455ms。重ねたぶんだけ遅い。
+  //   ただし1フレームの予算16.7msに対して誤差なので、見た目を取った。
+  //   （まとめ描き自体はほぼ無効果だった。1パスでも 0.342ms で旧と大差ない。
+  //     効いているのは描画命令の数ではなく、弾1発ごとのJS処理のほう）
   bullets(ctx, run) {
     ctx.lineCap = 'round';
+    const groups = _bulGroups;
+    for (const g of groups.values()) g.n = 0;
     for (const b of run.bullets) {
       if (b.bubble || b.lob) {
         ctx.fillStyle = b.color;
@@ -661,13 +674,33 @@ const Render = {
       }
       const sp = Math.hypot(b.vx, b.vy) || 1;
       const len = b.long ? 22 : Math.min(16, sp * 0.018);
-      ctx.strokeStyle = b.color;
-      ctx.lineWidth = b.r * 1.6;
-      ctx.beginPath();
-      ctx.moveTo(b.x, b.y);
-      ctx.lineTo(b.x - b.vx / sp * len, b.y - b.vy / sp * len);
-      ctx.stroke();
+      const w = Math.max(0.5, Math.round(b.r * 3.2) / 2);   // 0.5px 刻みでまとめる
+      const key = b.color + '|' + w;
+      let g = groups.get(key);
+      if (!g) groups.set(key, g = { color: b.color, w, n: 0, seg: [] });
+      const i = g.n * 4;
+      g.seg[i] = b.x; g.seg[i + 1] = b.y;
+      g.seg[i + 2] = b.x - b.vx / sp * len; g.seg[i + 3] = b.y - b.vy / sp * len;
+      g.n++;
     }
+
+    //          にじみ          本体          白い芯
+    const A = [0.20, 0.95, 0.55], W = [2.8, 1.0, 0.34];
+    for (let pass = 0; pass < 3; pass++) {
+      ctx.globalAlpha = A[pass];
+      for (const g of groups.values()) {
+        if (!g.n) continue;
+        ctx.strokeStyle = pass === 2 ? '#ffffff' : g.color;
+        ctx.lineWidth = Math.max(0.6, g.w * W[pass]);
+        ctx.beginPath();
+        for (let i = 0; i < g.n * 4; i += 4) {
+          ctx.moveTo(g.seg[i], g.seg[i + 1]);
+          ctx.lineTo(g.seg[i + 2], g.seg[i + 3]);
+        }
+        ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
   },
 
   effects(ctx, run) {
