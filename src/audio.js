@@ -116,13 +116,8 @@ const Snd = {
     this.tone(m[weaponId] || { type: 'square', f0: 420, f1: 280, dur: 0.05, vol: 0.05 });
   },
 
-  kill(boss) {
+  kill() {
     if (!this.on()) return;
-    if (boss) {
-      this.noise({ dur: 0.5, f: 220, q: 0.7, vol: 0.5 });
-      this.tone({ type: 'sawtooth', f0: 160, f1: 40, dur: 0.5, vol: 0.2 });
-      return;
-    }
     if (!this.gate('kill')) return;
     this.noise({ dur: 0.09, f: 1500, q: 1.6, vol: 0.13 });
   },

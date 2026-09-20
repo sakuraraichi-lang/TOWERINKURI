@@ -599,25 +599,16 @@ const Render = {
   enemies(ctx, run) {
     for (const e of run.enemies) {
       ctx.save();
-      if (e.boss) { ctx.shadowColor = '#ff2d55'; ctx.shadowBlur = 18; }
       ctx.fillStyle = e.hitFlash > 0 ? '#ffffff'
                     : e.chill > 0 ? '#7fd8ff'
                     : e.burnT > 0 ? '#ff9a4a' : e.color;
       ctx.beginPath();
-      if (e.boss) {
-        for (let i = 0; i < 8; i++) {
-          const a = i * Math.PI / 4 + run.time * 0.6;
-          const rr = e.r * (i % 2 ? 0.72 : 1);
-          const px = e.x + Math.cos(a) * rr, py = e.y + Math.sin(a) * rr;
-          i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-        }
-        ctx.closePath();
-      } else ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+      ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
       ctx.fill();
       // **輪郭を入れる。** 塗りだけだと、押し合って重なったときに
       // ひとかたまりの染みに見えて、何体いるのか読めなかった
       ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-      ctx.lineWidth = e.boss ? 2.2 : 1.4;
+      ctx.lineWidth = 1.4;
       ctx.stroke();
       ctx.restore();
 
@@ -635,10 +626,10 @@ const Render = {
         ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 4, 0, Math.PI * 2); ctx.stroke();
       }
       if (e.hp < e.maxHp) {
-        const bw = e.r * 2.2, bh = e.boss ? 5 : 2.5;
+        const bw = e.r * 2.2, bh = 2.5;
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
         ctx.fillRect(e.x - bw / 2, e.y - e.r - 7, bw, bh);
-        ctx.fillStyle = e.boss ? '#ff4e63' : '#7ef08a';
+        ctx.fillStyle = '#7ef08a';
         ctx.fillRect(e.x - bw / 2, e.y - e.r - 7, bw * Util.clamp(e.hp / e.maxHp, 0, 1), bh);
       }
     }

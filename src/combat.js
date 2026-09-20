@@ -125,7 +125,6 @@ const Combat = {
     run.phase = 'spawn';
     run.toSpawn = this.waveCount(run);
     run.spawnTimer = 0;
-    run.bossSpawned = false;
     run.spawnPick = 0;
   },
 
@@ -140,25 +139,30 @@ const Combat = {
     return Util.weighted(avail, t => t.name === 'grunt' ? 58 : t.name === 'swift' ? 28 : 22);
   },
 
-  spawnEnemy(run, boss) {
+  // **ボスは置かない。**
+  //   実測で5ステージすべて撃破0（毎回漏れてライフ5を持っていくだけで、
+  //   コイン報酬は一度も支払われていなかった）。
+  //   出す順番を最後に変えても 7体中1体しか倒せず、
+  //   「倒せない1体に必ず税金を取られる」以上の役をしていなかったので外した
+  spawnEnemy(run) {
     if (run.enemies.length >= BAL.enemyCap) return;
     const st = run.stage;
     const g = this.gw(run);
-    const t = boss ? ENEMY_TYPES.grunt : this.pickType(g);
+    const t = this.pickType(g);
     const si = run.spawnPick++ % st.spawns.length;      // 出現口は順番に使う
     const sp = st.spawns[si];
     const p = st.center(sp.c, sp.r);
     const stageMul = Math.pow(BAL.stageHpMul, run.stageIdx);
-    const hp = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * stageMul * t.hp * (boss ? BAL.bossHpMul : 1);
+    const hp = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * stageMul * t.hp;
     run.enemies.push({
       x: p.x + Util.rand(-10, 10), y: p.y + Util.rand(-10, 10),
       hp, maxHp: hp, si,
-      spd: Math.min(BAL.enemySpdCap, BAL.enemySpdBase * Math.pow(BAL.enemySpdGrowth, g)) * t.spd * (boss ? BAL.bossSpdMul : 1),
-      r: boss ? 18 : t.r,
-      dmg: BAL.enemyDpsBase * Math.pow(BAL.enemyDpsGrowth, g - 1) * (boss ? BAL.bossDpsMul : 1),
-      coin: BAL.enemyCoinBase * Math.pow(BAL.enemyCoinGrowth, g - 1) * t.coin * (boss ? BAL.bossCoinMul : 1),
-      color: boss ? '#ff2d55' : t.color,
-      boss: !!boss, tname: t.name,     // 死因の内訳に使う
+      spd: Math.min(BAL.enemySpdCap, BAL.enemySpdBase * Math.pow(BAL.enemySpdGrowth, g)) * t.spd,
+      r: t.r,
+      dmg: BAL.enemyDpsBase * Math.pow(BAL.enemyDpsGrowth, g - 1),
+      coin: BAL.enemyCoinBase * Math.pow(BAL.enemyCoinGrowth, g - 1) * t.coin,
+      color: t.color,
+      tname: t.name,                   // 死因の内訳に使う
 
       pushX: 0, pushY: 0,
       shock: 0, slow: 0, slowT: 0, stun: 0, chill: 0,
@@ -168,7 +172,7 @@ const Combat = {
     });
   },
 
-  statusScale(e) { return e.boss ? BAL.bossStunResist : 1; },
+  statusScale(e) { return 1; },       // ボスを外したので、今はどの敵も同じ
 
   // 倒した場所の「深さ」による取り分。
   //   湧き口で倒すと ×1、コアの目の前で倒すと ×(1 + coinDepth)。
@@ -226,7 +230,7 @@ const Combat = {
     e.dead = true;
     run.kills++;
     Game.perm.totalKills++;
-    Snd.kill(e.boss);
+    Snd.kill();
 
     // **どこで倒したかで取り分が変わる。**
     //   湧き口は「敵が必ず、常に、最大密度でいる1点」なので、
@@ -250,15 +254,14 @@ const Combat = {
     }
 
     if (run.fx.length < 180) {
-      this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * (e.boss ? 4 : 1.5), color: e.color, life: e.boss ? 0.5 : 0.22 });
+      this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 1.5, color: e.color, life: 0.22 });
       // **倒す＝儲かる、を目で見えるようにする。**
       // これまでHUDの数字が静かに増えるだけで、報酬を得た実感が無かった
       if (this.coinFx < 26) {
         this.coinFx++;
-        this.fx(run, { type: 'coin', x: e.x, y: e.y, big: !!e.boss, life: 0.5 });
+        this.fx(run, { type: 'coin', x: e.x, y: e.y, life: 0.5 });
       }
     }
-    if (e.boss) this.shake(run, 16, true);
   },
 
   // ================= 攻撃のかたち =================
@@ -577,9 +580,7 @@ const Combat = {
       run.spawnTimer -= dt;
       let guard = 0;
       while (run.spawnTimer <= 0 && run.toSpawn > 0 && guard++ < 60) {
-        const boss = this.isLastWave(run) && !run.bossSpawned;
-        this.spawnEnemy(run, boss);
-        if (boss) run.bossSpawned = true;
+        this.spawnEnemy(run);
         run.toSpawn--;
         run.spawnTimer += this.spawnInterval(run);
       }
@@ -662,13 +663,13 @@ const Combat = {
 
       // コアに触れた敵は、ライフを1つ持っていって消える（＝漏れ）
       if (Util.dist(e.x, e.y, tw.x, tw.y) <= tw.r + e.r) {
-        const cost = e.boss ? BAL.bossLeakLives : BAL.leakLives;
+        const cost = BAL.leakLives;
         run.lives -= cost;
         run.leaked++;
         run.livesLost += cost;
         Snd.leak();
         // 何に抜けられたか。死因を「どの敵に負けたか」まで残す
-        const tn = e.boss ? 'boss' : (e.tname || 'grunt');
+        const tn = e.tname || 'grunt';
         run.leakBy[tn] = (run.leakBy[tn] || 0) + 1;
         // 経路全体を塗るが、コアに近い区間ほど濃くする。
         // 「どこで止め損ねたか」が知りたいので、手前ほど強調しても意味が薄い
