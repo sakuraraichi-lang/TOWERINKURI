@@ -74,7 +74,15 @@ tools: Read, Glob, Grep, Bash, PowerShell
 # ブラウザで http://localhost:5173/tools/sim.html を開いて
   Stage.validateAll()                  ステージ定義が壊れていないか（空なら正常）
   runStage('ch1', LOADOUTS['ch1'], 90, {})   1章だけ回して waves を見る
-  REAL_MS = 4000                       1出撃の実時間上限。'slow' は負けではなく打ち切り
+  REAL_MS = 4000                       1出撃の実時間上限
+```
+
+- **`slow` は負けではなく打ち切り。** これを「壁」と取り違えて
+  「第7章が壁」「第8章が壁」「第12章が壁」と3回続けて誤報告した事故がある。
+  上限を延ばしたら転生なしで第16章まで行けていた。
+  **到達章を語るときは res を必ず確認すること**
+
+```
 
 /e/Anaconda3/python.exe tools/gen30.py        30章のマップが検証を通るか
 curl -s https://towerinkuri.vercel.app/src/balance.js | grep -m1 "const BUILD"
