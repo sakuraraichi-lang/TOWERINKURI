@@ -599,20 +599,56 @@ const Render = {
     }
   },
 
+  // 敵の形。**3種が色と大きさでしか違わず、丸が並ぶだけだった。**
+  //   武器と同じ作り方（その場で描くパス）で、種類ごとの輪郭を付ける。
+  //   進む向きに合わせて回すので、どっちへ歩いているかも読める
+  //     grunt … 六角。標準
+  //     swift … 前が尖った矢じり。速さが形で分かる
+  //     tank  … 角を落とした八角＋厚い縁。重さが形で分かる
+  enemyBody(ctx, e) {
+    const r = e.r;
+    ctx.beginPath();
+    if (e.tname === 'swift') {
+      ctx.moveTo(r * 1.35, 0);
+      ctx.lineTo(-r * 0.75, -r * 0.92);
+      ctx.lineTo(-r * 0.3, 0);
+      ctx.lineTo(-r * 0.75, r * 0.92);
+    } else if (e.tname === 'tank') {
+      for (let i = 0; i < 8; i++) {
+        const a = i * Math.PI / 4 + Math.PI / 8;
+        const p = r * 0.98;
+        ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * p, Math.sin(a) * p);
+      }
+    } else {
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3;
+        ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * r, Math.sin(a) * r);
+      }
+    }
+    ctx.closePath();
+  },
+
   enemies(ctx, run) {
     for (const e of run.enemies) {
       ctx.save();
+      ctx.translate(e.x, e.y);
+      ctx.rotate(e.ang || 0);
       ctx.fillStyle = e.hitFlash > 0 ? '#ffffff'
                     : e.chill > 0 ? '#7fd8ff'
                     : e.burnT > 0 ? '#ff9a4a' : e.color;
-      ctx.beginPath();
-      ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+      this.enemyBody(ctx, e);
       ctx.fill();
       // **輪郭を入れる。** 塗りだけだと、押し合って重なったときに
       // ひとかたまりの染みに見えて、何体いるのか読めなかった
       ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-      ctx.lineWidth = 1.4;
+      ctx.lineWidth = e.tname === 'tank' ? 2.2 : 1.4;
       ctx.stroke();
+      // 重い相手だけ、内側にもう1本。**硬さを形で伝える**
+      if (e.tname === 'tank') {
+        ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+        ctx.lineWidth = 1.2;
+        ctx.beginPath(); ctx.arc(0, 0, e.r * 0.5, 0, Math.PI * 2); ctx.stroke();
+      }
       ctx.restore();
 
       if (e.stun > 0) {   // 泡に閉じ込められている

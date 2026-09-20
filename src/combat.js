@@ -175,7 +175,7 @@ const Combat = {
       shock: 0, slow: 0, slowT: 0, stun: 0, chill: 0,
       burn: 0, burnT: 0, fvuln: 0, fvulnT: 0,
       grabT: 0, grabV: 0, spotT: 0, dist: 1e9, counted: false,
-      hitFlash: 0, dead: false,
+      hitFlash: 0, dead: false, ang: 0,
     });
   },
 
@@ -695,6 +695,7 @@ const Combat = {
           const slowMul = Math.max(BAL.enemySlowFloor, 1 - e.slow);
           e.x += Math.cos(a) * e.spd * slowMul * dt;
           e.y += Math.sin(a) * e.spd * slowMul * dt;
+          e.ang = a;      // 描画で向きを出すため。挙動には使わない
         }
       }
 
