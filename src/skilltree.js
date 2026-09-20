@@ -17,12 +17,16 @@
 // tmpl の {e} が eff に置き換わる
 const SKILLS = [
   // ============ 資源・拠点 ============
+  // **累乗をやめた。** ×1.11 の上限無しだと、安いので延々買われて
+  // 実測で Lv39・×153倍まで伸び、これが収入爆発の本体だった
+  // （1面あたりの稼ぎが ×25.7 / ×6.4 / ×38.1 と暴れていた原因）。
+  // 加算なら、レベルを積んでも収入の「次数」が上がらない
   { id: 'coin', name: '集金効率', icon: '◈', group: '資源',
-    eff: 1.11, mode: 'mul', tmpl: '敵から得るコイン ×{e}',
+    eff: 0.14, mode: 'add', tmpl: '敵から得るコイン +{e}倍',
     cost0: 15, costG: 1.33, max: Infinity, unlock: 0 },
   { id: 'core', name: '防衛線', icon: '▣', group: '拠点',
     eff: 3, mode: 'add', tmpl: 'ライフ +{e}（抜けられてよい敵が{e}体増える）',
-    cost0: 40, costG: 1.26, max: 200, unlock: 0 },
+    cost0: 40, costG: 1.26, max: Infinity, unlock: 0 },
   { id: 'regen', name: '応急修理班', icon: '✚', group: '拠点',
     eff: 1, mode: 'add', tmpl: 'ウェーブを1つ突破するごとにライフ +{e}（上限まで）',
     cost0: 90, costG: 1.55, max: 10, unlock: 1 },
@@ -36,20 +40,20 @@ const SKILLS = [
     cost0: 30, costG: 1.30, max: Infinity, unlock: 0 },
   { id: 'short_rng', name: '間合い拡張', icon: '◤', group: '短射程', cat: 'short', key: 'range',
     eff: 1.09, mode: 'mul', tmpl: '短射程カテゴリの射程 ×{e}',
-    cost0: 45, costG: 1.36, max: 30, unlock: 0 },
+    cost0: 45, costG: 1.36, max: Infinity, unlock: 0 },
   { id: 'short_unit', name: '前線基盤', icon: '◤', group: '短射程', cat: 'short', key: 'units',
     eff: 1, mode: 'add', tmpl: '短射程カテゴリの武器を置ける数 +{e} 基',
-    cost0: 260, costG: 2.6, max: 4, unlock: 0 },
+    cost0: 440, costG: 3.1, max: 4, maxPerClear: 1, unlock: 0 },
 
   { id: 'mid_dmg', name: '汎用弾薬', icon: '◈', group: '中射程', cat: 'mid', key: 'dmg',
     eff: 1.13, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
     cost0: 25, costG: 1.28, max: Infinity, unlock: 0 },
   { id: 'mid_rate', name: '給弾機構', icon: '◈', group: '中射程', cat: 'mid', key: 'rate',
     eff: 1.07, mode: 'mul', tmpl: '中射程カテゴリの発射レート ×{e}',
-    cost0: 40, costG: 1.34, max: 40, unlock: 0 },
+    cost0: 40, costG: 1.34, max: Infinity, unlock: 0 },
   { id: 'mid_unit', name: '量産設備', icon: '◈', group: '中射程', cat: 'mid', key: 'units',
     eff: 1, mode: 'add', tmpl: '中射程カテゴリの武器を置ける数 +{e} 基',
-    cost0: 260, costG: 2.6, max: 4, unlock: 0 },
+    cost0: 430, costG: 3.1, max: 4, maxPerClear: 1, unlock: 0 },
 
   { id: 'long_dmg', name: '徹甲弾頭', icon: '◎', group: '長射程', cat: 'long', key: 'dmg',
     eff: 1.18, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
@@ -59,37 +63,37 @@ const SKILLS = [
     cost0: 90, costG: 1.42, max: 20, unlock: 0 },
   { id: 'long_unit', name: '狙撃陣地', icon: '◎', group: '長射程', cat: 'long', key: 'units',
     eff: 1, mode: 'add', tmpl: '長射程カテゴリの武器を置ける数 +{e} 基',
-    cost0: 260, costG: 2.6, max: 4, unlock: 0 },
+    cost0: 380, costG: 3.1, max: 4, maxPerClear: 1, unlock: 0 },
 
   { id: 'area_dmg', name: '高熱反応', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'dmg',
     eff: 1.14, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
     cost0: 34, costG: 1.30, max: Infinity, unlock: 0 },
   { id: 'area_size', name: '拡散増幅', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'size',
     eff: 1.10, mode: 'mul', tmpl: '範囲攻撃カテゴリの効果範囲 ×{e}（扇・爆風・撒いた場すべて）',
-    cost0: 70, costG: 1.38, max: 25, unlock: 0 },
+    cost0: 70, costG: 1.38, max: Infinity, unlock: 0 },
   { id: 'area_unit', name: '散布基盤', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'units',
     eff: 1, mode: 'add', tmpl: '範囲攻撃カテゴリの武器を置ける数 +{e} 基',
-    cost0: 260, costG: 2.6, max: 4, unlock: 0 },
+    cost0: 160, costG: 3.1, max: 4, maxPerClear: 1, unlock: 0 },
 
   { id: 'target_dmg', name: '成形炸薬', icon: '✛', group: '指定攻撃', cat: 'target', key: 'dmg',
     eff: 1.16, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
     cost0: 36, costG: 1.31, max: Infinity, unlock: 0 },
   { id: 'target_rate', name: '装填補助', icon: '✛', group: '指定攻撃', cat: 'target', key: 'rate',
     eff: 1.08, mode: 'mul', tmpl: '指定攻撃カテゴリの発射レート ×{e}',
-    cost0: 65, costG: 1.36, max: 30, unlock: 0 },
+    cost0: 65, costG: 1.36, max: Infinity, unlock: 0 },
   { id: 'target_unit', name: '支持架台', icon: '✛', group: '指定攻撃', cat: 'target', key: 'units',
     eff: 1, mode: 'add', tmpl: '指定攻撃カテゴリの武器を置ける数 +{e} 基',
-    cost0: 260, costG: 2.6, max: 4, unlock: 0 },
+    cost0: 500, costG: 3.1, max: 4, maxPerClear: 1, unlock: 0 },
 
   { id: 'sup_pow', name: '制圧出力', icon: '❉', group: '支援', cat: 'support', key: 'dur',
     eff: 1.12, mode: 'mul', tmpl: '支援カテゴリの 減速・拘束・感電の持続 ×{e}',
-    cost0: 55, costG: 1.34, max: 25, unlock: 0 },
+    cost0: 55, costG: 1.34, max: Infinity, unlock: 0 },
   { id: 'sup_rng', name: '照射範囲', icon: '❉', group: '支援', cat: 'support', key: 'range',
     eff: 1.10, mode: 'mul', tmpl: '支援カテゴリの射程・効果範囲 ×{e}',
-    cost0: 55, costG: 1.34, max: 25, unlock: 0 },
+    cost0: 55, costG: 1.34, max: Infinity, unlock: 0 },
   { id: 'support_unit', name: '支援拠点', icon: '❉', group: '支援', cat: 'support', key: 'units',
     eff: 1, mode: 'add', tmpl: '支援カテゴリの武器を置ける数 +{e} 基',
-    cost0: 260, costG: 2.6, max: 4, unlock: 0 },
+    cost0: 620, costG: 3.1, max: 4, maxPerClear: 1, unlock: 0 },
 
   // ============ カード側の枠を増やす ============
   { id: 'picks', name: '増設スロット', icon: '★', group: 'カード',
@@ -100,7 +104,7 @@ const SKILLS = [
     cost0: 500, costG: 4.2, max: 3, unlock: 2 },
   { id: 'luck', name: '幸運回路', icon: '✧', group: 'カード',
     eff: 1, mode: 'add', tmpl: 'カード選択で高レアリティが出やすくなる',
-    cost0: 120, costG: 1.55, max: 25, unlock: 1 },
+    cost0: 120, costG: 1.55, max: Infinity, unlock: 1 },
   { id: 'pack', name: '解析装置', icon: '⬢', group: 'カード',
     eff: 1, mode: 'add', tmpl: '転生で得るカードパックの等級が上がりやすくなる',
     cost0: 300, costG: 1.80, max: 12, unlock: 3 },
@@ -168,7 +172,7 @@ const Skill = {
     const base = (p && typeof Relic !== 'undefined') ? Relic.mods(p).startLv : 0;
     const s = SKILL_BY_ID[id];
     const lv = (meta.skills[id] || 0) + base;
-    return s ? Math.min(lv, s.max) : lv;
+    return s ? Math.min(lv, Skill.maxOf(p, id)) : lv;
   },
 
   // 換装を当てはめたあとのノード定義。**ここ以外で SKILL_BY_ID を直に見ない**
@@ -197,9 +201,21 @@ const Skill = {
       .trim();
   },
 
-  cost(meta, id) {
+  // 値段は「レベル」だけでなく「どこまで進んだか」でも上がる。
+  //
+  //   **これが無いと、コインに重みが戻らない。**
+  //   収入は1ステージで ×40〜70 に伸びるのに、段の値上がりは ×1.3 しかない。
+  //   実測：1面終了時に残高が次の1段の108倍、5面では162万倍。
+  //   costG を ×1.45 まで上げても 4,179倍のままで、先に突破できなくなった
+  //   （＝値上がりの「次数」が収入と違うので、係数では追いつかない）。
+  //   ステージを踏むたびに値段の桁も上がる形にして、次数を揃える
+  cost(meta, id, perm) {
     const s = SKILL_BY_ID[id];
-    return Math.ceil(s.cost0 * Math.pow(s.costG, Skill.lv(meta, id)));
+    const p = perm || ((typeof Game !== 'undefined' && Game.perm) ? Game.perm : null);
+    const cleared = p ? MAIN_STAGES.filter(x => (p.stages[x.id] || {}).cleared).length : 0;
+    return Math.ceil(s.cost0
+      * Math.pow(s.costG, Skill.lv(meta, id))
+      * Math.pow(BAL.costPerStage, cleared));
   },
 
   // レベルぶんの効果量。mul なら累乗、add なら加算
@@ -225,10 +241,32 @@ const Skill = {
     return 'ステージを ' + s.unlock + ' 個突破すると解放';
   },
 
-  canBuy(meta, perm, id) {
+  // そのノードの今の上限。
+  //
+  //   **設置枠だけは「お金では前借りできない」。**
+  //   コインは終盤に余るので、値段をいくら上げても止まらない。
+  //   実測：1面終了時に既に残高が次の1段の70倍、5面で78万倍あった。
+  //   設置枠は火力・カバー範囲・漏れにくさが同時に増えて他の全強化と掛け算になるので、
+  //   ここだけは**踏破したステージ数**という、お金で買えないもので止める
+  maxOf(perm, id) {
     const s = SKILL_BY_ID[id];
+    if (!s.maxPerClear) return s.max;
+    const p = perm || ((typeof Game !== 'undefined' && Game.perm) ? Game.perm : null);
+    const cleared = p ? MAIN_STAGES.filter(x => (p.stages[x.id] || {}).cleared).length : 0;
+    return Math.min(s.max, cleared * s.maxPerClear);
+  },
+
+  // 上限に届いていて、その理由が進行なら、そう言う（値段のせいだと誤解させない）
+  capReason(perm, id) {
+    const s = SKILL_BY_ID[id];
+    if (!s.maxPerClear) return '';
+    if (Skill.maxOf(perm, id) >= s.max) return '';
+    return 'ステージを突破すると、あと ' + (s.max - Skill.maxOf(perm, id)) + ' 段まで伸ばせます';
+  },
+
+  canBuy(meta, perm, id) {
     if (!Skill.isUnlocked(perm, id)) return false;
-    if (Skill.lv(meta, id) >= s.max) return false;
+    if (Skill.lv(meta, id) >= Skill.maxOf(perm, id)) return false;
     return meta.coins >= Skill.cost(meta, id);
   },
 
@@ -337,7 +375,7 @@ const Skill = {
     }
 
     return {
-      coin:   A('coin') * (1 + 0.06 * Skill.lv(meta, 'lure')) * R.coin,
+      coin:   (1 + A('coin')) * (1 + 0.06 * Skill.lv(meta, 'lure')) * R.coin,
       lives:  A('core') + R.lives,
       regen:  A('regen'),
       spawn:  1 + A('lure'),

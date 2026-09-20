@@ -570,6 +570,8 @@ const Game = {
       traffic: new Array(n).fill(0),
       leak: new Array(n).fill(0),
       trafficT: 0,
+      // 一番遠い出現口からコアまでの距離。**倒した場所の「深さ」の物差し**
+      maxDist: Math.max(1, ...st.spawns.map(sp => st.dist[st.idx(sp.c, sp.r)]).filter(d => d < 1e8)),
       wp(id) { return this.units.find(u => u.id === id) || null; },
       unitsOf(id) { return this.units.filter(u => u.id === id); },
     };

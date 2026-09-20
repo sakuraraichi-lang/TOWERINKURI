@@ -105,7 +105,7 @@ const WEAPONS = {
   },
 
   sniper: {
-    id: 'sniper', stock: 2, cat: 'long', name: 'スナイパー', short: 'SNP', icon: '🎯', color: '#6fe3ff', src: 'start', arcMin: 0.03, arcMax: 0.3,
+    id: 'sniper', stock: 3, cat: 'long', name: 'スナイパー', short: 'SNP', icon: '🎯', color: '#6fe3ff', src: 'start', arcMin: 0.03, arcMax: 0.3,
     // **貫通役。** 並んだ敵を撃ち抜くのが仕事なので、狙うのは「敵が濃いほう」。
     // 以前は最も硬い敵（＝たいてい後方のタンク）を狙っていて、
     // 1.28秒に1発しかないのに目の前の群れを素通りしていた
@@ -122,7 +122,7 @@ const WEAPONS = {
 
   // ============ ステージ報酬（王道TD＋化学兵器） ============
   missile: {
-    id: 'missile', stock: 2, cat: 'target', name: 'ミサイル', short: 'MSL', icon: '🚀', color: '#ff7a3c', src: 'stage',
+    id: 'missile', stock: 3, cat: 'target', name: 'ミサイル', short: 'MSL', icon: '🚀', color: '#ff7a3c', src: 'stage',
     arcMin: 0.08, arcMax: 0.42, aimPoint: true, spot: [72, 150],
     desc: '置いた円の中へ爆撃を降らせ続ける。円を絞るほど一点に集まる。',
     base: baseStats({ arc: 0.30, dmg: 16, rate: 1.0, range: 330, speed: 430, splash: 72, bulletR: 5, turn: 5 }),
@@ -130,7 +130,7 @@ const WEAPONS = {
   },
 
   tesla: {
-    id: 'tesla', stock: 2, cat: 'short', name: 'テスラコイル', short: 'TSL', icon: '⚡', color: '#b58bff', src: 'stage', arcMin: 0.3, arcMax: 1.1,
+    id: 'tesla', stock: 3, cat: 'short', name: 'テスラコイル', short: 'TSL', icon: '⚡', color: '#b58bff', src: 'stage', arcMin: 0.3, arcMax: 1.1,
     desc: '砲身の先へ即着の電撃。当たると連鎖して何体も巻き込む。',
     base: baseStats({ arc: 0.55, dmg: 11, rate: 1.6, range: 170, chain: 2, chainFalloff: 0.82 }),
     fire(w, run) {
@@ -141,7 +141,7 @@ const WEAPONS = {
   },
 
   flame: {
-    id: 'flame', stock: 2, cat: 'area', name: '火炎放射器', short: 'FLM', icon: '🔥', color: '#ff6a2a', src: 'stage', arcMin: 0.45, arcMax: 1.4,
+    id: 'flame', stock: 1, cat: 'area', name: '火炎放射器', short: 'FLM', icon: '🔥', color: '#ff6a2a', src: 'stage', arcMin: 0.45, arcMax: 1.4,
     desc: '短射程の扇状に炎を吹き続ける。当たった敵は燃え続ける。',
     base: baseStats({ arc: 0.50, dmg: 3.4, rate: 9, range: 130, cone: 0.42, burn: 0.55, burnDur: 3, turn: 5 }),
     fire(w, run) {
@@ -177,7 +177,7 @@ const WEAPONS = {
   },
 
   cryo: {
-    id: 'cryo', stock: 1, cat: 'support', name: '凍結装置', short: 'CRY', icon: '❄', color: '#7fe6ff', src: 'stage', arcMin: 0.4, arcMax: 1.2,
+    id: 'cryo', stock: 2, cat: 'support', name: '凍結装置', short: 'CRY', icon: '❄', color: '#7fe6ff', src: 'stage', arcMin: 0.4, arcMax: 1.2,
     desc: '周囲へ冷気を放つ。敵は大きく減速し、凍った敵は受けるダメージが増える。',
     base: baseStats({ arc: 0.75, dmg: 6, rate: 0.9, range: 165, slow: 0.55, slowDur: 2.4 }),
     fire(w, run) {
@@ -190,7 +190,7 @@ const WEAPONS = {
 
   // ============ パック限定（なんでもあり枠） ============
   katana: {
-    id: 'katana', stock: 3, cat: 'short', name: '刀', short: 'KTN', icon: '🗡', color: '#f4f6fb', src: 'pack', arcMin: 0.35, arcMax: 1.25,
+    id: 'katana', stock: 1, cat: 'short', name: '刀', short: 'KTN', icon: '🗡', color: '#f4f6fb', src: 'pack', arcMin: 0.35, arcMax: 1.25,
     desc: '間合いに入った敵をまとめて斬る。射程は短いが一撃が重く、会心が乗る。',
     base: baseStats({ arc: 0.80, dmg: 58, rate: 1.5, range: 100, cone: 1.5, crit: 0.2, critMul: 2.5, turn: 12 }),
     fire(w, run) {
@@ -204,7 +204,7 @@ const WEAPONS = {
   },
 
   shuriken: {
-    id: 'shuriken', stock: 3, cat: 'mid', name: '手裏剣', short: 'SHU', icon: '✳', color: '#cdd9e8', src: 'pack', arcMin: 0.15, arcMax: 0.7,
+    id: 'shuriken', stock: 2, cat: 'mid', name: '手裏剣', short: 'SHU', icon: '✳', color: '#cdd9e8', src: 'pack', arcMin: 0.15, arcMax: 0.7,
     desc: '敵から敵へ跳ね回る投擲。密集しているほど手が付けられなくなる。',
     base: baseStats({ arc: 0.38, dmg: 13, rate: 2.2, range: 230, speed: 520, bulletR: 5, bounce: 3, turn: 10 }),
     fire(w, run) {
@@ -216,7 +216,7 @@ const WEAPONS = {
   },
 
   tentacle: {
-    id: 'tentacle', stock: 1, cat: 'support', name: '触手', short: 'TNT', icon: '🐙', color: '#c85ab0', src: 'pack', arcMin: 0.2, arcMax: 0.8,
+    id: 'tentacle', stock: 2, cat: 'support', name: '触手', short: 'TNT', icon: '🐙', color: '#c85ab0', src: 'pack', arcMin: 0.2, arcMax: 0.8,
     desc: '砲身の先にいる敵を掴んで来た道へ引き戻す。掴まれている間は削られ続ける。',
     base: baseStats({ arc: 0.34, dmg: 16, rate: 0.85, range: 210, knock: 105, knockDur: 1.3, turn: 9 }),
     fire(w, run) {
@@ -227,7 +227,7 @@ const WEAPONS = {
   },
 
   bubble: {
-    id: 'bubble', stock: 2, cat: 'target', name: '泡', short: 'BBL', icon: '🫧', color: '#8ad8ff', src: 'pack',
+    id: 'bubble', stock: 1, cat: 'target', name: '泡', short: 'BBL', icon: '🫧', color: '#8ad8ff', src: 'pack',
     arcMin: 0.12, arcMax: 0.55, aimPoint: true, spot: [58, 120],
     desc: '置いた円の中へ泡を降らせ、割れた場所の敵を閉じ込める。',
     base: baseStats({ arc: 0.34, dmg: 10, rate: 1.1, range: 250, speed: 300, bulletR: 9,

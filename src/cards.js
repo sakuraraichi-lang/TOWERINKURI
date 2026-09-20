@@ -60,8 +60,14 @@ const CARDS = {
     name: '多銃身', desc: '射界を広げているほど同時発射が増える（最大まで広げて +3）',
     apply(run) { const w = run.wp('gatling'); if (w) { w.flags.wideCount = true; w.dyn.wideCount = (w.dyn.wideCount || 0) + 3; } } }),
   gat_loose: C({ id: 'gat_loose', kind: 'mod', weapon: 'gatling', rarity: 'epic', maxStack: 1,
-    name: '暴発装薬', desc: 'ダメージ ×1.7。ただし集弾率が最低で固定される',
-    apply(run) { const w = run.wp('gatling'); if (w) { w.s.dmg *= 1.7; w.flags.looseGroup = true; } } }),
+    // **ただの火力カードでは駄目だった。** 実測で、絞る 106漏れ／広げる 110漏れ と
+    // ほぼ同じになり、「広げる理由」にならなかった（火力が上がるだけ）。
+    // 火力の上がり方そのものを射界の広さに結び直した
+    name: '暴発装薬', desc: '集弾率が最低で固定される代わりに、射界を広げているほどダメージ（最大 ×1.8）',
+    apply(run) { const w = run.wp('gatling'); if (w) {
+      w.flags.looseGroup = true;
+      w.flags.wideDmg = true; w.dyn.wideDmg = (w.dyn.wideDmg || 0) + 0.8;
+    } } }),
   shk_sweep: C({ id: 'shk_sweep', kind: 'mod', weapon: 'shuriken', rarity: 'rare', maxStack: 3,
     name: '薙ぎ払い', desc: '射界を広げているほどダメージが上がる（最大まで広げて ×1.6）',
     apply(run) { const w = run.wp('shuriken'); if (w) { w.flags.wideDmg = true; w.dyn.wideDmg = (w.dyn.wideDmg || 0) + 0.6; } } }),

@@ -170,6 +170,17 @@ const Combat = {
 
   statusScale(e) { return e.boss ? BAL.bossStunResist : 1; },
 
+  // 倒した場所の「深さ」による取り分。
+  //   湧き口で倒すと ×1、コアの目の前で倒すと ×(1 + coinDepth)。
+  //   e.dist は流れ場が持つ「コアまでの残りタイル数」なので、
+  //   マップの形が変わっても同じ意味で効く
+  depthBonus(run, e) {
+    if (!BAL.coinDepth) return 1;
+    const far = run.maxDist || 1;
+    const t = Util.clamp(1 - (e.dist || 0) / far, 0, 1);   // 0=湧き口 / 1=コア
+    return 1 + BAL.coinDepth * t;
+  },
+
   // ================= ダメージ =================
   vuln(run, e) {
     let v = 1;
@@ -217,7 +228,12 @@ const Combat = {
     Game.perm.totalKills++;
     Snd.kill(e.boss);
 
-    const coin = e.coin * run.coinMul * run.mods.coin;
+    // **どこで倒したかで取り分が変わる。**
+    //   湧き口は「敵が必ず、常に、最大密度でいる1点」なので、
+    //   そこへ置くのが無条件の最適解になっていた（指定攻撃に射線が無いため）。
+    //   禁止するのではなく、**奥まで通してから倒すほうが儲かる**ようにして、
+    //   置き場所をプレイヤーに選ばせる。止め損ねる危険が、そのまま対価
+    const coin = e.coin * run.coinMul * run.mods.coin * this.depthBonus(run, e);
     Game.meta.coins += coin;
     run.coinsEarned += coin;
 

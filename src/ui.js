@@ -722,7 +722,9 @@ const UI = {
     const n = Skill.node(id, perm);
     const unlocked = Skill.isUnlocked(perm, id);
     const lv = Skill.lv(meta, id);
-    const maxed = lv >= s.max;
+    const cap = Skill.maxOf(perm, id);
+    const maxed = lv >= cap;
+    const capWhy = Skill.capReason(perm, id);
     const can = Game.canBuySkills() && Skill.canBuy(meta, perm, id);
 
     const d = Util.el('div', 'tdetail');
@@ -737,9 +739,12 @@ const UI = {
       '<div class="tdhead"><div class="sic">' + n.icon + '</div><div class="sbody">' +
         '<div class="sname">' + n.name + (n.swapId ? ' <u>換装</u>' : '') + '</div>' +
         '<div class="tdesc">' + Skill.shortDesc(n) + '</div></div>' +
-        '<div class="tdlv">Lv ' + lv + (s.max !== Infinity ? '<i>/' + s.max + '</i>' : '') + '</div></div>' +
+        '<div class="tdlv">Lv ' + lv + (cap !== Infinity ? '<i>/' + cap + '</i>' : '') + '</div></div>' +
       '<div class="tdbuy"><button class="sbuy"' + (can ? '' : ' disabled') + '>' +
-        (maxed ? 'MAX' : '◈ ' + Util.fmt(Skill.cost(meta, id))) + '</button></div>';
+        // 進行で止まっているときに「MAX」と出すと、もう伸びないと誤解される
+        (maxed ? (capWhy ? 'まだ伸ばせない' : 'MAX') : '◈ ' + Util.fmt(Skill.cost(meta, id))) + '</button></div>' +
+      // **お金で買えない上限は、その理由を出す。** 値段のせいだと誤解させない
+      (capWhy ? '<div class="tdcap">' + capWhy + '</div>' : '');
 
     const btn = d.querySelector('.sbuy');
     let hold = null;
@@ -750,8 +755,9 @@ const UI = {
       if (!Skill.buy(Game.meta, Game.perm, id)) return;
       Game.applyMods();
       const lv2 = Skill.lv(meta, id);
-      d.querySelector('.tdlv').textContent = 'Lv ' + lv2 + (s.max !== Infinity ? ' / ' + s.max : '');
-      btn.textContent = lv2 >= s.max ? 'MAX' : '◈ ' + Util.fmt(Skill.cost(meta, id)) + ' で強化';
+      const cap2 = Skill.maxOf(Game.perm, id);
+      d.querySelector('.tdlv').textContent = 'Lv ' + lv2 + (cap2 !== Infinity ? ' / ' + cap2 : '');
+      btn.textContent = lv2 >= cap2 ? 'MAX' : '◈ ' + Util.fmt(Skill.cost(meta, id)) + ' で強化';
       this.refreshSkills();
       btn.disabled = !(Game.canBuySkills() && Skill.canBuy(meta, Game.perm, id));
     };

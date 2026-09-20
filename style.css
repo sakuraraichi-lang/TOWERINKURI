@@ -717,3 +717,7 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 #buildNote{display:none;flex:0 0 auto;font-size:10px;color:var(--dim);line-height:1.6;
   padding:7px 9px;background:#0e1116;border-left:2px solid var(--acc);}
 #buildNote.on{display:block;}
+
+/* お金では買えない上限（設置枠）の理由 */
+.tdcap{margin-top:7px;font-size:10px;line-height:1.5;color:var(--acc);
+  padding:6px 9px;background:#150e06;border-left:2px solid var(--acc);}

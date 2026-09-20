@@ -372,34 +372,227 @@ const Render = {
     }
   },
 
+  // ---------- 武器の見た目 ----------
+  //
+  //   **12種が「色の違う丸」だったのをやめた。** 形で見分けられるようにする。
+  //   絵は持たない（ビルドの無いプロジェクトなので）。全部その場で描く。
+  //
+  //   描く順   台座 → 砲塔（武器ごと） → 発砲の火
+  //   座標系   砲塔は原点・+x が砲身の向き。台座は回らない
+  //   3文字の略号は**準備フェーズだけ**出す。戦闘中は形だけで読む
   units(ctx, run) {
+    const build = run.phase === 'build' || Game.phase !== 'battle';
     for (const u of run.units) {
       const c = u.def.color;
       const sel = UI.selected === u;
+
+      // --- 台座。回らない。機械が据え付けてある、という土台 ---
+      ctx.save();
+      ctx.translate(u.x, u.y);
+      ctx.shadowColor = c; ctx.shadowBlur = sel ? 16 : 7;
+      ctx.fillStyle = '#0c0e13';
+      ctx.strokeStyle = sel ? '#ffffff' : c;
+      ctx.lineWidth = sel ? 2.4 : 1.5;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {                  // 六角の座
+        const a = Math.PI / 6 + i * Math.PI / 3;
+        const x = Math.cos(a) * 12, y = Math.sin(a) * 12;
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      }
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+
+      // --- 砲塔 ---
       ctx.save();
       ctx.translate(u.x, u.y);
       ctx.rotate(u.angle);
-      ctx.fillStyle = c;
-      const bl = u.id === 'sniper' ? 22 : u.id === 'tesla' || u.id === 'cryo' ? 8
-               : u.id === 'katana' ? 18 : 14;
-      ctx.fillRect(0, -2.5, bl, 5);
-      if (u.muzzle > 0) {
-        ctx.globalAlpha = 0.9; ctx.fillStyle = '#fff';
-        ctx.beginPath(); ctx.arc(bl + 3, 0, 4.5, 0, Math.PI * 2); ctx.fill();
-        ctx.globalAlpha = 1;
-      }
+      // 撃った瞬間に後ろへ下がる。**動いて見えるのはこれだけで足りる**
+      if (u.muzzle > 0) ctx.translate(-u.muzzle * 26, 0);
+      this.turret(ctx, u, c);
       ctx.restore();
 
-      ctx.save();
-      ctx.shadowColor = c; ctx.shadowBlur = sel ? 18 : 9;
-      ctx.fillStyle = '#101319';
-      ctx.strokeStyle = sel ? '#ffffff' : c; ctx.lineWidth = sel ? 2.5 : 1.8;
-      ctx.beginPath(); ctx.arc(u.x, u.y, 11, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      ctx.restore();
-      ctx.fillStyle = c;
-      ctx.font = 'bold 8px system-ui,sans-serif';
-      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-      ctx.fillText(u.def.short, u.x, u.y + 0.5);
+      // --- 発砲の火。砲身の先に出す（後退とは無関係の位置） ---
+      if (u.muzzle > 0) {
+        const bl = this.barrelLen(u);
+        ctx.save();
+        ctx.translate(u.x, u.y); ctx.rotate(u.angle);
+        ctx.globalAlpha = Math.min(1, u.muzzle * 12);
+        ctx.fillStyle = '#fff6e0';
+        ctx.beginPath();
+        ctx.moveTo(bl, -1.5); ctx.lineTo(bl + 7, 0); ctx.lineTo(bl, 1.5);
+        ctx.lineTo(bl + 1, 3.5); ctx.lineTo(bl - 1, 0); ctx.lineTo(bl + 1, -3.5);
+        ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+
+      // --- 略号。準備中だけ。戦闘中は盤面を汚さない ---
+      if (build) {
+        ctx.fillStyle = c;
+        ctx.font = 'bold 7px system-ui,sans-serif';
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(u.def.short, u.x, u.y + 18);
+      }
+    }
+  },
+
+  // 砲身の長さ（発砲の火を出す位置）
+  barrelLen(u) {
+    switch (u.id) {
+      case 'sniper': return 24;
+      case 'katana': return 19;
+      case 'mortar': return 12;
+      case 'missile': return 13;
+      case 'flame': return 11;
+      case 'gas': return 12;
+      case 'tesla': case 'cryo': case 'shuriken': case 'tentacle': return 9;
+      default: return 15;
+    }
+  },
+
+  // 武器ごとの砲塔。**+x が砲身の向き。** 描くのは全部ここに集める
+  turret(ctx, u, c) {
+    const bar = (len, w, off) => { ctx.fillRect(off || 0, -w / 2, len, w); };
+    ctx.fillStyle = c;
+    ctx.strokeStyle = c;
+    ctx.lineWidth = 1.4;
+    ctx.lineJoin = 'round';
+
+    switch (u.id) {
+      // 🔫 3本の回転銃身
+      case 'gatling':
+        ctx.fillStyle = '#1b1d23';
+        ctx.fillRect(-4, -6, 9, 12);
+        ctx.strokeRect(-4, -6, 9, 12);
+        ctx.fillStyle = c;
+        bar(15, 2.6, 3); ctx.fillRect(3, -6.2, 15, 2.2); ctx.fillRect(3, 4, 15, 2.2);
+        break;
+
+      // 🎯 長い一本＋照準器＋脚
+      case 'sniper':
+        ctx.fillStyle = c; bar(24, 2.4, 2);
+        ctx.fillRect(4, -5.5, 7, 2.2);                 // スコープ
+        ctx.fillStyle = '#1b1d23';
+        ctx.fillRect(-5, -4, 8, 8); ctx.strokeRect(-5, -4, 8, 8);
+        ctx.strokeStyle = c;                            // 二脚
+        ctx.beginPath(); ctx.moveTo(11, 0); ctx.lineTo(15, -6); ctx.moveTo(11, 0); ctx.lineTo(15, 6); ctx.stroke();
+        break;
+
+      // 🚀 4連装の発射箱
+      case 'missile':
+        ctx.fillStyle = '#1b1d23';
+        ctx.fillRect(-5, -7, 17, 14); ctx.strokeRect(-5, -7, 17, 14);
+        ctx.fillStyle = c;
+        for (let i = 0; i < 2; i++) for (let j = 0; j < 2; j++) {
+          ctx.beginPath(); ctx.arc(1 + i * 7, -3.5 + j * 7, 2.1, 0, 7); ctx.fill();
+        }
+        break;
+
+      // ⚡ コイル。輪が2枚と、先端の球
+      case 'tesla':
+        ctx.fillStyle = '#1b1d23';
+        ctx.fillRect(-4, -4, 8, 8); ctx.strokeRect(-4, -4, 8, 8);
+        ctx.strokeStyle = c;
+        for (const r of [5.5, 7.5]) { ctx.beginPath(); ctx.ellipse(2, 0, 2.5, r, 0, 0, 7); ctx.stroke(); }
+        ctx.fillStyle = c;
+        ctx.beginPath(); ctx.arc(9, 0, 3.4, 0, 7); ctx.fill();
+        break;
+
+      // 🔥 太い噴射口＋燃料タンク
+      case 'flame':
+        ctx.fillStyle = '#1b1d23';
+        ctx.beginPath(); ctx.arc(-5, 0, 5.5, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        ctx.moveTo(0, -3); ctx.lineTo(11, -6.5); ctx.lineTo(11, 6.5); ctx.lineTo(0, 3);
+        ctx.closePath(); ctx.fill();
+        break;
+
+      // ☣ ボンベ＋短い散布筒
+      case 'gas':
+        ctx.fillStyle = '#1b1d23';
+        ctx.beginPath(); ctx.ellipse(-4, 0, 5, 6.5, 0, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = c;
+        bar(12, 4.4, 1);
+        ctx.beginPath(); ctx.arc(13, 0, 3, 0, 7); ctx.fill();
+        break;
+
+      // ❄ 放射状のフィン。砲身を持たない
+      case 'cryo':
+        ctx.strokeStyle = c; ctx.lineWidth = 1.8;
+        for (let i = 0; i < 6; i++) {
+          const a = i * Math.PI / 3;
+          ctx.beginPath(); ctx.moveTo(Math.cos(a) * 3, Math.sin(a) * 3);
+          ctx.lineTo(Math.cos(a) * 9, Math.sin(a) * 9); ctx.stroke();
+        }
+        ctx.fillStyle = '#1b1d23';
+        ctx.beginPath(); ctx.arc(0, 0, 4, 0, 7); ctx.fill(); ctx.stroke();
+        break;
+
+      // 🗡 刃
+      case 'katana':
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        ctx.moveTo(2, -1.6); ctx.lineTo(19, -0.6); ctx.lineTo(20, 0); ctx.lineTo(19, 0.9); ctx.lineTo(2, 1.6);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#1b1d23';
+        ctx.fillRect(-4, -3.5, 6, 7); ctx.strokeRect(-4, -3.5, 6, 7);
+        ctx.fillStyle = c; ctx.fillRect(1, -4.5, 1.8, 9);       // 鍔
+        break;
+
+      // ✳ 四方手裏剣
+      case 'shuriken':
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        for (let i = 0; i < 8; i++) {
+          const a = i * Math.PI / 4, r = i % 2 ? 3.2 : 10;
+          const x = Math.cos(a) * r, y = Math.sin(a) * r;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#0c0e13';
+        ctx.beginPath(); ctx.arc(0, 0, 2.2, 0, 7); ctx.fill();
+        break;
+
+      // 🐙 うねる3本の腕
+      case 'tentacle':
+        ctx.fillStyle = '#1b1d23'; ctx.strokeStyle = c; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(-3, 0, 4.5, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.lineCap = 'round'; ctx.lineWidth = 2;
+        for (const s of [-1, 0, 1]) {
+          ctx.beginPath(); ctx.moveTo(0, s * 2.6);
+          ctx.bezierCurveTo(5, s * 6, 9, s * -2, 14, s * 5);
+          ctx.stroke();
+        }
+        ctx.lineCap = 'butt';
+        break;
+
+      // 🫧 輪の噴出口
+      case 'bubble':
+        ctx.fillStyle = '#1b1d23';
+        ctx.beginPath(); ctx.arc(-3, 0, 5, 0, 7); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = c; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.arc(8, 0, 5, 0, 7); ctx.stroke();
+        ctx.beginPath(); ctx.arc(8, 0, 2.2, 0, 7); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(1, -2.5); ctx.lineTo(4, -4);
+        ctx.moveTo(1, 2.5); ctx.lineTo(4, 4); ctx.stroke();
+        break;
+
+      // 💥 太く短い筒＋底板
+      case 'mortar':
+        ctx.fillStyle = '#1b1d23';
+        ctx.beginPath();
+        ctx.moveTo(-7, -7); ctx.lineTo(-2, -5); ctx.lineTo(-2, 5); ctx.lineTo(-7, 7);
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = c;
+        ctx.beginPath();
+        ctx.moveTo(-2, -4.2); ctx.lineTo(12, -6); ctx.lineTo(12, 6); ctx.lineTo(-2, 4.2);
+        ctx.closePath(); ctx.fill();
+        ctx.fillStyle = '#0c0e13';
+        ctx.beginPath(); ctx.ellipse(11, 0, 1.6, 4.6, 0, 0, 7); ctx.fill();
+        break;
+
+      default:
+        ctx.fillStyle = c; bar(15, 5, 0);
     }
   },
 
