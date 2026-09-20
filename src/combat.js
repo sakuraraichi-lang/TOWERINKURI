@@ -163,7 +163,7 @@ const Combat = {
       pushX: 0, pushY: 0,
       shock: 0, slow: 0, slowT: 0, stun: 0, chill: 0,
       burn: 0, burnT: 0, fvuln: 0, fvulnT: 0,
-      grabT: 0, grabV: 0, dist: 1e9, counted: false,
+      grabT: 0, grabV: 0, spotT: 0, dist: 1e9, counted: false,
       hitFlash: 0, dead: false,
     });
   },
@@ -242,7 +242,7 @@ const Combat = {
         this.fx(run, { type: 'coin', x: e.x, y: e.y, big: !!e.boss, life: 0.5 });
       }
     }
-    if (e.boss) this.shake(run, 16);
+    if (e.boss) this.shake(run, 16, true);
   },
 
   // ================= 攻撃のかたち =================
@@ -286,6 +286,8 @@ const Combat = {
 
   // 目標地点へ投げる（毒ガスの散布弾・迫撃砲の砲弾）
   spawnLob(w, run, tx, ty, o) {
+    Snd.shot(w.id);
+    if (run.bullets.length > 1200) run.bullets.shift();
     const a = Util.angle(w.x, w.y, tx, ty);
     const speed = w.s.speed;
     run.bullets.push({
@@ -365,7 +367,6 @@ const Combat = {
       t.grabV = power;
       this.damage(run, t, dmg, { color: '#ffb0e8' });
       this.fx(run, { type: 'link', x1: w.x, y1: w.y, e: t, color: '#c85ab0', life: Math.min(0.6, dur) });
-      if (w.flags.hang) run.grabTarget = t;
     }
   },
 
@@ -400,17 +401,81 @@ const Combat = {
       const d = Util.dist(x, y, e.x, e.y);
       if (d > radius + e.r) continue;
       const fall = Util.clamp(1 - (d / (radius + e.r)) * 0.55, 0.45, 1);
-      this.damage(run, e, dmg * fall, Object.assign({ color: '#ffc38a' }, opts));
+      let v = dmg * fall;
+      // 特定の状態の敵だけ増える分（シナジー）。**狙いは変えない。**
+      // 「その敵を狙う」のではなく「その敵に落ちたときに効く」
+      if (opts.grabMul && e.grabT > 0) v *= opts.grabMul;
+      if (opts.spotMul && e.spotT > 0) v *= opts.spotMul;
+      this.damage(run, e, v, Object.assign({ color: '#ffc38a' }, opts));
     }
     this.fx(run, { type: 'boom', x, y, r: radius, color: opts.color || '#ff9a4a', life: 0.3 });
     this.shake(run, Math.min(10, radius * 0.06));
   },
 
+  // ================= 指定攻撃（着弾円） =================
+  //
+  //   **この分類だけは、砲身から敵へ弾が飛ばない。**
+  //   プレイヤーが盤面に円を置き、その中へ砲弾が降り注ぐ。
+  //
+  //   ・砲弾は **着弾するまで一切の当たり判定を持たない**（敵も壁も素通りする）。
+  //     だから射線を持たず、スナイパーやガトリングが置きたい地面を食わない。
+  //     好きな場所に置けるのが、この分類の強み
+  //   ・**円を絞るほど強い。** 倍率は掛けていない。同じ発射数が狭い面に落ちるので
+  //     同じ敵に重なるだけ。広げれば、道を外した砲弾はただの空振りになる
+  bombard(w, run, color) {
+    const p = w.aim;
+    if (!p) return;
+    const R = Game.spotR(w);
+    const n = Math.max(1, Math.round(w.s.count));
+    for (let i = 0; i < n; i++) {
+      // 円の中に一様に散らす（sqrt を掛けないと中心に寄る）
+      const a = Util.rand(0, Math.PI * 2);
+      const d = Math.sqrt(Math.random()) * R;
+      this.spawnLob(w, run, p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, {
+        color: color || w.def.color, mark: true,
+        onLand: (rr, x, y) => this.spotImpact(w, rr, x, y),
+      });
+    }
+  },
+
+  // 着弾。**弾が当たったときと同じことをする**ので、
+  // クラスター・酸・感電・内破といったカードがそのまま効く
+  spotImpact(w, run, x, y) {
+    const dmg = w.s.dmg;
+    const R = Math.max(18, w.s.splash);
+    let shock = 0;
+    if (w.flags.implode) shock = Math.max(shock, w.s.shockDur || 2.5);
+    if (w.flags.staticFoam) shock = Math.max(shock, w.s.shockDur || 3);
+    this.explode(run, x, y, R, dmg * (w.s.splashMul || 1), {
+      color: w.def.color,
+      shock,
+      stun: w.s.stunDur || 0,
+      slow: w.s.slow, slowDur: w.s.slowDur,
+      burn: w.s.burn ? dmg * w.s.burn : 0, burnDur: w.s.burnDur,
+      crit: w.s.crit, critMul: w.s.critMul, exec: w.s.execThr,
+      grabMul: w.dyn.grabMul || 0,
+      spotMul: w.dyn.spotMul || 0,
+    });
+    if (w.dyn.cluster) {
+      this.cluster(run, { x, y, dmg, splash: R, splashMul: w.s.splashMul || 1, src: w, wid: w.id });
+    }
+    if (w.flags.acid) {
+      this.spawnField(run, x, y, { kind: 'acid', r: w.s.fieldR, dur: w.s.fieldDur,
+        dps: dmg * 0.35, vuln: 0.15, color: '#a8f0c0' });
+    }
+  },
+
   fx(run, o) { if (run.fx.length < 240) { o.t = 0; run.fx.push(o); } },
-  shake(run, v) { run.shake = Math.min(26, run.shake + v * 0.35); },
+  // 画面の揺れ。**撃ちっぱなしにしたので、撃つたびに揺らすと一生揺れる。**
+  //   日常の揺れ（発砲・爆発）は 3px までしか積めない
+  //   一発ものの衝撃（ボス撃破・雷神・漏れ）だけが 16px まで上げられる
+  shake(run, v, big) {
+    const cap = big ? 16 : 3;
+    if (run.shake >= cap) return;
+    run.shake = Math.min(cap, run.shake + v * 0.35);
+  },
 
   // ================= 照準 =================
-  // 指定攻撃（迫撃砲）用：射程内で最も敵が固まっている一点を探す
 
   // 扇の中に入っているか
   inArc(w, x, y) {
@@ -425,20 +490,9 @@ const Combat = {
   //   いまは、砲身が向いている線の上にいるものを拾うだけ。
   //   着弾点を持つ武器（指定攻撃・ミサイル）は、その点にいるものを拾う
   findTarget(w, run) {
-    if (w.ax !== undefined && w.ax !== null) return this.nearPoint(w, run, w.ax, w.ay);
+    // 指定攻撃は「どこに落とすか」だけで動く。狙う敵という概念を持たない
+    if (w.ax !== undefined && w.ax !== null) return null;
     return this.targetAhead(w, run);
-  },
-
-  // 指定した点のいちばん近くにいる敵（着弾点方式の武器が使う）
-  nearPoint(w, run, x, y) {
-    const near = Grid.query(x, y, 70, _q);
-    let best = null, bd = Infinity;
-    for (const e of near) {
-      if (e.dead) continue;
-      const d = Util.dist2(x, y, e.x, e.y);
-      if (d < bd) { bd = d; best = e; }
-    }
-    return best;
   },
 
   // 砲身の動かし方。**敵を追わない。**
@@ -446,12 +500,9 @@ const Combat = {
   //   指定攻撃     … プレイヤーが決めた着弾点へ向ける（そこへ撃ち込むための武器）
   aimUpdate(w, run, dt) {
     if (w.ax !== undefined && w.ax !== null) {
-      // 着弾点が決まっている武器。扇の外へは向けない
-      let want = Util.angle(w.x, w.y, w.ax, w.ay);
-      let da = want - w.face;
-      while (da > Math.PI) da -= Math.PI * 2;
-      while (da < -Math.PI) da += Math.PI * 2;
-      want = w.face + Util.clamp(da, -w.arc, w.arc);
+      // 指定攻撃。**扇は持たない。** 砲身は着弾円の中心を向くだけで、
+      // 制約は射程だけ（向きのスライダーは、円を置ける方向を決めるのに使う）
+      const want = Util.angle(w.x, w.y, w.ax, w.ay);
       w.angle = Util.turnToward(w.angle, want, w.s.turn * dt);
       w.aim = { x: w.ax, y: w.ay };
       return;
@@ -547,6 +598,7 @@ const Combat = {
       if (e.chill > 0) e.chill -= dt;
       if (e.stun > 0) e.stun -= dt;
       if (e.grabT > 0) e.grabT -= dt;
+      if (e.spotT > 0) e.spotT -= dt;
       if (e.fvulnT > 0) e.fvulnT -= dt;
       if (e.slowT > 0) { e.slowT -= dt; if (e.slowT <= 0) e.slow = 0; }
       if (e.hitFlash > 0) e.hitFlash -= dt;
@@ -564,8 +616,15 @@ const Combat = {
 
       if (e.stun <= 0) {
         if (e.grabT > 0) {
-          e.x -= Math.cos(a) * e.grabV * dt;
-          e.y -= Math.sin(a) * e.grabV * dt;
+          // **来た道へ引き戻す。** 道の上にいるあいだだけ後退させる。
+          //   道を外れると goal がコア直通になり、そこから後退させると
+          //   「壁を無視してコアの真逆（このマップ群では画面の上）へ飛ぶ」
+          //   になっていた。引っ張るのであって、弾き飛ばすのではない
+          if (inside) {
+            const nx = e.x - Math.cos(a) * e.grabV * dt;
+            const ny = e.y - Math.sin(a) * e.grabV * dt;
+            if (st.walkable((nx / TILE) | 0, (ny / TILE) | 0)) { e.x = nx; e.y = ny; }
+          }
         } else {
           const slowMul = Math.max(BAL.enemySlowFloor, 1 - e.slow);
           e.x += Math.cos(a) * e.spd * slowMul * dt;
@@ -590,7 +649,7 @@ const Combat = {
           run.leak[route[k]] += 0.15 + 0.85 * (k / Math.max(1, route.length - 1));
         }
         this.fx(run, { type: 'boom', x: e.x, y: e.y, r: 26, color: '#ff5b6e', life: 0.3 });
-        this.shake(run, 3);
+        this.shake(run, 3, true);
         e.dead = true;
         run.enemies.splice(i, 1);
         continue;
@@ -604,7 +663,7 @@ const Combat = {
 
     // --- ユニット ---
     for (const w of run.units) {
-      if (w.flags.heat) w.dyn.heat = Math.max(0, w.dyn.heat - dt * 0.42);
+      if (w.flags.heat) w.dyn.heat = Math.max(0, w.dyn.heat - dt * 0.85);
       if (w.flags.thunderGod) {
         w.dyn.godCd -= dt;
         if (w.dyn.godCd <= 0) {
@@ -614,7 +673,7 @@ const Combat = {
             this.damage(run, e, w.s.dmg * 3, { shock: Math.max(2, w.s.shockDur), color: '#d8c7ff' });
           }
           this.fx(run, { type: 'ring', x: run.tower.x, y: run.tower.y, r: Math.max(st.w, st.h), color: '#e2d6ff', life: 0.4 });
-          this.shake(run, 14);
+          this.shake(run, 14, true);
         }
       }
 
@@ -624,7 +683,10 @@ const Combat = {
 
       // **撃ちっぱなし。** 敵がいるかどうかで撃つ／撃たないを武器に決めさせない。
       // 首を振り続ける扇風機のガトリング、というのがこの武器たちの姿
-      const rate = w.s.rate * (w.flags.heat ? (1 + w.dyn.heat * (w.dyn.heatMax || 0)) : 1);
+      // 加熱には**上限がある。** 撃ちっぱなしにしたので、青天井だと
+      // 「撃っているだけで速くなり続ける」になってしまう（heatCap で頭打ち）
+      const rate = w.s.rate *
+        (w.flags.heat ? (1 + w.dyn.heat * Math.min(BAL.heatCap, w.dyn.heatMax || 0)) : 1);
       w.cd -= dt;
       if (w.cd <= 0) {
         w.cd = 1 / Math.max(0.02, rate);
@@ -690,7 +752,9 @@ const Combat = {
         });
 
         if (b.src && b.src.flags.resonance && b.wid === 'gatling') run.resonance = Math.min(4.0, run.resonance + 0.006);
-        if (b.src && b.src.flags.spot && b.wid === 'sniper' && !e.dead) run.spotTarget = e;
+        // 曳光指示：スナイパーが撃ち抜いた敵に印が残る。
+        // **ミサイルの狙いは変えない。**印の付いた敵に落ちたときだけ効く
+        if (b.src && b.src.flags.spot && b.wid === 'sniper' && !e.dead) e.spotT = 3;
         if (b.src && b.src.flags.charged && b.wid === 'gatling') {
           this.chainLightning(b.src, run, e, b.src.dyn.chargedChain || 2, b.dmg * 0.55);
         }

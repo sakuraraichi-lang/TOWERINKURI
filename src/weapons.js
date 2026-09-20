@@ -20,7 +20,7 @@ const CATEGORIES = {
   area:    { id: 'area',    name: '範囲攻撃', icon: '▲', color: '#ff6a2a',
              desc: '一度に広い面を焼く。密集しているほど強い' },
   target:  { id: 'target',  name: '指定攻撃', icon: '✛', color: '#c9a0ff',
-             desc: '撃ち込む一点を自分で指す。溜まり場に置くほど効く' },
+             desc: '盤面に円を置き、その中へ降らせる。射線を持たない' },
   support: { id: 'support', name: '支援',     icon: '❉', color: '#7fe6ff',
              desc: '直接は倒さない。足を止め、他の武器の時間を作る' },
 };
@@ -58,9 +58,25 @@ function baseStats(o) {
     fieldDur: 0,    // 場の持続秒
     fieldVuln: 0,   // 場の中の敵が受けるダメージの増分（0.2 = +20%）
     arc: 0.40,      // 射界の半角(rad)。プレイヤーが広げ狭めできる初期値
+                    // **指定攻撃ではこれが「着弾円の大きさ」のつまみになる**
     turn: 7,        // 砲身が扇の中で振れる速さ(rad/s)。向きそのものは動かない
   }, o);
 }
+
+// ---------------------------------------------------------------
+// 指定攻撃（cat:'target' / aimPoint:true）の決まりごと
+//
+//   **この分類だけは、砲身から敵へ弾が飛ばない。**
+//   プレイヤーが盤面に円を置き、砲弾がその中のランダムな点へ降る。
+//
+//   1. 砲弾は着弾するまで当たり判定を持たない。敵も壁も素通りする
+//      → 射線を持たないので、スナイパーやガトリングが欲しい地面を食わない。
+//        **好きな場所に置ける**のが、この分類の対価
+//   2. 円を絞るほど強い。**倍率は掛けていない。**
+//        絞る → 同じ発射数が狭い面に落ちる → 同じ敵に重なる
+//        広げる → 道を外した砲弾はただの空振りになる
+//   3. spot:[最小半径, 最大半径] が、そのつまみの効く幅（px）
+// ---------------------------------------------------------------
 
 const WEAPONS = {
   // ============ 初期装備 ============
@@ -73,7 +89,9 @@ const WEAPONS = {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.s.count > 1 ? w.s.count * 0.7 : 1);
         Combat.spawnBullet(w, run, a, { color: '#ffd24a' });
       }
-      if (w.flags.heat) w.dyn.heat = Math.min(1, w.dyn.heat + 0.035);
+      // 加熱は **当たっているあいだだけ**溜まる。
+      // 撃ちっぱなしにした以上、撃った回数で溜めると空撃ちで速くなってしまう
+      if (w.flags.heat && w.target) w.dyn.heat = Math.min(1, w.dyn.heat + 0.05);
       if (w.flags.tracerBarrage) {
         w.dyn.tracer = (w.dyn.tracer || 0) + w.s.count;
         if (w.dyn.tracer >= 10) {
@@ -102,16 +120,11 @@ const WEAPONS = {
 
   // ============ ステージ報酬（王道TD＋化学兵器） ============
   missile: {
-    id: 'missile', stock: 2, cat: 'long', name: 'ミサイル', short: 'MSL', icon: '🚀', color: '#ff7a3c', src: 'stage', arcMin: 0.08, arcMax: 0.42, aimPoint: true,
-    desc: '指した一点へ誘導弾を撃ち込み続ける。着弾時に爆発して群れをまとめて吹き飛ばす。',
-    base: baseStats({ arc: 0.30, dmg: 16, rate: 1.0, range: 330, spread: 0.18, speed: 310, splash: 72, bulletR: 5, homing: 3.4, turn: 5 }),
-    fire(w, run) {
-      for (let i = 0; i < w.s.count; i++) {
-        const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.s.count > 1 ? w.s.count : 1);
-        Combat.spawnBullet(w, run, a, { color: '#ff7a3c' });
-      }
-      Combat.shake(run, 1.4);
-    },
+    id: 'missile', stock: 2, cat: 'target', name: 'ミサイル', short: 'MSL', icon: '🚀', color: '#ff7a3c', src: 'stage',
+    arcMin: 0.08, arcMax: 0.42, aimPoint: true, spot: [72, 150],
+    desc: '置いた円の中へ爆撃を降らせ続ける。円を絞るほど一点に集まる。',
+    base: baseStats({ arc: 0.30, dmg: 16, rate: 1.0, range: 330, speed: 430, splash: 72, bulletR: 5, turn: 5 }),
+    fire(w, run) { Combat.bombard(w, run, '#ff7a3c'); },
   },
 
   tesla: {
@@ -212,37 +225,21 @@ const WEAPONS = {
   },
 
   bubble: {
-    id: 'bubble', stock: 2, cat: 'target', name: '泡', short: 'BBL', icon: '🫧', color: '#8ad8ff', src: 'pack', arcMin: 0.12, arcMax: 0.55, aimPoint: true,
-    desc: '指した一点へ泡を撃ち続け、敵を閉じ込めて足を止める。泡が割れるとまとめてダメージ。',
-    base: baseStats({ arc: 0.34, dmg: 10, rate: 1.1, range: 250, speed: 220, bulletR: 9,
-                      stunDur: 1.8, splash: 58, splashMul: 1.0, homing: 2.2 }),
-    fire(w, run) {
-      for (let i = 0; i < w.s.count; i++) {
-        const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.s.count > 1 ? w.s.count : 1);
-        Combat.spawnBullet(w, run, a, { color: '#8ad8ff', bubble: true });
-      }
-    },
+    id: 'bubble', stock: 2, cat: 'target', name: '泡', short: 'BBL', icon: '🫧', color: '#8ad8ff', src: 'pack',
+    arcMin: 0.12, arcMax: 0.55, aimPoint: true, spot: [58, 120],
+    desc: '置いた円の中へ泡を降らせ、割れた場所の敵を閉じ込める。',
+    base: baseStats({ arc: 0.34, dmg: 10, rate: 1.1, range: 250, speed: 300, bulletR: 9,
+                      stunDur: 1.8, splash: 58, splashMul: 1.0 }),
+    fire(w, run) { Combat.bombard(w, run, '#8ad8ff'); },
   },
 
   mortar: {
-    id: 'mortar', stock: 1, cat: 'target', name: '迫撃砲', short: 'MTR', icon: '💥', color: '#e0b060', src: 'stage', arcMin: 0.08, arcMax: 0.45, aimPoint: true,
-    desc: '指した一点へ砲弾を撃ち込み続ける。射程は長いが発射は遅い。',
+    id: 'mortar', stock: 1, cat: 'target', name: '迫撃砲', short: 'MTR', icon: '💥', color: '#e0b060', src: 'stage',
+    arcMin: 0.08, arcMax: 0.45, aimPoint: true, spot: [96, 170],
+    desc: '置いた円の中へ重い砲弾を降らせ続ける。射程は長いが発射は遅い。',
     base: baseStats({ arc: 0.26, dmg: 42, rate: 0.55, range: 420, speed: 240, bulletR: 6,
                       splash: 96, splashMul: 1.0, turn: 2.4 }),
-    fire(w, run) {
-      const p = w.aim;                      // findTarget が決めた「撃ち込む一点」
-      if (!p) return;
-      for (let i = 0; i < w.s.count; i++) {
-        const jx = i === 0 ? 0 : Util.rand(-w.s.splash * 0.5, w.s.splash * 0.5);
-        const jy = i === 0 ? 0 : Util.rand(-w.s.splash * 0.5, w.s.splash * 0.5);
-        Combat.spawnLob(w, run, p.x + jx, p.y + jy, {
-          color: '#e0b060', mark: true,
-          onLand: (rr, x, y) => Combat.explode(rr, x, y, w.s.splash, w.s.dmg * w.s.splashMul,
-            { color: '#ffc38a', shock: w.s.shockDur, burn: w.s.burn ? w.s.dmg * w.s.burn : 0, burnDur: w.s.burnDur }),
-        });
-      }
-      Combat.shake(run, 2.6);
-    },
+    fire(w, run) { Combat.bombard(w, run, '#e0b060'); },
   },
 };
 

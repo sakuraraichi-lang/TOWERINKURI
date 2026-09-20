@@ -25,16 +25,16 @@ const CARDS = {
   // ============ 武器カード ============
   wc_gatling:  C({ id: 'wc_gatling',  kind: 'weapon', weapon: 'gatling',  rarity: 'common', name: 'ガトリング砲',   desc: '編成枠に装備。毎秒大量の小口径弾。' }),
   wc_sniper:   C({ id: 'wc_sniper',   kind: 'weapon', weapon: 'sniper',   rarity: 'common', name: '狙撃タレット',   desc: '編成枠に装備。長射程・高威力の単発。' }),
-  wc_missile:  C({ id: 'wc_missile',  kind: 'weapon', weapon: 'missile',  rarity: 'rare',   name: 'ミサイルポッド', desc: '編成枠に装備。指した一点へ誘導弾を撃ち込み続ける。' }),
+  wc_missile:  C({ id: 'wc_missile',  kind: 'weapon', weapon: 'missile',  rarity: 'rare',   name: 'ミサイルポッド', desc: '編成枠に装備。置いた円の中へ爆撃を降らせ続ける。' }),
   wc_tesla:    C({ id: 'wc_tesla',    kind: 'weapon', weapon: 'tesla',    rarity: 'rare',   name: 'テスラコイル',   desc: '編成枠に装備。砲身の先へ即着の連鎖電撃。' }),
   wc_flame:    C({ id: 'wc_flame',    kind: 'weapon', weapon: 'flame',    rarity: 'epic',   name: '火炎放射器',     desc: '編成枠に装備。扇状に炎を吹き、燃焼を残す。' }),
   wc_gas:      C({ id: 'wc_gas',      kind: 'weapon', weapon: 'gas',      rarity: 'epic',   name: '毒ガス散布機',   desc: '編成枠に装備。砲身の先へ毒の雲を撒き続ける。' }),
   wc_cryo:     C({ id: 'wc_cryo',     kind: 'weapon', weapon: 'cryo',     rarity: 'legendary', name: '凍結装置',    desc: '編成枠に装備。周囲へ冷気を放ち、敵を鈍らせる。' }),
-  wc_mortar:   C({ id: 'wc_mortar',   kind: 'weapon', weapon: 'mortar',   rarity: 'rare',   name: '迫撃砲',         desc: '編成枠に装備。指した一点へ砲弾を撃ち込み続ける。' }),
+  wc_mortar:   C({ id: 'wc_mortar',   kind: 'weapon', weapon: 'mortar',   rarity: 'rare',   name: '迫撃砲',         desc: '編成枠に装備。置いた円の中へ重い砲弾を降らせ続ける。' }),
   wc_katana:   C({ id: 'wc_katana',   kind: 'weapon', weapon: 'katana',   rarity: 'rare',   name: '刀',             desc: '編成枠に装備。間合いの敵をまとめて斬る。' }),
   wc_shuriken: C({ id: 'wc_shuriken', kind: 'weapon', weapon: 'shuriken', rarity: 'rare',   name: '手裏剣',         desc: '編成枠に装備。敵から敵へ跳ね回る。' }),
   wc_tentacle: C({ id: 'wc_tentacle', kind: 'weapon', weapon: 'tentacle', rarity: 'epic',   name: '触手',           desc: '編成枠に装備。砲身の先の敵を掴んで来た道へ引き戻す。' }),
-  wc_bubble:   C({ id: 'wc_bubble',   kind: 'weapon', weapon: 'bubble',   rarity: 'epic',   name: '泡',             desc: '編成枠に装備。指した一点へ泡を撃ち続け、敵を閉じ込める。' }),
+  wc_bubble:   C({ id: 'wc_bubble',   kind: 'weapon', weapon: 'bubble',   rarity: 'epic',   name: '泡',             desc: '編成枠に装備。置いた円の中へ泡を降らせ、敵を閉じ込める。' }),
 
   // ============ ガトリング ============
   gat_belt: C({ id: 'gat_belt', kind: 'mod', weapon: 'gatling', rarity: 'common', maxStack: 5,
@@ -46,9 +46,11 @@ const CARDS = {
   gat_ap: C({ id: 'gat_ap', kind: 'mod', weapon: 'gatling', rarity: 'rare', maxStack: 3,
     name: '徹甲弾', desc: 'ガトリング弾が貫通 +1、ダメージ ×1.18',
     apply(run) { const w = run.wp('gatling'); if (w) { w.s.pierce += 1; w.s.dmg *= 1.18; } } }),
-  gat_heat: C({ id: 'gat_heat', kind: 'mod', weapon: 'gatling', rarity: 'epic', maxStack: 2,
-    name: '加熱暴走', desc: '撃ち続けるほど発射レート上昇（最大 +120%）。撃たないと冷える',
-    apply(run) { const w = run.wp('gatling'); if (w) { w.flags.heat = true; w.dyn.heatMax = (w.dyn.heatMax || 0) + 1.2; } } }),
+  gat_heat: C({ id: 'gat_heat', kind: 'mod', weapon: 'gatling', rarity: 'epic', maxStack: 1,
+    // **上限がある。** 撃ちっぱなしになったので、重ねるほど速くなる形だと
+    // 「置いておくだけで加速し続ける」になってしまう（BAL.heatCap で頭打ち）
+    name: '加熱暴走', desc: '当て続けるほど発射レート上昇（上限 +120%）。当たらないと冷える',
+    apply(run) { const w = run.wp('gatling'); if (w) { w.flags.heat = true; w.dyn.heatMax = BAL.heatCap; } } }),
   gat_wall: C({ id: 'gat_wall', kind: 'mod', weapon: 'gatling', rarity: 'legendary', maxStack: 1,
     name: '弾幕結界', desc: '同時発射 +4 / レート ×1.3 / 射程 ×0.85。視界が弾で埋まる',
     apply(run) { const w = run.wp('gatling'); if (w) { w.s.count += 4; w.s.rate *= 1.3; w.s.range *= 0.85; w.s.spread = Math.max(w.s.spread, 0.1); } } }),
@@ -75,8 +77,8 @@ const CARDS = {
     name: '増装弾頭', desc: 'ミサイルの爆風半径 ×1.35、ダメージ ×1.22',
     apply(run) { const w = run.wp('missile'); if (w) { w.s.splash *= 1.35; w.s.dmg *= 1.22; } } }),
   msl_guide: C({ id: 'msl_guide', kind: 'mod', weapon: 'missile', rarity: 'common', maxStack: 5,
-    name: '誘導装置', desc: 'ミサイルの誘導性能 ×1.6、発射レート ×1.2',
-    apply(run) { const w = run.wp('missile'); if (w) { w.s.homing *= 1.6; w.s.rate *= 1.2; } } }),
+    name: '速装填', desc: 'ミサイルの着弾までが速くなり、発射レート ×1.2',
+    apply(run) { const w = run.wp('missile'); if (w) { w.s.speed *= 1.35; w.s.rate *= 1.2; } } }),
   msl_multi: C({ id: 'msl_multi', kind: 'mod', weapon: 'missile', rarity: 'rare', maxStack: 3,
     name: '多弾頭', desc: 'ミサイルの同時発射 +2、ダメージ ×0.85',
     apply(run) { const w = run.wp('missile'); if (w) { w.s.count += 2; w.s.dmg *= 0.85; } } }),
@@ -84,7 +86,7 @@ const CARDS = {
     name: 'クラスター弾', desc: '爆発時に子ミサイルを4発ばら撒く',
     apply(run) { const w = run.wp('missile'); if (w) w.dyn.cluster = (w.dyn.cluster || 0) + 4; } }),
   msl_nuke: C({ id: 'msl_nuke', kind: 'mod', weapon: 'missile', rarity: 'legendary', maxStack: 1,
-    name: '戦術核', desc: 'ミサイルのダメージ ×3.2 / 爆風 ×2.4 / レート ×0.55。画面が揺れる',
+    name: '戦術核', desc: 'ミサイルのダメージ ×3.2 / 爆風 ×2.4 / レート ×0.55',
     apply(run) { const w = run.wp('missile'); if (w) { w.s.dmg *= 3.2; w.s.splash *= 2.4; w.s.rate *= 0.55; } } }),
 
   // ============ テスラコイル ============
@@ -190,7 +192,7 @@ const CARDS = {
     name: '広域炸裂', desc: '迫撃砲の爆風 ×1.40、射程 ×1.18',
     apply(run) { const w = run.wp('mortar'); if (w) { w.s.splash *= 1.40; w.s.range *= 1.18; } } }),
   mtr_carpet: C({ id: 'mtr_carpet', kind: 'mod', weapon: 'mortar', rarity: 'epic', maxStack: 2,
-    name: '絨毯爆撃', desc: '同時に +3 発。着弾はばらけるが、面ごと潰せる',
+    name: '絨毯爆撃', desc: '迫撃砲の同時発射 +3、ダメージ ×0.8',
     apply(run) { const w = run.wp('mortar'); if (w) { w.s.count += 3; w.s.dmg *= 0.8; } } }),
 
   // ============ シナジー（2種を同時編成しているときだけ抽選に出る） ============
@@ -198,10 +200,12 @@ const CARDS = {
     name: '帯電弾', desc: '【ガトリング＋テスラ】ガトリング弾が着弾時に2連鎖の電撃を起こす',
     apply(run) { const w = run.wp('gatling'); if (w) { w.flags.charged = true; w.dyn.chargedChain = (w.dyn.chargedChain || 0) + 2; } } }),
   syn_spotter: C({ id: 'syn_spotter', kind: 'synergy', requires: ['sniper', 'missile'], rarity: 'rare', maxStack: 3,
-    name: '曳光指示', desc: '【スナイパー＋ミサイル】スナイパーが撃った敵をミサイルが最優先で狙い、ダメージ ×1.6',
+    // **狙いは動かさない。** どこへ落とすかはプレイヤーが決めるものなので、
+    // 「印の付いた敵に落ちたときだけ効く」形にしてある
+    name: '曳光指示', desc: '【スナイパー＋ミサイル】スナイパーが撃ち抜いた敵に印が残り、そこへの着弾 ×1.6',
     apply(run) { const s = run.wp('sniper'), m = run.wp('missile');
       if (s) s.flags.spot = true;
-      if (m) { m.flags.followSpot = true; m.s.dmg *= 1.6; } } }),
+      if (m) m.dyn.spotMul = (m.dyn.spotMul || 1) * 1.6; } }),
   syn_implode: C({ id: 'syn_implode', kind: 'synergy', requires: ['missile', 'tesla'], rarity: 'rare', maxStack: 3,
     name: '電磁爆縮', desc: '【ミサイル＋テスラ】ミサイルの爆発が感電を付与し、爆風 ×1.35',
     apply(run) { const m = run.wp('missile'); if (m) { m.flags.implode = true; m.s.splash *= 1.35; m.s.shockDur = Math.max(m.s.shockDur, 2.5); } } }),
@@ -219,14 +223,14 @@ const CARDS = {
     name: '感電泡', desc: '【泡＋テスラ】泡に閉じ込めた敵が感電し、雷の連鎖が必ずそこを通る',
     apply(run) { const b = run.wp('bubble'); if (b) { b.flags.staticFoam = true; b.s.shockDur = Math.max(b.s.shockDur, 3); } } }),
   syn_hangman: C({ id: 'syn_hangman', kind: 'synergy', requires: ['tentacle', 'missile'], rarity: 'epic', maxStack: 2,
-    name: '吊るし上げ', desc: '【触手＋ミサイル】掴まれている敵にミサイルが殺到し、その敵へのダメージ ×2.2',
+    name: '吊るし上げ', desc: '【触手＋ミサイル】掴まれている敵への着弾ダメージ ×2.2',
     apply(run) { const t = run.wp('tentacle'); if (t) t.flags.hang = true;
-      const m = run.wp('missile'); if (m) m.flags.followGrab = true; } }),
+      const m = run.wp('missile'); if (m) m.dyn.grabMul = (m.dyn.grabMul || 1) * 2.2; } }),
 
   syn_fixfire: C({ id: 'syn_fixfire', kind: 'synergy', requires: ['tentacle', 'mortar'], rarity: 'rare', maxStack: 3,
-    name: '照準固定', desc: '【触手＋迫撃砲】掴んで足を止めた一団へ、迫撃砲が必ず撃ち込む。ダメージ ×1.5',
+    name: '照準固定', desc: '【触手＋迫撃砲】掴まれて足が止まった敵への着弾ダメージ ×1.5',
     apply(run) { const t = run.wp('tentacle'); if (t) t.flags.hang = true;
-      const m = run.wp('mortar'); if (m) { m.flags.aimGrab = true; m.s.dmg *= 1.5; } } }),
+      const m = run.wp('mortar'); if (m) m.dyn.grabMul = (m.dyn.grabMul || 1) * 1.5; } }),
 
   // ============ 汎用（編成に関係なく出る） ============
   gen_armor: C({ id: 'gen_armor', kind: 'generic', rarity: 'common', maxStack: 5,

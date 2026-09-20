@@ -131,7 +131,7 @@ const SWAPS = [
     eff: 1.08, mode: 'mul', tmpl: '長射程カテゴリの発射レート ×{e}' },
   { id: 'sw_area_crit', base: 'area_size', name: '起爆同調', icon: '▲', key: 'crit',
     eff: 0.04, mode: 'add', tmpl: '範囲攻撃カテゴリの会心率 +{e}（会心倍率も上がる）' },
-  { id: 'sw_target_rng', base: 'target_rate', name: '遠隔誘導', icon: '✛', key: 'range',
+  { id: 'sw_target_rng', base: 'target_rate', name: '遠隔観測', icon: '✛', key: 'range',
     eff: 1.09, mode: 'mul', tmpl: '指定攻撃カテゴリの射程 ×{e}' },
   { id: 'sw_sup_dmg', base: 'sup_pow', name: '過負荷回路', icon: '❉', key: 'dmg',
     eff: 1.12, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}' },

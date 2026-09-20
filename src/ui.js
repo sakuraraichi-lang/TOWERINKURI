@@ -291,12 +291,18 @@ const UI = {
     // 調整パネルが出ているあいだ、チュートリアルの帯は上に逃がす（重なるため）
     this.el.stage.classList.add('popopen');
 
+    // 指定攻撃は扇を持たない。**同じつまみが「着弾円の大きさ」になる**
+    const spot = Game.usesAimPoint(u.def);
+    const uInfoText = () => spot
+      ? '着弾範囲 ' + (Math.round(Game.spotR(u) * 2 / TILE * 10) / 10) + 'タイル'
+      : '射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) +
+        '°　集弾 ' + Math.round(Game.groupingOf(u) * 100) + '%';
+
     // 掴んで動かす取っ手。ここだけがドラッグを受ける
     const info = Util.el('div', 'usel uhandle');
     info.innerHTML = '<i class="ugrip"></i>' +
       '<b style="color:' + u.def.color + '">' + u.def.name + '</b>' +
-      '<span id="uInfo">射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) +
-      '°　集弾 ' + Math.round(Game.groupingOf(u) * 100) + '%</span>';
+      '<span id="uInfo">' + uInfoText() + '</span>';
     this.bindPopDrag(info);
     p.appendChild(info);
 
@@ -318,14 +324,13 @@ const UI = {
       Game.save();
     }));
     const ar = Game.arcRange(u.def);
-    const arcPct = Math.round((u.arc - ar.min) / Math.max(0.001, ar.max - ar.min) * 100);
-    p.appendChild(bar('射界', 0, 100, arcPct, (v) => {
+    const arcPct = Math.round(Game.arcT(u) * 100);
+    p.appendChild(bar(spot ? '着弾範囲' : '射界', 0, 100, arcPct, (v) => {
       const want = ar.min + (ar.max - ar.min) * (v / 100);
       Game.setArc(u, want - u.arc);
       this.tutAimed = true;
       const el = document.getElementById('uInfo');
-      if (el) el.textContent = '射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) +
-        '°　集弾 ' + Math.round(Game.groupingOf(u) * 100) + '%';
+      if (el) el.textContent = uInfoText();
       Game.save();
     }));
 
@@ -336,9 +341,9 @@ const UI = {
       b.addEventListener('click', fn);
       return b;
     };
-    // 着弾点を持つ武器だけ、狙う場所を指せる
-    if (Game.usesAimPoint(u.def)) {
-      row.appendChild(mk(this.aiming === u ? '…タップ' : '着弾点', () => {
+    // 指定攻撃だけ、砲弾を落とす場所を指せる
+    if (spot) {
+      row.appendChild(mk(this.aiming === u ? '…タップ' : '着弾円', () => {
         this.aiming = (this.aiming === u) ? null : u;
         this.moving = null; this.placingType = null;
         this.renderTray();
@@ -353,7 +358,7 @@ const UI = {
     row.appendChild(mk('閉じる', () => { this.selected = null; this.moving = null; this.aiming = null; this.renderTray(); }));
     p.appendChild(row);
 
-    if (this.aiming === u) p.appendChild(Util.el('div', 'trayhint', '撃ち込む場所をタップ'));
+    if (this.aiming === u) p.appendChild(Util.el('div', 'trayhint', '砲弾を落とす場所をタップ（壁の向こうでもよい）'));
     if (this.moving) p.appendChild(Util.el('div', 'trayhint', '光っているところをタップ'));
     if (!build) p.appendChild(Util.el('div', 'trayhint', '戦闘中は動かせません'));
 

@@ -311,6 +311,19 @@ const Render = {
       const c = u.def.color;
       ctx.strokeStyle = c;
       ctx.lineWidth = isSel ? 2 : 1.2;
+
+      if (Game.usesAimPoint(u.def)) {
+        // 指定攻撃は扇を持たない。全方位のどこにでも落とせるので、
+        // **塗らずに境界線だけ**引く。塗ると盤面の半分が色で埋まって何も読めない
+        ctx.setLineDash([7, 7]);
+        ctx.beginPath();
+        ctx.arc(u.x, u.y, u.s.range, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        continue;
+      }
+
       ctx.beginPath();
       ctx.moveTo(u.x, u.y);
       ctx.lineTo(u.x + Math.cos(u.face - u.arc) * u.s.range, u.y + Math.sin(u.face - u.arc) * u.s.range);
@@ -325,19 +338,36 @@ const Render = {
     }
   },
 
-  // 指定攻撃（迫撃砲）が狙っている一点
+  // 指定攻撃の着弾円。**砲弾はこの円の中のどこかに落ちる。**
+  //   外側の破線 … 円そのもの（つまみで大きさが変わる）
+  //   内側の薄い円 … 1発ぶんの爆風。この2つの差が「どれだけ散るか」
   aims(ctx, run) {
     for (const w of run.units) {
-      if (!w.aim) continue;
-      const R = Math.max(24, w.s.splash);
-      ctx.strokeStyle = w.def.color + 'cc';
+      // **w.aim ではなく w.ax/ay を見る。** w.aim は戦闘中しか入らないので、
+      // これを見ていると「円を置く準備フェーズで円が見えない」ことになる
+      if (w.ax === undefined || w.ax === null) continue;
+      const ax = w.ax, ay = w.ay;
+      const R = Math.max(14, Game.spotR(w));
+      const c = w.def.color;
+      ctx.strokeStyle = c + 'cc';
       ctx.lineWidth = 1.6;
       ctx.setLineDash([4, 5]);
-      ctx.beginPath(); ctx.arc(w.aim.x, w.aim.y, R, 0, Math.PI * 2); ctx.stroke();
+      ctx.beginPath(); ctx.arc(ax, ay, R, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
+
+      ctx.globalAlpha = 0.10;
+      ctx.fillStyle = c;
+      ctx.beginPath(); ctx.arc(ax, ay, R, 0, Math.PI * 2); ctx.fill();
+      // 内側の細い円は「1発ぶんの爆風」。この2つの差が、そのまま散り具合
+      ctx.globalAlpha = 0.5;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.arc(ax, ay, Math.max(8, w.s.splash), 0, Math.PI * 2); ctx.stroke();
+      ctx.globalAlpha = 1;
+
+      ctx.lineWidth = 1.6;
       ctx.beginPath();
-      ctx.moveTo(w.aim.x - 6, w.aim.y); ctx.lineTo(w.aim.x + 6, w.aim.y);
-      ctx.moveTo(w.aim.x, w.aim.y - 6); ctx.lineTo(w.aim.x, w.aim.y + 6);
+      ctx.moveTo(ax - 6, ay); ctx.lineTo(ax + 6, ay);
+      ctx.moveTo(ax, ay - 6); ctx.lineTo(ax, ay + 6);
       ctx.stroke();
     }
   },

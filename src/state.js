@@ -407,12 +407,32 @@ const Game = {
     return true;
   },
 
+  // スライダーの位置（0=最も絞る / 1=最も広げる）
+  arcT(u) {
+    const r = this.arcRange(u.def);
+    return Util.clamp((u.arc - r.min) / Math.max(0.001, r.max - r.min), 0, 1);
+  },
+
   // 扇の広さから集弾率を出す。**その武器が絞れる幅の中で**どれだけ絞れているか
   groupingOf(u) {
-    const r = this.arcRange(u.def);
-    const span = Math.max(0.001, r.max - r.min);
-    const t = Util.clamp((u.arc - r.min) / span, 0, 1);
-    return 1 - t * BAL.spreadPenalty;
+    // 指定攻撃には掛けない。**あちらは着弾円の面積で密度が決まる**ので、
+    // ここで倍率も掛けると「絞ると強い」を二重取りすることになる
+    if (this.usesAimPoint(u.def)) return 1;
+    return 1 - this.arcT(u) * BAL.spreadPenalty;
+  },
+
+  // 指定攻撃の着弾円の半径。スライダーをそのまま半径に読み替える。
+  //
+  // **下端は「1発ぶんの爆風」。** それより小さく絞っても、爆風どうしが
+  // 完全に重なるだけで密度は増えず、届く面だけが減る（＝絞り損）。
+  // 実測：迫撃砲を爆風の1/3まで絞ると、ちょうどいい幅の 33撃破 に対して 6撃破 だった。
+  // 爆風はカードで大きくなるので、下端もそれに追随させる
+  spotRange(def) { return (def && def.spot) || [30, 150]; },
+  spotR(u) {
+    const s = this.spotRange(u.def);
+    const lo = Math.max(s[0], u.s.splash || 0);
+    const hi = Math.max(lo + 24, s[1]);
+    return lo + (hi - lo) * this.arcT(u);
   },
 
   syncPlacements() {
@@ -430,21 +450,26 @@ const Game = {
   // **武器に「どこを狙うか」を決めさせない。**プレイヤーが点を指す
   usesAimPoint(def) { return !!(def && def.aimPoint); },
 
-  // 置いた直後の既定の着弾点。向いている方向の、射程の7割の位置
+  // 置いた直後の既定の着弾円。
+  //   向いている方向へ射程いっぱいまで見て、**通路の上にある一番遠い点**を選ぶ。
+  //   ただの7割地点だと、壁や盤の外を撃ち続けることがあった（＝置いた瞬間から空振り）
   defaultAimPoint(u) {
     const st = this.run && this.run.stage;
-    // 向いている方向へ、射程の中で**盤面に残る一番遠い点**を探す。
-    // そのまま7割の距離を取ると、盤の外を狙って空撃ちすることがあった
-    for (let f = 0.75; f >= 0.2; f -= 0.08) {
+    let fallback = null;
+    for (let f = 0.9; f >= 0.2; f -= 0.05) {
       const d = u.s.range * f;
       const x = u.x + Math.cos(u.face) * d, y = u.y + Math.sin(u.face) * d;
       if (!st) return { x, y };
-      if (x > 4 && y > 4 && x < st.w - 4 && y < st.h - 4) return { x, y };
+      if (x <= 4 || y <= 4 || x >= st.w - 4 || y >= st.h - 4) continue;
+      if (!fallback) fallback = { x, y };
+      if (st.walkable((x / TILE) | 0, (y / TILE) | 0)) return { x, y };
     }
-    return { x: u.x, y: u.y };
+    return fallback || { x: u.x, y: u.y };
   },
 
-  // 着弾点を置く。**扇の中・射程の中にしか置けない**
+  // 着弾円を置く。**制約は射程だけ。**
+  //   指定攻撃は砲身から敵へ弾を飛ばさないので、角度で縛る理由がない。
+  //   射程の中なら、壁の向こうでも、他の武器の射線の上でも置ける
   setAimPoint(u, x, y) {
     if (!this.canBuild() || !this.usesAimPoint(u.def)) return false;
     const d = Util.dist(u.x, u.y, x, y);
@@ -452,15 +477,6 @@ const Game = {
       const a = Util.angle(u.x, u.y, x, y);
       x = u.x + Math.cos(a) * u.s.range;
       y = u.y + Math.sin(a) * u.s.range;
-    }
-    let da = Util.angle(u.x, u.y, x, y) - u.face;
-    while (da > Math.PI) da -= Math.PI * 2;
-    while (da < -Math.PI) da += Math.PI * 2;
-    if (Math.abs(da) > u.arc) {
-      const a = u.face + Util.clamp(da, -u.arc, u.arc);
-      const dd = Math.min(d, u.s.range);
-      x = u.x + Math.cos(a) * dd;
-      y = u.y + Math.sin(a) * dd;
     }
     u.ax = x; u.ay = y;
     this.syncPlacements();
@@ -540,7 +556,7 @@ const Game = {
       shake: 0,
       over: false, cleared: false,
       pendingPicks: 0,
-      spotTarget: null, grabTarget: null,
+      // （run.spotTarget / run.grabTarget は廃止。狙いを武器に持たせないため）
       traffic: new Array(n).fill(0),
       leak: new Array(n).fill(0),
       trafficT: 0,
