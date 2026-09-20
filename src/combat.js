@@ -105,6 +105,8 @@ const Grid = {
 };
 
 const _q = [];
+// targetAhead がセルの重複を弾くのに使う。毎フレーム使い回して確保を避ける
+const _seenCells = new Set();
 
 const Combat = {
   coinFx: 0,        // 同時に飛んでいるコインの数。**多すぎると盤面が見えなくなる**
@@ -553,18 +555,47 @@ const Combat = {
   },
 
   // 砲身の線が実際に通っている敵のうち、一番近いもの
+  // 砲身の線が通っている敵のうち、いちばん近いもの。
+  //
+  //   **射程まるごとを探すのをやめた。** 以前は Grid.query(w.x, w.y, w.s.range)
+  //   で円の中の敵を全部取っていたが、走査するセル数が **射程の2乗** で増える。
+  //   実測：ユニット52基・射程がインフレした状態で、
+  //   **敵が1〜2体しかいないのに1フレーム 23.7ms**（60fpsの予算16.7msを超える）。
+  //   弾を全部消しても 23.9ms だったので、犯人は弾ではなくここだった。
+  //
+  //   探すのは「砲身の線の上」だけでよいので、線に沿ってセルを辿る。
+  //   セル数が射程に**比例**するだけになる（2乗ではなくなる）
   targetAhead(w, run) {
-    const near = Grid.query(w.x, w.y, w.s.range, _q);
-    let best = null, bd = Infinity;
     const ca = Math.cos(w.angle), sa = Math.sin(w.angle);
-    for (const e of near) {
-      if (e.dead) continue;
-      const dx = e.x - w.x, dy = e.y - w.y;
-      const along = dx * ca + dy * sa;                  // 砲身方向の距離
-      if (along < 0 || along > w.s.range + e.r) continue;
-      const off = Math.abs(-dx * sa + dy * ca);         // 線からの横ずれ
-      if (off > e.r + (w.s.bulletR || 3) + 2) continue; // 線が体に掛かっていない
-      if (along < bd) { bd = along; best = e; }
+    const range = w.s.range;
+    const cs = Grid.cell;
+    const pad = (w.s.bulletR || 3) + 20;      // 線の太さ＋敵の半径ぶんの余裕
+    let best = null, bd = Infinity;
+    const seen = _seenCells;
+    seen.clear();
+    for (let d = 0; d <= range + cs; d += cs * 0.5) {
+      const x = w.x + ca * Math.min(d, range), y = w.y + sa * Math.min(d, range);
+      const gx0 = ((x - pad) / cs) | 0, gx1 = ((x + pad) / cs) | 0;
+      const gy0 = ((y - pad) / cs) | 0, gy1 = ((y + pad) / cs) | 0;
+      for (let gx = gx0; gx <= gx1; gx++) {
+        for (let gy = gy0; gy <= gy1; gy++) {
+          const k = gx * 10007 + gy;          // 文字列を作らない。セルの重複判定用
+          if (seen.has(k)) continue;
+          seen.add(k);
+          const arr = Grid.map.get(gx + ',' + gy);
+          if (!arr) continue;
+          for (const e of arr) {
+            if (e.dead) continue;
+            const dx = e.x - w.x, dy = e.y - w.y;
+            const along = dx * ca + dy * sa;                  // 砲身方向の距離
+            if (along < 0 || along > range + e.r) continue;
+            if (along >= bd) continue;
+            const off = Math.abs(-dx * sa + dy * ca);         // 線からの横ずれ
+            if (off > e.r + (w.s.bulletR || 3) + 2) continue; // 線が体に掛かっていない
+            bd = along; best = e;
+          }
+        }
+      }
     }
     return best;
   },
