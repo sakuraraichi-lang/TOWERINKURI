@@ -8,6 +8,10 @@
 // 端末のキャッシュの問題か、配信の問題かを一目で切り分けられる
 const BUILD = '0920v';
 
+// パッチノート。**版の数字だけでは「で、何が変わったの」に答えていない**ので、
+// ホーム右上の版をタップしたときに、ここへの入口を出す
+const PATCHNOTES_URL = 'https://github.com/sakuraraichi-lang/TOWERINKURI/blob/main/docs/PATCHNOTES.md';
+
 const BAL = {
   // --- 盤面（タイルの大きさは stages.js の TILE） ---
   coreR: 16,

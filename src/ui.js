@@ -69,9 +69,13 @@ const UI = {
         const n = this.el.buildNote;
         if (!n) return;
         const on = n.classList.toggle('on');
-        n.textContent = on
-          ? 'ver ' + BUILD + ' ＝ このゲームの版です。「更新されていない気がする」ときに、ここが変わっているかで確かめられます'
-          : '';
+        if (!on) { n.innerHTML = ''; return; }
+        // **何が変わったかを、その場から読めるようにする。**
+        // 版の数字だけ見せても「で、何が変わったの」に答えていない
+        n.innerHTML = 'ver ' + BUILD + ' ＝ このゲームの版です。' +
+          '「更新されていない気がする」ときに、ここが変わっているかで確かめられます<br>' +
+          '<a href="' + PATCHNOTES_URL + '" target="_blank" rel="noopener">' +
+          'この版で何が変わったか（パッチノート）</a>';
       });
     }
 

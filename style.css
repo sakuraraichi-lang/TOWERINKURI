@@ -736,3 +736,6 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 .bulkgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px;
   max-height:46vh;overflow-y:auto;-webkit-overflow-scrolling:touch;padding-right:2px;}
 .prow .sbuy.bulk{min-width:52px;margin-left:5px;padding:8px 6px;}
+
+/* 版のタップで出る注記の中の、パッチノートへの入口 */
+#buildNote a{color:var(--acc);text-decoration:underline;}
