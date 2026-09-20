@@ -52,41 +52,42 @@ tools: Read, Write, Edit, Bash, PowerShell, Glob, Grep
 
 ## 見るもの ― 矛盾の突き合わせ表
 
-| 教師が触ったもの | 突き合わせる記録の側 |
+| 触ったもの | 突き合わせる記録の側 |
 |---|---|
-| `data/*.json` | `sim/gen_*.py`、`data/tuning.json`（**入力が正**） |
-| C# 実装 | `sim/combat.py`（1行対応）、`tests/vectors/` |
-| 数値・仕様 | `FINDINGS.md`（**企画書より優先**）→ `dungeon_rpg_gdd_v1.2.md` |
-| 敵の耐性・弱点 | `ref/EO_BOSS_REFERENCE.md`、`ref/EO_BOSS_RAW.json` |
-| 定数・数式 | `ref/EO_REFERENCE.md` |
-| 難易度配分 | `docs/difficulty-policy.md`、`docs/gimmick-curve.md` |
-| 配布先のデータ | StreamingAssets、`docs/skill-trees.html`、`tests/vectors/` |
-| スキルの形 | `schema/SKILL_SCHEMA.md` |
+| `src/balance.js` の調整ノブ | `docs/DESIGN-MASTER-2026-09-20.md`（**設計書が正**）、`docs/PATCHNOTES.md` |
+| 武器・カードの挙動 | その武器／カードの**説明文**（ずれていた事故が何度もある） |
+| ステージ | `tools/gen30.py`（**生成器が正**。stages.js を手で直さない） |
+| パック・解放条件 | 設計書 §4（解放ロードマップ） |
+| 経済（コイン・コスト） | 設計書 §6、`docs/DESIGN-ECONOMY-2026-09-20.md` |
+| 自動化・スキップ | 設計書 §5、`docs/DESIGN-AUTOMATION-2026-09-20.md` |
+| 版を上げた | **`docs/PATCHNOTES.md` に書いたか**（`CLAUDE.md` の常時ルール） |
 
 ### まず機械で見つかるズレを潰す。目で読むのはその後
 
 ```
-/e/Anaconda3/python.exe tools/build.py --check    # 生成物が入力と一致しているか
-/e/Anaconda3/python.exe tools/check_boss.py       # 敵の耐性が本家型に収まっているか
-.\csharp\build.ps1                                 # C# 移植の等価性（ベクタ）
-.\unity\verify.ps1                                 # Unity上のベクタ検証（32本）
-.\unity\alloc.ps1                                  # スキル振り分けの一致（91件）
-.\unity\rules.ps1                                  # 編成の規則（442件）
+/e/Anaconda3/python.exe tools/gen30.py            30章のマップが検証を通るか
+# ブラウザで tools/sim.html → Stage.validateAll() が空か
+# 本番に上がっているか
+curl -s https://towerinkuri.vercel.app/src/balance.js | grep -m1 "const BUILD"
 ```
 
-**回さずに「大丈夫そう」と書かない。** 回していないものは「未実行」と明記する。
+**とくに見るところ：説明文と実際の挙動のずれ。**
+「常設基盤（設置数+1）」が集計側から読まれておらず何もしていなかった、
+ボスの説明があるのに5ステージ全部で撃破0だった、という事故が起きています。
 
 ---
 
 ## どちらを直すか 【判断の規則】
 
-- **生成物と入力が食い違う → 入力を直して作り直す。** `data/*.json` を手で直さない。
-- **実装と資料が食い違う → 実測が正。資料（FINDINGS.md）を直す。**
+- **生成物と入力が食い違う → 入力を直して作り直す。**
+  `src/stages.js` を手で直さない（`tools/gen30.py` が正）。
+- **実装と説明文が食い違う → 実測が正。説明文を直す。**
   ただし**設計原則に反する実測は、実装の方を直す。** 原則とは：
-  - 調整ノブは3つだけ
-  - 層ボスは必ず倒せる、要求してよい解答の数は層ごとに増える
-  - 1層・2層に「これが無いと絶対に勝てない」を作らない
-  - 敵の耐性は本家型（5段階・1体1つまで・差は弱点で作る）
+  - **設置枠はお金で買えない。** 踏破したステージ数でしか増えない
+  - **武器に「どこを狙うか」を決めさせない。** 撃ちっぱなしの首振り
+  - **パックの解放は転生回数。** 恒久強化（遺物）は初回転生から
+  - **累乗で伸びるものには必ず上限。** 上限なしの累乗は必ず壊れる
+  - **長い文章はプレイヤーが能動的に読もうとしたときだけ。** 基本はアイコン＋題名
 - **判断が付かない → 直さずに【要判断】として上げる。勝手に決めない。**
 - **ユーザーが却下・削除した要素が成果物に残っていたら消す。**
   ただし比較・監査・変更履歴・法令・安全の説明として旧案が出ているのは正しいので残す。

@@ -71,18 +71,27 @@ tools: Read, Glob, Grep, Bash, PowerShell
 ### このプロジェクトでよく効く手
 
 ```
-/e/Anaconda3/python.exe tools/build.py --check    # 生成物と入力のズレ
-/e/Anaconda3/python.exe tools/check_boss.py       # 敵の耐性が本家型か
-.\csharp\build.ps1                                 # C#移植の等価性（ベクタ）
-.\unity\alloc.ps1 / .\unity\rules.ps1              # スキル振り分けと編成の規則
-./run.sh --report handoff                          # 基準線が崩れていないか
+# ブラウザで http://localhost:5173/tools/sim.html を開いて
+  Stage.validateAll()                  ステージ定義が壊れていないか（空なら正常）
+  runStage('ch1', LOADOUTS['ch1'], 90, {})   1章だけ回して waves を見る
+  REAL_MS = 4000                       1出撃の実時間上限。'slow' は負けではなく打ち切り
+
+/e/Anaconda3/python.exe tools/gen30.py        30章のマップが検証を通るか
+curl -s https://towerinkuri.vercel.app/src/balance.js | grep -m1 "const BUILD"
 ```
 
-**C# は `sim/combat.py` と1行ずつ対応させてある。**
-食い違いを疑うときは、**対応する行を並べて読む。**
+### このプロジェクトで実際に起きた原因の型
 
-移植で踏みやすい罠8点は `HANDOFF.md` §2。**症状がダメージ・命中・行動順・
-状態異常まわりなら、まずこの8点と照合する。**
+**症状から原因を当てにいかず、必ずこの順で疑う。**
+
+| よくある症状 | 実際の原因（過去の事故） |
+|---|---|
+| 強化したのに強くならない | **その集計を誰も読んでいなかった**（遺物の `units` が死に道だった） |
+| 難易度が急に壊れた | **上限のない累乗**（集金効率が Lv39・×153倍） |
+| 敵が変な方向へ飛ぶ | **道を外れた瞬間に参照先が切り替わる**（触手が壁を無視してコアの真逆へ） |
+| 測定と実ゲームが食い違う | **測定器が未承認の提案を先に反映していた** ／ **未解放の章を指定すると第1章に差し替えられる** |
+| ずっと効果が続く | **上限を置き忘れた**（画面の揺れが常に上限に張り付いていた） |
+| 数字が毎回違う | **1回の測定は振れる**（同じ設定で 21〜29分）。平均を取る |
 
 ---
 
