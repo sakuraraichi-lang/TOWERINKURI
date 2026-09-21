@@ -53,10 +53,11 @@ function stats(n) {
            '通路 min/中央/max': q(roads), '出現口タイル数 min/中央/max': q(holes) };
 }
 
+// **読み込んだだけでは回さない。**（六角セルにしてから1枚あたりが重くなり、
+//   1300枚を自動で回すと画面が返ってこなくなった）
+//   数を測るときは window.VARIETY(n) / window.MSTATS(n) を呼ぶ
 const out = document.getElementById('out');
-let html = '<h2>何通りできるか</h2><pre>' + JSON.stringify(variety(1000), null, 1) + '</pre>';
-html += '<h2>ばらつき（300枚）</h2><pre>' + JSON.stringify(stats(300), null, 1) + '</pre>';
-html += '<h2>見本（6枚）</h2>';
+let html = '<h2>見本（6枚）</h2><p>数を測る → コンソールで VARIETY(200) / MSTATS(200)</p>';
 for (let i = 0; i < 6; i++) {
   const m = MapGen.build(i * 104729 + 1);
   html += '<pre>' + (m ? ('seed' + i + ' 経路' + m.stat.shortest + ' 地面' + m.stat.ground +

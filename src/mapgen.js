@@ -149,28 +149,131 @@ const MapGen = {
     return lane.w * k / 2;
   },
 
-  // ---- 焼く ----
-  //   タイルの中心が、どれかの通路の幅の内側にあれば通路。
-  //   **ここでタイルへ落とすので、この先（BFS・Crowd・設置）は何も変わらない**
-  bake(lanes, core, holes, W, H) {
-    const cols = this.COLS, rows = this.ROWS;
-    const g = [];
-    for (let r = 0; r < rows; r++) g.push(new Array(cols).fill('#'));
+  // ---- 六角セル（ハニカム）----
+  //
+  //   **通路は六角形の集まりで作る。**（ユーザー 2026-09-21）
+  //   > 「なんかキモいから6角形の道とかにしよう、ハニカムで道とかカーブを再現して」
+  //
+  //   折れ線をそのまま太い帯で描くと、曲がりが丸い管になって
+  //   有機的（キモい）に見えた。**折れ線の近くにある六角セルを拾う**形にすると、
+  //   同じ曲線を六角の階段で辿るので、曲がりが構造物として読める。
+  //
+  //   横並びの六角（flat-top）。中心は x = 1.5R·列、y = √3R·(行 + 列が奇数なら½)
+  //   大きさは実測で選んだ（40枚・中盤）。**どの大きさでも「道なのに六角の外」は0。**
+  //   食い違うのは盤の縁だけ（edge() が縁の通路を壁に戻すため）で、内側は0。
+  //     R=24 セル150 ／ R=26 セル129 ／ **R=30 セル97** ／ R=34 セル78 ／ R=38 セル61
+  //   30 だと通路（幅92〜140px）に2〜3個ぶん並ぶので、六角として読める
+  HEX_R: 30,
 
+  // 線分のまわりにある六角セルだけを見る。
+  //   **総当たりにしたら測定器が返ってこなくなった**（六角600個 × 線分200本 × 地図300枚）。
+  //   中心の式を逆に解けば、線分の外接矩形にかかる列・行だけに絞れる
+  hexRange(x0, y0, x1, y1, pad) {
+    const R = this.HEX_R, dx = R * 1.5, dy = Math.sqrt(3) * R;
+    return {
+      c0: Math.floor((Math.min(x0, x1) - pad - R) / dx) - 1,
+      c1: Math.ceil((Math.max(x0, x1) + pad + R) / dx) + 1,
+      r0: Math.floor((Math.min(y0, y1) - pad - dy) / dy) - 1,
+      r1: Math.ceil((Math.max(y0, y1) + pad + dy) / dy) + 1,
+    };
+  },
+
+  hexAt(c, r) {
+    const R = this.HEX_R, dx = R * 1.5, dy = Math.sqrt(3) * R;
+    return { x: c * dx, y: r * dy + (c & 1 ? dy / 2 : 0), c, r };
+  },
+
+  // 点が六角の中にあるか（flat-top・中心からのずれで見る）
+  inHex(dx, dy, R) {
+    dx = Math.abs(dx); dy = Math.abs(dy);
+    const h = Math.sqrt(3) / 2 * R;
+    if (dx > R || dy > h) return false;
+    return R * h - (R / 2) * dy - h * dx >= 0;
+  },
+
+  // 六角どうしの隣（flat-top・列が奇数かどうかでずれる）
+  hexNbr(c, r) {
+    return (c & 1)
+      ? [[c, r - 1], [c, r + 1], [c - 1, r], [c - 1, r + 1], [c + 1, r], [c + 1, r + 1]]
+      : [[c, r - 1], [c, r + 1], [c - 1, r - 1], [c - 1, r], [c + 1, r - 1], [c + 1, r]];
+  },
+
+  // **通路の中に取り残された穴を埋める。**
+  //   六角セルは「中心が通路の幅に入るか」で拾うので、通路の縁でセルが飛び飛びになり、
+  //   道の真ん中に1タイルの柱が残る（`##...#.#.#....#` のような形）。
+  //   柱は buildable（置ける地面）なのに、絵では六角に囲まれて道に見えるので、
+  //   **絵と規則が食い違う。**
+  //   **タイルではなく六角の側で埋める。** タイルを埋めると、こんどは
+  //   「通路なのに六角が無い＝絵では地面」という逆のずれが出る
+  fillHexGaps(hexes, W, H) {
+    const R = this.HEX_R;
+    const key = (c, r) => c + ',' + r;
+    const set = {};
+    for (const h of hexes) set[key(h.c, h.r)] = 1;
+    for (let pass = 0; pass < 2; pass++) {
+      const add = [];
+      const seen = {};
+      for (const h of hexes) {
+        for (const [c, r] of this.hexNbr(h.c, h.r)) {
+          const k = key(c, r);
+          if (set[k] || seen[k]) continue;
+          seen[k] = 1;
+          let n = 0;
+          for (const [c2, r2] of this.hexNbr(c, r)) if (set[key(c2, r2)]) n++;
+          if (n < 4) continue;
+          const hx = this.hexAt(c, r);
+          if (hx.x < -R || hx.y < -R || hx.x > W + R || hx.y > H + R) continue;
+          add.push(hx);
+        }
+      }
+      if (!add.length) break;
+      for (const h of add) { set[key(h.c, h.r)] = 1; hexes.push(h); }
+    }
+    return hexes;
+  },
+
+  // 通路にかかる六角セルを拾う
+  hexesFor(lanes, W, H) {
+    const R = this.HEX_R, seen = {}, out = [];
     for (const lane of lanes) {
       const pts = lane.pts;
       for (let i = 0; i < pts.length - 1; i++) {
         const a = pts[i], b = pts[i + 1];
         const half = this.halfAt(lane, i);
-        const minc = Math.max(0, Math.floor((Math.min(a.x, b.x) - half) / TILE));
-        const maxc = Math.min(cols - 1, Math.ceil((Math.max(a.x, b.x) + half) / TILE));
-        const minr = Math.max(0, Math.floor((Math.min(a.y, b.y) - half) / TILE));
-        const maxr = Math.min(rows - 1, Math.ceil((Math.max(a.y, b.y) + half) / TILE));
-        for (let r = minr; r <= maxr; r++) {
-          for (let c = minc; c <= maxc; c++) {
-            const cx = c * TILE + TILE / 2, cy = r * TILE + TILE / 2;
-            if (Util.segDist2(a.x, a.y, b.x, b.y, cx, cy) <= half * half) g[r][c] = '.';
+        const g = this.hexRange(a.x, a.y, b.x, b.y, half);
+        for (let c = g.c0; c <= g.c1; c++) {
+          for (let r = g.r0; r <= g.r1; r++) {
+            const k = c + ',' + r;
+            if (seen[k]) continue;
+            const hx = this.hexAt(c, r);
+            if (hx.x < -R || hx.y < -R || hx.x > W + R || hx.y > H + R) continue;
+            if (Util.segDist2(a.x, a.y, b.x, b.y, hx.x, hx.y) > half * half) continue;
+            seen[k] = 1; out.push(hx);
           }
+        }
+      }
+    }
+    return out;
+  },
+
+  // ---- 焼く ----
+  //   タイルの中心が、拾った六角セルのどれかの中にあれば通路。
+  //   **ここでタイルへ落とすので、この先（BFS・Crowd・設置）は何も変わらない**
+  bake(lanes, core, holes, W, H, hexes) {
+    const cols = this.COLS, rows = this.ROWS;
+    const g = [];
+    for (let r = 0; r < rows; r++) g.push(new Array(cols).fill('#'));
+
+    const R = this.HEX_R;
+    for (const hx of hexes) {
+      const minc = Math.max(0, Math.floor((hx.x - R) / TILE));
+      const maxc = Math.min(cols - 1, Math.ceil((hx.x + R) / TILE));
+      const minr = Math.max(0, Math.floor((hx.y - R) / TILE));
+      const maxr = Math.min(rows - 1, Math.ceil((hx.y + R) / TILE));
+      for (let r = minr; r <= maxr; r++) {
+        for (let c = minc; c <= maxc; c++) {
+          const cx = c * TILE + TILE / 2, cy = r * TILE + TILE / 2;
+          if (this.inHex(cx - hx.x, cy - hx.y, R)) g[r][c] = '.';
         }
       }
     }
@@ -337,10 +440,12 @@ const MapGen = {
       lanes.push({ pts: this.smooth(raw, 6), w: base * wMul, parts, side: side.id });
     }
 
-    const g = this.edge(this.bake(lanes, core, holes, W, H));
+    const hexes = this.fillHexGaps(this.hexesFor(lanes, W, H), W, H);
+    const g = this.edge(this.bake(lanes, core, holes, W, H, hexes));
     return {
       rows: g.map(r => r.join('')),
-      vec: { lanes, holes, core, w: W, h: H },    // 絵を滑らかに描くため
+      // 絵は六角セルをそのまま描く（Render.tilesVec）
+      vec: { lanes, holes, core, w: W, h: H, hexes, hexR: this.HEX_R },
       seed,
     };
   },

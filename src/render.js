@@ -205,22 +205,47 @@ const Render = {
     ctx.fillStyle = '#31384a';
     ctx.fillRect(0, 0, st.w, st.h);
 
-    // 2. 通路を「太い線」で抜く。round にして角を丸める＝格子の匂いを消す
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    //   **焼くときと同じ絞り方で描く**（MapGen.halfAt）。ここを合わせないと
-    //   「絵では通れそうなのに通れない」場所ができる
-    for (const pass of [{ w: 8, c: '#232838' }, { w: 0, c: '#05060a' }]) {
-      ctx.strokeStyle = pass.c;
-      for (const lane of v.lanes) {
-        for (let i = 0; i < lane.pts.length - 1; i++) {
-          ctx.lineWidth = MapGen.halfAt(lane, i) * 2 + pass.w;
-          ctx.beginPath();
-          ctx.moveTo(lane.pts[i].x, lane.pts[i].y);
-          ctx.lineTo(lane.pts[i + 1].x, lane.pts[i + 1].y);
-          ctx.stroke();
-        }
+    // 2. **通路は六角セル（ハニカム）で描く。**
+    //   （ユーザー 2026-09-21「6角形の道とかにしよう、ハニカムで道とかカーブを再現して」）
+    //   折れ線をそのまま太い帯で塗ると、曲がりが丸い管になって有機的に見えた。
+    //   同じ曲線を六角の階段で辿らせると、構造物として読める。
+    //   **焼くときに使ったセルをそのまま描く**ので、絵と当たり判定がずれない
+    const R = v.hexR || 26;
+    const hexPath = (x, y) => {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = Math.PI / 3 * i;
+        const px = x + Math.cos(a) * R, py = y + Math.sin(a) * R;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
       }
+      ctx.closePath();
+    };
+    // **盤の外へはみ出した六角を描かない。** 盤の縁に半端なセルが見えていた
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, st.cols * TILE, st.rows * TILE);
+    ctx.clip();
+    // 縁：一回り大きく塗って、通路の外周に枠が出るようにする
+    ctx.fillStyle = '#232838';
+    for (const h of v.hexes) { hexPath(h.x, h.y); ctx.fill(); }
+    // 本体：境目に線を残すと、六角の集まりとして読める
+    ctx.fillStyle = '#05060a';
+    ctx.strokeStyle = '#151a26';
+    ctx.lineWidth = 2;
+    for (const h of v.hexes) { hexPath(h.x, h.y); ctx.fill(); ctx.stroke(); }
+    ctx.restore();
+
+    // 2b. **盤の縁は六角を描いたあとで塗り直す。**
+    //   edge() が縁の通路を壁に戻しているので、そこだけ「絵は道／規則は壁」になる。
+    //   内側は食い違わない（実測：40枚で内側のずれ0・縁だけ783）
+    ctx.fillStyle = '#31384a';
+    for (let c = 0; c < st.cols; c++) {
+      if (st.grid[0][c] === '#') ctx.fillRect(c * TILE, 0, TILE, TILE);
+      if (st.grid[st.rows - 1][c] === '#') ctx.fillRect(c * TILE, (st.rows - 1) * TILE, TILE, TILE);
+    }
+    for (let r = 0; r < st.rows; r++) {
+      if (st.grid[r][0] === '#') ctx.fillRect(0, r * TILE, TILE, TILE);
+      if (st.grid[r][st.cols - 1] === '#') ctx.fillRect((st.cols - 1) * TILE, r * TILE, TILE, TILE);
     }
 
     // 3. 置ける場所の格子。**設置はタイルのままなので、ここは四角で見せる。**
