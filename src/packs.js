@@ -175,23 +175,20 @@ const Pack = {
         const best = Math.max.apply(null, out.map(id => BAL.rarityOrder.indexOf(CARDS[id].rarity)).concat([-1]));
         if (best < need) r = pack.guarantee;
       }
-      out.push(Pack.pickLeastOwned(Pack.cardsOfRarity(packId, r), out));
+      out.push(Util.pick(Pack.cardsOfRarity(packId, r)));
     }
     return out;
   },
 
-  // **持っていないもの、少ないものを先に出す。**（2026-09-21・プレイヤー報告）
-  //   > 「パッシブスキルのレジェンドカードを6枚も被せていた」
-  //   レジェンドの遺物は**2種類しかない**ので、素直に等確率で引くと必ず偏る。
-  //   同じ枚数のものが複数あるときは、その中から等確率で選ぶ（偏りを作らない）。
-  //   `now` はこのパックで既に出したぶん。1パックの中でも被らせない
-  pickLeastOwned(pool, now) {
-    if (!pool || !pool.length) return null;
-    const held = (id) => (Game.own(id) || 0) + (now ? now.filter(x => x === id).length : 0);
-    let best = Infinity;
-    for (const id of pool) { const h = held(id); if (h < best) best = h; }
-    return Util.pick(pool.filter(id => held(id) === best));
-  },
+  // **「持っていないものを優先して出す」は外した。**（2026-09-21・ユーザー却下）
+  //   レジェンドが6枚被ったという報告に対して、いったん
+  //   「持っていないものを先に出す」を入れたが、ユーザーに否定された：
+  //     > 「いわ、持ってないものを優先して出すとかじゃないよ／
+  //     >   パックそのものを渡しすぎだって言ってんの／レジェンドも出やすすぎだって言ってんの／
+  //     >   カード枚数も足りないかもね」
+  //   被りの原因は引き方ではなく **配りすぎと母数不足** だったので、そちらで直した
+  //   （0921q：パック 71→32個、レジェンド 3%→2%、遺物 13種→33種）。
+  //   いまは同じレア度の中から素直に等確率で引く
 
   // ステージに紐づく分野のパックid
   forStage(stageId) { return stagePackOf(stageId); },

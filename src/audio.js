@@ -25,7 +25,10 @@ const Snd = {
   VOL: { master: 0.5, sfx: 0.55, bgm: 0.22 },
 
   // 最短の間隔（秒）。これより短い間に来た同じ音は捨てる
-  GAP: { shot: 0.055, kill: 0.05, coin: 0.09, hit: 0.07 },
+  //   **撃つ音だけ長めに取る。**（2026-09-21・ユーザー報告「イヤホンだと射撃音がうるさすぎる」）
+  //   0.055 は毎秒18回。ガトリングは素で毎秒5.5発、それを何基も置くので
+  //   実際には常に上限で鳴り続けていた。0.10 なら毎秒10回まで
+  GAP: { shot: 0.10, kill: 0.05, coin: 0.09, hit: 0.07 },
 
   on() { return !(Game.perm && Game.perm.mute); },
 
@@ -104,16 +107,16 @@ const Snd = {
   shot(weaponId) {
     if (!this.on() || !this.gate('shot')) return;
     const m = {
-      gatling:  { type: 'square',   f0: 320, f1: 210, dur: 0.045, vol: 0.055 },
-      sniper:   { type: 'sawtooth', f0: 780, f1: 150, dur: 0.11,  vol: 0.085 },
-      missile:  { type: 'triangle', f0: 180, f1: 90,  dur: 0.13,  vol: 0.075 },
-      tesla:    { type: 'square',   f0: 1150, f1: 640, dur: 0.06, vol: 0.06 },
-      flame:    { type: 'sawtooth', f0: 130, f1: 100, dur: 0.07,  vol: 0.04 },
-      mortar:   { type: 'triangle', f0: 120, f1: 60,  dur: 0.16,  vol: 0.09 },
-      katana:   { type: 'sawtooth', f0: 900, f1: 380, dur: 0.07,  vol: 0.07 },
-      shuriken: { type: 'square',   f0: 620, f1: 480, dur: 0.05,  vol: 0.05 },
+      gatling:  { type: 'square',   f0: 320, f1: 210, dur: 0.045, vol: 0.0275 },
+      sniper:   { type: 'sawtooth', f0: 780, f1: 150, dur: 0.11,  vol: 0.0425 },
+      missile:  { type: 'triangle', f0: 180, f1: 90,  dur: 0.13,  vol: 0.0375 },
+      tesla:    { type: 'square',   f0: 1150, f1: 640, dur: 0.06, vol: 0.03 },
+      flame:    { type: 'sawtooth', f0: 130, f1: 100, dur: 0.07,  vol: 0.02 },
+      mortar:   { type: 'triangle', f0: 120, f1: 60,  dur: 0.16,  vol: 0.045 },
+      katana:   { type: 'sawtooth', f0: 900, f1: 380, dur: 0.07,  vol: 0.035 },
+      shuriken: { type: 'square',   f0: 620, f1: 480, dur: 0.05,  vol: 0.025 },
     };
-    this.tone(m[weaponId] || { type: 'square', f0: 420, f1: 280, dur: 0.05, vol: 0.05 });
+    this.tone(m[weaponId] || { type: 'square', f0: 420, f1: 280, dur: 0.05, vol: 0.025 });
   },
 
   kill() {
