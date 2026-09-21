@@ -546,19 +546,24 @@ const Skill = {
       // 恒久層（土台＋遺物）は、カテゴリのダメージにまとめて掛ける
       if (SKILLS.some(s => s.cat === c && s.key === 'dmg')) k.dmg = (k.dmg === undefined ? 1 : k.dmg) * pw;
       if (k.crit) k.critMul = k.crit * 3.75;   // 会心率1%につき倍率+0.0375
-      // 遺物のレートは全カテゴリに掛かる（スキルのレートを持たないカテゴリにも）
-      k.rate = (k.rate || 1) * R.rate;
+      // **遺物は全カテゴリに掛かる**（そのカテゴリに対応する節が無くても効く）
+      k.rate  = (k.rate  || 1) * R.rate;
+      k.range = (k.range || 1) * (R.range || 1);
+      k.size  = (k.size  || 1) * (R.size  || 1);
+      k.speed = (k.speed || 1) * (R.speed || 1);
+      if (R.pierce) k.pierce = (k.pierce || 0) + R.pierce;
+      if (R.crit)   { k.crit = (k.crit || 0) + R.crit; k.critMul = k.crit * 3.75; }
     }
 
     return {
       coin:   (1 + A('coin')) * (1 + 0.06 * Skill.lv(meta, 'lure')) * R.coin,
       lives:  R.lives,        // ツリーからは増えない（「防衛線」を撤去した）
-      regen:  A('regen'),
+      regen:  A('regen') + (R.regen || 0),
       spawn:  1 + A('lure'),
       luck:   Skill.lv(meta, 'luck'),
       packLuck: Skill.lv(meta, 'pack'),
-      picks:   1 + A('picks'),
-      choices: BAL.draftSize + A('choices'),
+      picks:   1 + A('picks') + (R.picks || 0),
+      choices: BAL.draftSize + A('choices') + (R.choices || 0),
       units:   A('units'),   // **遺物からは増やさない。**（R.units は存在せず NaN になっていた）
       prestige: pw,
       relic: R,

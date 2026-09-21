@@ -71,8 +71,9 @@ const Relic = {
   mods(perm) {
     if (this._cache) return this._cache;
     const col = (perm && perm.collection) || {};
-    const add = { dmg: 0, coin: 0, rate: 0 };
-    let lives = 0, seed = 0, startLv = 0;
+    // 足し算でまとめる軸。**種類ごとに上限がある**（同じ遺物を重ねるほど1枚の価値が薄まる）
+    const add = { dmg: 0, coin: 0, rate: 0, range: 0, size: 0, speed: 0, crit: 0, pierce: 0 };
+    let lives = 0, seed = 0, startLv = 0, picks = 0, choices = 0, regen = 0;
 
     for (const id of RELIC_IDS) {
       const n = col[id] || 0;
@@ -97,6 +98,9 @@ const Relic = {
       else if (c.key === 'lives') lives += Math.min(capOf(false), c.eff * n);
       else if (c.key === 'seed') seed += Math.min(capOf(false), c.eff * n);
       else if (c.key === 'startLv') startLv += Math.min(capOf(false), c.eff * n);
+      else if (c.key === 'picks') picks += Math.min(capOf(false), c.eff * n);
+      else if (c.key === 'choices') choices += Math.min(capOf(false), c.eff * n);
+      else if (c.key === 'regen') regen += Math.min(capOf(false), c.eff * n);
     }
 
     // **土台 × 遺物。** 土台が桁を作り、遺物が色を付ける
@@ -106,7 +110,12 @@ const Relic = {
       dmg: (1 + add.dmg) * L,
       coin: (1 + add.coin),
       rate: (1 + add.rate),
-      lives, seed, startLv,
+      range: (1 + add.range),
+      size: (1 + add.size),
+      speed: (1 + add.speed),
+      crit: add.crit,
+      pierce: add.pierce,
+      lives, seed, startLv, picks, choices, regen,
       count: RELIC_IDS.reduce((a, id) => a + (col[id] || 0), 0),
     };
     return this._cache;

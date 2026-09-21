@@ -321,6 +321,38 @@ const CARDS = {
   // **これが「登り直す時間」を消す本命。** 倍率ではなく、買う手数を減らす
   rl_invest: P({ id: 'rl_invest', rarity: 'legendary', key: 'startLv', eff: 1, mode: 'flat', cap: 4,
     name: '初期投資', tmpl: '出撃するとき、アップグレードが最初から Lv+{e} の状態になる' }),
+
+  // ---- 母数を増やすぶん（2026-09-21・ユーザー指摘）----
+  //   > 「そもそもカード母数が足りないからそりゃ出てくるし被って強くなるわな」
+  //   13種（コモン4/レア5/エピック2/レジェンド2）しか無く、
+  //   **エピック以上を引いても選択肢が2種だけ**だった。
+  //   ダメージ・コイン以外の軸（射程・貫通・弾速・範囲・会心・3択）を足して 24種にする。
+  //   **設置枠は足さない。**以前「転生2回でゲーム崩壊」の原因だったため
+  rl_rng1:  P({ id: 'rl_rng1',  rarity: 'common', key: 'range', eff: 0.06, mode: 'add', cap: 0.40,
+    name: '照準片',   tmpl: '全ての武器の射程 +{p}' }),
+  rl_prc1:  P({ id: 'rl_prc1',  rarity: 'common', key: 'pierce', eff: 0.3, mode: 'add', cap: 2,
+    name: '硬芯片',   tmpl: '全ての武器の貫通 +{e}' }),
+
+  rl_size2: P({ id: 'rl_size2', rarity: 'rare', key: 'size', eff: 0.15, mode: 'add', cap: 1.0,
+    name: '拡張核',   tmpl: '全ての武器の効果範囲 +{p}' }),
+  rl_spd2:  P({ id: 'rl_spd2',  rarity: 'rare', key: 'speed', eff: 0.20, mode: 'add', cap: 1.2,
+    name: '加速核',   tmpl: '全ての弾の速さ +{p}' }),
+  rl_crit2: P({ id: 'rl_crit2', rarity: 'rare', key: 'crit', eff: 0.04, mode: 'add', cap: 0.25,
+    name: '慧眼核',   tmpl: '全ての武器の会心率 +{p}' }),
+
+  rl_rate3: P({ id: 'rl_rate3', rarity: 'epic', key: 'rate', eff: 0.35, mode: 'add', cap: 2.0,
+    name: '律動炉',   tmpl: '全ての武器の発射レート +{p}' }),
+  rl_prc3:  P({ id: 'rl_prc3',  rarity: 'epic', key: 'pierce', eff: 1, mode: 'add', cap: 6,
+    name: '貫通炉',   tmpl: '全ての武器の貫通 +{e}' }),
+  rl_rng3:  P({ id: 'rl_rng3',  rarity: 'epic', key: 'range', eff: 0.20, mode: 'add', cap: 1.2,
+    name: '観測炉',   tmpl: '全ての武器の射程 +{p}' }),
+
+  rl_pick:  P({ id: 'rl_pick',  rarity: 'legendary', key: 'picks', eff: 1, mode: 'flat', cap: 2,
+    name: '選択の眼', tmpl: 'ウェーブを突破するごとに引けるカードが +{e} 枚' }),
+  rl_wide:  P({ id: 'rl_wide',  rarity: 'legendary', key: 'choices', eff: 1, mode: 'flat', cap: 2,
+    name: '広域走査', tmpl: 'カードの3択が +{e} 枚 増える' }),
+  rl_regen: P({ id: 'rl_regen', rarity: 'legendary', key: 'regen', eff: 1, mode: 'flat', cap: 3,
+    name: '再生機関', tmpl: 'ウェーブを突破するごとにライフ +{e}' }),
 };
 
 const CARD_IDS = Object.keys(CARDS);

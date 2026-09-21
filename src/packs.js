@@ -65,7 +65,10 @@ const PACKS = {
     id: 'relic', name: '遺物パック', size: 3, unlock: 0, unlockP: 1, color: '#ffb43c',
     swapChance: 0,
     desc: '転生でしか出ない。中身は転生で消えない永続強化',
-    weights: { common: 55, rare: 30, epic: 12, legendary: 3 }, guarantee: null,
+    //   **レジェンドを半分に。**（2026-09-21・ユーザー指摘「レジェンドも出やすすぎ」）
+    //   レジェンドの遺物は2種類しかないので、出やすいと同じものばかりになる
+    //   **ユーザー指定（2026-09-21）**：コモン60 / レア30 / エピック8 / レジェンド2
+    weights: { common: 60, rare: 30, epic: 8, legendary: 2 }, guarantee: null,
     accepts: (c) => c.kind === 'perm',
   },
   syn: {
@@ -135,8 +138,13 @@ const Pack = {
     const entries = BAL.rarityOrder.map(r => ({ r, w: pack.weights[r] || 0 }));
     const lk = packLuck || 0;
     return Util.weighted(entries, e => {
-      const bias = BAL.rarityDraftLuck[e.r] * lk * 0.6;
-      return Math.max(0.0001, e.w * (1 + bias * 0.25));
+      // **運でレア度を消さない。**（2026-09-21・ユーザー指摘）
+      //   以前は下限が 0.0001 だったので、「解析装置」を上限まで上げると
+      //   **コモンが 0% になり、レジェンドが 3% → 8.7% まで上がっていた。**
+      //   運は「少し寄る」ものであって、袋の中身を入れ替えるものではない。
+      //   もとの重みの 0.4倍 を下回らせない
+      const bias = BAL.rarityDraftLuck[e.r] * lk * BAL.packLuckPower;
+      return Math.max(e.w * 0.4, e.w * (1 + bias * 0.25));
     }).r;
   },
 
@@ -222,7 +230,10 @@ const Pack = {
     //
     //     配布を絞り、代わりに**上限を転生回数で開けていく**（Relic.mods 側）。
     //     こうすると「集め続ける意味」が周を重ねるほど出る
-    out.relic = Math.round(4 + clearedStages * 0.35);
+    //   **さらに絞る。**（2026-09-21・ユーザー指摘「パックそのものを渡しすぎ」）
+    //     round(4 + 突破*0.35) … 8回転生で累計234枚。遺物は13種類なので1種18枚
+    //     round(2 + 突破*0.12) … 8回転生で累計 約70枚。1種あたり5枚前後
+    out.relic = Math.round(2 + clearedStages * 0.12);
     // 1ステージ=1個、5ステージ=約15個。奥へ行くほど1回の転生が重くなる
     const n = Util.clamp(Math.round(Math.pow(clearedStages, 1.7)) + Math.floor(prestiges / 4),
                          1, BAL.packPerPrestigeMax);
