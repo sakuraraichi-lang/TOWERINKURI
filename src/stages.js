@@ -860,7 +860,7 @@ const Stage = {
     const idx = STAGE_BY_ID[stageId].idx;
     // 章が進むほど難しい形にする（口が増え、通路が広がり、経路が短くなる）
     const d = STAGES.length > 1 ? idx / (STAGES.length - 1) : 0.5;
-    const m = MapGen.build(((seed * 2654435761) ^ ((idx + 1) * 40503)) >>> 0, 40, d);
+    const m = MapGen.build(((seed * 2654435761) ^ ((idx + 1) * 40503)) >>> 0, 160, d);
     if (!m) return def.map;                 // 作れなかったら元のマップに落とす
     this._vec[stageId] = m.vec;
     return m.rows;

@@ -137,6 +137,18 @@ const MapGen = {
     return out;
   },
 
+  // コア手前で通路を絞る。**最後の直線は広場ではなく関所にする。**
+  //   絞らないと、通路がコアの周りで扇状に開いて4〜5タイル幅の広場になり、
+  //   そこへ敵が横並びで着く。ガトリング4基では覆いきれず、
+  //   第1章が突破できない種が出ていた（12個中1個）。
+  //   入口側は広いまま（そこは通しても構わない）
+  halfAt(lane, i) {
+    const n = Math.max(1, lane.pts.length - 1);
+    const t = i / n;                                   // 0=入口 1=コア
+    const k = t > 0.72 ? 1 - ((t - 0.72) / 0.28) * 0.45 : 1;
+    return lane.w * k / 2;
+  },
+
   // ---- 焼く ----
   //   タイルの中心が、どれかの通路の幅の内側にあれば通路。
   //   **ここでタイルへ落とすので、この先（BFS・Crowd・設置）は何も変わらない**
@@ -146,10 +158,10 @@ const MapGen = {
     for (let r = 0; r < rows; r++) g.push(new Array(cols).fill('#'));
 
     for (const lane of lanes) {
-      const half = lane.w / 2;
       const pts = lane.pts;
       for (let i = 0; i < pts.length - 1; i++) {
         const a = pts[i], b = pts[i + 1];
+        const half = this.halfAt(lane, i);
         const minc = Math.max(0, Math.floor((Math.min(a.x, b.x) - half) / TILE));
         const maxc = Math.min(cols - 1, Math.ceil((Math.max(a.x, b.x) + half) / TILE));
         const minr = Math.max(0, Math.floor((Math.min(a.y, b.y) - half) / TILE));
@@ -319,6 +331,7 @@ const MapGen = {
   //   **経路が短いマップは「どう置いても撃つ時間が足りず必ず漏れる」**
   //   （実測：経路17タイルで8回挑戦して全部ウェーブ1で撃沈）
   check(rowsArr, d) {
+    const dd = (d === undefined ? 0.5 : d);
     const rows = rowsArr.length, cols = rowsArr[0].length;
     const at = (c, r) => (c < 0 || r < 0 || c >= cols || r >= rows) ? ' ' : rowsArr[r][c];
     const walk = (c, r) => { const ch = at(c, r); return ch === '.' || ch === 'S' || ch === 'C'; };
@@ -344,10 +357,15 @@ const MapGen = {
       if (at(c, r) === '#') ground++; else if (at(c, r) !== ' ') road++;
     }
     return {
-      // **序盤は下限を厚く取る。** BAL.minRouteLen(20) は「これを割ると必ず漏れる」線であって、
-      //   第1章に出していい長さではない。序盤ほど余裕を積む
+      // **序盤は検査を厳しくする。** BAL.minRouteLen(20) は「これを割ると必ず漏れる」線であって、
+      //   第1章に出していい長さではない。序盤ほど余裕を積む。
+      //
+      //   通路の総量にも上限を置く。**広いマップは1基の扇が覆う割合が下がる。**
+      //   置かないと、第1章に通路130タイルの広間が出て
+      //   ガトリング4基では突破できない種が1割ほど混じっていた（実測 14/16）
       ok: lens.length === spawns.length && lens.length > 0
-          && Math.min.apply(null, lens) >= BAL.minRouteLen + Math.round(10 * (1 - (d === undefined ? 0.5 : d)))
+          && Math.min.apply(null, lens) >= BAL.minRouteLen + Math.round(10 * (1 - dd))
+          && road <= Math.round(88 + 140 * dd)
           && ground >= 40,
       spawns: spawns.length, holes: spawns.length, lens, ground, road,
       shortest: lens.length ? Math.min.apply(null, lens) : 0,
@@ -358,6 +376,8 @@ const MapGen = {
   //   通らないマップが出たら種をずらして作り直す。**何回で通ったかも返す**
   //   （作り直しが多いなら、部品か引きの強さが悪いということ）
   build(seed, tries, d) {
+    // **序盤は条件が厳しいので、作り直しの回数を多く取る。**
+    //   40回だと第1章の3割が作れず、黙って固定マップに落ちていた
     tries = tries || 40;
     for (let i = 0; i < tries; i++) {
       const m = this.make((seed + i * 7919) >>> 0, d);

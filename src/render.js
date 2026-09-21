@@ -208,14 +208,18 @@ const Render = {
     // 2. 通路を「太い線」で抜く。round にして角を丸める＝格子の匂いを消す
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
+    //   **焼くときと同じ絞り方で描く**（MapGen.halfAt）。ここを合わせないと
+    //   「絵では通れそうなのに通れない」場所ができる
     for (const pass of [{ w: 8, c: '#232838' }, { w: 0, c: '#05060a' }]) {
       ctx.strokeStyle = pass.c;
       for (const lane of v.lanes) {
-        ctx.lineWidth = lane.w + pass.w;
-        ctx.beginPath();
-        ctx.moveTo(lane.pts[0].x, lane.pts[0].y);
-        for (let i = 1; i < lane.pts.length; i++) ctx.lineTo(lane.pts[i].x, lane.pts[i].y);
-        ctx.stroke();
+        for (let i = 0; i < lane.pts.length - 1; i++) {
+          ctx.lineWidth = MapGen.halfAt(lane, i) * 2 + pass.w;
+          ctx.beginPath();
+          ctx.moveTo(lane.pts[i].x, lane.pts[i].y);
+          ctx.lineTo(lane.pts[i + 1].x, lane.pts[i + 1].y);
+          ctx.stroke();
+        }
       }
     }
 
