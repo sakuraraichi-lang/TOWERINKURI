@@ -711,6 +711,13 @@ const Render = {
         const p = r * 0.98;
         ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * p, Math.sin(a) * p);
       }
+    } else if (e.boss) {
+      // ボス：厚い十二角。**動かないので、据え物として大きく見せる**
+      for (let i = 0; i < 12; i++) {
+        const a = i * Math.PI / 6;
+        const p = r * (i % 2 ? 0.82 : 1.0);
+        ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * p, Math.sin(a) * p);
+      }
     } else if (e.tname === 'shield') {
       // 装甲：前面が平らな盾。**「正面から殴っても通らない」を形で言う**
       ctx.moveTo(r * 0.95, -r * 0.95);
@@ -758,6 +765,14 @@ const Render = {
         ctx.strokeStyle = 'rgba(255,255,255,0.22)';
         ctx.lineWidth = 1.2;
         ctx.beginPath(); ctx.arc(0, 0, e.r * 0.5, 0, Math.PI * 2); ctx.stroke();
+      }
+      // ボス：残りHPを輪で見せる。**DPSチェックなので、減り方が見えないと意味がない**
+      if (e.boss) {
+        const f = Math.max(0, e.hp / e.maxHp);
+        ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(0, 0, e.r + 7, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = '#ffb347'; ctx.lineWidth = 4;
+        ctx.beginPath(); ctx.arc(0, 0, e.r + 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); ctx.stroke();
       }
       // 装甲：厚い縁。**残っている装甲が見えるように**
       if (e.armor > 0) {

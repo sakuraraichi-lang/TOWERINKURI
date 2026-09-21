@@ -164,6 +164,52 @@ const Combat = {
 
   isLastWave(run) { return run.wave >= BAL.wavesPerStage; },
 
+  // このウェーブにボスが出るか。**節目の章の、最後のウェーブだけ。**
+  isBossWave(run) {
+    return this.isLastWave(run) && BAL.bossChapters.indexOf(run.stageIdx + 1) >= 0;
+  },
+
+  // **ボスは動かない。雑魚を出す。**（ユーザー決定 2026-09-21）
+  //   > 「ラスボス含め、ボスは動かない+雑魚を出す、DPSチェックタワーを出す、
+  //   >   みたいなものが理想」
+  //
+  //   **前のボスを外した理由がここで解ける。** 以前のボスは歩いてコアへ向かい、
+  //   実測で5ステージすべて撃破0、**毎回漏れてライフを5持っていくだけ**だった
+  //   （コイン報酬は一度も支払われていない）。倒せない1体に必ず税金を取られる形。
+  //   **動かないなら、そもそも漏れない。** 倒せなければウェーブが終わらないので、
+  //   罰は「税金」ではなく「時間と、その間に湧き続ける雑魚」になる。
+  //   これがDPSチェックの正しい形
+  spawnBoss(run) {
+    const st = run.stage;
+    const g = this.gw(run);
+    const si = (Math.random() * st.spawns.length) | 0;
+    // **経路の途中に据える。出現口には置かない。**
+    //   最初は出現口のすぐ内側に置いたが、そこは誰の射線にも入らない。
+    //   動かない敵が誰にも撃たれない場所にいると、**永久に倒せない**
+    //   （実測：HPを26倍から6倍まで下げても撃破0、ウェーブが終わらず時間切れ）。
+    //   守りが並ぶのは道の途中なので、そこへ置く
+    const route = st.routes[si] || [];
+    const at = route.length ? route[Math.floor(route.length * BAL.bossAt)] : null;
+    const sp = st.spawns[si];
+    const p = at !== null && at !== undefined
+      ? { x: (at % st.cols) * TILE + TILE / 2, y: ((at / st.cols) | 0) * TILE + TILE / 2 }
+      : st.center(sp.c, sp.r);
+    const t = ENEMY_TYPES.grunt;
+    const chMul = (BAL.chapterMul && BAL.chapterMul[run.stageIdx + 1]) || 1;
+    const base = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1)
+               * Math.pow(BAL.stageHpMul, run.stageIdx) * chMul;
+    const e = this.makeEnemy(run, t, g, p.x, p.y, si, base * BAL.bossHp);
+    e.spd = 0;                       // **動かない**
+    e.r = 26;
+    e.color = '#ffb347';
+    e.tname = 'boss';
+    e.boss = true;
+    e.addT = BAL.bossAddSec;
+    e.coin = e.coin * BAL.bossCoin;
+    run.enemies.push(e);
+    run.hasBoss = true;
+  },
+
   startWave(run) {
     run.phase = 'spawn';
     run.toSpawn = this.waveCount(run);
@@ -172,6 +218,8 @@ const Combat = {
     run.waveTotal = run.toSpawn;
     run.spawnTimer = 0;
     run.spawnPick = 0;
+    run.hasBoss = false;
+    if (this.isBossWave(run)) this.spawnBoss(run);
   },
 
   // そのウェーブが湧き切るまでの秒数。
@@ -814,6 +862,19 @@ const Combat = {
       if (e.slowT > 0) { e.slowT -= dt; if (e.slowT <= 0) e.slow = 0; }
       if (e.hitFlash > 0) e.hitFlash -= dt;
       if (e.burnT > 0) { e.burnT -= dt; this.damage(run, e, e.burn * dt, { color: '#ff8a3a', dot: true }); if (e.dead) continue; }
+      // **ボスは雑魚を出し続ける。** 倒すまで手が空かない、が罰になる
+      if (e.boss) {
+        e.addT -= dt;
+        if (e.addT <= 0) {
+          e.addT = BAL.bossAddSec;
+          if (run.enemies.length < BAL.enemyCap) {
+            const g2 = this.gw(run);
+            const t2 = this.pickType(g2);
+            run.enemies.push(this.makeEnemy(run, t2, g2,
+              e.x + Util.rand(-18, 18), e.y + Util.rand(-18, 18), e.si));
+          }
+        }
+      }
       // **再生。燃えている間は止まる**（炎上を積む意味をここで作る）
       if (e.regen > 0 && e.burnT <= 0 && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.regen * dt);
 

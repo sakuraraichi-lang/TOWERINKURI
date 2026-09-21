@@ -831,7 +831,36 @@ function runStage(stageId, loadout, buys, opts) {
   } finally { ARC_MODE = keepArc; REPLACE_MODE = keepRep; }
 }
 
+// **測りたい章を開けておく。**
+//   `Game.startPrep` は `if (!this.stageUnlocked(stageId)) stageId = 'ch1';` で、
+//   **開いていない章を黙って第1章に差し替える。**
+//   そのせいで「第10章で測った」と書いた表が、**実際には第1章の数字**だった
+//   （武器12種の比較・カード59枚の比較・弾のすり抜けのA/B）。
+//   報酬は配らずに「突破済み」の印だけ立てる（報酬を配ると編成と手札が変わり、
+//   比べたいものが比べられなくなる）。
+//   progressAsync は章を順番に本当に突破していくので、こちらの影響は受けない
+function unlockTo(stageId) {
+  const i = MAIN_STAGES.findIndex(s => s.id === stageId);
+  for (let k = 0; k < i; k++) Game.stageRec(MAIN_STAGES[k].id).cleared = true;
+}
+
 function runStageInner(stageId, loadout, buys, opts) {
+  if (opts.unlock !== false) unlockTo(stageId);
+  // **比べるための元手。** 章を開けただけでは財布は空なので、深い章に置いても
+  //   強化が1段も買えず、どの武器でも撃破0になる（実測）。
+  //   本当に遊べば前の章ぶんのコインを持って来るので、
+  //   **武器どうしを比べるときは同じ額を持たせてから買わせる**
+  if (opts.coins) Game.meta.coins = opts.coins;
+  // **恒久の土台を持たせる。**（relics.js の Legacy）
+  //   土台は `prestiges > 0` と `deepest` からしか出ないので、
+  //   まっさらなセーブで深い章に置くと、**設計どおり手も足も出ない**
+  //   （元手を 1e11 積んで強化を120段買っても撃破0。第10章は1周目では届かない章）。
+  //   深い章で武器やカードを比べるときは、そこへ到達した人の土台を再現する
+  if (opts.deep) {
+    Game.perm.prestiges = opts.deep.prestiges;
+    Game.perm.deepest = opts.deep.deepest;
+    Relic.invalidate();
+  }
   Game.perm.loadout = loadout.map(w => 'wc_' + w);
   for (const w of loadout) if (!Game.own('wc_' + w)) Game.grant('wc_' + w, 1);
   Game.perm.currentStage = stageId;
