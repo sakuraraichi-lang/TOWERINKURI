@@ -296,7 +296,35 @@ const Render = {
       ctx.strokeRect(x + 2, y + 2, w - 4, hh - 4);
     }
 
+    // **仕掛けがある盤には、何のマスかを盤の上に書く。**（2026-09-22）
+    //   前は色と記号だけ置いていて、プレイヤーには「緑やピンクの謎のマス目」に見えた。
+    //   **見て意味が分からない仕掛けは、仕掛けとして成立していない。**
+    //   いまは BAL.zoneOn が false なので出ないが、戻すときはこの凡例ごと戻す
+    if (v.hexes.some(h => h.zone)) this.zoneLegend(ctx, st);
+
     this.heat(ctx, st);
+  },
+
+  // 盤の隅に置く、仕掛けの凡例
+  zoneLegend(ctx, st) {
+    const rows = [
+      { c: '#6ee6aa', t: '泥　敵が遅くなる' },
+      { c: '#d78cff', t: '坂　敵が速くなる' },
+    ];
+    const w = 168, h = 18 * rows.length + 12;
+    const x = 8, y = st.rows * TILE - h - 8;
+    ctx.fillStyle = 'rgba(8,10,16,0.82)';
+    ctx.strokeStyle = '#2c3446'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.fill(); ctx.stroke();
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.textBaseline = 'middle';
+    rows.forEach((r, i) => {
+      const cy = y + 15 + i * 18;
+      ctx.fillStyle = r.c;
+      ctx.beginPath(); ctx.arc(x + 14, cy, 5, 0, Math.PI * 2); ctx.fill();
+      ctx.fillStyle = '#c9d2e0';
+      ctx.fillText(r.t, x + 26, cy);
+    });
   },
 
 

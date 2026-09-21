@@ -50,7 +50,16 @@ const Draft = {
         .map(r => ({ r, w: BAL.rarityWeight[r], n: rem.filter(id => CARDS[id].rarity === r).length }))
         .filter(e => e.n > 0);
       if (!rEnt.length) break;
-      const pickR = Util.weighted(rEnt, e => Math.max(0.01, e.w * (1 + BAL.rarityDraftLuck[e.r] * luck * 0.05))).r;
+      // **運でレア度を消さない。**（2026-09-22）
+      //   下限が 0.01 だったので、「幸運回路」（上限なし）を Lv20 まで積むと
+      //   コモンの重みが 1 + (-1.0 × 20 × 0.05) = 0 になり、**3択からコモンが消える。**
+      //   パックのほうは 0921p で同じ穴を直してあった（「解析装置」でコモンが0%になっていた）のに、
+      //   **3択の側が直っていなかった。**同じ直し方を当てる：
+      //   もとの重みの 0.4倍 を下回らせず、効き幅も抑える
+      const pickR = Util.weighted(rEnt, e => {
+        const bias = BAL.rarityDraftLuck[e.r] * luck * BAL.draftLuckPower;
+        return Math.max(e.w * 0.4, e.w * (1 + bias));
+      }).r;
       const cand = rem.filter(id => CARDS[id].rarity === pickR);
       // **レア度の中では等確率。** ダブりは出やすさではなくランクに回る
       out.push(Util.weighted(cand, id => Game.cardWeight(id)));
