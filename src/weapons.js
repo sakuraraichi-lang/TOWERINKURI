@@ -207,7 +207,7 @@ const WEAPONS = {
   },
 
   flame: {
-    id: 'flame', stock: 1, cat: 'area', name: '火炎放射器', short: 'FLM', icon: '🔥', color: '#ff6a2a', src: 'stage', arcMin: 0.45, arcMax: 1.4,
+    id: 'flame', wallThrough: true, /* 壁を抜ける：範囲もの */ stock: 1, cat: 'area', name: '火炎放射器', short: 'FLM', icon: '🔥', color: '#ff6a2a', src: 'stage', arcMin: 0.45, arcMax: 1.4,
     desc: '短射程の扇状に炎を吹き続ける。当たった敵は燃え続ける。',
     // 火炎は 17（12種中9位）。ダメージ3.4→5・レート9→12 で 25。実測 17 → 25
     base: baseStats({ arc: 0.50, dmg: 5, rate: 12, range: 130, cone: 0.42, burn: 0.55, burnDur: 3, turn: 5 }),
@@ -233,7 +233,7 @@ const WEAPONS = {
     //   雲を撒く武器なので、効いているのは雲の重なりと持続であって1発の威力ではない。
     //   凍結装置（35で単独突破する）・触手（16→26でも17止まり）と同じで、
     //   **この3種は「1秒あたりのダメージ」では測りきれない。**上げても無駄になる
-    id: 'gas', stock: 1, cat: 'area', name: '毒ガス散布機', short: 'GAS', icon: '☣', color: '#8fd94a', src: 'stage', arcMin: 0.38, arcMax: 1.25,
+    id: 'gas', wallThrough: true, /* 壁を抜ける：範囲もの */ stock: 1, cat: 'area', name: '毒ガス散布機', short: 'GAS', icon: '☣', color: '#8fd94a', src: 'stage', arcMin: 0.38, arcMax: 1.25,
     desc: '砲身の先へ毒の雲を撒き続ける。雲の中の敵は毒を受け続け、防御が落ちる。',
     base: baseStats({ arc: 0.55, dmg: 7, rate: 0.42, range: 300, speed: 260, bulletR: 5,
                       fieldR: 76, fieldDur: 5.5, fieldVuln: 0.2, slow: 0.15, slowDur: 1 }),
@@ -265,7 +265,7 @@ const WEAPONS = {
 
   // ============ パック限定（なんでもあり枠） ============
   katana: {
-    id: 'katana', stock: 1, cat: 'short', name: '刀', short: 'KTN', icon: '🗡', color: '#f4f6fb', src: 'pack', arcMin: 0.35, arcMax: 1.25,
+    id: 'katana', wallThrough: true, /* 壁を抜ける：間合いの中をまとめて斬る */ stock: 1, cat: 'short', name: '刀', short: 'KTN', icon: '🗡', color: '#f4f6fb', src: 'pack', arcMin: 0.35, arcMax: 1.25,
     desc: '間合いに入った敵をまとめて斬る。射程は短いが一撃が重く、会心が乗る。',
     base: baseStats({ arc: 0.80, dmg: 58, rate: 1.5, range: 100, cone: 1.5, crit: 0.2, critMul: 2.5, turn: 12 }),
     fire(w, run) {
@@ -291,7 +291,7 @@ const WEAPONS = {
   },
 
   tentacle: {
-    id: 'tentacle', stock: 2, cat: 'support', name: '触手', short: 'TNT', icon: '🐙', color: '#c85ab0', src: 'pack', arcMin: 0.2, arcMax: 0.8,
+    id: 'tentacle', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ stock: 2, cat: 'support', name: '触手', short: 'TNT', icon: '🐙', color: '#c85ab0', src: 'pack', arcMin: 0.2, arcMax: 0.8,
     desc: '砲身の先にいる敵を掴んで来た道へ引き戻す。掴まれている間は削られ続ける。',
     // **【2026-09-22】同時に2体まで掴めなかったのが、そのまま弱さだった。**
     //   前は「1体ずつ掴む武器だから数字を上げても頭打ち」と書いて諦めていたが、

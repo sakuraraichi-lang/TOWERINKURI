@@ -919,6 +919,37 @@ const Stage = {
       grid.push(row);
     }
 
+    // **出現口を「穴」ごとにまとめる。**（ユーザー 2026-09-21）
+    //   > 「この入り口（数マス分…壁に開いた穴）からゾロゾロと出てくる感じがいい」
+    //
+    //   S タイルは既に数マスぶん開いているが、`spawns` は平らな配列なので、
+    //   敵は全部の穴を1体ずつ順に使っていた。**どの穴からも等間隔に1体ずつ**出るので、
+    //   「点から湧いている」のと見え方が変わらない。
+    //   隣り合う S を1つの穴としてまとめ、穴の単位で流せるようにする
+    const mouths = [];
+    {
+      const at = {};
+      spawns.forEach((s, i) => { at[s.c + ',' + s.r] = i; });
+      const seen = {};
+      for (let i = 0; i < spawns.length; i++) {
+        if (seen[i]) continue;
+        const grp = [], stack = [i];
+        seen[i] = 1;
+        while (stack.length) {
+          const j = stack.pop(); grp.push(j);
+          const s = spawns[j];
+          for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const k = at[(s.c + dc) + ',' + (s.r + dr)];
+            if (k === undefined || seen[k]) continue;
+            seen[k] = 1; stack.push(k);
+          }
+        }
+        // 穴の中では端から端へ順に並べる（真ん中から飛び飛びに出ないように）
+        grp.sort((a, b) => (spawns[a].c - spawns[b].c) || (spawns[a].r - spawns[b].r));
+        mouths.push(grp);
+      }
+    }
+
     const walkable = (c, r) => {
       if (c < 0 || r < 0 || c >= cols || r >= rows) return false;
       const ch = grid[r][c];
@@ -959,7 +990,7 @@ const Stage = {
     });
 
     const built = {
-      def, id: stageId, cols, rows, grid, spawns, core, dist, next, idx, walkable, routes,
+      def, id: stageId, cols, rows, grid, spawns, mouths, core, dist, next, idx, walkable, routes,
       vec: this._vec[stageId] || null,        // 折れ線と幅。絵を滑らかに描くのに使う
       // 地形の仕掛け（0=なし 1=泥 2=坂）。手で書いたマップには無い
       zone: this._zone[stageId] || null,

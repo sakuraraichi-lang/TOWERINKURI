@@ -143,9 +143,12 @@ const LOADOUTS = new Proxy({}, { get: (_, k) => loadoutFor(String(k)) });
 //   結果、生成マップでは置いたユニットが通路を向いておらず、
 //   **12個の種すべてで第1章が突破できず、与ダメージが 0 だった**（実測）。
 //   地形ごとのオブジェクトに持たせれば、地形を作り直した時点で一緒に捨てられる
-function aimField(st, range, arc) {
+// thru … 壁を抜ける武器か（触手・刀・火炎・毒ガス）。
+//   **本体が壁で射線を切るようになったので、ここも切る。**（2026-09-22）
+//   切らないと、測定器だけが「壁の奥に埋めた砲が撃てるゲーム」を測ることになる
+function aimField(st, range, arc, thru) {
   const cache = st._aim || (st._aim = {});
-  const key = Math.round(range / 10) + '|' + Math.round(arc / 0.02);
+  const key = Math.round(range / 10) + '|' + Math.round(arc / 0.02) + '|' + (thru ? 1 : 0);
   if (cache[key]) return cache[key];
 
   // 通路タイル。コアに近いほど「抜かれたら困る場所」なので重みを増やす
@@ -172,6 +175,7 @@ function aimField(st, range, arc) {
         const dx = t.p.x - g.x, dy = t.p.y - g.y;
         const d = Math.hypot(dx, dy);
         if (d > range || d < 1) continue;
+        if (!thru && Combat.losBlocked(st, g.x, g.y, t.p.x, t.p.y)) continue;
         seen.push({ a: Math.atan2(dy, dx), w: 1 + (1 - t.d / maxD) });
       }
       if (!seen.length) continue;
@@ -674,7 +678,7 @@ function replaceUnits(run) {
     const def = WEAPONS[wid];
     const fake = { def, s: Object.assign({}, def.base) };
     Skill.applyTo(fake, mods);
-    return { range: fake.s.range, arc: fake.s.arc };
+    return { range: fake.s.range, arc: fake.s.arc, thru: !!def.wallThrough };
   };
   const want = [];
   for (const wid of Game.loadoutWeapons()) for (let i = 0; i < Game.unitCap(wid); i++) want.push(wid);
@@ -804,7 +808,7 @@ function autoPlaceRange(run) {
 
   for (const wid of want) {
     const s0 = statOf(wid);
-    const field = aimField(st, s0.range, s0.arc);
+    const field = aimField(st, s0.range, s0.arc, s0.thru);
     // まず「味方と離れた良い点」、無ければ空いている最良点。
     // **置けるまで次の候補へ進む。**（2026-09-22）
     //   武器ごとに要るマス数が違うので、最良点1つを試して駄目なら諦める、だと

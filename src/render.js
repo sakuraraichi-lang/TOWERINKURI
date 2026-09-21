@@ -194,10 +194,19 @@ const Render = {
       const wid = UI.placingType || (UI.moving && UI.moving.id);
       const def = wid ? WEAPONS[wid] : null;
       const pulse = 0.16 + 0.08 * Math.sin((Game.run ? Game.run.time : 0) * 5);
+      // **射線が通らない壁マスは、置けても仕事をしない。**（2026-09-22）
+      //   壁が弾を止めるようにしたので、壁の奥へ引っ込めた砲は何も撃てない。
+      //   置けるかどうかと同じ色で光らせると、**押しても何も起きない罠**になる。
+      //   通路が1マスも見えないところは暗いままにして、光らせない。
+      //   **毎フレーム数えない。**武器ごとに1回だけ作ってステージに持たせる
+      //   （全マス × 全通路 × 射線で、素直に回すと1フレーム百万回になる）
+      const sees = this.losMap(st, def);
       for (let r = 0; r < st.rows; r++) {
         for (let c = 0; c < st.cols; c++) {
           if (!def || !Game.canPlaceAt(def, c, r, UI.moving || null)) continue;
-          ctx.fillStyle = 'rgba(255,170,50,' + pulse.toFixed(3) + ')';
+          const ok = !sees || sees[r * st.cols + c];
+          ctx.fillStyle = ok ? 'rgba(255,170,50,' + pulse.toFixed(3) + ')'
+                             : 'rgba(120,132,152,0.10)';
           // その武器が埋めるマスをまとめて光らせる＝**置く前に広さが分かる**
           for (const t of Game.footTiles(def, c, r)) {
             ctx.fillRect(t.c * TILE + 2, t.r * TILE + 2, TILE - 4, TILE - 4);
@@ -205,6 +214,39 @@ const Render = {
         }
       }
     }
+  },
+
+  // 「そのマスから通路が1マスでも見えるか」を、武器ごとに1枚作る。
+  //   壁を抜ける武器（触手・刀・火炎・毒ガス）は全部見えることにして null を返す
+  losMap(st, def) {
+    if (!def || def.wallThrough) return null;
+    const cache = st._los || (st._los = {});
+    if (cache[def.id]) return cache[def.id];
+    // 通路の中心を先に集めておく（毎マスで作り直さない）
+    let path = st._pathPts;
+    if (!path) {
+      path = st._pathPts = [];
+      for (let r = 0; r < st.rows; r++)
+        for (let c = 0; c < st.cols; c++)
+          if (st.walkable(c, r)) path.push(st.center(c, r));
+    }
+    const rng = def.base.range * 1.6;      // ツリーで伸びるぶんを見込む
+    const rng2 = rng * rng;
+    const out = new Uint8Array(st.cols * st.rows);
+    for (let r = 0; r < st.rows; r++) {
+      for (let c = 0; c < st.cols; c++) {
+        if (!st.buildable(c, r)) continue;
+        const g = st.center(c, r);
+        for (const p of path) {
+          const dx = p.x - g.x, dy = p.y - g.y;
+          if (dx * dx + dy * dy > rng2) continue;
+          if (Combat.losBlocked(st, g.x, g.y, p.x, p.y)) continue;
+          out[r * st.cols + c] = 1; break;
+        }
+      }
+    }
+    cache[def.id] = out;
+    return out;
   },
 
   // 折れ線から描く通路。**tiles() の代わり**

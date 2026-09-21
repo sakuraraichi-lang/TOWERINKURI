@@ -218,6 +218,8 @@ const Combat = {
     run.waveTotal = run.toSpawn;
     run.spawnTimer = 0;
     run.spawnPick = 0;
+    // 穴の切り替え。**ウェーブごとに違う穴から始める**ので、同じ絵にならない
+    run.mouthLeft = 0;
     run.hasBoss = false;
     if (this.isBossWave(run)) this.spawnBoss(run);
   },
@@ -284,7 +286,27 @@ const Combat = {
     const st = run.stage;
     const g = this.gw(run);
     const t = this.pickType(g);
-    const si = run.spawnPick++ % st.spawns.length;      // 出現口は順番に使う
+    // **穴の単位で流す。**（ユーザー 2026-09-21「壁に開いた穴からゾロゾロと出てくる感じ」）
+    //   前は `spawnPick % spawns.length` で全部の S タイルを1体ずつ順に使っていた。
+    //   穴が2つ × 幅4なら、**左右の穴から交互に1体ずつ**出るので
+    //   「点から湧いている」のと見え方が同じだった。
+    //   1つの穴の幅を端から端まで2往復ぶん流してから、次の穴へ移る
+    const mouths = (st.mouths && st.mouths.length) ? st.mouths : null;
+    let si;
+    if (mouths) {
+      if (!(run.mouthLeft > 0)) {
+        run.mouthI = (run.mouthI === undefined)
+          ? ((Math.random() * mouths.length) | 0)
+          : (run.mouthI + 1) % mouths.length;
+        run.mouthLeft = mouths[run.mouthI].length * 2;
+        run.mouthPick = 0;
+      }
+      const m = mouths[run.mouthI];
+      si = m[run.mouthPick++ % m.length];
+      run.mouthLeft--;
+    } else {
+      si = run.spawnPick++ % st.spawns.length;
+    }
     const sp = st.spawns[si];
     const p = st.center(sp.c, sp.r);
     // **群れはまとめて出す。**（1体ずつだと「群れ」にならない）
@@ -464,6 +486,7 @@ const Combat = {
       range: s.range * 1.35,
       ox: w.x, oy: w.y,
       hits: 0,                       // 何体を貫いたか。軌跡の太さになる
+      through: !!w.def.wallThrough,  // 壁を抜けるか（触手・刀・範囲もの）
       target: null,
     });
   },
@@ -479,7 +502,7 @@ const Combat = {
       dmg: 0, r: w.s.bulletR, pierce: 0, bounce: 0, hit: null,
       splash: 0, splashMul: 1, homing: 0, crit: 0, critMul: 2,
       exec: 0, shock: 0, slow: 0, slowDur: 0, stun: 0, burn: 0, burnDur: 0,
-      color: o.color || '#8fd94a', lob: true, mark: !!o.mark, rocket: !!o.rocket,
+      color: o.color || '#8fd94a', lob: true, mark: !!o.mark, rocket: !!o.rocket, through: true,
       landX: tx, landY: ty, onLand: o.onLand,
       life: 5, src: w, wid: w.id, range: w.s.range * 1.8, ox: w.x, oy: w.y, target: null,
     });
@@ -534,9 +557,12 @@ const Combat = {
     Snd.shot(w.id);
     dmg *= (w.group !== undefined ? w.group : 1);   // 即着系は出力が散るぶん1体あたりが落ちる
     const near = Grid.query(w.x, w.y, range + 20, _q);
+    const thru = this.through(w);
     for (const e of near) {
       if (e.dead) continue;
       if (Util.dist(w.x, w.y, e.x, e.y) > range + e.r) continue;
+      // **壁越しには届かない。**（抜けてよい武器は def.wallThrough）
+      if (!thru && this.losBlocked(run.stage, w.x, w.y, e.x, e.y)) continue;
       this.damage(run, e, dmg, opts);
     }
   },
@@ -574,6 +600,8 @@ const Combat = {
     const pts = [{ x: w.x, y: w.y }];
     for (let i = 0; i <= chains; i++) {
       if (!cur || cur.dead) break;
+      // 1体目は砲から。**壁越しには飛ばない。**2体目以降は敵から敵なので通す
+      if (i === 0 && !this.through(w) && this.losBlocked(run.stage, w.x, w.y, cur.x, cur.y)) break;
       used.add(cur);
       pts.push({ x: cur.x, y: cur.y });
       this.damage(run, cur, d, { shock: w.s.shockDur, color: '#d8c7ff', crit: w.s.crit, critMul: w.s.critMul });
@@ -698,6 +726,53 @@ const Combat = {
   //   以前は「最も密集した点」「最も硬い敵」などを武器が自分で選んでいた。
   //   いまは、砲身が向いている線の上にいるものを拾うだけ。
   //   着弾点を持つ武器（指定攻撃・ミサイル）は、その点にいるものを拾う
+  // ---------- 壁で射線が切れる ----------
+  //
+  //   **壁を抜ける弾を無くす。**（ユーザー 2026-09-22）
+  //   > 「壁貫通消してください、的が直線で通る場所に目掛けて
+  //   >   壁の中に3個くらいスナイパー埋め込むの強すぎます」
+  //   > 「実質的に射程範囲のある武器は壁外側のみの設置条件に縛られるため、
+  //   >   少し今より全体的に弱くなるはずです、狙いはそれです」
+  //
+  //   ユニットは**壁の上に建つ**（buildable ＝ '#'）ので、
+  //   自分が乗っているマスまで壁として数えると、置いた瞬間に何も撃てなくなる。
+  //   **撃ち口から TILE*0.9 の内側にある壁は無視する。**
+  //   こうすると、壁の縁に建てた砲は通路へ撃てるが、
+  //   **壁の内側へ1マス引っ込めた砲は、手前の壁で止まる**
+  //
+  //   抜けてよい武器（ユーザー 2026-09-22
+  //   「仮に壁を貫通する武器があったとしても、触手や範囲武器、刀、迫撃砲が妥当」）
+  //     ・触手 … 腕なので回り込める
+  //     ・刀／火炎放射器／毒ガス散布機 … 範囲もの
+  //     ・山なりに撃つもの（迫撃砲・ミサイル・泡）… 壁の上を越える
+  //   sx,sy … 「足元」の中心。省くと始点そのもの。
+  //     **弾は毎フレーム、進んだぶんの線分だけを渡す。**
+  //     撃ち口から今の位置まで毎回まるごと見直すと、
+  //     遠くまで飛ぶ弾ほど1フレームの費用が伸びる（距離に比例して増え続ける）。
+  //     足元の判定だけは撃ち口 (ox,oy) を基準に保つ必要があるので、別に受け取る
+  losBlocked(st, x0, y0, x1, y1, sx, sy) {
+    const dx = x1 - x0, dy = y1 - y0;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) return false;
+    if (sx === undefined) { sx = x0; sy = y0; }
+    const skip2 = (TILE * 0.9) * (TILE * 0.9);
+    const step = TILE * 0.4;
+    const n = Math.ceil(len / step);
+    for (let i = 1; i <= n; i++) {
+      const t = Math.min(1, (i * step) / len);
+      const x = x0 + dx * t, y = y0 + dy * t;
+      const ex = x - sx, ey = y - sy;
+      if (ex * ex + ey * ey < skip2) continue;       // 撃ち口の足元は見ない
+      if (!st.walkable((x / TILE) | 0, (y / TILE) | 0)) return true;
+    }
+    return false;
+  },
+
+  // その武器は壁を抜けるか
+  through(w) {
+    return !!(w && w.def && w.def.wallThrough);
+  },
+
   findTarget(w, run) {
     // 指定攻撃は「どこに落とすか」だけで動く。狙う敵という概念を持たない
     if (w.ax !== undefined && w.ax !== null) return null;
@@ -751,7 +826,19 @@ const Combat = {
   //   ここは「線の上に敵がいないときの走査」が本体で、枠では減らせない
   targetAhead(w, run) {
     const ca = Math.cos(w.angle), sa = Math.sin(w.angle);
-    const range = w.s.range;
+    let range = w.s.range;
+    // **壁の向こうの敵は狙わない。**（狙うと、当たらない方向へ撃ち続ける）
+    if (!this.through(w)) {
+      const st = run.stage;
+      const skip2 = (TILE * 0.9) * (TILE * 0.9);
+      const step = TILE * 0.4;
+      for (let d = step; d <= range; d += step) {
+        if (d * d < skip2) continue;
+        const x = w.x + ca * d, y = w.y + sa * d;
+        if (!st.walkable((x / TILE) | 0, (y / TILE) | 0)) { range = d - step; break; }
+      }
+      if (range <= 0) return null;
+    }
     const cs = Grid.cell;
     const pad = (w.s.bulletR || 3) + 20;      // 線の太さ＋敵の半径ぶんの余裕
     let best = null, bd = Infinity;
@@ -1036,6 +1123,13 @@ const Combat = {
 
       if (b.x < -60 || b.y < -60 || b.x > st.w + 60 || b.y > st.h + 60) { run.bullets.splice(i, 1); continue; }
       if (Util.dist(b.x, b.y, b.ox, b.oy) > b.range) { this.bulletEnd(run, b); run.bullets.splice(i, 1); continue; }
+
+      // **壁に当たったらそこで終わる。**（山なりの弾は越えるので素通り）
+      if (!b.through && this.losBlocked(st, px, py, b.x, b.y, b.ox, b.oy)) {
+        if (run.fx.length < 150)
+          this.fx(run, { type: 'spark', x: b.x, y: b.y, color: b.color, life: 0.12 });
+        run.bullets.splice(i, 1); continue;
+      }
 
       const step = Math.hypot(b.x - px, b.y - py);
       const swept = step > b.r + 8;
