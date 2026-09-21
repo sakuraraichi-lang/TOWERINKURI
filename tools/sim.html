@@ -132,13 +132,21 @@ const LOADOUTS = new Proxy({}, { get: (_, k) => loadoutFor(String(k)) });
 // どの武器も通路に張り付くので、射程430のスナイパーと射程100の刀が
 // 同じ場所から撃つことになり、射程の差が測定上まるごと消えていた。
 // 「非効率ビルドのほうが強い」という観測はこれを疑う必要がある
-const AIM_CACHE = {};
+// （AIM_CACHE は廃止。**地形はもう固定ではない**ので、焼いた地形そのものに持たせる）
 
 // ある射程・射界における、各地面タイルの最良の向きと点数。
-// 地形は固定なので、ステージと射程・射界ごとに1回だけ計算して使い回す
+//
+//   **キャッシュは「焼いた地形」に持たせる。**（2026-09-21）
+//   以前は `AIM_CACHE[st.id + 射程 + 射界]` で、コメントに「地形は固定なので」と
+//   書いてあった。マップ生成（src/mapgen.js）を入れて**その前提が崩れた。**
+//   同じ ch1 でも種が変われば地形が変わるのに、**前の地形の置き場所を返していた。**
+//   結果、生成マップでは置いたユニットが通路を向いておらず、
+//   **12個の種すべてで第1章が突破できず、与ダメージが 0 だった**（実測）。
+//   地形ごとのオブジェクトに持たせれば、地形を作り直した時点で一緒に捨てられる
 function aimField(st, range, arc) {
-  const key = st.id + '|' + Math.round(range / 10) + '|' + Math.round(arc / 0.02);
-  if (AIM_CACHE[key]) return AIM_CACHE[key];
+  const cache = st._aim || (st._aim = {});
+  const key = Math.round(range / 10) + '|' + Math.round(arc / 0.02);
+  if (cache[key]) return cache[key];
 
   // 通路タイル。コアに近いほど「抜かれたら困る場所」なので重みを増やす
   const path = [];
@@ -183,7 +191,7 @@ function aimField(st, range, arc) {
     }
   }
   out.sort((x, y) => y.w - x.w);
-  AIM_CACHE[key] = out;
+  cache[key] = out;
   return out;
 }
 
