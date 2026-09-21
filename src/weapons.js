@@ -140,7 +140,13 @@ const WEAPONS = {
     id: 'missile', stock: 3, cat: 'target', name: 'ミサイル', short: 'MSL', icon: '🚀', color: '#ff7a3c', src: 'stage',
     arcMin: 0.08, arcMax: 0.42, aimPoint: true, spot: [72, 150],
     desc: '置いた円の中へ爆撃を降らせ続ける。円を絞るほど一点に集まる。',
-    base: baseStats({ arc: 0.30, dmg: 16, rate: 1.0, range: 330, speed: 430, splash: 72, bulletR: 5, turn: 5 }),
+    // **【2026-09-21】12種を同じ条件で測って、床を上げた。**
+    //   第10章・単独編成・3シードの dps 中央値。刀68 → 触手9 で **7.6倍の開き**があった。
+    //   ユーザー方針「プレイヤーを絞る方向で考えない／疑うべきは君のデフレ思考」に従い、
+    //   **一番上（刀）は触らず、下だけ中央値（約26）へ引き上げる。**
+    //   ミサイルは**第5章の突破報酬**なのに、12種中11位（13）だった。
+    //   ダメージ16→26・レート1.0→1.4 で 26。実測 13 → 26
+    base: baseStats({ arc: 0.30, dmg: 26, rate: 1.4, range: 330, speed: 430, splash: 72, bulletR: 5, turn: 5 }),
     fire(w, run) { Combat.bombard(w, run, '#ff7a3c'); },
   },
 
@@ -158,7 +164,8 @@ const WEAPONS = {
   flame: {
     id: 'flame', stock: 1, cat: 'area', name: '火炎放射器', short: 'FLM', icon: '🔥', color: '#ff6a2a', src: 'stage', arcMin: 0.45, arcMax: 1.4,
     desc: '短射程の扇状に炎を吹き続ける。当たった敵は燃え続ける。',
-    base: baseStats({ arc: 0.50, dmg: 3.4, rate: 9, range: 130, cone: 0.42, burn: 0.55, burnDur: 3, turn: 5 }),
+    // 火炎は 17（12種中9位）。ダメージ3.4→5・レート9→12 で 25。実測 17 → 25
+    base: baseStats({ arc: 0.50, dmg: 5, rate: 12, range: 130, cone: 0.42, burn: 0.55, burnDur: 3, turn: 5 }),
     fire(w, run) {
       Combat.coneDamage(w, run, w.angle, w.s.cone, w.s.range, w.s.dmg, {
         color: '#ffb066', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur,
@@ -233,7 +240,11 @@ const WEAPONS = {
   tentacle: {
     id: 'tentacle', stock: 2, cat: 'support', name: '触手', short: 'TNT', icon: '🐙', color: '#c85ab0', src: 'pack', arcMin: 0.2, arcMax: 0.8,
     desc: '砲身の先にいる敵を掴んで来た道へ引き戻す。掴まれている間は削られ続ける。',
-    base: baseStats({ arc: 0.34, dmg: 16, rate: 0.85, range: 210, knock: 105, knockDur: 1.3, turn: 9 }),
+    // 触手は 9（12種中最下位）。ダメージ16→26・レート0.85→1.2 で 17。
+    // **ここで頭打ちになる。**1体ずつ掴む武器なので、数字を上げても
+    // 同時に掴める数は変わらない（34にしても17のまま）。凍結装置が 35 でも
+    // 単独突破できるのと同じで、この2種は dps では測りきれない役回り
+    base: baseStats({ arc: 0.34, dmg: 26, rate: 1.2, range: 210, knock: 105, knockDur: 1.3, turn: 9 }),
     fire(w, run) {
       const t = w.target;
       if (!t) return;
@@ -245,7 +256,8 @@ const WEAPONS = {
     id: 'bubble', stock: 1, cat: 'target', name: '泡', short: 'BBL', icon: '🫧', color: '#8ad8ff', src: 'pack',
     arcMin: 0.12, arcMax: 0.55, aimPoint: true, spot: [58, 120],
     desc: '置いた円の中へ泡を降らせ、割れた場所の敵を閉じ込める。',
-    base: baseStats({ arc: 0.34, dmg: 10, rate: 1.1, range: 250, speed: 300, bulletR: 9,
+    // 泡は 15（12種中10位）。ダメージ10→16・レート1.1→1.5 で 26。実測 15 → 26
+    base: baseStats({ arc: 0.34, dmg: 16, rate: 1.5, range: 250, speed: 300, bulletR: 9,
                       stunDur: 1.8, splash: 58, splashMul: 1.0 }),
     fire(w, run) { Combat.bombard(w, run, '#8ad8ff'); },
   },
