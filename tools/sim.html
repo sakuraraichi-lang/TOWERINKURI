@@ -495,7 +495,7 @@ async function progressAsync(seeds, opts) {
   for (const sd of seeds) {
     seedRng(sd);
     Game.newSave();
-    const got = [], mins = [], tries = [], notes = [];
+    const got = [], mins = [], tries = [], notes = [], slots = [];
     for (let L = 1; L <= laps; L++) {
       pg.now = 'seed' + sd + ' 周' + L;
       // **1周を歩く手順は reachDistAsync と同じものを使う。**
@@ -506,12 +506,13 @@ async function progressAsync(seeds, opts) {
       const r = await lap('seed' + sd + ' 周' + L, L === 1);
       pg.now = 'seed' + sd + ' 周' + L + ' → ' + r.cleared + '章';
       got.push(r.cleared); mins.push(r.min); tries.push(r.tries); notes.push(r.note);
+      slots.push(Game.slotsTotal());        // その周の終わりに何基置けたか
       // **章ごとの挑戦回数（tries）を残す。**
       //   0 はスキップ、1 は一発、2以上は詰まった章 ＝ ストップポイント。
       //   到達章の数字だけ見ていると「どこで詰まったか」が分からず、
       //   BAL.chapterMul をどこに置けばいいかが決められなかった
       pg.rows = pg.rows.filter(x => x.seed !== sd)
-        .concat([{ seed: sd, laps: got.slice(), mins: mins.slice(),
+        .concat([{ seed: sd, laps: got.slice(), mins: mins.slice(), slots: slots.slice(),
                    tries: tries.slice(), notes: notes.slice(), line: got.join(' → ') }]);
       await yieldNow();
       if (r.cleared >= MAIN_STAGES.length) break;
