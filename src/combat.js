@@ -563,7 +563,8 @@ const Combat = {
       t.grabT = Math.max(t.grabT, dur * this.statusScale(t));
       t.grabV = power;
       this.damage(run, t, dmg, { color: '#ffb0e8' });
-      this.fx(run, { type: 'link', x1: w.x, y1: w.y, e: t, color: '#c85ab0', life: Math.min(0.6, dur) });
+      this.fx(run, { type: 'tentacle', x1: w.x, y1: w.y, e: t, color: '#c85ab0',
+                     ph: Math.random() * 6.28, life: Math.min(0.6, dur) });
     }
   },
 

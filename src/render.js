@@ -185,17 +185,20 @@ const Render = {
       ctx.fillStyle = 'rgba(4,8,13,0.5)';
       ctx.fillRect(0, 0, st.cols * TILE, st.rows * TILE);
 
-      const occupied = {};
-      if (Game.run) for (const u of Game.run.units) {
-        if (u === UI.moving) continue;          // 動かす本人の足元は空きとして扱う
-        occupied[u.c + ',' + u.r] = 1;
-      }
+      // **武器ごとに要るマスが違う**（weapons.js の foot）ので、
+      //   「1マス空いている」ではなく「その武器が収まる」で光らせる。
+      //   ここを1マス判定のままにすると、光っているのに置けない場所ができる
+      const wid = UI.placingType || (UI.moving && UI.moving.id);
+      const def = wid ? WEAPONS[wid] : null;
       const pulse = 0.16 + 0.08 * Math.sin((Game.run ? Game.run.time : 0) * 5);
       for (let r = 0; r < st.rows; r++) {
         for (let c = 0; c < st.cols; c++) {
-          if (!st.buildable(c, r) || occupied[c + ',' + r]) continue;
+          if (!def || !Game.canPlaceAt(def, c, r, UI.moving || null)) continue;
           ctx.fillStyle = 'rgba(255,170,50,' + pulse.toFixed(3) + ')';
-          ctx.fillRect(c * TILE + 2, r * TILE + 2, TILE - 4, TILE - 4);
+          // その武器が埋めるマスをまとめて光らせる＝**置く前に広さが分かる**
+          for (const t of Game.footTiles(def, c, r)) {
+            ctx.fillRect(t.c * TILE + 2, t.r * TILE + 2, TILE - 4, TILE - 4);
+          }
         }
       }
     }
@@ -343,6 +346,87 @@ const Render = {
   //
   //   色の丸を添える形にしたら、丸が黒く潰れて「謎の四角」に見えた。
   //   **部品を減らして、見出しの文字そのものに色を付ける。**
+  // 触手。**根元が太く、先へ細くなる、うねった腕。**
+  //   線1本だと「掴んでいる」ようには見えない（ユーザー 2026-09-22）
+  tentacle(ctx, f, k) {
+    const x0 = f.x1, y0 = f.y1, x1 = f.e.x, y1 = f.e.y;
+    const dx = x1 - x0, dy = y1 - y0;
+    const L = Math.hypot(dx, dy) || 1;
+    const nx = -dy / L, ny = dx / L;        // 腕に垂直な向き
+    const N = 12;
+    const amp = Math.min(26, L * 0.16) * (1 - k * 0.55);   // 掴んだ直後ほど大きくうねる
+    const ptx = [], pty = [], wid = [];
+    for (let i = 0; i <= N; i++) {
+      const t = i / N;
+      // 端は動かさない（砲身と敵から離れると、掴んでいるように見えない）
+      const sway = Math.sin(t * 5.2 + f.ph + k * 7) * amp * Math.sin(t * Math.PI);
+      ptx[i] = x0 + dx * t + nx * sway;
+      pty[i] = y0 + dy * t + ny * sway;
+      wid[i] = (7.5 * (1 - t * 0.82)) * (1 - k * 0.3);     // 根元 7.5px → 先 1.4px
+    }
+    // 片側を往き、もう片側を戻って閉じる＝先細りの帯
+    ctx.beginPath();
+    for (let i = 0; i <= N; i++) {
+      const i0 = Math.max(0, i - 1), i1 = Math.min(N, i + 1);
+      const tx = ptx[i1] - ptx[i0], ty = pty[i1] - pty[i0];
+      const m = Math.hypot(tx, ty) || 1;
+      const ox = -ty / m * wid[i], oy = tx / m * wid[i];
+      i ? ctx.lineTo(ptx[i] + ox, pty[i] + oy) : ctx.moveTo(ptx[i] + ox, pty[i] + oy);
+    }
+    for (let i = N; i >= 0; i--) {
+      const i0 = Math.max(0, i - 1), i1 = Math.min(N, i + 1);
+      const tx = ptx[i1] - ptx[i0], ty = pty[i1] - pty[i0];
+      const m = Math.hypot(tx, ty) || 1;
+      ctx.lineTo(ptx[i] + ty / m * wid[i], pty[i] - tx / m * wid[i]);
+    }
+    ctx.closePath();
+    ctx.globalAlpha = (1 - k) * 0.92;
+    ctx.fillStyle = f.color; ctx.fill();
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 1; ctx.stroke();
+    // 吸盤。根元寄りの太いところにだけ。**腕であることは、ここで決まる**
+    ctx.globalAlpha = (1 - k) * 0.7;
+    ctx.fillStyle = '#ffd0f2';
+    for (let i = 1; i < N - 2; i += 2) {
+      ctx.beginPath();
+      ctx.arc(ptx[i], pty[i], Math.max(0.8, wid[i] * 0.34), 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // 先端は敵に巻き付く
+    ctx.globalAlpha = (1 - k) * 0.85;
+    ctx.strokeStyle = f.color; ctx.lineWidth = 2.2;
+    ctx.beginPath(); ctx.arc(x1, y1, (f.e.r || 8) + 3, f.ph, f.ph + 4.4); ctx.stroke();
+    ctx.globalAlpha = 1;
+  },
+
+  // 凍結装置の冷気。**輪1本では「冷気を放った」ようには見えない。**
+  //   広がる霜の輪＋外へ散る氷の結晶＋内側の冷たい膜（ユーザー 2026-09-22）
+  frostWave(ctx, f, k) {
+    const R = f.r * (0.25 + k * 0.85);
+    ctx.globalAlpha = (1 - k) * 0.20;
+    ctx.fillStyle = f.color;
+    ctx.beginPath(); ctx.arc(f.x, f.y, R, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = (1 - k) * 0.8;
+    ctx.strokeStyle = f.color; ctx.lineWidth = 2.5 * (1 - k) + 0.8;
+    ctx.beginPath(); ctx.arc(f.x, f.y, R, 0, Math.PI * 2); ctx.stroke();
+    // 結晶。**六条の針**にして、氷だと分かるようにする
+    ctx.globalAlpha = (1 - k) * 0.85;
+    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const a = f.ph + i * 0.6283 + k * 0.5;
+      const rr = R * (0.72 + (i % 3) * 0.1);
+      const cx = f.x + Math.cos(a) * rr, cy = f.y + Math.sin(a) * rr;
+      const sz = 5 * (1 - k) + 1.5;
+      for (let j = 0; j < 3; j++) {          // 3本の線＝六条
+        const b = a + j * 1.047;
+        ctx.moveTo(cx - Math.cos(b) * sz, cy - Math.sin(b) * sz);
+        ctx.lineTo(cx + Math.cos(b) * sz, cy + Math.sin(b) * sz);
+      }
+    }
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  },
+
   zoneLegend(ctx, st) {
     if (!st || !st.vec || !st.vec.hexes.some(h => h.zone)) return;
     const rows = [
@@ -615,20 +699,24 @@ const Render = {
       const c = u.def.color;
       const sel = UI.selected === u;
 
-      // --- 台座。回らない。機械が据え付けてある、という土台 ---
+      // --- 台座。**占めているマスぜんぶを踏む。**（2026-09-22）
+      //   武器ごとに要る広さが違うので（weapons.js の foot）、
+      //   六角の座を1つ描くだけだと「2マス使っているのに1マスに見える」。
+      //   **踏んでいる面をそのまま見せる**のが、置き場所を選ぶための情報になる
+      const tiles = Game.tilesOf(u);
       ctx.save();
-      ctx.translate(u.x, u.y);
       ctx.shadowColor = c; ctx.shadowBlur = sel ? 16 : 7;
       ctx.fillStyle = '#0c0e13';
       ctx.strokeStyle = sel ? '#ffffff' : c;
       ctx.lineWidth = sel ? 2.4 : 1.5;
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {                  // 六角の座
-        const a = Math.PI / 6 + i * Math.PI / 3;
-        const x = Math.cos(a) * 12, y = Math.sin(a) * 12;
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      const pad = 3, rr = 6;
+      for (const t of tiles) {
+        const x = t.c * TILE + pad, y = t.r * TILE + pad, w = TILE - pad * 2, h = TILE - pad * 2;
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(x, y, w, h, rr);
+        else ctx.rect(x, y, w, h);
+        ctx.fill(); ctx.stroke();
       }
-      ctx.closePath(); ctx.fill(); ctx.stroke();
       ctx.restore();
 
       // --- 砲塔 ---
@@ -637,6 +725,9 @@ const Render = {
       ctx.rotate(u.angle);
       // 撃った瞬間に後ろへ下がる。**動いて見えるのはこれだけで足りる**
       if (u.muzzle > 0) ctx.translate(-u.muzzle * 26, 0);
+      // 2マス使う武器は砲塔も大きく描く（同じ大きさだと広さが嘘になる）
+      const sc = tiles.length >= 2 ? 1.25 : 1;
+      if (sc !== 1) ctx.scale(sc, sc);
       this.turret(ctx, u, c);
       ctx.restore();
 
@@ -945,6 +1036,20 @@ const Render = {
         ctx.strokeStyle = 'rgba(200,90,176,0.9)'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 4, 0, Math.PI * 2); ctx.stroke();
       }
+      // 凍っている敵。**色を変えるだけだと「凍った」とは読めない**ので氷の棘を生やす
+      //   （ユーザー 2026-09-22「武器と実際のデザイン面の矛盾を解消して」）
+      //   4本だけ。敵は同時に100体を超えるので、1体あたりを増やさない
+      if (e.chill > 0) {
+        ctx.strokeStyle = 'rgba(210,244,255,0.9)'; ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        for (let i = 0; i < 4; i++) {
+          const a = i * 1.5708 + (e.r % 1);
+          const cx = Math.cos(a), cy = Math.sin(a);
+          ctx.moveTo(e.x + cx * e.r * 0.5, e.y + cy * e.r * 0.5);
+          ctx.lineTo(e.x + cx * (e.r + 4), e.y + cy * (e.r + 4));
+        }
+        ctx.stroke();
+      }
       if (e.hp < e.maxHp) {
         const bw = e.r * 2.2, bh = 2.5;
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -969,12 +1074,38 @@ const Render = {
     for (const g of groups.values()) g.n = 0;
     for (const b of run.bullets) {
       if (b.bubble || b.lob) {
+        // **「降らせる」武器は、高さを見せないと降っていることが分からない。**
+        //   （ユーザー 2026-09-22「武器と実際のデザイン面の矛盾を解消して」）
+        //   前は平らな丸を1つ置いていただけで、地を這っているのと区別が付かなかった。
+        //   撃った点 (ox,oy) と着弾点 (landX,landY) から進み具合を出し、
+        //   **影は地面に置いたまま、弾だけを持ち上げる。**
+        //   影と弾が離れているほど高い ＝ 山なりに飛んでいるのが読める
+        let h = 0, k = 0;
+        if (b.lob && b.landX !== undefined) {
+          const tot = Math.hypot(b.landX - b.ox, b.landY - b.oy) || 1;
+          k = Util.clamp(Math.hypot(b.x - b.ox, b.y - b.oy) / tot, 0, 1);
+          h = Math.sin(k * Math.PI) * Math.min(46, tot * 0.28);
+        }
+        if (h > 1) {                       // 地面の影。落ちるほど小さく濃くなる
+          ctx.globalAlpha = 0.16 + 0.22 * (1 - Math.sin(k * Math.PI));
+          ctx.fillStyle = '#000000';
+          ctx.beginPath();
+          ctx.ellipse(b.x, b.y, b.r * 1.15, b.r * 0.5, 0, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        const by = b.y - h;
+        const br = b.r * (1 + h / 90);     // 高いほど大きく＝こちらに近い
         ctx.fillStyle = b.color;
         ctx.globalAlpha = b.bubble ? 0.4 : 0.9;
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(b.x, by, br, 0, Math.PI * 2); ctx.fill();
         ctx.globalAlpha = 1;
         ctx.strokeStyle = b.color; ctx.lineWidth = 1.5;
-        ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath(); ctx.arc(b.x, by, br, 0, Math.PI * 2); ctx.stroke();
+        if (b.bubble) {                    // 泡らしく、光の点を1つ
+          ctx.globalAlpha = 0.75; ctx.fillStyle = '#ffffff';
+          ctx.beginPath(); ctx.arc(b.x - br * 0.3, by - br * 0.35, br * 0.22, 0, Math.PI * 2); ctx.fill();
+          ctx.globalAlpha = 1;
+        }
         continue;
       }
       if (b.spin) {    // 手裏剣
@@ -1053,6 +1184,12 @@ const Render = {
         ctx.beginPath();
         ctx.arc(f.x, f.y, f.r * 0.92, f.a - f.arc, f.a + f.arc);
         ctx.stroke();
+      } else if (f.type === 'tentacle') {
+        // **「掴んで引き戻す」武器が、ただの線だった。**（ユーザー 2026-09-22）
+        //   根元が太く先が細い、うねった腕として描く。吸盤も付ける
+        if (f.e && !f.e.dead) this.tentacle(ctx, f, k);
+      } else if (f.type === 'frost') {
+        this.frostWave(ctx, f, k);
       } else if (f.type === 'link') {
         if (f.e && !f.e.dead) {
           ctx.globalAlpha = (1 - k) * 0.9;

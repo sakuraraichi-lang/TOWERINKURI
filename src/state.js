@@ -451,6 +451,46 @@ const Game = {
 
   slotsUsed() { return this.run ? this.run.units.length : 0; },
 
+  // ---------- 設置マス（weapons.js の foot）----------
+  //
+  //   **武器ごとに要る広さが違う。**（ユーザー 2026-09-22）
+  //   回さない（形は固定）。強い武器ほど広いので、置ける場所が限られる
+
+  // その武器を (c,r) に置いたとき、実際に埋まるマス
+  footTiles(def, c, r) {
+    const f = (def && def.foot) || [[0, 0]];
+    const out = [];
+    for (const [dc, dr] of f) out.push({ c: c + dc, r: r + dr });
+    return out;
+  },
+
+  // そのユニットがいま埋めているマス
+  tilesOf(u) { return this.footTiles(u.def, u.c, u.r); },
+
+  // (c,r) を基準にその武器を置けるか。**全部のマスが地面で、空いていること**
+  canPlaceAt(def, c, r, ignore) {
+    const run = this.run;
+    if (!run) return false;
+    const taken = {};
+    for (const o of run.units) {
+      if (o === ignore) continue;
+      for (const t of this.tilesOf(o)) taken[t.c + ',' + t.r] = 1;
+    }
+    for (const t of this.footTiles(def, c, r)) {
+      if (!run.stage.buildable(t.c, t.r)) return false;
+      if (taken[t.c + ',' + t.r]) return false;
+    }
+    return true;
+  },
+
+  // 見た目の中心（広い武器は、埋めたマスの真ん中に描く・撃つ）
+  footCenter(st, def, c, r) {
+    const ts = this.footTiles(def, c, r);
+    let sx = 0, sy = 0;
+    for (const t of ts) { const p = st.center(t.c, t.r); sx += p.x; sy += p.y; }
+    return { x: sx / ts.length, y: sy / ts.length };
+  },
+
   // その武器を何基まで置けるか。**盤の総数とは別の縛り。**
   //   1種類だけで盤を埋めると編成の意味が消えるので、種類ごとにも天井を置く
   unitCap(weaponId) {
@@ -490,13 +530,12 @@ const Game = {
   placeUnit(weaponId, c, r) {
     const run = this.run;
     if (!run || !this.canBuild()) return null;
-    if (!run.stage.buildable(c, r)) return null;
-    if (run.units.some(u => u.c === c && u.r === r)) return null;
+    if (!this.canPlaceAt(WEAPONS[weaponId], c, r)) return null;
     if (this.unitCount(weaponId) >= this.unitCap(weaponId)) return null;
     if (this.slotsUsed() >= this.slotsTotal()) return null;      // 盤全体の枠
 
     const def = WEAPONS[weaponId];
-    const pos = run.stage.center(c, r);
+    const pos = this.footCenter(run.stage, def, c, r);
     const u = {
       id: weaponId, def, s: Object.assign({}, def.base), flags: {}, dyn: { heat: 0 }, n: 1,
       c, r, x: pos.x, y: pos.y,
@@ -517,9 +556,8 @@ const Game = {
   moveUnit(u, c, r) {
     const run = this.run;
     if (!run || !this.canBuild()) return false;
-    if (!run.stage.buildable(c, r)) return false;
-    if (run.units.some(o => o !== u && o.c === c && o.r === r)) return false;
-    const pos = run.stage.center(c, r);
+    if (!this.canPlaceAt(u.def, c, r, u)) return false;
+    const pos = this.footCenter(run.stage, u.def, c, r);
     u.c = c; u.r = r; u.x = pos.x; u.y = pos.y;
     this.syncPlacements();
     return true;
@@ -648,14 +686,21 @@ const Game = {
     const taken = {};
     for (const p of saved) {
       if (!WEAPONS[p.w] || allowed.indexOf(p.w) < 0) continue;
-      if (!run.stage.buildable(p.c, p.r)) continue;
-      const key = p.c + ',' + p.r;
-      if (taken[key]) continue;
+      const def0 = WEAPONS[p.w];
+      // **設置マスぶん全部が空いていること。**（2026-09-22）
+      //   武器ごとに広さが違うので、1マスだけ見ていると重なって置けてしまう
+      const ts = this.footTiles(def0, p.c, p.r);
+      let ok = true;
+      for (const t of ts) {
+        if (!run.stage.buildable(t.c, t.r) || taken[t.c + ',' + t.r]) { ok = false; break; }
+      }
+      if (!ok) continue;
       used[p.w] = (used[p.w] || 0) + 1;
       if (used[p.w] > this.unitCap(p.w)) continue;
-      taken[key] = 1;
-      const def = WEAPONS[p.w];
-      const pos = run.stage.center(p.c, p.r);
+      if (run.units.length >= this.slotsTotal()) continue;
+      for (const t of ts) taken[t.c + ',' + t.r] = 1;
+      const def = def0;
+      const pos = this.footCenter(run.stage, def, p.c, p.r);
       run.units.push({
         id: p.w, def, s: Object.assign({}, def.base), flags: {}, dyn: { heat: 0 }, n: 1,
         c: p.c, r: p.r, x: pos.x, y: pos.y,

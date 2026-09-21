@@ -694,16 +694,22 @@ function replaceUnits(run) {
   for (const wid of want) {
     const s0 = statOf(wid);
     const field = heatField(st, s0.range, s0.arc, run.traffic);
-    let pick = null;
-    for (const f of field) {
-      if (taken[f.c + ',' + f.r]) continue;
-      if (far(f.c, f.r, 5)) { pick = f; break; }
-      if (!pick) pick = f;
+    // **武器ごとに要るマスが違う**（weapons.js の foot）ので、
+    //   1か所だけ見て諦めると置けない。**置けるまで候補を順に試す。**
+    //   ここを1か所で打ち切っていたせいで、2×2の武器がほぼ置けず、
+    //   通しが 2→5→9→4→4→4 と崩れた（実測 2026-09-22）
+    const def = WEAPONS[wid];
+    let u = null, pick = null;
+    // まず「離れていて良い場所」、無ければ順に
+    const order = field.filter(f => !taken[f.c + ',' + f.r]);
+    const spaced = order.filter(f => far(f.c, f.r, 5));
+    for (const f of spaced.concat(order)) {
+      if (!Game.canPlaceAt(def, f.c, f.r)) continue;
+      u = Game.placeUnit(wid, f.c, f.r);
+      if (u) { pick = f; break; }
     }
-    if (!pick) continue;
-    const u = Game.placeUnit(wid, pick.c, pick.r);
     if (!u) continue;
-    taken[pick.c + ',' + pick.r] = 1;
+    for (const t of Game.tilesOf(u)) taken[t.c + ',' + t.r] = 1;
     Game.aimUnit(u, pick.a);
     applyArc(u, st);
   }
@@ -749,9 +755,11 @@ function autoPlaceHug(run) {
     const idx = Math.min(cand.length - 1, Math.floor(cand.length * (i + 0.5) / want.length));
     for (let k = 0; k < cand.length; k++) {
       const t = cand[(idx + k) % cand.length];
-      const key = t.c + ',' + t.r;
-      if (taken[key]) continue;
-      if (Game.placeUnit(wid, t.c, t.r)) taken[key] = 1;
+      if (taken[t.c + ',' + t.r]) continue;
+      if (!Game.canPlaceAt(WEAPONS[wid], t.c, t.r)) continue;
+      const u = Game.placeUnit(wid, t.c, t.r);
+      if (!u) continue;
+      for (const q of Game.tilesOf(u)) taken[q.c + ',' + q.r] = 1;
       break;
     }
   });
@@ -797,17 +805,21 @@ function autoPlaceRange(run) {
   for (const wid of want) {
     const s0 = statOf(wid);
     const field = aimField(st, s0.range, s0.arc);
-    // まず「味方と離れた良い点」、無ければ空いている最良点
-    let pick = null;
-    for (const f of field) {
-      if (taken[f.c + ',' + f.r]) continue;
-      if (far(f.c, f.r, 5)) { pick = f; break; }
-      if (!pick) pick = f;
+    // まず「味方と離れた良い点」、無ければ空いている最良点。
+    // **置けるまで次の候補へ進む。**（2026-09-22）
+    //   武器ごとに要るマス数が違うので、最良点1つを試して駄目なら諦める、だと
+    //   縦2・横2の武器がほとんど置けず、通しが `2→5→9→4→4→4` に崩れた。
+    //   プレイヤーは「入らなかったら隣に置く」ので、測定器もそうする
+    const def = WEAPONS[wid];
+    const open = field.filter(f => !taken[f.c + ',' + f.r]);
+    let u = null, pick = null;
+    for (const f of open.filter(f => far(f.c, f.r, 5)).concat(open)) {
+      if (!Game.canPlaceAt(def, f.c, f.r)) continue;
+      u = Game.placeUnit(wid, f.c, f.r);
+      if (u) { pick = f; break; }
     }
-    if (!pick) continue;
-    const u = Game.placeUnit(wid, pick.c, pick.r);
     if (!u) continue;
-    taken[pick.c + ',' + pick.r] = 1;
+    for (const t of Game.tilesOf(u)) taken[t.c + ',' + t.r] = 1;
     Game.aimUnit(u, pick.a);
     applyArc(u, st);
   }
