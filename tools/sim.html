@@ -89,12 +89,35 @@ const WEAPON_AT = [
   [2, 'sniper'], [5, 'missile'], [8, 'tesla'],
   [11, 'flame'], [14, 'gas'], [17, 'cryo'], [20, 'mortar'],
 ];
+// **パックから出る武器（刀・手裏剣・触手・泡）を編成に入れるか。**
+//   これまで入れていなかった。`openAllPacks()` で手には入っているのに、
+//   `loadoutFor` がステージ報酬の武器しか並べていなかったため、
+//   **12種で一番強い刀（単独 dps 68／次点は41）が一度も編成されていなかった。**
+//   本物のプレイヤーは持っていれば使うので、測定だけが弱い編成で走っていたことになる。
+//   false にすると以前と同じ（比較用）
+let USE_PACK_WEAPONS = true;
+
+// 強い順。**第10章・単独編成・3シードの実測**（docs/DESIGN-CORE-2026-09-21.md §7）。
+//   「新しい順」だと、章が進むだけで弱い武器に持ち替えてしまう。
+//   人は持っている中から強いものを選ぶので、そちらに寄せる。
+//   **連携（syn_*）は見ていない。**ここは単体の強さだけの代理指標
+const WEAPON_RANK = ['katana', 'shuriken', 'sniper', 'cryo', 'mortar', 'tesla',
+                     'gas', 'gatling', 'flame', 'bubble', 'missile', 'tentacle'];
+
 function loadoutFor(stageId) {
   const i = MAIN_STAGES.findIndex(s => s.id === stageId);
   const ch = i < 0 ? 1 : i + 1;
   const have = WEAPON_START.concat(WEAPON_AT.filter(w => ch > w[0]).map(w => w[1]));
-  // 編成枠は4。**新しいものを優先する**（古い武器は章が進むと相対的に弱くなるため）
-  return have.slice(-BAL.loadoutSlots);
+  if (USE_PACK_WEAPONS) {
+    // パック産は「持っているか」で決まる（章ではなく引き）
+    for (const id of Object.keys(WEAPONS)) {
+      if (WEAPONS[id].src !== 'pack') continue;
+      if (Game.own('wc_' + id) && !have.includes(id)) have.push(id);
+    }
+  }
+  // 編成枠は4。**強い順に取る**（実測の順位。持っていないものは飛ばす）
+  const rank = (w) => { const r = WEAPON_RANK.indexOf(w); return r < 0 ? 99 : r; };
+  return have.slice().sort((a, b) => rank(a) - rank(b)).slice(0, BAL.loadoutSlots);
 }
 const LOADOUTS = new Proxy({}, { get: (_, k) => loadoutFor(String(k)) });
 
