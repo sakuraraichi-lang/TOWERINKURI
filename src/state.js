@@ -679,6 +679,7 @@ const Game = {
     run.wave = 1;
     run.cards = {};
     run._rkAcc = {};   // 積んだ枚数を戻すので、繰り越しも戻す
+    Combat.coinFx = 0; // 前の出撃の残りでコインが飛ばなくなるのを防ぐ
     run.pendingPicks = 0;
     this.phase = 'battle';
     this.stageRec(run.stageId).attempts++;
