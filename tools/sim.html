@@ -432,12 +432,21 @@ async function cardScanAsync(opts) {
   };
   const med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
 
-  const base = {};                          // 編成ごとの「何も引かない」dps
+  // **深い章で測るための元手と土台。**（2026-09-22）
+  //   これが無いと、開いていない章が黙って第1章に差し替えられていた
+  //   （0921u のカードの表は、第10章と書いてあるが実際は第1章の数字だった）
+  const deep = opts.deep || { prestiges: 2, deepest: 10 };
+  const coins = opts.coins || 1e9;
+  const base = {};                          // 編成ごとの「何も引かない」与ダメージ
   const dpsOf = (lo, pre) => {
     const out = [];
     for (const sd of seeds) {
       seedRng(sd); Game.newSave();
-      out.push(runStage(stage, lo, buys, { noDraft: true, preCards: pre }).dpsAvg);
+      const r = runStage(stage, lo, buys, { noDraft: true, preCards: pre,
+                                            coins: coins, deep: deep, lives: 100000 });
+      // **1ウェーブあたりの与ダメージ。** 通しの平均だと、長く生き残った側が
+      //   薄まって不利になる（ライフを厚くして必ず5ウェーブ回すのと対）
+      out.push(r.waves.reduce((a, x) => a + x.dps * x.sec, 0) / Math.max(1, r.waves.length));
     }
     return med(out);
   };
