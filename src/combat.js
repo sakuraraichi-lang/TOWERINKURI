@@ -144,11 +144,18 @@ const Combat = {
     run.spawnPick = 0;
   },
 
-  // 湧き終わるまでの秒数を、そのウェーブの敵の数で割る。
-  // **敵が何体でも、湧きにかかる時間は一定**になる
+  // そのウェーブが湧き切るまでの秒数。
+  //   **下限は spawnSeconds、そこから先は「1秒あたり spawnRateMax 体」で伸びる。**
+  //   数が少ないうちは一定時間、増えてきたら出し切るのに時間がかかる、という形。
+  //   測定器も同じ式を使うので、ここを直せば両方が揃う
+  spawnSecFor(n) {
+    const c = Math.max(1, n);
+    return Math.max(BAL.spawnSeconds, c / Math.max(0.1, BAL.spawnRateMax));
+  },
+
   spawnInterval(run) {
     const n = Math.max(1, run.waveTotal || this.waveCount(run));
-    return Math.max(BAL.spawnIntervalMin, BAL.spawnSeconds / n);
+    return Math.max(BAL.spawnIntervalMin, this.spawnSecFor(n) / n);
   },
 
   pickType(g) {

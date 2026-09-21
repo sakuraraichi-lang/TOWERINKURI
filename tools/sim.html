@@ -696,7 +696,8 @@ function runStageInner(stageId, loadout, buys, opts) {
     // 上限に当たっていなければ何体だったか。当たると敵の増加がHPだけになる
     const nRaw = Math.floor((BAL.waveCountBase + g * BAL.waveCountPerWave) * run.mods.spawn);
     // 湧き切るまでに必ずかかる時間。ウェーブの長さのうち、これは戦闘ではなく待ち時間
-    const spawnSec = n * Math.max(BAL.spawnIntervalMin, BAL.spawnSeconds / Math.max(1, n));
+    // **本体と同じ式を使う。** ここに式を写すと必ず片方だけ古くなる
+    const spawnSec = Combat.spawnSecFor(n);
     const sec = (t - wT) / 60;
     const dealt = run.dealt - wDealt;
     const coins = Game.meta.coins - wCoins;
