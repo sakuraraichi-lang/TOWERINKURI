@@ -84,11 +84,19 @@ const Relic = {
       //   初回転生で遺物パックを36個＝108枚配るので、ライフ関係だけで +80 を超える。
       //   ツリーから「防衛線」を外した意味が消えるうえ、
       //   「配られる枚数に気を配れ」（ユーザー 2026-09-21）にも反する
-      const cap = (v) => Math.min(c.cap !== undefined ? c.cap : Infinity, v);
-      if (c.mode === 'add') add[c.key] += cap(c.eff * n);
-      else if (c.key === 'lives') lives += cap(c.eff * n);
-      else if (c.key === 'seed') seed += cap(c.eff * n);
-      else if (c.key === 'startLv') startLv += cap(c.eff * n);
+      // **上限は転生回数で開いていく。**（2026-09-21）
+      //   固定の上限だと、初回転生の配布だけで全部埋まって
+      //   2周目以降に集める意味が消える（実測：99枚で到達、以降576枚が無駄）
+      //   **開くのは倍率もの（ダメージ・コイン・レート）だけ。**
+      //   ライフ・初動資金・初期投資は固定の上限のまま。
+      //   とくにライフは「HPを鍛えるのはノーサンキュー、せめてカードで固定値上昇」
+      //   （ユーザー 2026-09-21）なので、恒久層で伸ばし続けない
+      const capMul = 1 + 0.6 * (perm.prestiges || 0);
+      const capOf = (grow) => (c.cap !== undefined ? c.cap : Infinity) * (grow ? capMul : 1);
+      if (c.mode === 'add') add[c.key] += Math.min(capOf(true), c.eff * n);
+      else if (c.key === 'lives') lives += Math.min(capOf(false), c.eff * n);
+      else if (c.key === 'seed') seed += Math.min(capOf(false), c.eff * n);
+      else if (c.key === 'startLv') startLv += Math.min(capOf(false), c.eff * n);
     }
 
     // **土台 × 遺物。** 土台が桁を作り、遺物が色を付ける
