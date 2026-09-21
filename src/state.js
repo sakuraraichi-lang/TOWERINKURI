@@ -762,7 +762,25 @@ const Game = {
     Combat.coinFx = 0; // 前の出撃の残りでコインが飛ばなくなるのを防ぐ
     run.pendingPicks = 0;
     this.phase = 'battle';
-    this.stageRec(run.stageId).attempts++;
+    const rec0 = this.stageRec(run.stageId);
+    rec0.attempts++;
+    // **同じ章で何度も落ちたら、その章の地形を引き直す。**（2026-09-22）
+    //   生成マップだと、どうしても手に負えない地形を引くことがある。
+    //   検査を厳しくすれば減るが、こんどは候補がほとんど通らず手書きマップに落ちる
+    //   （実測：厳しくすると20種のうち11種が生成できない）。
+    //   **弾く側で完璧を目指すより、詰んだら引き直せるほうが確実。**
+    //   突破済みの章は対象外（踏んだ地形は変えない）。
+    //   出撃のたびに見るので、測定器でもゲーム本体でも同じように効く
+    if (!rec0.cleared && rec0.attempts > BAL.rerollAfterFails) {
+      const rolls = this.perm.mapRoll || (this.perm.mapRoll = {});
+      if (rolls[run.stageId] !== undefined) {
+        rolls[run.stageId] += 101;                 // 別の引きにする
+        rec0.attempts = 0;
+        if (typeof Stage !== 'undefined' && Stage.invalidate) Stage.invalidate();
+        this.startPrep(run.stageId);               // 新しい地形で組み直す
+        return this.beginBattle();
+      }
+    }
     this.perm.totalRuns++;
     Combat.startWave(run);
     this.save();

@@ -696,7 +696,19 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 .tpoints b{font-size:19px;font-weight:900;color:var(--gold);font-variant-numeric:tabular-nums;}
 
 /* タブを開いているあいだは、的を一行に畳んでパネルに場所を譲る */
-body:not(.tabsoff) #homeMain{flex:0 0 auto;}
+/* **タブを開いているあいだは、章カルーセルと出撃を畳む。**
+   （ユーザー 2026-09-22「下部のバーを触ると表示される章と出撃を消して」）
+   スキルツリーの購入ボタンが画面の外に出ていたのを、縦を空けて直す */
+body:not(.tabsoff) #homeMain{display:none;}
+body:not(.tabsoff) .startrow{display:none;}
+body:not(.tabsoff) #buildNote{display:none;}
+/* 空いた左上に「ホームへ戻る」を出し、RANK と指揮官を引っ込める */
+.pbackbtn{display:none;}
+body:not(.tabsoff) .pbackbtn{display:block;flex:0 0 auto;padding:9px 13px;border-radius:10px;
+  background:#1b2130;color:var(--ink);border:1px solid #2c3446;font-size:13px;font-weight:700;}
+body:not(.tabsoff) .pbackbtn:active{background:#232b3d;}
+body:not(.tabsoff) .lvring,
+body:not(.tabsoff) .hid{display:none;}
 body:not(.tabsoff) .scard{flex-direction:row;align-items:center;gap:10px;justify-content:flex-start;}
 body:not(.tabsoff) .heroart{width:44px;flex:0 0 44px;}
 body:not(.tabsoff) .heroart::before,
@@ -762,7 +774,11 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 #panel.treemode .warn{flex:0 0 auto;}
 /* 取り切り型にして枝が3段→7段になったので、見える高さを増やす。
    120pxのままだと1段ぶんしか映らなかった（2026-09-21 実測 中身650px） */
-#panel.treemode #tree{flex:1 1 auto;min-height:240px;overflow:auto;margin-bottom:0;}
+/* **min-height を 240px から下げた。**（ユーザー 2026-09-22「購入ボタンが見えません」）
+   panel が overflow:hidden の縦並びなので、ツリーが 240px を主張すると
+   その下の詳細＋購入ボタン（.tfoot）が画面の外へ押し出されていた。
+   0 にしておけば、縦が足りないときはツリー側が縮んで購入ボタンが残る */
+#panel.treemode #tree{flex:1 1 auto;min-height:0;overflow:auto;margin-bottom:0;}
 #panel.treemode .tfoot{flex:0 0 auto;padding-bottom:calc(10px + var(--safe-b));
   background:var(--panel);border-top:1px solid var(--line);margin:0 -10px;padding-left:10px;padding-right:10px;}
 #panel.treemode .tdetail{margin-top:10px;}

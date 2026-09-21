@@ -60,6 +60,14 @@ const UI = {
 
     if (this.el.homeSkip) this.el.homeSkip.addEventListener('click', () => Main.doSkip());
 
+    // 左上の「ホームへ戻る」。タブを閉じて、章と出撃を戻す
+    const back = document.getElementById('btnPanelBack');
+    if (back) back.addEventListener('click', () => {
+      Snd.resume(); Snd.ui();
+      this.tabsOff = true;
+      this.syncTabsOff(); this.renderTabs(); this.renderPanel();
+    });
+
     this.el.homePrev.addEventListener('click', () => this.movePick(-1));
     this.el.homeNext.addEventListener('click', () => this.movePick(1));
 

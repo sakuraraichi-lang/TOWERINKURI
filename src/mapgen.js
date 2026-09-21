@@ -38,8 +38,12 @@ const MapGen = {
   //   15×21 → 21×27（面積で1.8倍）。**画面に収まらないぶんは見渡せる**
   //   （Render.canPan と小地図が既にある）。
   //   手で書いた第1〜2章は 15×21 のまま（あそこは狭いほうが教えやすい）
-  COLS: 21,
-  ROWS: 27,
+  //   **【2026-09-22】21×27 から戻した。**
+  //   広げると画面に収まらず、指で見渡す必要が出る。
+  //   ユーザー「マップを動かすのはもう少し後にしましょう」。
+  //   **盤は1画面に収まる大きさに保つ。**広げるのは、見渡す仕組みを入れてから
+  COLS: 15,
+  ROWS: 21,
 
   // ---- 種から作る乱数（同じ種なら必ず同じマップ）----
   //   章ごとに違い、転生で作り直せるように、種は「盤面の種 × 章」で決める
@@ -278,6 +282,14 @@ const MapGen = {
   ZONE: { none: 0, mud: 1, slope: 2 },
 
   tagZones(hexes, rnd, d) {
+    // **いったん切ってある。**（ユーザー 2026-09-22）
+    //   > 「ハニカムマップに緑やピンクの謎のマス目がありますが、
+    //   >   装飾なら混乱を招くため一旦やめておきましょう」
+    //   装飾ではなく仕掛け（泥＝敵が遅くなる／坂＝速くなる）だったが、
+    //   **見て意味が分からない時点で仕掛けとして成立していない。**
+    //   凡例を出すなど「何のマスか」が伝わる形にしてから戻す。
+    //   BAL.zoneOn を true にすれば、そのまま復活する
+    if (!BAL.zoneOn) return hexes;
     // 出入口とコアの近くには置かない（置いた瞬間に詰む形を避ける）
     const n = hexes.length;
     const mudN = Math.round(n * (0.16 - 0.10 * d));     // 序盤ほど泥が多い
@@ -470,7 +482,9 @@ const MapGen = {
       //   旧マップの平均幅 3.6〜5.6タイルは枝分かれした網全体の平均であって、
       //   1本の太い管の幅ではなかった。経由点を入れて経路が長くなったので、
       //   2.3〜3.5タイルでも通路の総量は足りる
-      //   幅：序盤は細く（覆いやすい）、終盤は広く（覆いにくい）
+      //   幅：序盤は細く（覆いやすい）、終盤は広く（覆いにくい）。
+      //   （第1〜2章だけ細く作る案は外した。こんどは通路の量が下限を割って、
+      //     かえって作り直しが増えた：手書き落ち 5/16 → 11/20）
       const base = (74 + rnd() * 34) + d * 46;
       const wMul = parts.reduce((a, p) => a + this.PARTS[p].w, 0) / parts.length;
       const raw = this.path(rnd, { x: sx, y: sy }, side.ang, wps.concat([core]), parts, W, H);
@@ -530,11 +544,18 @@ const MapGen = {
       //   91分〜125分まで散っていた。帯に収めて振れを縮める
       // **通路の量は盤の広さに比例させる。** 帯は 15×21 の盤で決めた値なので、
       //   盤を広げたらそのぶん伸ばさないと、序盤の2割が作れなくなる（実測 13/60 が失敗）
+      // **最初の2章だけ、さらに厳しく見る。**（2026-09-22）
+      //   第1〜2章はガトリング1種・設置6基でできることがほとんど無い。
+      //   ふつうの帯で通すと、**20種のうち4種が10回挑戦しても突破できなかった**
+      //   （しかも2章に届かないと転生もできないので、そこで詰む）。
+      //   口は1つだけ、通路は細め、経路は長め、に絞る
       ok: lens.length === spawns.length && lens.length > 0
           && Math.min.apply(null, lens) >= BAL.minRouteLen + Math.round(10 * (1 - dd))
-          && road >= Math.round((52 + 70 * dd) * area)
+          && road >= Math.round((dd < 0.08 ? BAL.earlyRoadMin : (52 + 70 * dd)) * area)
           && road <= Math.round((88 + 140 * dd) * area)
-          && ground >= 40,
+          && ground >= 40
+          && (dd >= 0.08 || (road <= Math.round(BAL.earlyRoadMax * area)
+                             && Math.min.apply(null, lens) >= BAL.earlyRouteMin)),
       spawns: spawns.length, holes: spawns.length, lens, ground, road,
       shortest: lens.length ? Math.min.apply(null, lens) : 0,
     };
