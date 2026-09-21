@@ -46,6 +46,9 @@ const Game = {
       stages: { ch1: { cleared: false, perfect: false, bestWave: 0, attempts: 0 } },
       currentStage: 'ch1',
       placements: {},
+      // 章ごとに「何周目の引きを使ったか」。踏んだ章は変えず、
+      //   まだ届いていない章だけ転生で引き直すための記録（stages.js）
+      mapRoll: {},
       // 30章ぶんのマップを決める種（src/mapgen.js）。**転生のたびに作り直す。**
       //   （ユーザー決定 2026-09-21：「グリッドじゃなくて1000組み合わせで作れない？」
       //     「設置はタイルのまま」「配置は転生で消える」）
@@ -429,14 +432,31 @@ const Game = {
     return p[stageId];
   },
 
-  // その武器を何基まで置けるか
+  // **盤に置ける総数。**（2026-09-22・プレイヤー報告「置けすぎ」）
+  //
+  //   > 「今20基置いて30ステージまで楽勝になってしまってます、
+  //   >   現実的にはスキルでもっと大量に置けます、これはおかしいです」
+  //
+  //   **枠が「武器の種類ごと」だったのが原因。**編成は4種なので、
+  //   1つの節で +1 すると盤の上では +4 になる。上限まで取ると **52基**だった
+  //   （実測：stock3 + unitBonus1 + カテゴリ節4 + 共通節5 ＝ 13基 × 4種）。
+  //   種類ごとの上限をいくら刻んでも、4倍されるので効かない。
+  //
+  //   **盤全体の総数で持つ。** ここだけ見れば「何基置けるか」が決まる。
+  //   種類ごとの上限（unitCap）は「1種類で埋め尽くさせない」ためだけに残す
+  slotsTotal() {
+    return BAL.slotsBase + Skill.amount(this.meta, 'units');
+  },
+
+  slotsUsed() { return this.run ? this.run.units.length : 0; },
+
+  // その武器を何基まで置けるか。**盤の総数とは別の縛り。**
+  //   1種類だけで盤を埋めると編成の意味が消えるので、種類ごとにも天井を置く
   unitCap(weaponId) {
     const def = WEAPONS[weaponId];
     if (!def) return 0;
-    // 全武器共通の「増設基盤」と、カテゴリごとの設置数ノードの両方が効く
-    return def.stock + BAL.unitBonus
-         + Skill.amount(this.meta, 'units')
-         + Skill.unitBonusFor(this.meta, def.cat);
+    return Math.min(this.slotsTotal(),
+                    def.stock + BAL.unitBonus + Skill.unitBonusFor(this.meta, def.cat));
   },
 
   unitCount(weaponId) {
@@ -472,6 +492,7 @@ const Game = {
     if (!run.stage.buildable(c, r)) return null;
     if (run.units.some(u => u.c === c && u.r === r)) return null;
     if (this.unitCount(weaponId) >= this.unitCap(weaponId)) return null;
+    if (this.slotsUsed() >= this.slotsTotal()) return null;      // 盤全体の枠
 
     const def = WEAPONS[weaponId];
     const pos = run.stage.center(c, r);
@@ -827,13 +848,25 @@ const Game = {
     // deepest（到達した深さ）だけは戻さないので、パックの解放は保たれる
     this.perm.stages = {};
     this.perm.currentStage = 'ch1';
-    // **マップを作り直す。**（ユーザー決定 2026-09-21：「配置は転生で消える」）
-    //   30章ぶんの地形がまるごと入れ替わるので、置いたユニットの座標は意味を失う
-    if (this.perm.mapSeed) {
-      this.perm.mapSeed = (Math.random() * 0x7fffffff) >>> 0;
-      this.perm.placements = {};
-      if (typeof Stage !== 'undefined' && Stage.invalidate) Stage.invalidate();
+    // **配置だけ捨てる。地形は変えない。**（ユーザー決定「配置は転生で消える」）
+    //
+    //   最初は転生のたびに30章ぶんの地形を作り直していた。**そこまでは言われていない。**
+    //   しかも作り直すと**周が後退する**（実測：26章まで行った次の周が22章、
+    //   20章の次が16章）。前の周で凌いだ章が別の地形になるので、
+    //   積み上げたはずのものが返ってこない。
+    //   地形は1つのセーブの中でずっと同じにして、**配置だけ捨てる。**
+    //   別の遊びで別の地形になるのは mapSeed が違うから
+    this.perm.placements = {};
+    // **まだ届いていない章の地形だけ引き直す**（stages.js の mapRowsFor）。
+    //   踏んだ章（deepest より手前）は覚えた引きをそのまま使うので変わらない。
+    //   壁に当たった章は次の周で別の地形になる
+    const deep = this.perm.deepest || 0;
+    const rolls = this.perm.mapRoll || {};
+    for (const id of Object.keys(rolls)) {
+      const rec = STAGE_BY_ID[id];
+      if (rec && rec.idx >= deep) delete rolls[id];
     }
+    if (typeof Stage !== 'undefined' && Stage.invalidate) Stage.invalidate();
     this.run = null;
     this.phase = 'prep';
     const missions = this.checkMissions();

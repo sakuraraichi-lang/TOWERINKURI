@@ -57,9 +57,15 @@ const SKILLS = [
   //   カテゴリ別のノードと同じ時期に開くと、1つの武器が一度に +2 されて
   //   「1基ずつ増える」感触にならない（実測：第4章と第8章で両方が同時に開いた）。
   //   cost0 を大きく取って、開き始めを中盤以降にずらす
+  //   **盤に置ける総数を増やす、唯一の節。**（2026-09-22）
+  //   以前は「どの武器も +1」だったので、編成4種ぶん ＝ 盤の上では +4 になっていた。
+  //   いまは盤の総数（Game.slotsTotal）に +1。6基から始まって最大11基。
+  //   costG は 2,548 ＝ 収入の伸び（×4.8/章）で **1段あけるのに約5章**
+  //   （ユーザー「1基増やしたら次増やすコストめちゃくちゃ跳ね上がって、
+  //     実質5章後ぐらいにしか取れないとかさ」）
   { id: 'units', name: '増設基盤', icon: '⛁', group: '拠点',
-    eff: 1, mode: 'add', tmpl: 'どの武器も設置できる数が +{e} 基',
-    cost0: 5e8, costG: 12200, max: 5, unlock: 1 },
+    eff: 1, mode: 'add', tmpl: '盤に置ける数が +{e} 基（全体）',
+    cost0: 3e4, costG: 2548, max: 5, unlock: 1 },
   // 拠点の枝は「防衛線」を外したぶん浅いので、**HP以外**で深くする
   { id: 'turn', name: '旋回機構', icon: '⛁', group: '拠点',
     eff: 1.08, mode: 'mul', tmpl: 'どの武器も首を振る速さ ×{e}',
@@ -111,7 +117,7 @@ const SKILLS = [
     eff: 3.5, mode: 'mul', tmpl: '短射程カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'short_util' },
   { id: 'short_unit', name: '前線基盤', icon: '◤', group: '短射程', cat: 'short', key: 'units',
-    eff: 1, mode: 'add', tmpl: '短射程カテゴリの武器を置ける数 +{e} 基',
+    eff: 1, mode: 'add', tmpl: '短射程の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
     cost0: 1320, costG: 2548, max: 4, unlock: 0 },
 
   { id: 'mid_dmg', name: '汎用兵装', icon: '◈', group: '中射程', cat: 'mid', key: 'dmg',
@@ -133,7 +139,7 @@ const SKILLS = [
     eff: 3.5, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'mid_util' },
   { id: 'mid_unit', name: '量産設備', icon: '◈', group: '中射程', cat: 'mid', key: 'units',
-    eff: 1, mode: 'add', tmpl: '中射程カテゴリの武器を置ける数 +{e} 基',
+    eff: 1, mode: 'add', tmpl: '中射程の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
     cost0: 1290, costG: 2548, max: 4, unlock: 0 },
 
   { id: 'long_dmg', name: '徹甲兵装', icon: '◎', group: '長射程', cat: 'long', key: 'dmg',
@@ -155,7 +161,7 @@ const SKILLS = [
     eff: 3.5, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'long_util' },
   { id: 'long_unit', name: '狙撃陣地', icon: '◎', group: '長射程', cat: 'long', key: 'units',
-    eff: 1, mode: 'add', tmpl: '長射程カテゴリの武器を置ける数 +{e} 基',
+    eff: 1, mode: 'add', tmpl: '長射程の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
     cost0: 1140, costG: 2548, max: 4, unlock: 0 },
 
   { id: 'area_dmg', name: '高熱兵装', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'dmg',
@@ -177,7 +183,7 @@ const SKILLS = [
     eff: 3.5, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'area_util' },
   { id: 'area_unit', name: '散布基盤', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'units',
-    eff: 1, mode: 'add', tmpl: '範囲攻撃カテゴリの武器を置ける数 +{e} 基',
+    eff: 1, mode: 'add', tmpl: '範囲攻撃の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
     cost0: 480, costG: 2548, max: 4, unlock: 0 },
 
   { id: 'target_dmg', name: '成形兵装', icon: '✛', group: '指定攻撃', cat: 'target', key: 'dmg',
@@ -199,7 +205,7 @@ const SKILLS = [
     eff: 3.5, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'target_util' },
   { id: 'target_unit', name: '支持架台', icon: '✛', group: '指定攻撃', cat: 'target', key: 'units',
-    eff: 1, mode: 'add', tmpl: '指定攻撃カテゴリの武器を置ける数 +{e} 基',
+    eff: 1, mode: 'add', tmpl: '指定攻撃の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
     cost0: 1500, costG: 2548, max: 4, unlock: 0 },
 
   { id: 'support_dmg', name: '制圧兵装', icon: '❉', group: '支援', cat: 'support', key: 'dmg',
@@ -221,7 +227,7 @@ const SKILLS = [
     eff: 3.5, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'support_util' },
   { id: 'support_unit', name: '支援拠点', icon: '❉', group: '支援', cat: 'support', key: 'units',
-    eff: 1, mode: 'add', tmpl: '支援カテゴリの武器を置ける数 +{e} 基',
+    eff: 1, mode: 'add', tmpl: '支援の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
     cost0: 1860, costG: 2548, max: 4, unlock: 0 },
 
   // ============ カード側の枠を増やす ============

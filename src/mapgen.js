@@ -30,8 +30,16 @@
 'use strict';
 
 const MapGen = {
-  COLS: 15,
-  ROWS: 21,
+  // **盤を広くした。**（2026-09-22・プレイヤー報告）
+  //   > 「全体的には、置けすぎ、というのが率直な感想です。20基はやりすぎですが、
+  //   >   仮に20基置けるなら広大なマップを用意するなり、
+  //   >   ステージに多少のギミックを入れるのがいいです」
+  //   置ける数を 52 → 11 に絞った（Game.slotsTotal）うえで、盤も広げる。
+  //   15×21 → 21×27（面積で1.8倍）。**画面に収まらないぶんは見渡せる**
+  //   （Render.canPan と小地図が既にある）。
+  //   手で書いた第1〜2章は 15×21 のまま（あそこは狭いほうが教えやすい）
+  COLS: 21,
+  ROWS: 27,
 
   // ---- 種から作る乱数（同じ種なら必ず同じマップ）----
   //   章ごとに違い、転生で作り直せるように、種は「盤面の種 × 章」で決める
@@ -456,6 +464,7 @@ const MapGen = {
   //   （実測：経路17タイルで8回挑戦して全部ウェーブ1で撃沈）
   check(rowsArr, d) {
     const dd = (d === undefined ? 0.5 : d);
+    const area = (this.COLS * this.ROWS) / (15 * 21);   // 15×21 を 1 とした広さ
     const rows = rowsArr.length, cols = rowsArr[0].length;
     const at = (c, r) => (c < 0 || r < 0 || c >= cols || r >= rows) ? ' ' : rowsArr[r][c];
     const walk = (c, r) => { const ch = at(c, r); return ch === '.' || ch === 'S' || ch === 'C'; };
@@ -489,10 +498,12 @@ const MapGen = {
       //   ガトリング4基では突破できない種が1割ほど混じっていた（実測 14/16）。
       //   **下限も置く。**スカスカのマップは逆に楽すぎて、周ごとの所要時間が
       //   91分〜125分まで散っていた。帯に収めて振れを縮める
+      // **通路の量は盤の広さに比例させる。** 帯は 15×21 の盤で決めた値なので、
+      //   盤を広げたらそのぶん伸ばさないと、序盤の2割が作れなくなる（実測 13/60 が失敗）
       ok: lens.length === spawns.length && lens.length > 0
           && Math.min.apply(null, lens) >= BAL.minRouteLen + Math.round(10 * (1 - dd))
-          && road >= Math.round(52 + 70 * dd)
-          && road <= Math.round(88 + 140 * dd)
+          && road >= Math.round((52 + 70 * dd) * area)
+          && road <= Math.round((88 + 140 * dd) * area)
           && ground >= 40,
       spawns: spawns.length, holes: spawns.length, lens, ground, road,
       shortest: lens.length ? Math.min.apply(null, lens) : 0,

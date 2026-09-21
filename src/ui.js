@@ -288,20 +288,27 @@ const UI = {
     this.renderUnitPop();
     this.renderTut();
 
+    // **盤に置ける総数。**種類ごとの上限とは別に、盤全体で頭打ちになる
+    const slotsLeft = Game.slotsTotal() - Game.slotsUsed();
     for (const cid of Game.perm.loadout) {
       if (!cid || !CARDS[cid]) continue;
       const wid = CARDS[cid].weapon;
       const def = WEAPONS[wid];
       const have = Game.unitCount(wid);
       const cap = Game.unitCap(wid);
-      const full = have >= cap;
+      const full = have >= cap || slotsLeft <= 0;
       const b = Util.el('button', 'chip unit' + (this.placingType === wid ? ' on' : '') + (full ? ' full' : ''));
       b.style.borderColor = def.color;
       b.innerHTML = '<b style="color:' + def.color + '">' + def.short + '</b>' +
         '<u>' + have + '/' + cap + '</u>';
       b.disabled = !build;
       b.addEventListener('click', () => {
-        if (full) { this.toastMsg(def.name + ' はこれ以上置けません', '#ff8080'); return; }
+        if (full) {
+          this.toastMsg(slotsLeft <= 0
+            ? '盤に置ける数がいっぱいです（' + Game.slotsTotal() + '基）'
+            : def.name + ' はこれ以上置けません', '#ff8080');
+          return;
+        }
         this.placingType = (this.placingType === wid) ? null : wid;
         this.renderTray();
         if (this.placingType) this.toastMsg(def.name + ' を置く地面をタップ', def.color);

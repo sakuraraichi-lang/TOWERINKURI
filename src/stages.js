@@ -868,7 +868,22 @@ const Stage = {
     if (idx < BAL.fixedMapChapters) return def.map;
     // 章が進むほど難しい形にする（口が増え、通路が広がり、経路が短くなる）
     const d = STAGES.length > 1 ? idx / (STAGES.length - 1) : 0.5;
-    const m = MapGen.build(((seed * 2654435761) ^ ((idx + 1) * 40503)) >>> 0, 160, d);
+    // **踏んだ章の地形は変えない。まだ届いていない章だけ、転生のたびに引き直す。**
+    //
+    //   転生のたびに30章ぶん作り直していたら**周が後退した**
+    //   （実測：26章の次の周が22章、20章の次が16章）。
+    //   かといって全部固定にすると、**最前線に苦手な地形が出たとき永久に詰む**
+    //   （実測：第14章で3周ぶん足踏み 14→14→14）。
+    //   **後ろは固定、前だけ引き直す。**積み上げたものは返ってくるし、
+    //   壁に当たっても次の周で別の地形を引ける
+    //   **どの引きを使ったかは章ごとに覚えておく。**
+    //   「到達より手前なら固定」と条件で出し分けたら、到達が伸びた瞬間に
+    //   その章の地形が別物に変わって、**3章で何周も足踏みした**
+    //   （実測 3→6→4→4→4→4）。覚えておけば後から変わらない
+    const rolls = Game.perm.mapRoll || (Game.perm.mapRoll = {});
+    if (rolls[stageId] === undefined) rolls[stageId] = (Game.perm.prestiges || 0);
+    const roll = rolls[stageId];
+    const m = MapGen.build(((seed * 2654435761) ^ ((idx + 1) * 40503) ^ (roll * 2246822519)) >>> 0, 160, d);
     if (!m) return def.map;                 // 作れなかったら元のマップに落とす
     this._vec[stageId] = m.vec;
     return m.rows;
@@ -965,9 +980,17 @@ const Stage = {
   },
 
   // 全ステージのマップが壊れていないか調べる（開発用）
+  //
+  //   **生成マップのときは、ここで全30章を作らない。**（2026-09-22）
+  //   起動のたびに30枚ぶん生成することになり、盤を 21×27 に広げたら
+  //   **1枚0.2秒 × 30 ＝ 6秒、画面が固まる。**
+  //   生成マップは MapGen.check が作る時点で同じ条件を見ているので、
+  //   ここで見直す意味も薄い。手で書いたマップ（第1〜2章）だけ調べる
   validateAll() {
     const bad = [];
+    const gen = (typeof Game !== 'undefined' && Game.perm && Game.perm.mapSeed) || 0;
     for (const s of STAGES) {
+      if (gen && STAGE_BY_ID[s.id] && STAGE_BY_ID[s.id].idx >= BAL.fixedMapChapters) continue;
       const b = this.build(s.id);
       const widths = {};
       for (const line of s.def ? [] : s.map) widths[line.length] = 1;
