@@ -302,6 +302,43 @@ const Render = {
     this.heat(ctx, st);
   },
 
+  // 炎の舌。**扇1枚ではなく、長さの違う舌を重ねて「噴いている」形にする**
+  //   `f.seed` は発射ごとに固定なので、1回の噴射のあいだ形が暴れない
+  flameCone(ctx, f, k) {
+    const n = 7;
+    const fade = 1 - k;
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < n; i++) {
+      // 舌ごとの向きと長さ。seed と i から決める（毎フレーム同じ）
+      const t = (i + 0.5) / n;
+      const rnd = ((f.seed + i * 9781) % 997) / 997;
+      const a = f.a + (t * 2 - 1) * f.arc;
+      // 中央ほど長い（噴流の芯）。k が進むと伸びて薄れる＝噴き出して散る
+      const core = 1 - Math.abs(t * 2 - 1) * 0.55;
+      const len = f.r * core * (0.62 + rnd * 0.38) * (0.65 + 0.5 * k);
+      const halfW = f.arc / n * (1.5 + rnd * 0.9);
+      const g = ctx.createLinearGradient(f.x, f.y, f.x + Math.cos(a) * len, f.y + Math.sin(a) * len);
+      g.addColorStop(0, 'rgba(255,250,214,' + (0.55 * fade) + ')');
+      g.addColorStop(0.35, 'rgba(255,196,64,' + (0.42 * fade) + ')');
+      g.addColorStop(0.75, 'rgba(255,92,24,' + (0.24 * fade) + ')');
+      g.addColorStop(1, 'rgba(120,30,10,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.moveTo(f.x, f.y);
+      ctx.arc(f.x, f.y, len, a - halfW, a + halfW);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // 噴き口の白熱
+    const gc = ctx.createRadialGradient(f.x, f.y, 0, f.x, f.y, 14);
+    gc.addColorStop(0, 'rgba(255,255,235,' + (0.85 * fade) + ')');
+    gc.addColorStop(1, 'rgba(255,150,40,0)');
+    ctx.fillStyle = gc;
+    ctx.beginPath(); ctx.arc(f.x, f.y, 14, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  },
+
   // 画面の隅に置く、仕掛けの凡例。**盤の変換の外で描く**（字が潰れないように）
   //
   //   色の丸を添える形にしたら、丸が黒く潰れて「謎の四角」に見えた。
@@ -405,17 +442,60 @@ const Render = {
     }
   },
 
+  // 場（毒の雲・火の海・酸だまり）。
+  //
+  //   **前は3種とも「色を変えた円」を1枚描いているだけだった。**
+  //   毒の雲も火の海も同じ形なので、何が起きているのか絵から分からない。
+  //   （ユーザー 2026-09-22「こういった武器と実際のデザイン面の矛盾を解消して」）
+  //
+  //   **塊（lobe）をいくつか重ねて、種類ごとに動かし方を変える。**
+  //     毒 … ゆっくり渦を巻きながら広がる＝雲
+  //     火 … ちらついて上に伸びる＝燃えている
+  //     酸 … ほとんど動かず、縁だけ泡立つ＝たまり
   fields(ctx, run) {
+    ctx.save();
     for (const f of run.fields) {
       const k = f.t / f.dur;
-      ctx.globalAlpha = 0.20 * (1 - k * 0.5) + 0.06;
-      ctx.fillStyle = f.color;
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.fill();
-      ctx.globalAlpha = 0.5 * (1 - k);
-      ctx.strokeStyle = f.color; ctx.lineWidth = 1.5;
+      const fade = 1 - k * 0.65;
+      const fire = f.kind === 'fire';
+      ctx.globalCompositeOperation = fire ? 'lighter' : 'source-over';
+      const lobes = 6;
+      for (let i = 0; i < lobes; i++) {
+        const base = i * 2.399;                       // 黄金角。種を持たなくても散る
+        // 種類ごとの動き
+        const spin = fire ? 0 : f.t * 0.5;
+        const a = base + spin;
+        const rad = f.r * (0.34 + 0.30 * ((i * 37) % 11) / 11);
+        const dist = f.r * (0.18 + 0.36 * ((i * 53) % 7) / 7) * (fire ? 1 : 1 + k * 0.25);
+        const wob = fire ? Math.sin(f.t * 9 + i) * f.r * 0.10 : 0;
+        const x = f.x + Math.cos(a) * dist;
+        const y = f.y + Math.sin(a) * dist - (fire ? Math.abs(wob) : 0);
+        const g = ctx.createRadialGradient(x, y, 0, x, y, rad + Math.abs(wob));
+        const al = (fire ? 0.30 : 0.22) * fade;
+        g.addColorStop(0, this.tint(f.color, al));
+        g.addColorStop(1, this.tint(f.color, 0));
+        ctx.fillStyle = g;
+        ctx.beginPath(); ctx.arc(x, y, rad + Math.abs(wob), 0, Math.PI * 2); ctx.fill();
+      }
+      // 縁。**どこまでが場なのかは、遊ぶうえで必要な情報**なので必ず出す
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.globalAlpha = 0.45 * (1 - k);
+      ctx.strokeStyle = f.color;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash(fire ? [] : [5, 4]);
+      ctx.lineDashOffset = -f.t * 12;
       ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.stroke();
+      ctx.setLineDash([]);
       ctx.globalAlpha = 1;
     }
+    ctx.restore();
+  },
+
+  // '#rrggbb' を rgba に。場の塊を柔らかく落とすのに使う
+  tint(hex, a) {
+    const h = (hex || '#ffffff').replace('#', '');
+    const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+    return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
   },
 
   core(ctx, run) {
@@ -960,13 +1040,13 @@ const Render = {
         ctx.fillStyle = f.color;
         ctx.beginPath(); ctx.arc(f.x, f.y, 3 * (1 - k) + 1, 0, Math.PI * 2); ctx.fill();
       } else if (f.type === 'cone') {
-        ctx.globalAlpha = (1 - k) * 0.5;
-        const g = ctx.createRadialGradient(f.x, f.y, 4, f.x, f.y, f.r);
-        g.addColorStop(0, '#fff3c0'); g.addColorStop(0.45, f.color); g.addColorStop(1, 'rgba(255,60,0,0)');
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.moveTo(f.x, f.y);
-        ctx.arc(f.x, f.y, f.r, f.a - f.arc, f.a + f.arc);
-        ctx.closePath(); ctx.fill();
+        // **火炎放射器は「炎を噴いている」ように描く。**（ユーザー 2026-09-22）
+        //   > 「火炎放射機は旧来では扇状に光ってる何かなので、火を噴いてるように
+        //   >   見せてください」
+        //   前は扇を1枚、放射グラデーションで塗っていただけだった。
+        //   **炎の舌を何本か、長さを変えて重ねる。**
+        //   根元は白熱、先は赤から煙へ。加算合成で重なりが明るくなる
+        this.flameCone(ctx, f, k);
       } else if (f.type === 'slash') {
         ctx.globalAlpha = 1 - k;
         ctx.strokeStyle = f.color; ctx.lineWidth = 3.5 * (1 - k) + 1;

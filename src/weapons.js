@@ -170,8 +170,9 @@ const WEAPONS = {
       Combat.coneDamage(w, run, w.angle, w.s.cone, w.s.range, w.s.dmg, {
         color: '#ffb066', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur,
       });
+      // **炎は「舌」を何本か描く。**種を持たせて、毎フレーム形が暴れないようにする
       Combat.fx(run, { type: 'cone', x: w.x, y: w.y, a: w.angle, arc: w.s.cone,
-        r: w.s.range, color: '#ff8a3a', life: 0.13 });
+        r: w.s.range, color: '#ff8a3a', life: 0.20, seed: (w.shots * 2654435761) % 1000 });
       // ナパーム：炎の届く先に火の海を残す（毎発だと増えすぎるので間引く）
       if (w.flags.napalm && Util.chance(0.12)) {
         Combat.spawnField(run, w.x + Math.cos(w.angle) * w.s.range * 0.75,
