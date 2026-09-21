@@ -34,14 +34,32 @@ const SKILLS = [
   { id: 'regen', name: '応急修理班', icon: '✚', group: '拠点',
     eff: 1, mode: 'add', tmpl: 'ウェーブを1つ突破するごとにライフ +{e}（上限まで）',
     cost0: 90, costG: 1.55, max: 10, unlock: 1 },
-  //   **【2026-09-21・ユーザー報告で発覚】ここは maxPerClear が無く、
-  //   お金だけで5段まで買えていた。** CLAUDE.md の
-  //   「設置枠はお金で買えない。踏破したステージ数でしか増えない」を破っていた。
-  //   設置枠は火力・カバー範囲・漏れにくさが同時に増え、他の全強化と掛け算になるので、
-  //   **6章突破ごとに1段**（30章で5段）に縛り、値段も上げた
+  //   **設置枠は「値段の跳ね上がり」で間隔を作る。**（ユーザー指示 2026-09-21）
+  //
+  //   > 「無尽蔵に増やしまくれるか章毎に絞るかじゃなくて、スキルツリーの深さとかで
+  //   >  対応しなよ、1基増やしたら次増やすコストめちゃくちゃ跳ね上がって、
+  //   >  実質5章後ぐらいにしか取れないとかさ」
+  //
+  //   逆算：収入は実測で **×4.8/章**（3シード）。等比コストなら
+  //   **1段あたりの間隔 ＝ log(costG) ÷ log(4.8)** 章。
+  //
+  //     costG      1段あける章数
+  //        5         1章
+  //       23         2章
+  //      111         3章
+  //      531         4章
+  //    2,548         5章
+  //   12,231         6章
+  //
+  //   **以前は costG 7.5 ＝ 1.28章に1段**で、実質お金だけで全部解放になっていた。
+  //   全武器に効くぶんは**6章に1段**（30章でちょうど5段）に置く
+  //   **全武器に効くぶんは、後半の贅沢品として置く。**
+  //   カテゴリ別のノードと同じ時期に開くと、1つの武器が一度に +2 されて
+  //   「1基ずつ増える」感触にならない（実測：第4章と第8章で両方が同時に開いた）。
+  //   cost0 を大きく取って、開き始めを中盤以降にずらす
   { id: 'units', name: '増設基盤', icon: '⛁', group: '拠点',
     eff: 1, mode: 'add', tmpl: 'どの武器も設置できる数が +{e} 基',
-    cost0: 3000, costG: 7.5, max: 5, maxPerClear: 1 / 6, unlock: 1 },
+    cost0: 5e8, costG: 12200, max: 5, unlock: 1 },
   // 拠点の枝は「防衛線」を外したぶん浅いので、**HP以外**で深くする
   { id: 'turn', name: '旋回機構', icon: '⛁', group: '拠点',
     eff: 1.08, mode: 'mul', tmpl: 'どの武器も首を振る速さ ×{e}',
@@ -59,7 +77,7 @@ const SKILLS = [
     cost0: 45, costG: 1.36, max: Infinity, unlock: 0 },
   { id: 'short_unit', name: '前線基盤', icon: '◤', group: '短射程', cat: 'short', key: 'units',
     eff: 1, mode: 'add', tmpl: '短射程カテゴリの武器を置ける数 +{e} 基',
-    cost0: 1320, costG: 4.5, max: 4, maxPerClear: 1 / 5, unlock: 0 },
+    cost0: 1320, costG: 2548, max: 4, unlock: 0 },
   { id: 'short_rate', name: '連撃機構', icon: '◤', group: '短射程', cat: 'short', key: 'rate',
     eff: 1.06, mode: 'mul', tmpl: '短射程カテゴリの発射レート ×{e}',
     cost0: 120, costG: 1.35, max: Infinity, unlock: 1 },
@@ -78,7 +96,7 @@ const SKILLS = [
     cost0: 40, costG: 1.34, max: Infinity, unlock: 0 },
   { id: 'mid_unit', name: '量産設備', icon: '◈', group: '中射程', cat: 'mid', key: 'units',
     eff: 1, mode: 'add', tmpl: '中射程カテゴリの武器を置ける数 +{e} 基',
-    cost0: 1290, costG: 4.5, max: 4, maxPerClear: 1 / 5, unlock: 0 },
+    cost0: 1290, costG: 2548, max: 4, unlock: 0 },
   { id: 'mid_range', name: '延伸銃身', icon: '◈', group: '中射程', cat: 'mid', key: 'range',
     eff: 1.08, mode: 'mul', tmpl: '中射程カテゴリの射程 ×{e}',
     cost0: 110, costG: 1.34, max: Infinity, unlock: 1 },
@@ -97,7 +115,7 @@ const SKILLS = [
     cost0: 90, costG: 1.42, max: 20, unlock: 0 },
   { id: 'long_unit', name: '狙撃陣地', icon: '◎', group: '長射程', cat: 'long', key: 'units',
     eff: 1, mode: 'add', tmpl: '長射程カテゴリの武器を置ける数 +{e} 基',
-    cost0: 1140, costG: 4.5, max: 4, maxPerClear: 1 / 5, unlock: 0 },
+    cost0: 1140, costG: 2548, max: 4, unlock: 0 },
   { id: 'long_range', name: '観測気球', icon: '◎', group: '長射程', cat: 'long', key: 'range',
     eff: 1.10, mode: 'mul', tmpl: '長射程カテゴリの射程 ×{e}',
     cost0: 130, costG: 1.37, max: Infinity, unlock: 1 },
@@ -116,7 +134,7 @@ const SKILLS = [
     cost0: 70, costG: 1.38, max: Infinity, unlock: 0 },
   { id: 'area_unit', name: '散布基盤', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'units',
     eff: 1, mode: 'add', tmpl: '範囲攻撃カテゴリの武器を置ける数 +{e} 基',
-    cost0: 480, costG: 4.5, max: 4, maxPerClear: 1 / 5, unlock: 0 },
+    cost0: 480, costG: 2548, max: 4, unlock: 0 },
   { id: 'area_rate', name: '連続噴射', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'rate',
     eff: 1.07, mode: 'mul', tmpl: '範囲攻撃カテゴリの発射レート ×{e}',
     cost0: 100, costG: 1.33, max: Infinity, unlock: 1 },
@@ -135,7 +153,7 @@ const SKILLS = [
     cost0: 65, costG: 1.36, max: Infinity, unlock: 0 },
   { id: 'target_unit', name: '支持架台', icon: '✛', group: '指定攻撃', cat: 'target', key: 'units',
     eff: 1, mode: 'add', tmpl: '指定攻撃カテゴリの武器を置ける数 +{e} 基',
-    cost0: 1500, costG: 4.5, max: 4, maxPerClear: 1 / 5, unlock: 0 },
+    cost0: 1500, costG: 2548, max: 4, unlock: 0 },
   { id: 'target_size', name: '炸薬量', icon: '✛', group: '指定攻撃', cat: 'target', key: 'size',
     eff: 1.09, mode: 'mul', tmpl: '指定攻撃カテゴリの効果範囲 ×{e}',
     cost0: 120, costG: 1.36, max: Infinity, unlock: 1 },
@@ -154,7 +172,7 @@ const SKILLS = [
     cost0: 55, costG: 1.34, max: Infinity, unlock: 0 },
   { id: 'support_unit', name: '支援拠点', icon: '❉', group: '支援', cat: 'support', key: 'units',
     eff: 1, mode: 'add', tmpl: '支援カテゴリの武器を置ける数 +{e} 基',
-    cost0: 1860, costG: 4.5, max: 4, maxPerClear: 1 / 5, unlock: 0 },
+    cost0: 1860, costG: 2548, max: 4, unlock: 0 },
   { id: 'sup_dmg', name: '凍結核', icon: '❉', group: '支援', cat: 'support', key: 'dmg',
     eff: 1.12, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
     cost0: 80, costG: 1.32, max: Infinity, unlock: 1 },
@@ -244,8 +262,12 @@ const Skill = {
     //   遊んでもらった結果「転生エピックの基数追加で無強化プレイができる、
     //   転生2回でゲームが崩壊する」という報告が出た。
     //   設置枠は火力・カバー範囲・漏れにくさが同時に増えて他の全強化と掛け算になるので、
-    //   踏破したステージ数以外では絶対に増えないようにする（maxPerClear と同じ理屈）
-    const base = (p && typeof Relic !== 'undefined' && !(s && s.maxPerClear))
+    //   **判定は key で行う。** 以前は `maxPerClear` の有無で見ていたが、
+    //   2026-09-21 に設置枠を「進行の縛り」から「値段の跳ね上がり」へ変えたときに
+    //   maxPerClear を外したので、その条件だと**下駄が復活してしまう。**
+    //   設置枠かどうかは `key === 'units'` で直接見る
+    const isUnitNode = s && (s.key === 'units' || s.id === 'units');
+    const base = (p && typeof Relic !== 'undefined' && !isUnitNode)
       ? Relic.mods(p).startLv : 0;
     const lv = (meta.skills[id] || 0) + base;
     return s ? Math.min(lv, Skill.maxOf(p, id)) : lv;

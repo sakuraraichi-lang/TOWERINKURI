@@ -292,7 +292,7 @@ const CARDS = {
     name: '蓄財片',   tmpl: '獲得コイン +{p}' }),
   rl_rate1: P({ id: 'rl_rate1', rarity: 'common', key: 'rate', eff: 0.08, mode: 'add', cap: 0.5,
     name: '律動片',   tmpl: '全ての武器の発射レート +{p}' }),
-  rl_life1: P({ id: 'rl_life1', rarity: 'common', key: 'lives', eff: 2, mode: 'flat',
+  rl_life1: P({ id: 'rl_life1', rarity: 'common', key: 'lives', eff: 2, mode: 'flat', cap: 12,
     name: '防壁片',   tmpl: 'ライフ +{e}' }),
 
   rl_dmg2:  P({ id: 'rl_dmg2',  rarity: 'rare', key: 'dmg',  eff: 0.20, mode: 'add', cap: 1.5,
@@ -301,11 +301,11 @@ const CARDS = {
     name: '蓄財核',   tmpl: '獲得コイン +{p}' }),
   rl_rate2: P({ id: 'rl_rate2', rarity: 'rare', key: 'rate', eff: 0.20, mode: 'add', cap: 0.8,
     name: '律動核',   tmpl: '全ての武器の発射レート +{p}' }),
-  rl_seed:  P({ id: 'rl_seed',  rarity: 'rare', key: 'seed', eff: 400, mode: 'flat',
+  rl_seed:  P({ id: 'rl_seed',  rarity: 'rare', key: 'seed', eff: 400, mode: 'flat', cap: 4000,
     name: '初動資金', tmpl: '転生した直後に コイン +{e}' }),
   // **設置枠を配るのをやめた。** これが「転生2回でゲーム崩壊」の正体で、
   // しかも集計側が読んでいなかったので、説明文だけが嘘をついている状態でもあった
-  rl_unit:  P({ id: 'rl_unit',  rarity: 'rare', key: 'lives', eff: 6, mode: 'flat',
+  rl_unit:  P({ id: 'rl_unit',  rarity: 'rare', key: 'lives', eff: 6, mode: 'flat', cap: 18,
     name: '常設装甲', tmpl: 'ライフ +{e}' }),
 
   // **累乗をやめた。** 桁を作るのは土台（relics.js の Legacy）の役で、
@@ -319,7 +319,7 @@ const CARDS = {
   rl_core:  P({ id: 'rl_core',  rarity: 'legendary', key: 'dmg', eff: 0.80, mode: 'add', cap: 3.0,
     name: '特異点炉', tmpl: '全ての武器のダメージ +{p}' }),
   // **これが「登り直す時間」を消す本命。** 倍率ではなく、買う手数を減らす
-  rl_invest: P({ id: 'rl_invest', rarity: 'legendary', key: 'startLv', eff: 1, mode: 'flat',
+  rl_invest: P({ id: 'rl_invest', rarity: 'legendary', key: 'startLv', eff: 1, mode: 'flat', cap: 4,
     name: '初期投資', tmpl: '出撃するとき、アップグレードが最初から Lv+{e} の状態になる' }),
 };
 

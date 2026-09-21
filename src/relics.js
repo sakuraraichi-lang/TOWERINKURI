@@ -79,10 +79,16 @@ const Relic = {
       if (n <= 0) continue;
       const c = CARDS[id];
       // **種類ごとに上限がある。** 同じ遺物を重ねるほど1枚の価値が薄まる
-      if (c.mode === 'add') add[c.key] += Math.min(c.cap !== undefined ? c.cap : Infinity, c.eff * n);
-      else if (c.key === 'lives') lives += c.eff * n;
-      else if (c.key === 'seed') seed += c.eff * n;
-      else if (c.key === 'startLv') startLv += c.eff * n;
+      // **flat のものにも上限を掛ける。**（2026-09-21）
+      //   `add` にだけ cap を掛けていたので、ライフ（flat）が**上限なしで伸びていた。**
+      //   初回転生で遺物パックを36個＝108枚配るので、ライフ関係だけで +80 を超える。
+      //   ツリーから「防衛線」を外した意味が消えるうえ、
+      //   「配られる枚数に気を配れ」（ユーザー 2026-09-21）にも反する
+      const cap = (v) => Math.min(c.cap !== undefined ? c.cap : Infinity, v);
+      if (c.mode === 'add') add[c.key] += cap(c.eff * n);
+      else if (c.key === 'lives') lives += cap(c.eff * n);
+      else if (c.key === 'seed') seed += cap(c.eff * n);
+      else if (c.key === 'startLv') startLv += cap(c.eff * n);
     }
 
     // **土台 × 遺物。** 土台が桁を作り、遺物が色を付ける
