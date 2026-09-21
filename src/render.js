@@ -6,6 +6,9 @@
 // 線の弾のまとめ先。**毎フレーム作り直さない**（1フレームに何百回も通る）
 const _bulGroups = new Map();
 
+const _spins = [];        // 手裏剣のまとめ描き用（毎フレーム作り直さない）
+const _spinPts = new Float32Array(16);
+
 const Render = {
   canvas: null, ctx: null, dpr: 1,
   scale: 1, offX: 0, offY: 0,
@@ -1071,6 +1074,7 @@ const Render = {
   bullets(ctx, run) {
     ctx.lineCap = 'round';
     const groups = _bulGroups;
+    const spins = _spins; spins.length = 0;
     for (const g of groups.values()) g.n = 0;
     for (const b of run.bullets) {
       if (b.bubble || b.lob) {
@@ -1095,6 +1099,36 @@ const Render = {
         }
         const by = b.y - h;
         const br = b.r * (1 + h / 90);     // 高いほど大きく＝こちらに近い
+        if (b.rocket) {                    // ミサイル：機体と噴射炎
+          const sp = Math.hypot(b.vx, b.vy) || 1;
+          const ux = b.vx / sp, uy = b.vy / sp;
+          ctx.save();
+          ctx.translate(b.x, by);
+          ctx.rotate(Math.atan2(uy, ux));
+          ctx.globalCompositeOperation = 'lighter';
+          for (let j = 0; j < 3; j++) {    // 噴射炎。後ろへ伸びる3枚
+            const L = (16 + j * 9) * (0.75 + Math.random() * 0.5);
+            ctx.globalAlpha = 0.5 - j * 0.14;
+            ctx.fillStyle = j === 0 ? '#fff3c8' : j === 1 ? '#ffb43c' : '#ff6a2a';
+            ctx.beginPath();
+            ctx.moveTo(-br * 0.9, -br * (0.55 - j * 0.1));
+            ctx.lineTo(-br * 0.9 - L, 0);
+            ctx.lineTo(-br * 0.9, br * (0.55 - j * 0.1));
+            ctx.closePath(); ctx.fill();
+          }
+          ctx.globalCompositeOperation = 'source-over';
+          ctx.globalAlpha = 1;
+          ctx.fillStyle = b.color;         // 弾頭。先が尖った紡錘形
+          ctx.beginPath();
+          ctx.moveTo(br * 2.0, 0);
+          ctx.lineTo(-br * 0.8, -br * 0.78);
+          ctx.lineTo(-br * 0.4, 0);
+          ctx.lineTo(-br * 0.8, br * 0.78);
+          ctx.closePath(); ctx.fill();
+          ctx.strokeStyle = 'rgba(255,255,255,0.7)'; ctx.lineWidth = 1; ctx.stroke();
+          ctx.restore();
+          continue;
+        }
         ctx.fillStyle = b.color;
         ctx.globalAlpha = b.bubble ? 0.4 : 0.9;
         ctx.beginPath(); ctx.arc(b.x, by, br, 0, Math.PI * 2); ctx.fill();
@@ -1108,18 +1142,7 @@ const Render = {
         }
         continue;
       }
-      if (b.spin) {    // 手裏剣
-        ctx.save();
-        ctx.translate(b.x, b.y);
-        ctx.rotate(run.time * 22);
-        ctx.strokeStyle = b.color; ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(-b.r, 0); ctx.lineTo(b.r, 0);
-        ctx.moveTo(0, -b.r); ctx.lineTo(0, b.r);
-        ctx.stroke();
-        ctx.restore();
-        continue;
-      }
+      if (b.spin) { spins.push(b); continue; }   // 手裏剣はあとでまとめて描く
       const sp = Math.hypot(b.vx, b.vy) || 1;
       const len = b.long ? 22 : Math.min(16, sp * 0.018);
       const w = Math.max(0.5, Math.round(b.r * 3.2) / 2);   // 0.5px 刻みでまとめる
@@ -1130,6 +1153,44 @@ const Render = {
       g.seg[i] = b.x; g.seg[i + 1] = b.y;
       g.seg[i + 2] = b.x - b.vx / sp * len; g.seg[i + 3] = b.y - b.vy / sp * len;
       g.n++;
+    }
+
+    // 手裏剣。**4枚刃の星。**十字2本では棒手裏剣にしか見えなかった（ユーザー 2026-09-22）
+    //   **1発ずつ save/rotate/fill/stroke すると 851発で 16.5ms**（実測）。
+    //   1フレームの予算 16.7ms を使い切るので、
+    //   **回転角は全発共通なので cos/sin を1回だけ出し、全部を1本のパスに積んで
+    //     塗りと縁を1回ずつ**にした。同じ851発で 0.9ms（実測）
+    if (spins.length) {
+      const ca = Math.cos(run.time * 22), sa = Math.sin(run.time * 22);
+      // 単位星の頂点（刃の先と、刃の間のえぐり）を先に回しておく
+      const P = _spinPts;
+      for (let j = 0; j < 4; j++) {
+        const a = j * Math.PI / 2, b2 = a + Math.PI / 4;
+        const ox = Math.cos(a) * 2.0, oy = Math.sin(a) * 2.0;
+        const ix = Math.cos(b2) * 0.62, iy = Math.sin(b2) * 0.62;
+        P[j * 4] = ox * ca - oy * sa; P[j * 4 + 1] = ox * sa + oy * ca;
+        P[j * 4 + 2] = ix * ca - iy * sa; P[j * 4 + 3] = ix * sa + iy * ca;
+      }
+      // **1本の巨大なパスにすると、塗りの費用が発数に対して跳ね上がる。**（実測）
+      //   100発 0.11ms / 200発 0.38 / 400発 1.34 / 851発 5.75。
+      //   **120発ずつ区切って塗る**と、発数に比例するところまで戻る
+      ctx.fillStyle = spins[0].color;
+      ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 1;
+      const thin = spins.length > 220;      // 密集時は縁を省く（1発数ピクセルで見えない）
+      for (let n = 0; n < spins.length; n += 120) {
+        const end = Math.min(spins.length, n + 120);
+        ctx.beginPath();
+        for (let m = n; m < end; m++) {
+          const b = spins[m];
+          for (let j = 0; j < 8; j++) {
+            const px = b.x + P[j * 2] * b.r, py = b.y + P[j * 2 + 1] * b.r;
+            j ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+          }
+          ctx.closePath();
+        }
+        ctx.fill();
+        if (!thin) ctx.stroke();
+      }
     }
 
     //          にじみ          本体          白い芯
@@ -1179,10 +1240,32 @@ const Render = {
         //   根元は白熱、先は赤から煙へ。加算合成で重なりが明るくなる
         this.flameCone(ctx, f, k);
       } else if (f.type === 'slash') {
-        ctx.globalAlpha = 1 - k;
-        ctx.strokeStyle = f.color; ctx.lineWidth = 3.5 * (1 - k) + 1;
+        // **斬撃を、太さの変わらない円弧1本で描いていた。**（ユーザー 2026-09-22）
+        //   刃は真ん中が一番深く入り、両端へ抜けていく。三日月の帯にする
+        const a0 = f.a - f.arc, a1 = f.a + f.arc, N = 16;
+        const R = f.r * 0.92, W = 9 * (1 - k * 0.6);
         ctx.beginPath();
-        ctx.arc(f.x, f.y, f.r * 0.92, f.a - f.arc, f.a + f.arc);
+        for (let i = 0; i <= N; i++) {
+          const a = a0 + (a1 - a0) * (i / N);
+          const w = W * Math.sin((i / N) * Math.PI);      // 両端が0＝抜ける
+          const rr = R + w * 0.5;
+          i ? ctx.lineTo(f.x + Math.cos(a) * rr, f.y + Math.sin(a) * rr)
+            : ctx.moveTo(f.x + Math.cos(a) * rr, f.y + Math.sin(a) * rr);
+        }
+        for (let i = N; i >= 0; i--) {
+          const a = a0 + (a1 - a0) * (i / N);
+          const w = W * Math.sin((i / N) * Math.PI);
+          const rr = R - w * 0.5;
+          ctx.lineTo(f.x + Math.cos(a) * rr, f.y + Math.sin(a) * rr);
+        }
+        ctx.closePath();
+        ctx.globalAlpha = (1 - k) * 0.85;
+        ctx.fillStyle = f.color; ctx.fill();
+        // 刃先の光。**外側の縁だけ**鋭く光らせる
+        ctx.globalAlpha = 1 - k;
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        ctx.arc(f.x, f.y, R + W * 0.5, a0, a1);
         ctx.stroke();
       } else if (f.type === 'tentacle') {
         // **「掴んで引き戻す」武器が、ただの線だった。**（ユーザー 2026-09-22）

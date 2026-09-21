@@ -190,7 +190,9 @@ const WEAPONS = {
     //   ミサイルは**第5章の突破報酬**なのに、12種中11位（13）だった。
     //   ダメージ16→26・レート1.0→1.4 で 26。実測 13 → 26
     base: baseStats({ arc: 0.30, dmg: 26, rate: 1.4, range: 330, speed: 430, splash: 72, bulletR: 5, turn: 5 }),
-    fire(w, run) { Combat.bombard(w, run, '#ff7a3c'); },
+    // **ミサイルは噴射炎と煙を引く。**（ユーザー 2026-09-22「絵と中身の矛盾を解消して」）
+    //   丸が滑っていくだけでは、名前がミサイルである理由が絵に出ない
+    fire(w, run) { Combat.bombard(w, run, '#ff7a3c', { rocket: true }); },
   },
 
   tesla: {

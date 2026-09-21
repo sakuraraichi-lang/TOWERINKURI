@@ -479,7 +479,7 @@ const Combat = {
       dmg: 0, r: w.s.bulletR, pierce: 0, bounce: 0, hit: null,
       splash: 0, splashMul: 1, homing: 0, crit: 0, critMul: 2,
       exec: 0, shock: 0, slow: 0, slowDur: 0, stun: 0, burn: 0, burnDur: 0,
-      color: o.color || '#8fd94a', lob: true, mark: !!o.mark,
+      color: o.color || '#8fd94a', lob: true, mark: !!o.mark, rocket: !!o.rocket,
       landX: tx, landY: ty, onLand: o.onLand,
       life: 5, src: w, wid: w.id, range: w.s.range * 1.8, ox: w.x, oy: w.y, target: null,
     });
@@ -630,9 +630,10 @@ const Combat = {
   //     好きな場所に置けるのが、この分類の強み
   //   ・**円を絞るほど強い。** 倍率は掛けていない。同じ発射数が狭い面に落ちるので
   //     同じ敵に重なるだけ。広げれば、道を外した砲弾はただの空振りになる
-  bombard(w, run, color) {
+  bombard(w, run, color, o) {
     const p = w.aim;
     if (!p) return;
+    const rocket = !!(o && o.rocket);
     const R = Game.spotR(w);
     const n = w.n || 1;
     for (let i = 0; i < n; i++) {
@@ -640,7 +641,7 @@ const Combat = {
       const a = Util.rand(0, Math.PI * 2);
       const d = Math.sqrt(Math.random()) * R;
       this.spawnLob(w, run, p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, {
-        color: color || w.def.color, mark: true,
+        color: color || w.def.color, mark: true, rocket,
         onLand: (rr, x, y) => this.spotImpact(w, rr, x, y),
       });
     }
