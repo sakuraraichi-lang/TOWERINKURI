@@ -883,7 +883,11 @@ const Stage = {
     const rolls = Game.perm.mapRoll || (Game.perm.mapRoll = {});
     if (rolls[stageId] === undefined) rolls[stageId] = (Game.perm.prestiges || 0);
     const roll = rolls[stageId];
-    const m = MapGen.build(((seed * 2654435761) ^ ((idx + 1) * 40503) ^ (roll * 2246822519)) >>> 0, 160, d);
+    // **章ごとの形。**（2026-09-22）
+    //   数値（敵のHP）では拍が作れないことが実測で分かったので、
+    //   難易度は**マップの形**でも付ける。表は BAL.mapShape、無い章は今までどおり
+    const shape = (BAL.mapShape && BAL.mapShape[idx + 1]) || null;
+    const m = MapGen.build(((seed * 2654435761) ^ ((idx + 1) * 40503) ^ (roll * 2246822519)) >>> 0, 160, d, shape);
     if (!m) return def.map;                 // 作れなかったら元のマップに落とす
     this._vec[stageId] = m.vec;
     this._zone[stageId] = m.zone;

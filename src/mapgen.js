@@ -372,7 +372,14 @@ const MapGen = {
   //     口の数   … 増えると守りを割られる（一番効く）
   //     経路長   … 短いほど撃てる時間が減る
   //     通路の幅 … 広いほど1基の扇が覆う割合が下がる
-  make(seed, d) {
+  // shape … 章ごとに形を指定する差し込み口（省くと今までどおり d だけで決まる）
+  //   holes     … 出現口の数を固定する
+  //   widthMul  … 通路の基準幅の倍率
+  //   partPool  … 使う部品を絞る（'straight' だけ＝一直線、'switchbk' だけ＝つづら折り…）
+  //   routeMin/routeMax … 最短経路の帯（タイル）。**難易度がいちばん動くのはここ**
+  //   roadMin/roadMax … 通路の総量の帯を上書きする
+  make(seed, d, shape) {
+    shape = shape || {};
     d = Math.max(0, Math.min(1, d === undefined ? 0.5 : d));
     const rnd = this.rng(seed);
     const cols = this.COLS, rows = this.ROWS;
@@ -394,7 +401,7 @@ const MapGen = {
     //   遠い側に寄せると、口を増やしても経路が足りる
     //   口の数：序盤は1つだけ。中盤で2つ、終盤でようやく3つ目が出る
     const maxHole = d < 0.30 ? 1 : d < 0.62 ? 2 : 3;
-    const nHole = 1 + ((rnd() * maxHole) | 0);
+    const nHole = shape.holes ? shape.holes : 1 + ((rnd() * maxHole) | 0);
     const sideFar = (sd) => {
       if (sd.id === 'top') return core.y;
       if (sd.id === 'bottom') return H - core.y;
@@ -475,8 +482,9 @@ const MapGen = {
         wps.push(best);
       }
       const n = 4 + ((rnd() * 4) | 0);
+      const pool = shape.partPool && shape.partPool.length ? shape.partPool : this.PART_IDS;
       const parts = [];
-      for (let i = 0; i < n; i++) parts.push(pick(this.PART_IDS));
+      for (let i = 0; i < n; i++) parts.push(pool[(rnd() * pool.length) | 0]);
       // **通路の基準幅（px）。** 旧マップの平均幅 3.6〜5.6タイル（144〜224px）に合わせる。
       //   最初 62〜96px（1.5〜2.4タイル）で作ったら、通路が23〜67タイルしかなく
       //   盤の95%が地面になった（旧マップは通路94・地面206）
@@ -487,7 +495,7 @@ const MapGen = {
       //   幅：序盤は細く（覆いやすい）、終盤は広く（覆いにくい）。
       //   （第1〜2章だけ細く作る案は外した。こんどは通路の量が下限を割って、
       //     かえって作り直しが増えた：手書き落ち 5/16 → 11/20）
-      const base = (74 + rnd() * 34) + d * 46;
+      const base = ((74 + rnd() * 34) + d * 46) * (shape.widthMul || 1);
       const wMul = parts.reduce((a, p) => a + this.PARTS[p].w, 0) / parts.length;
       const raw = this.path(rnd, { x: sx, y: sy }, side.ang, wps.concat([core]), parts, W, H);
       lanes.push({ pts: this.smooth(raw, 6), w: base * wMul, parts, side: side.id });
@@ -500,6 +508,7 @@ const MapGen = {
       // 絵は六角セルをそのまま描く（Render.tilesVec）
       vec: { lanes, holes, core, w: W, h: H, hexes, hexR: this.HEX_R },
       zone: this._zone,                 // タイルごとの仕掛け（0=なし 1=泥 2=坂）
+      shape,
       seed,
     };
   },
@@ -508,7 +517,8 @@ const MapGen = {
   //   ここで落とす条件は Stage.validateAll と同じ意味にしてある。
   //   **経路が短いマップは「どう置いても撃つ時間が足りず必ず漏れる」**
   //   （実測：経路17タイルで8回挑戦して全部ウェーブ1で撃沈）
-  check(rowsArr, d) {
+  check(rowsArr, d, shape) {
+    shape = shape || {};
     const dd = (d === undefined ? 0.5 : d);
     const area = (this.COLS * this.ROWS) / (15 * 21);   // 15×21 を 1 とした広さ
     const rows = rowsArr.length, cols = rowsArr[0].length;
@@ -551,13 +561,23 @@ const MapGen = {
       //   ふつうの帯で通すと、**20種のうち4種が10回挑戦しても突破できなかった**
       //   （しかも2章に届かないと転生もできないので、そこで詰む）。
       //   口は1つだけ、通路は細め、経路は長め、に絞る
+      // **章ごとの形（shape）が来ていれば、そちらの帯で見る。**（2026-09-22）
+      //   通路を太くする／口を増やす、を指定しても、帯が元のままだと
+      //   作った端から検査で落ちて、黙って別の形になる
       ok: lens.length === spawns.length && lens.length > 0
-          && Math.min.apply(null, lens) >= BAL.minRouteLen + Math.round(10 * (1 - dd))
-          && road >= Math.round((dd < 0.08 ? BAL.earlyRoadMin : (52 + 70 * dd)) * area)
-          && road <= Math.round((88 + 140 * dd) * area)
+          && (shape.holes ? spawns.length === shape.holes : true)
+          && Math.min.apply(null, lens) >= (shape.routeMin !== undefined
+               ? shape.routeMin : BAL.minRouteLen + Math.round(10 * (1 - dd)))
+          && (shape.routeMax === undefined
+               || Math.min.apply(null, lens) <= shape.routeMax)
+          && road >= Math.round((shape.roadMin !== undefined ? shape.roadMin
+               : (dd < 0.08 ? BAL.earlyRoadMin : (52 + 70 * dd))) * area)
+          && road <= Math.round((shape.roadMax !== undefined ? shape.roadMax
+               : (88 + 140 * dd)) * area)
           && ground >= 40
-          && (dd >= 0.08 || (road <= Math.round(BAL.earlyRoadMax * area)
-                             && Math.min.apply(null, lens) >= BAL.earlyRouteMin)),
+          && (dd >= 0.08 || shape.roadMax !== undefined
+              || (road <= Math.round(BAL.earlyRoadMax * area)
+                  && Math.min.apply(null, lens) >= BAL.earlyRouteMin)),
       spawns: spawns.length, holes: spawns.length, lens, ground, road,
       shortest: lens.length ? Math.min.apply(null, lens) : 0,
     };
@@ -566,14 +586,37 @@ const MapGen = {
   // ---- 使う側の入口 ----
   //   通らないマップが出たら種をずらして作り直す。**何回で通ったかも返す**
   //   （作り直しが多いなら、部品か引きの強さが悪いということ）
-  build(seed, tries, d) {
+  build(seed, tries, d, shape) {
     // **序盤は条件が厳しいので、作り直しの回数を多く取る。**
     //   40回だと第1章の3割が作れず、黙って固定マップに落ちていた
     tries = tries || 40;
-    for (let i = 0; i < tries; i++) {
-      const m = this.make((seed + i * 7919) >>> 0, d);
-      const st = this.check(m.rows, d);
-      if (st && st.ok) { m.stat = st; m.retries = i; return m; }
+    // **形の指定は、届かなければ段階的に緩める。**（2026-09-22）
+    //   前は「指定どおりに作れなければ null」で、呼び出し側（Stage.mapRowsFor）が
+    //   **黙って手書きマップに落ちていた。**
+    //   経路 40〜46 を頼んだのに実際の経路が22（手書きの第15章）になっていて、
+    //   帯を変えても漏れが動かない、という測定結果になっていた。
+    //   **効きの強い順に残す。** 経路の下限がいちばん難易度を動かすので最後まで残し、
+    //   上限・通路量・口の数・部品・幅の順に落とす
+    const steps = [shape];
+    if (shape) {
+      const drop = (o, keys) => { const c = Object.assign({}, o); for (const k of keys) delete c[k]; return c; };
+      steps.push(drop(shape, ['routeMax']));
+      steps.push(drop(shape, ['routeMax', 'roadMin', 'roadMax']));
+      steps.push(drop(shape, ['routeMax', 'roadMin', 'roadMax', 'holes']));
+      steps.push(drop(shape, ['routeMax', 'roadMin', 'roadMax', 'holes', 'partPool', 'widthMul']));
+      steps.push(null);
+    }
+    for (let sI = 0; sI < steps.length; sI++) {
+      const sh = steps[sI];
+      for (let i = 0; i < tries; i++) {
+        const m = this.make((seed + i * 7919) >>> 0, d, sh);
+        const st = this.check(m.rows, d, sh);
+        if (st && st.ok) {
+          m.stat = st; m.retries = i;
+          m.relaxed = sI;              // 0 なら指定どおり。大きいほど緩めた
+          return m;
+        }
+      }
     }
     return null;
   },
