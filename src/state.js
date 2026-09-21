@@ -643,6 +643,8 @@ const Game = {
       units: [],
       cards: {},
       coinMul: 1, resonance: 0, chillVuln: BAL.chillVulnBase, backdraft: 0,
+      // 遺物の状態異常の軸。applyMods が入れ替える（Combat.damage が毎ヒット読む）
+      st: Relic.none,
       kills: 0, coinsEarned: 0, dealt: 0, leaked: 0,
       livesLost: 0, leakBy: {},   // 死因のため：失ったライフと、抜けられた敵の内訳
       shake: 0,
@@ -670,6 +672,7 @@ const Game = {
     if (!run) return;
     const mods = Skill.mods(this.meta, this.perm);
     run.mods = mods;
+    run.st = mods.relic.st;
     for (const u of run.units) {
       const keepArc = u.arc;
       u.s = Object.assign({}, u.def.base);

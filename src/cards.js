@@ -353,6 +353,42 @@ const CARDS = {
     name: '広域走査', tmpl: 'カードの3択が +{e} 枚 増える' }),
   rl_regen: P({ id: 'rl_regen', rarity: 'legendary', key: 'regen', eff: 1, mode: 'flat', cap: 3,
     name: '再生機関', tmpl: 'ウェーブを突破するごとにライフ +{e}' }),
+
+  // ---- 状態異常の軸（2026-09-21・ユーザー指摘）----
+  //   > 「遺物はそもそもゲームの根底から変えるわけでしょ？
+  //   >   例えば凍結+0.5秒とか炎上+0.5秒とか、そういった方向にした方がいいかもな
+  //   >   増やせるものは多いと思うよ、軸を増やそう」
+  //
+  //   ダメージ・コイン・射程…は「数字が少し大きくなる」だけで、遊び方は変わらない。
+  //   持続と強さを触る軸は、**同じ編成でも戦い方が変わる。**
+  //
+  //   **付与（熾火核・霜結核）と増幅（それ以外）で分けてある。**
+  //   状態異常を出せる武器はテスラ8章・火炎11章・凍結17章と解放が遅いので、
+  //   増幅だけ置くと序盤の遺物が死に札になる。付与を先に引けば、
+  //   ガトリング1種でも燃えるし凍る ＝ そこから増幅が全部生きる
+  rl_burn1: P({ id: 'rl_burn1', rarity: 'common', key: 'burnDur', eff: 0.3, mode: 'add', cap: 1.8, fixed: true,
+    name: '火種片',   tmpl: '炎上の持続 +{e}秒' }),
+  rl_chill1: P({ id: 'rl_chill1', rarity: 'common', key: 'chillDur', eff: 0.25, mode: 'add', cap: 1.5, fixed: true,
+    name: '霜片',     tmpl: '凍結・減速の持続 +{e}秒' }),
+
+  rl_ember: P({ id: 'rl_ember', rarity: 'rare', key: 'burnGrant', eff: 0.04, mode: 'add', cap: 0.16, fixed: true,
+    name: '熾火核',   tmpl: 'すべての攻撃が敵を燃やす（与ダメージの {p}/秒・2秒）' }),
+  rl_frost: P({ id: 'rl_frost', rarity: 'rare', key: 'chillGrant', eff: 0.06, mode: 'add', cap: 0.24, fixed: true,
+    name: '霜結核',   tmpl: 'すべての攻撃が敵を凍らせる（減速 {p}・0.8秒）' }),
+  rl_stun2: P({ id: 'rl_stun2', rarity: 'rare', key: 'stunDur', eff: 0.2, mode: 'add', cap: 1.2, fixed: true,
+    name: '拘束核',   tmpl: '拘束の持続 +{e}秒' }),
+
+  rl_burn3: P({ id: 'rl_burn3', rarity: 'epic', key: 'burnPow', eff: 0.30, mode: 'add', cap: 1.8, fixed: true,
+    name: '業火炉',   tmpl: '炎上のダメージ +{p}' }),
+  rl_slow3: P({ id: 'rl_slow3', rarity: 'epic', key: 'slowPow', eff: 0.04, mode: 'add', cap: 0.20, fixed: true,
+    name: '極寒炉',   tmpl: '減速の強さ +{p}' }),
+  rl_shock3: P({ id: 'rl_shock3', rarity: 'epic', key: 'shockDur', eff: 0.4, mode: 'add', cap: 2.4, fixed: true,
+    name: '帯電炉',   tmpl: '感電の持続 +{e}秒' }),
+
+  // **これが一番「根底から変える」札。** 凍らせる手段（霜結核か凍結装置）と
+  // 組んではじめて意味が出る ＝ ビルドの方向が決まる
+  rl_brittle: P({ id: 'rl_brittle', rarity: 'legendary', key: 'chillVuln', eff: 0.20, mode: 'add', cap: 0.8, fixed: true,
+    name: '脆化の理', tmpl: '凍っている敵が受けるダメージ +{p}' }),
 };
 
 const CARD_IDS = Object.keys(CARDS);

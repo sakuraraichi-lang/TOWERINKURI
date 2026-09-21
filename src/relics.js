@@ -61,8 +61,17 @@ const Legacy = {
   },
 };
 
+// 状態異常の遺物が1枚も無いときの値。**run.st は null にならない**
+//   （Combat.damage が毎ヒット読むので、分岐を1つでも減らしたい）
+const NO_STATUS = {
+  burnDur: 0, burnMul: 1, burnGrant: 0,
+  chillDur: 0, slowAdd: 0, chillGrant: 0, chillVuln: 0,
+  stunDur: 0, shockDur: 0,
+};
+
 const Relic = {
   _cache: null,
+  none: NO_STATUS,
 
   // 所持枚数が変わったら呼ぶ。次に読まれたときに数え直す
   invalidate() { this._cache = null; },
@@ -72,7 +81,24 @@ const Relic = {
     if (this._cache) return this._cache;
     const col = (perm && perm.collection) || {};
     // 足し算でまとめる軸。**種類ごとに上限がある**（同じ遺物を重ねるほど1枚の価値が薄まる）
-    const add = { dmg: 0, coin: 0, rate: 0, range: 0, size: 0, speed: 0, crit: 0, pierce: 0 };
+    //
+    // **状態異常の軸（2026-09-21・ユーザー指摘）**
+    //   > 「遺物はそもそもゲームの根底から変えるわけでしょ？
+    //   >   例えば凍結+0.5秒とか炎上+0.5秒とか、そういった方向にした方がいいかもな」
+    //
+    //   ダメージとコインしか無いと、遺物は「数字が少し大きくなる札」でしかない。
+    //   持続や強さを触ると**遊び方そのものが変わる**ので、そちらへ寄せる。
+    //
+    //   `*Grant` の2つは、**どの武器にも状態異常を付ける**ぶん。
+    //   状態異常の武器（テスラ8章・火炎11章・凍結17章）は解放が遅く、
+    //   持続を伸ばす遺物だけだと**序盤は死に札**になるため、
+    //   「そもそも状態異常を発生させる」側を置いて、はじめて軸として生きる
+    const add = {
+      dmg: 0, coin: 0, rate: 0, range: 0, size: 0, speed: 0, crit: 0, pierce: 0,
+      burnDur: 0, burnPow: 0, burnGrant: 0,
+      chillDur: 0, slowPow: 0, chillGrant: 0, chillVuln: 0,
+      stunDur: 0, shockDur: 0,
+    };
     let lives = 0, seed = 0, startLv = 0, picks = 0, choices = 0, regen = 0;
 
     for (const id of RELIC_IDS) {
@@ -92,9 +118,15 @@ const Relic = {
       //   ライフ・初動資金・初期投資は固定の上限のまま。
       //   とくにライフは「HPを鍛えるのはノーサンキュー、せめてカードで固定値上昇」
       //   （ユーザー 2026-09-21）なので、恒久層で伸ばし続けない
+      // **状態異常の軸だけは上限が開かない（fixed）。**（2026-09-21）
+      //   これは「敵の時間を奪う」軸なので、上限が転生回数で開くと
+      //   減速が 0.30 → 0.90、拘束が 1.2秒 → 7秒 まで伸びて、
+      //   **終盤には敵が止まる＝難易度そのものが消える。**
+      //   ダメージやコインは「速く倒す」だけだが、こちらは「そもそも進ませない」。
+      //   同じ扱いにはできない
       const capMul = 1 + 0.6 * (perm.prestiges || 0);
       const capOf = (grow) => (c.cap !== undefined ? c.cap : Infinity) * (grow ? capMul : 1);
-      if (c.mode === 'add') add[c.key] += Math.min(capOf(true), c.eff * n);
+      if (c.mode === 'add') add[c.key] += Math.min(capOf(!c.fixed), c.eff * n);
       else if (c.key === 'lives') lives += Math.min(capOf(false), c.eff * n);
       else if (c.key === 'seed') seed += Math.min(capOf(false), c.eff * n);
       else if (c.key === 'startLv') startLv += Math.min(capOf(false), c.eff * n);
@@ -115,6 +147,13 @@ const Relic = {
       speed: (1 + add.speed),
       crit: add.crit,
       pierce: add.pierce,
+      // 状態異常はまとめて run.st に渡す（Combat.damage が読む）
+      st: {
+        burnDur: add.burnDur, burnMul: 1 + add.burnPow, burnGrant: add.burnGrant,
+        chillDur: add.chillDur, slowAdd: add.slowPow, chillGrant: add.chillGrant,
+        chillVuln: add.chillVuln,
+        stunDur: add.stunDur, shockDur: add.shockDur,
+      },
       lives, seed, startLv, picks, choices, regen,
       count: RELIC_IDS.reduce((a, id) => a + (col[id] || 0), 0),
     };

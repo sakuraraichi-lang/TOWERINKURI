@@ -223,7 +223,7 @@ const Combat = {
   vuln(run, e) {
     let v = 1;
     if (e.shock > 0) v += BAL.shockVuln;
-    if (e.chill > 0) v += run.chillVuln;
+    if (e.chill > 0) v += run.chillVuln + run.st.chillVuln;
     if (e.fvulnT > 0) v += e.fvuln;
     return v;
   },
@@ -239,15 +239,38 @@ const Combat = {
     e.hitFlash = 0.1;
     run.dealt += dmg;
 
+    // ---- 状態異常。**遺物の軸がここで乗る**（relics.js の st）----
+    //   opts.dot が立っているものは、燃焼・毒の雲など**すでに状態異常が
+    //   起こしているダメージ**。ここへ付与を掛けると自分で自分を延長し続けて
+    //   永久に切れなくなるので、付与（*Grant）は素の攻撃だけに掛ける
     const sc = this.statusScale(e);
-    if (opts.shock) e.shock = Math.max(e.shock, opts.shock * sc);
-    if (opts.slow) {
-      e.slow = Math.max(e.slow, opts.slow);
-      e.slowT = Math.max(e.slowT, (opts.slowDur || 1) * sc);
-      if (opts.chill) e.chill = Math.max(e.chill, (opts.slowDur || 1) * sc);
+    const st = run.st;
+    if (opts.shock) e.shock = Math.max(e.shock, opts.shock * sc + st.shockDur);
+
+    let sl = opts.slow || 0, slD = (opts.slowDur || 0) * sc, ch = !!opts.chill;
+    if (st.chillGrant > 0 && !opts.dot) {           // 霜結：どの武器でも凍る
+      if (st.chillGrant > sl) sl = st.chillGrant;
+      if (BAL.grantChillDur > slD) slD = BAL.grantChillDur;
+      ch = true;
     }
-    if (opts.stun) e.stun = Math.max(e.stun, opts.stun * sc);
-    if (opts.burn) { e.burn = Math.max(e.burn, opts.burn); e.burnT = Math.max(e.burnT, opts.burnDur || 3); }
+    if (sl > 0) {
+      e.slow = Math.max(e.slow, Math.min(BAL.slowMax, sl + st.slowAdd));
+      const d = (slD || 1) + st.chillDur;
+      e.slowT = Math.max(e.slowT, d);
+      if (ch) e.chill = Math.max(e.chill, d);
+    }
+
+    if (opts.stun) e.stun = Math.max(e.stun, opts.stun * sc + st.stunDur);
+
+    let bn = opts.burn || 0, bd = opts.burnDur || 0;
+    if (st.burnGrant > 0 && !opts.dot) {            // 熾火：どの武器でも燃える
+      const g = amount * st.burnGrant;
+      if (g > bn) { bn = g; if (BAL.grantBurnDur > bd) bd = BAL.grantBurnDur; }
+    }
+    if (bn > 0) {
+      e.burn = Math.max(e.burn, bn * st.burnMul);
+      e.burnT = Math.max(e.burnT, (bd || 3) + st.burnDur);
+    }
 
     if (!e.dead && opts.exec && e.hp > 0 && e.hp / e.maxHp <= opts.exec) e.hp = 0;
 
@@ -692,8 +715,13 @@ const Combat = {
           if (e.dead) continue;
           if (Util.dist(f.x, f.y, e.x, e.y) > f.r + e.r) continue;
           if (f.vuln) { e.fvuln = f.vuln; e.fvulnT = 0.4; }
-          if (f.slow) { e.slow = Math.max(e.slow, f.slow); e.slowT = Math.max(e.slowT, 0.5); }
-          this.damage(run, e, f.dps * step, { color: f.kind === 'gas' ? '#c6ff7a' : '#ffb066' });
+          // 場の減速にも遺物の軸を乗せる。**ここは damage() を通らないので、
+          // 書き忘れると「毒の雲だけ遺物が効かない」ことになる**
+          if (f.slow) {
+            e.slow = Math.max(e.slow, Math.min(BAL.slowMax, f.slow + run.st.slowAdd));
+            e.slowT = Math.max(e.slowT, 0.5 + run.st.chillDur);
+          }
+          this.damage(run, e, f.dps * step, { color: f.kind === 'gas' ? '#c6ff7a' : '#ffb066', dot: true });
         }
       }
     }
@@ -715,7 +743,7 @@ const Combat = {
       if (e.fvulnT > 0) e.fvulnT -= dt;
       if (e.slowT > 0) { e.slowT -= dt; if (e.slowT <= 0) e.slow = 0; }
       if (e.hitFlash > 0) e.hitFlash -= dt;
-      if (e.burnT > 0) { e.burnT -= dt; this.damage(run, e, e.burn * dt, { color: '#ff8a3a' }); if (e.dead) continue; }
+      if (e.burnT > 0) { e.burnT -= dt; this.damage(run, e, e.burn * dt, { color: '#ff8a3a', dot: true }); if (e.dead) continue; }
 
       const tc = (e.x / TILE) | 0, tr = (e.y / TILE) | 0;
       const inside = st.walkable(tc, tr);

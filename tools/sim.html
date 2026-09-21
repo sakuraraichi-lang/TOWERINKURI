@@ -70,16 +70,23 @@ const UI = {
 
 // 30章ぶんの編成。**章ごとに手で書かない。**
 // 設計書 §4-3 の武器解放の割付に合わせて、その章までに持っている武器から選ぶ
-// **実ゲームの初期所持（STARTER_CARDS）に合わせること。**
-// ここを勝手に「ガトリング1種」にしていて、第1章が 撃破1／漏れ20 で即死していた。
-// 「初期武器を1種に絞る」は設計書 §13 の未承認の提案であって、まだ入っていない
+//
+// **実ゲームの初期所持（cards.js の STARTER_CARDS）に合わせること。**
+//   ここが本体とずれると、測定だけが本体より強い／弱い状態になる。
+//   これまでに2回やらかしている：
+//     1. ガトリング1種に勝手に絞って、第1章が 撃破1／漏れ20 で即死した
+//     2. **スナイパーを最初から持たせていた**（2026-09-21 発覚）。
+//        ユーザー決定「初期武器はガトリングでよし」を受けて本体は
+//        STARTER_CARDS を wc_gatling だけにし、スナイパーは第2章の突破報酬
+//        （gen30.py の CH_WEAPON[2]）へ回したのに、**こちらを直し忘れていた。**
+//        第1〜2章を、実際には持っていない長射程で測っていたことになる
+//
 // 武器がいつ手に入るか。**数字は「その章を突破したときにもらえる」**。
-//   本体は `clearStage` で報酬を配るので、**使えるのは次の章から。**
-//   ここを `ch >= N` にしていたため、**測定器の側だけ全部の武器が1章ぶん早かった。**
-//   （出どころは tools/gen30.py の CH_WEAPON。ずれたら両方を直す）
-const WEAPON_START = ['gatling', 'sniper'];   // src:'start'。最初から持っている
+//   本体は `clearStage` で報酬を配るので、**使えるのは次の章から**（だから `ch > w[0]`）。
+//   出どころは tools/gen30.py の CH_WEAPON。ずれたら両方を直す
+const WEAPON_START = ['gatling'];   // STARTER_CARDS。最初から持っているのはこれだけ
 const WEAPON_AT = [
-  [5, 'missile'], [8, 'tesla'],
+  [2, 'sniper'], [5, 'missile'], [8, 'tesla'],
   [11, 'flame'], [14, 'gas'], [17, 'cryo'], [20, 'mortar'],
 ];
 function loadoutFor(stageId) {
@@ -341,6 +348,7 @@ async function reachDistAsync(seeds, opts) {
              tries: tryLog.join(','), res: resLog.join('') };
   }
 
+  st.lap = lap;          // 周回を重ねる測定（progressAsync）から使い回す
   for (const sd of seeds) {
     seedRng(sd);
     const a = await lap('周1 seed' + sd, true);
@@ -358,6 +366,56 @@ async function reachDistAsync(seeds, opts) {
   st.done = true;
   st.実秒 = +((performance.now() - st.t0) / 1000).toFixed(1);
   return st.rows;
+}
+
+// ---------------------------------------------------------------
+// 何回転生すれば何章まで行けるか（周回を重ねて測る）
+//
+//   **これがバランスの中心の指標。**（設計書 docs/DESIGN-CORE-2026-09-21.md §5）
+//   ユーザーの狙いは「転生4回くらいで第13章」。
+//
+//   これまで毎回ブラウザのコンソールに書き捨てのループを打っていたので、
+//   **測るたびに条件が微妙に違っていた。**関数にして条件を固定する。
+//
+//   結果 → window.PROG.rows[] = { seed, laps:[到達章...], line:'3 → 6 → 9 → …' }
+// ---------------------------------------------------------------
+async function progressAsync(seeds, opts) {
+  opts = opts || {};
+  const laps = opts.laps || 8;
+  const yieldNow = () => new Promise(r => setTimeout(r, 0));
+  const pg = window.PROG = { rows: [], done: false, now: '', t0: performance.now() };
+
+  for (const sd of seeds) {
+    seedRng(sd);
+    Game.newSave();
+    const got = [], mins = [], tries = [], notes = [];
+    for (let L = 1; L <= laps; L++) {
+      pg.now = 'seed' + sd + ' 周' + L;
+      // **1周を歩く手順は reachDistAsync と同じものを使う。**
+      //   （seeds を空で呼ぶと、周を歩く関数だけ作って何も測らずに返る）
+      await reachDistAsync([], opts);
+      const lap = window.DIST.lap;
+      window.DIST.now = '';
+      const r = await lap('seed' + sd + ' 周' + L, L === 1);
+      pg.now = 'seed' + sd + ' 周' + L + ' → ' + r.cleared + '章';
+      got.push(r.cleared); mins.push(r.min); tries.push(r.tries); notes.push(r.note);
+      // **章ごとの挑戦回数（tries）を残す。**
+      //   0 はスキップ、1 は一発、2以上は詰まった章 ＝ ストップポイント。
+      //   到達章の数字だけ見ていると「どこで詰まったか」が分からず、
+      //   BAL.chapterMul をどこに置けばいいかが決められなかった
+      pg.rows = pg.rows.filter(x => x.seed !== sd)
+        .concat([{ seed: sd, laps: got.slice(), mins: mins.slice(),
+                   tries: tries.slice(), notes: notes.slice(), line: got.join(' → ') }]);
+      await yieldNow();
+      if (r.cleared >= MAIN_STAGES.length) break;
+      if (!Game.canPrestige()) break;
+      Game.prestige();
+    }
+  }
+  unseedRng();
+  pg.done = true;
+  pg.実秒 = +((performance.now() - pg.t0) / 1000).toFixed(1);
+  return pg.rows;
 }
 
 // 分布のまとめ。**打切の行は除いて数える**
