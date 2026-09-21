@@ -264,6 +264,31 @@ const MapGen = {
     return out;
   },
 
+  // ---- ギミック（地形の仕掛け）----
+  //
+  //   **六角セルに「性質」を持たせる。**（ユーザー承認 2026-09-22）
+  //   > 「仮に20基置けるなら広大なマップを用意するなり、
+  //   >   ステージに多少のギミックを入れるのがいいです」
+  //   > 「（六角マップの上に作って）はい、それで構いません」
+  //
+  //   数値ではなく**地形で難易度を作る**ための最初の一歩。
+  //     泥 mud   … 通る敵が遅くなる。置いた武器が長く撃てる ＝ 守りやすい場所
+  //     坂 slope … 通る敵が速くなる。抜けられやすい ＝ 守りにくい場所
+  //   章が深いほど坂が増え、泥が減る。**形で難易度が動く**
+  ZONE: { none: 0, mud: 1, slope: 2 },
+
+  tagZones(hexes, rnd, d) {
+    // 出入口とコアの近くには置かない（置いた瞬間に詰む形を避ける）
+    const n = hexes.length;
+    const mudN = Math.round(n * (0.16 - 0.10 * d));     // 序盤ほど泥が多い
+    const slpN = Math.round(n * (0.02 + 0.12 * d));     // 終盤ほど坂が多い
+    const idx = hexes.map((_, i) => i).sort(() => rnd() - 0.5);
+    let k = 0;
+    for (let i = 0; i < mudN && k < idx.length; i++, k++) hexes[idx[k]].zone = this.ZONE.mud;
+    for (let i = 0; i < slpN && k < idx.length; i++, k++) hexes[idx[k]].zone = this.ZONE.slope;
+    return hexes;
+  },
+
   // ---- 焼く ----
   //   タイルの中心が、拾った六角セルのどれかの中にあれば通路。
   //   **ここでタイルへ落とすので、この先（BFS・Crowd・設置）は何も変わらない**
@@ -273,6 +298,7 @@ const MapGen = {
     for (let r = 0; r < rows; r++) g.push(new Array(cols).fill('#'));
 
     const R = this.HEX_R;
+    const zone = new Array(cols * rows).fill(0);
     for (const hx of hexes) {
       const minc = Math.max(0, Math.floor((hx.x - R) / TILE));
       const maxc = Math.min(cols - 1, Math.ceil((hx.x + R) / TILE));
@@ -281,10 +307,13 @@ const MapGen = {
       for (let r = minr; r <= maxr; r++) {
         for (let c = minc; c <= maxc; c++) {
           const cx = c * TILE + TILE / 2, cy = r * TILE + TILE / 2;
-          if (this.inHex(cx - hx.x, cy - hx.y, R)) g[r][c] = '.';
+          if (!this.inHex(cx - hx.x, cy - hx.y, R)) continue;
+          g[r][c] = '.';
+          if (hx.zone) zone[r * cols + c] = hx.zone;      // 地形の仕掛け
         }
       }
     }
+    this._zone = zone;
 
     // コア
     const cc = Math.max(0, Math.min(cols - 1, Math.floor(core.x / TILE)));
@@ -448,12 +477,13 @@ const MapGen = {
       lanes.push({ pts: this.smooth(raw, 6), w: base * wMul, parts, side: side.id });
     }
 
-    const hexes = this.fillHexGaps(this.hexesFor(lanes, W, H), W, H);
+    const hexes = this.tagZones(this.fillHexGaps(this.hexesFor(lanes, W, H), W, H), rnd, d);
     const g = this.edge(this.bake(lanes, core, holes, W, H, hexes));
     return {
       rows: g.map(r => r.join('')),
       // 絵は六角セルをそのまま描く（Render.tilesVec）
       vec: { lanes, holes, core, w: W, h: H, hexes, hexR: this.HEX_R },
+      zone: this._zone,                 // タイルごとの仕掛け（0=なし 1=泥 2=坂）
       seed,
     };
   },

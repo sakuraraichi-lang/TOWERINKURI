@@ -900,9 +900,16 @@ const Combat = {
             if (st.walkable((nx / TILE) | 0, (ny / TILE) | 0)) { e.x = nx; e.y = ny; }
           }
         } else {
+          // **地形の仕掛け。**泥は遅く、坂は速くなる（src/mapgen.js の tagZones）。
+          //   数値ではなく**地形で難易度を作る**ための口
+          let zm = 1;
+          if (inside && st.zone) {
+            const z = st.zoneAt(tc, tr);
+            if (z === 1) zm = BAL.zoneMud; else if (z === 2) zm = BAL.zoneSlope;
+          }
           const slowMul = Math.max(BAL.enemySlowFloor, 1 - e.slow);
-          e.x += Math.cos(a) * e.spd * slowMul * dt;
-          e.y += Math.sin(a) * e.spd * slowMul * dt;
+          e.x += Math.cos(a) * e.spd * slowMul * zm * dt;
+          e.y += Math.sin(a) * e.spd * slowMul * zm * dt;
           e.ang = a;      // 描画で向きを出すため。挙動には使わない
         }
       }

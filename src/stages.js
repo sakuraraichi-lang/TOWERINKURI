@@ -886,14 +886,16 @@ const Stage = {
     const m = MapGen.build(((seed * 2654435761) ^ ((idx + 1) * 40503) ^ (roll * 2246822519)) >>> 0, 160, d);
     if (!m) return def.map;                 // 作れなかったら元のマップに落とす
     this._vec[stageId] = m.vec;
+    this._zone[stageId] = m.zone;
     return m.rows;
   },
 
   _vec: {},
+  _zone: {},
   vecOf(stageId) { return this._vec[stageId] || null; },
 
   // 種が変わったら作り直す（転生のとき）
-  invalidate() { this._cache = {}; this._vec = {}; },
+  invalidate() { this._cache = {}; this._vec = {}; this._zone = {}; },
 
   build(stageId) {
     if (this._cache[stageId]) return this._cache[stageId];
@@ -959,6 +961,9 @@ const Stage = {
     const built = {
       def, id: stageId, cols, rows, grid, spawns, core, dist, next, idx, walkable, routes,
       vec: this._vec[stageId] || null,        // 折れ線と幅。絵を滑らかに描くのに使う
+      // 地形の仕掛け（0=なし 1=泥 2=坂）。手で書いたマップには無い
+      zone: this._zone[stageId] || null,
+      zoneAt(c, r) { return this.zone ? (this.zone[r * cols + c] || 0) : 0; },
       w: cols * TILE, h: rows * TILE,
       center: (c, r) => ({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2 }),
       // 置けるのは地面だけ（通路・出現口・コア・障害物には置けない）

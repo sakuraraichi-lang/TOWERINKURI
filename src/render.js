@@ -228,11 +228,28 @@ const Render = {
     // 縁：一回り大きく塗って、通路の外周に枠が出るようにする
     ctx.fillStyle = '#232838';
     for (const h of v.hexes) { hexPath(h.x, h.y); ctx.fill(); }
-    // 本体：境目に線を残すと、六角の集まりとして読める
-    ctx.fillStyle = '#05060a';
+    // 本体：境目に線を残すと、六角の集まりとして読める。
+    //   **仕掛けのあるセルは色を変える**（泥＝遅くなる／坂＝速くなる）。
+    //   見て分かること自体が仕掛けの半分。分からないと置き場所を選べない
     ctx.strokeStyle = '#151a26';
     ctx.lineWidth = 2;
-    for (const h of v.hexes) { hexPath(h.x, h.y); ctx.fill(); ctx.stroke(); }
+    for (const h of v.hexes) {
+      ctx.fillStyle = h.zone === 1 ? '#0d1b14' : h.zone === 2 ? '#1c1220' : '#05060a';
+      hexPath(h.x, h.y); ctx.fill(); ctx.stroke();
+    }
+    // 仕掛けの印。**塗りの差だけだと暗い画面で読めない**ので、記号を重ねる
+    for (const h of v.hexes) {
+      if (!h.zone) continue;
+      ctx.strokeStyle = h.zone === 1 ? 'rgba(110,230,170,0.55)' : 'rgba(215,140,255,0.55)';
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      if (h.zone === 1) {                    // 泥：横に3本（沈む感じ）
+        for (let i = -1; i <= 1; i++) { ctx.moveTo(h.x - R * 0.45, h.y + i * 6); ctx.lineTo(h.x + R * 0.45, h.y + i * 6); }
+      } else {                               // 坂：山形（下る感じ）
+        ctx.moveTo(h.x - R * 0.42, h.y + 5); ctx.lineTo(h.x, h.y - 6); ctx.lineTo(h.x + R * 0.42, h.y + 5);
+      }
+      ctx.stroke();
+    }
     ctx.restore();
 
     // 2b. **盤の縁は六角を描いたあとで塗り直す。**
