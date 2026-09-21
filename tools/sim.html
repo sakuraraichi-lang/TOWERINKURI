@@ -718,6 +718,8 @@ function runStageInner(stageId, loadout, buys, opts) {
     const dealt = run.dealt - wDealt;
     const coins = Game.meta.coins - wCoins;
     const kills = run.kills - wKills;
+    // **参考値。挙動には効いていない**（本体の e.dmg はどこからも読まれていない）。
+    //   これを「敵の強さ」として読むと誤る
     const enemyDps = BAL.enemyDpsBase * Math.pow(BAL.enemyDpsGrowth, g - 1);
     waves.push({
       build: opts.buildId || '', stage: STAGE_BY_ID[run.stageId].name, wave: run.wave, g,

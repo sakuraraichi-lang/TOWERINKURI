@@ -96,6 +96,12 @@ const BAL = {
   enemySpdBase: 112,    // px/s（1タイルは stages.js の TILE）。押し寄せる速さ
   enemySpdGrowth: 1.012,
   enemySpdCap: 260,
+  //   **【死んでいる 2026-09-21】この2つは効いていない。**
+  //   `spawnEnemy` が `e.dmg` を計算しているが、**どこからも読まれていない**
+  //   （src 全体を検索して参照ゼロ）。漏れの重さは下の `leakLives` で決まる。
+  //   測定器の digest が `enemyDps` を出しているのも参考値で、挙動には効かない。
+  //   **消さずに残してあるのは、「漏れの重さを章で変えるか」が未決だから**
+  //   （いまは章によらず1体＝ライフ1。深い章ほど1体の価値が下がる形になっている）
   enemyDpsBase: 7,
   enemyDpsGrowth: 1.26,
   enemyCoinBase: 2.4,
