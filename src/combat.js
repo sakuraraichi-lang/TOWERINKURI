@@ -126,10 +126,15 @@ const Combat = {
   // ================= ウェーブ =================
   gw(run) { return globalWave(run.stageIdx, run.wave); },
 
+  // 1ウェーブに出る敵の数。
+  //   **線形の項（waveCountPerWave）だけだと、章が進んでも数がほとんど増えない。**
+  //   敵の指数を1本増やすため、通算ウェーブの累乗（waveCountGrowth）を足してある。
+  //   1.0 にすれば以前とまったく同じ（線形のみ）に戻る
   waveCount(run) {
     const g = this.gw(run);
-    const n = (BAL.waveCountBase + g * BAL.waveCountPerWave) * run.mods.spawn;
-    return Math.min(BAL.waveCountMax, Math.floor(n));
+    const base = (BAL.waveCountBase + g * BAL.waveCountPerWave)
+               * Math.pow(BAL.waveCountGrowth || 1, g - 1);
+    return Math.min(BAL.waveCountMax, Math.floor(base * run.mods.spawn));
   },
 
   isLastWave(run) { return run.wave >= BAL.wavesPerStage; },
@@ -649,6 +654,12 @@ const Combat = {
       run.spawnTimer -= dt;
       let guard = 0;
       while (run.spawnTimer <= 0 && run.toSpawn > 0 && guard++ < 60) {
+        // **盤面が上限なら、湧かせずに待つ。**
+        //   以前はここで toSpawn を減らしていたので、上限に当たったぶんの敵が
+        //   黙って消えていた。ウェーブの数が嘘になるうえ、
+        //   詰まっているときほど敵が減る（＝勝手に易しくなる）という逆の挙動だった。
+        //   waveCountMax を 260 から開けたので、ここに当たる場面が実際に出る
+        if (run.enemies.length >= BAL.enemyCap) break;
         this.spawnEnemy(run);
         run.toSpawn--;
         run.spawnTimer += this.spawnInterval(run);
