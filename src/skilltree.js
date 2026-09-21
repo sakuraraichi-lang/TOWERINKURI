@@ -68,120 +68,155 @@ const SKILLS = [
     eff: 1, mode: 'add', tmpl: 'ウェーブを凌ぐごとにコイン +{e}%（凌いだ時点の残りライフに比例）',
     cost0: 300, costG: 1.45, max: 20, unlock: 2 },
 
-  // ============ カテゴリ別（その分類の武器を1つでも持つと解放） ============
+  // ============ カテゴリ別：**取り切りで1段ずつ開く**（2026-09-21 作り直し）============
+  //
+  //   > 「同じスキルのレベルをずっと強化し続けるから開放していく感じがない、
+  //   >  取り切りで次のツリーに進んで、コスト曲線で目指すところをつけようや、
+  //   >  そしたらインフレも制御しやすいし、スキル一個取っただけで激変！が味わえるし」
+  //
+  //   **1ノードは `max: 1`。取ると `needs` で次が開く。** 効果は1回で体感できる大きさにする。
+  //
+  //   **天井が設計で決まるのが、この形のいちばんの利点。**
+  //   1カテゴリを全部取ると ダメージ ×3 → ×5 → ×8 ＝ **×120**、
+  //   レート ×2.2、射程 ×1.6 で、実効 **×400前後**。
+  //   敵は 0921h 以降 ウェーブ全体の重さが **×3.71/章** なので、6章ぶんが ×706。
+  //   **ツリーを取り切ると、だいたい6章ぶん進める**計算（残りはカードが埋める）。
+  //   周1で6章＝転生4回で第13章、というユーザーの狙いに合わせてある。
+  //
+  //   値段は収入の伸び（実測 ×4.8/章）に合わせて1段ごとに ×4.8。
+  //   **1段＝およそ1章**のペース。`costG` は使わない（取り切りなので意味がない）
+
   { id: 'short_dmg', name: '近接兵装', icon: '◤', group: '短射程', cat: 'short', key: 'dmg',
-    eff: 1.15, mode: 'mul', tmpl: '短射程カテゴリのダメージ ×{e}',
-    cost0: 30, costG: 1.30, max: Infinity, unlock: 0 },
-  { id: 'short_rng', name: '間合い拡張', icon: '◤', group: '短射程', cat: 'short', key: 'range',
-    eff: 1.09, mode: 'mul', tmpl: '短射程カテゴリの射程 ×{e}',
-    cost0: 45, costG: 1.36, max: Infinity, unlock: 0 },
+    eff: 3.0, mode: 'mul', tmpl: '短射程カテゴリのダメージ ×{e}',
+    cost0: 100, costG: 1, max: 1, unlock: 0 },
+  { id: 'short_rate', name: '近接機構', icon: '◤', group: '短射程', cat: 'short', key: 'rate',
+    eff: 2.2, mode: 'mul', tmpl: '短射程カテゴリの発射レート ×{e}',
+    cost0: 480, costG: 1, max: 1, unlock: 0, needs: 'short_dmg' },
+  { id: 'short_dmg2', name: '近接増幅', icon: '◤', group: '短射程', cat: 'short', key: 'dmg',
+    eff: 5.0, mode: 'mul', tmpl: '短射程カテゴリのダメージ ×{e}',
+    cost0: 2304, costG: 1, max: 1, unlock: 0, needs: 'short_rate' },
+  { id: 'short_rng', name: '近接観測', icon: '◤', group: '短射程', cat: 'short', key: 'range',
+    eff: 1.6, mode: 'mul', tmpl: '短射程カテゴリの射程 ×{e}',
+    cost0: 11059, costG: 1, max: 1, unlock: 0, needs: 'short_dmg2' },
+  { id: 'short_util', name: '粘着処理', icon: '◤', group: '短射程', cat: 'short', key: 'dur',
+    eff: 1.8, mode: 'mul', tmpl: '短射程カテゴリの状態異常の持続 ×{e}',
+    cost0: 53084, costG: 1, max: 1, unlock: 0, needs: 'short_rng' },
+  { id: 'short_dmg3', name: '近接極大', icon: '◤', group: '短射程', cat: 'short', key: 'dmg',
+    eff: 8.0, mode: 'mul', tmpl: '短射程カテゴリのダメージ ×{e}',
+    cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'short_util' },
   { id: 'short_unit', name: '前線基盤', icon: '◤', group: '短射程', cat: 'short', key: 'units',
     eff: 1, mode: 'add', tmpl: '短射程カテゴリの武器を置ける数 +{e} 基',
     cost0: 1320, costG: 2548, max: 4, unlock: 0 },
-  { id: 'short_rate', name: '連撃機構', icon: '◤', group: '短射程', cat: 'short', key: 'rate',
-    eff: 1.06, mode: 'mul', tmpl: '短射程カテゴリの発射レート ×{e}',
-    cost0: 120, costG: 1.35, max: Infinity, unlock: 1 },
-  { id: 'short_dur', name: '粘着処理', icon: '◤', group: '短射程', cat: 'short', key: 'dur',
-    eff: 1.08, mode: 'mul', tmpl: '短射程カテゴリの状態異常の持続 ×{e}',
-    cost0: 210, costG: 1.40, max: Infinity, unlock: 2 },
-  { id: 'short_pierce', name: '刃金', icon: '◤', group: '短射程', cat: 'short', key: 'pierce',
-    eff: 1, mode: 'add', tmpl: '短射程カテゴリの貫通 +{e}',
-    cost0: 700, costG: 2.6, max: 6, unlock: 3 },
 
-  { id: 'mid_dmg', name: '汎用弾薬', icon: '◈', group: '中射程', cat: 'mid', key: 'dmg',
-    eff: 1.13, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
-    cost0: 25, costG: 1.28, max: Infinity, unlock: 0 },
-  { id: 'mid_rate', name: '給弾機構', icon: '◈', group: '中射程', cat: 'mid', key: 'rate',
-    eff: 1.07, mode: 'mul', tmpl: '中射程カテゴリの発射レート ×{e}',
-    cost0: 40, costG: 1.34, max: Infinity, unlock: 0 },
+  { id: 'mid_dmg', name: '汎用兵装', icon: '◈', group: '中射程', cat: 'mid', key: 'dmg',
+    eff: 3.0, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
+    cost0: 100, costG: 1, max: 1, unlock: 0 },
+  { id: 'mid_rate', name: '汎用機構', icon: '◈', group: '中射程', cat: 'mid', key: 'rate',
+    eff: 2.2, mode: 'mul', tmpl: '中射程カテゴリの発射レート ×{e}',
+    cost0: 480, costG: 1, max: 1, unlock: 0, needs: 'mid_dmg' },
+  { id: 'mid_dmg2', name: '汎用増幅', icon: '◈', group: '中射程', cat: 'mid', key: 'dmg',
+    eff: 5.0, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
+    cost0: 2304, costG: 1, max: 1, unlock: 0, needs: 'mid_rate' },
+  { id: 'mid_rng', name: '汎用観測', icon: '◈', group: '中射程', cat: 'mid', key: 'range',
+    eff: 1.6, mode: 'mul', tmpl: '中射程カテゴリの射程 ×{e}',
+    cost0: 11059, costG: 1, max: 1, unlock: 0, needs: 'mid_dmg2' },
+  { id: 'mid_util', name: '硬芯弾', icon: '◈', group: '中射程', cat: 'mid', key: 'pierce',
+    eff: 3, mode: 'add', tmpl: '中射程カテゴリの貫通 +{e}',
+    cost0: 53084, costG: 1, max: 1, unlock: 0, needs: 'mid_rng' },
+  { id: 'mid_dmg3', name: '汎用極大', icon: '◈', group: '中射程', cat: 'mid', key: 'dmg',
+    eff: 8.0, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
+    cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'mid_util' },
   { id: 'mid_unit', name: '量産設備', icon: '◈', group: '中射程', cat: 'mid', key: 'units',
     eff: 1, mode: 'add', tmpl: '中射程カテゴリの武器を置ける数 +{e} 基',
     cost0: 1290, costG: 2548, max: 4, unlock: 0 },
-  { id: 'mid_range', name: '延伸銃身', icon: '◈', group: '中射程', cat: 'mid', key: 'range',
-    eff: 1.08, mode: 'mul', tmpl: '中射程カテゴリの射程 ×{e}',
-    cost0: 110, costG: 1.34, max: Infinity, unlock: 1 },
-  { id: 'mid_pierce', name: '硬芯弾', icon: '◈', group: '中射程', cat: 'mid', key: 'pierce',
-    eff: 1, mode: 'add', tmpl: '中射程カテゴリの貫通 +{e}',
-    cost0: 600, costG: 2.4, max: 8, unlock: 2 },
-  { id: 'mid_count', name: '多口射出', icon: '◈', group: '中射程', cat: 'mid', key: 'count',
-    eff: 1, mode: 'add', tmpl: '中射程カテゴリの同時発射 +{e} 発',
-    cost0: 1600, costG: 3.4, max: 6, unlock: 3 },
 
-  { id: 'long_dmg', name: '徹甲弾頭', icon: '◎', group: '長射程', cat: 'long', key: 'dmg',
-    eff: 1.18, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
-    cost0: 38, costG: 1.31, max: Infinity, unlock: 0 },
-  { id: 'long_crit', name: '照準計算機', icon: '◎', group: '長射程', cat: 'long', key: 'crit',
-    eff: 0.04, mode: 'add', tmpl: '長射程カテゴリの会心率 +{e}（会心倍率も上がる）',
-    cost0: 90, costG: 1.42, max: 20, unlock: 0 },
+  { id: 'long_dmg', name: '徹甲兵装', icon: '◎', group: '長射程', cat: 'long', key: 'dmg',
+    eff: 3.0, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
+    cost0: 100, costG: 1, max: 1, unlock: 0 },
+  { id: 'long_rate', name: '徹甲機構', icon: '◎', group: '長射程', cat: 'long', key: 'rate',
+    eff: 2.2, mode: 'mul', tmpl: '長射程カテゴリの発射レート ×{e}',
+    cost0: 480, costG: 1, max: 1, unlock: 0, needs: 'long_dmg' },
+  { id: 'long_dmg2', name: '徹甲増幅', icon: '◎', group: '長射程', cat: 'long', key: 'dmg',
+    eff: 5.0, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
+    cost0: 2304, costG: 1, max: 1, unlock: 0, needs: 'long_rate' },
+  { id: 'long_rng', name: '徹甲観測', icon: '◎', group: '長射程', cat: 'long', key: 'range',
+    eff: 1.6, mode: 'mul', tmpl: '長射程カテゴリの射程 ×{e}',
+    cost0: 11059, costG: 1, max: 1, unlock: 0, needs: 'long_dmg2' },
+  { id: 'long_util', name: '照準計算機', icon: '◎', group: '長射程', cat: 'long', key: 'crit',
+    eff: 0.25, mode: 'add', tmpl: '長射程カテゴリの会心率 +{e}（会心倍率も上がる）',
+    cost0: 53084, costG: 1, max: 1, unlock: 0, needs: 'long_rng' },
+  { id: 'long_dmg3', name: '徹甲極大', icon: '◎', group: '長射程', cat: 'long', key: 'dmg',
+    eff: 8.0, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
+    cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'long_util' },
   { id: 'long_unit', name: '狙撃陣地', icon: '◎', group: '長射程', cat: 'long', key: 'units',
     eff: 1, mode: 'add', tmpl: '長射程カテゴリの武器を置ける数 +{e} 基',
     cost0: 1140, costG: 2548, max: 4, unlock: 0 },
-  { id: 'long_range', name: '観測気球', icon: '◎', group: '長射程', cat: 'long', key: 'range',
-    eff: 1.10, mode: 'mul', tmpl: '長射程カテゴリの射程 ×{e}',
-    cost0: 130, costG: 1.37, max: Infinity, unlock: 1 },
-  { id: 'long_speed', name: '加速装薬', icon: '◎', group: '長射程', cat: 'long', key: 'speed',
-    eff: 1.12, mode: 'mul', tmpl: '長射程カテゴリの弾速 ×{e}',
-    cost0: 240, costG: 1.44, max: Infinity, unlock: 2 },
-  { id: 'long_pierce', name: '徹甲芯', icon: '◎', group: '長射程', cat: 'long', key: 'pierce',
-    eff: 1, mode: 'add', tmpl: '長射程カテゴリの貫通 +{e}',
-    cost0: 800, costG: 2.5, max: 8, unlock: 3 },
 
-  { id: 'area_dmg', name: '高熱反応', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'dmg',
-    eff: 1.14, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
-    cost0: 34, costG: 1.30, max: Infinity, unlock: 0 },
-  { id: 'area_size', name: '拡散増幅', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'size',
-    eff: 1.10, mode: 'mul', tmpl: '範囲攻撃カテゴリの効果範囲 ×{e}（扇・爆風・撒いた場すべて）',
-    cost0: 70, costG: 1.38, max: Infinity, unlock: 0 },
+  { id: 'area_dmg', name: '高熱兵装', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'dmg',
+    eff: 3.0, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
+    cost0: 100, costG: 1, max: 1, unlock: 0 },
+  { id: 'area_rate', name: '高熱機構', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'rate',
+    eff: 2.2, mode: 'mul', tmpl: '範囲攻撃カテゴリの発射レート ×{e}',
+    cost0: 480, costG: 1, max: 1, unlock: 0, needs: 'area_dmg' },
+  { id: 'area_dmg2', name: '高熱増幅', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'dmg',
+    eff: 5.0, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
+    cost0: 2304, costG: 1, max: 1, unlock: 0, needs: 'area_rate' },
+  { id: 'area_rng', name: '高熱観測', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'range',
+    eff: 1.6, mode: 'mul', tmpl: '範囲攻撃カテゴリの射程 ×{e}',
+    cost0: 11059, costG: 1, max: 1, unlock: 0, needs: 'area_dmg2' },
+  { id: 'area_util', name: '拡散増幅', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'size',
+    eff: 1.8, mode: 'mul', tmpl: '範囲攻撃カテゴリの効果範囲 ×{e}',
+    cost0: 53084, costG: 1, max: 1, unlock: 0, needs: 'area_rng' },
+  { id: 'area_dmg3', name: '高熱極大', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'dmg',
+    eff: 8.0, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
+    cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'area_util' },
   { id: 'area_unit', name: '散布基盤', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'units',
     eff: 1, mode: 'add', tmpl: '範囲攻撃カテゴリの武器を置ける数 +{e} 基',
     cost0: 480, costG: 2548, max: 4, unlock: 0 },
-  { id: 'area_rate', name: '連続噴射', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'rate',
-    eff: 1.07, mode: 'mul', tmpl: '範囲攻撃カテゴリの発射レート ×{e}',
-    cost0: 100, costG: 1.33, max: Infinity, unlock: 1 },
-  { id: 'area_dur', name: '残留処方', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'dur',
-    eff: 1.10, mode: 'mul', tmpl: '範囲攻撃カテゴリの効果の持続 ×{e}（燃焼・毒・場すべて）',
-    cost0: 150, costG: 1.39, max: Infinity, unlock: 2 },
-  { id: 'area_range', name: '長管ノズル', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'range',
-    eff: 1.07, mode: 'mul', tmpl: '範囲攻撃カテゴリの射程 ×{e}',
-    cost0: 260, costG: 1.41, max: Infinity, unlock: 3 },
 
-  { id: 'target_dmg', name: '成形炸薬', icon: '✛', group: '指定攻撃', cat: 'target', key: 'dmg',
-    eff: 1.16, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
-    cost0: 36, costG: 1.31, max: Infinity, unlock: 0 },
-  { id: 'target_rate', name: '装填補助', icon: '✛', group: '指定攻撃', cat: 'target', key: 'rate',
-    eff: 1.08, mode: 'mul', tmpl: '指定攻撃カテゴリの発射レート ×{e}',
-    cost0: 65, costG: 1.36, max: Infinity, unlock: 0 },
+  { id: 'target_dmg', name: '成形兵装', icon: '✛', group: '指定攻撃', cat: 'target', key: 'dmg',
+    eff: 3.0, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
+    cost0: 100, costG: 1, max: 1, unlock: 0 },
+  { id: 'target_rate', name: '成形機構', icon: '✛', group: '指定攻撃', cat: 'target', key: 'rate',
+    eff: 2.2, mode: 'mul', tmpl: '指定攻撃カテゴリの発射レート ×{e}',
+    cost0: 480, costG: 1, max: 1, unlock: 0, needs: 'target_dmg' },
+  { id: 'target_dmg2', name: '成形増幅', icon: '✛', group: '指定攻撃', cat: 'target', key: 'dmg',
+    eff: 5.0, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
+    cost0: 2304, costG: 1, max: 1, unlock: 0, needs: 'target_rate' },
+  { id: 'target_rng', name: '成形観測', icon: '✛', group: '指定攻撃', cat: 'target', key: 'range',
+    eff: 1.6, mode: 'mul', tmpl: '指定攻撃カテゴリの射程 ×{e}',
+    cost0: 11059, costG: 1, max: 1, unlock: 0, needs: 'target_dmg2' },
+  { id: 'target_util', name: '多連装', icon: '✛', group: '指定攻撃', cat: 'target', key: 'count',
+    eff: 2, mode: 'add', tmpl: '指定攻撃カテゴリの同時発射 +{e} 発',
+    cost0: 53084, costG: 1, max: 1, unlock: 0, needs: 'target_rng' },
+  { id: 'target_dmg3', name: '成形極大', icon: '✛', group: '指定攻撃', cat: 'target', key: 'dmg',
+    eff: 8.0, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
+    cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'target_util' },
   { id: 'target_unit', name: '支持架台', icon: '✛', group: '指定攻撃', cat: 'target', key: 'units',
     eff: 1, mode: 'add', tmpl: '指定攻撃カテゴリの武器を置ける数 +{e} 基',
     cost0: 1500, costG: 2548, max: 4, unlock: 0 },
-  { id: 'target_size', name: '炸薬量', icon: '✛', group: '指定攻撃', cat: 'target', key: 'size',
-    eff: 1.09, mode: 'mul', tmpl: '指定攻撃カテゴリの効果範囲 ×{e}',
-    cost0: 120, costG: 1.36, max: Infinity, unlock: 1 },
-  { id: 'target_count', name: '多連装', icon: '✛', group: '指定攻撃', cat: 'target', key: 'count',
-    eff: 1, mode: 'add', tmpl: '指定攻撃カテゴリの同時発射 +{e} 発',
-    cost0: 1400, costG: 3.2, max: 6, unlock: 2 },
-  { id: 'target_range', name: '遠隔観測', icon: '✛', group: '指定攻撃', cat: 'target', key: 'range',
-    eff: 1.08, mode: 'mul', tmpl: '指定攻撃カテゴリの射程 ×{e}',
-    cost0: 230, costG: 1.40, max: Infinity, unlock: 3 },
 
-  { id: 'sup_pow', name: '制圧出力', icon: '❉', group: '支援', cat: 'support', key: 'dur',
-    eff: 1.12, mode: 'mul', tmpl: '支援カテゴリの 減速・拘束・感電の持続 ×{e}',
-    cost0: 55, costG: 1.34, max: Infinity, unlock: 0 },
-  { id: 'sup_rng', name: '照射範囲', icon: '❉', group: '支援', cat: 'support', key: 'range',
-    eff: 1.10, mode: 'mul', tmpl: '支援カテゴリの射程・効果範囲 ×{e}',
-    cost0: 55, costG: 1.34, max: Infinity, unlock: 0 },
+  { id: 'support_dmg', name: '制圧兵装', icon: '❉', group: '支援', cat: 'support', key: 'dmg',
+    eff: 3.0, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
+    cost0: 100, costG: 1, max: 1, unlock: 0 },
+  { id: 'support_rate', name: '制圧機構', icon: '❉', group: '支援', cat: 'support', key: 'rate',
+    eff: 2.2, mode: 'mul', tmpl: '支援カテゴリの発射レート ×{e}',
+    cost0: 480, costG: 1, max: 1, unlock: 0, needs: 'support_dmg' },
+  { id: 'support_dmg2', name: '制圧増幅', icon: '❉', group: '支援', cat: 'support', key: 'dmg',
+    eff: 5.0, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
+    cost0: 2304, costG: 1, max: 1, unlock: 0, needs: 'support_rate' },
+  { id: 'support_rng', name: '制圧観測', icon: '❉', group: '支援', cat: 'support', key: 'range',
+    eff: 1.6, mode: 'mul', tmpl: '支援カテゴリの射程 ×{e}',
+    cost0: 11059, costG: 1, max: 1, unlock: 0, needs: 'support_dmg2' },
+  { id: 'support_util', name: '拡張リング', icon: '❉', group: '支援', cat: 'support', key: 'size',
+    eff: 1.8, mode: 'mul', tmpl: '支援カテゴリの効果範囲 ×{e}',
+    cost0: 53084, costG: 1, max: 1, unlock: 0, needs: 'support_rng' },
+  { id: 'support_dmg3', name: '制圧極大', icon: '❉', group: '支援', cat: 'support', key: 'dmg',
+    eff: 8.0, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
+    cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'support_util' },
   { id: 'support_unit', name: '支援拠点', icon: '❉', group: '支援', cat: 'support', key: 'units',
     eff: 1, mode: 'add', tmpl: '支援カテゴリの武器を置ける数 +{e} 基',
     cost0: 1860, costG: 2548, max: 4, unlock: 0 },
-  { id: 'sup_dmg', name: '凍結核', icon: '❉', group: '支援', cat: 'support', key: 'dmg',
-    eff: 1.12, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
-    cost0: 80, costG: 1.32, max: Infinity, unlock: 1 },
-  { id: 'sup_rate', name: '循環冷媒', icon: '❉', group: '支援', cat: 'support', key: 'rate',
-    eff: 1.07, mode: 'mul', tmpl: '支援カテゴリの発射レート ×{e}',
-    cost0: 140, costG: 1.36, max: Infinity, unlock: 2 },
-  { id: 'sup_size', name: '拡張リング', icon: '❉', group: '支援', cat: 'support', key: 'size',
-    eff: 1.09, mode: 'mul', tmpl: '支援カテゴリの効果範囲 ×{e}',
-    cost0: 260, costG: 1.40, max: Infinity, unlock: 3 },
 
   // ============ カード側の枠を増やす ============
   { id: 'picks', name: '増設スロット', icon: '★', group: 'カード',
@@ -326,6 +361,12 @@ const Skill = {
   // カテゴリのノードは、そのカテゴリの武器を1つでも持っていれば解放される
   isUnlocked(perm, id) {
     const s = SKILL_BY_ID[id];
+    // **前のノードを取っていないと開かない。**（取り切り型ツリー・2026-09-21）
+    //   `needs` に前のノードのIDを書く。枝が「順に開いていく」形になる
+    if (s.needs) {
+      const meta = (typeof Game !== 'undefined' && Game.meta) ? Game.meta : null;
+      if (!meta || (meta.skills[s.needs] || 0) <= 0) return false;
+    }
     if (s.cat) {
       return WEAPON_IDS.some(wid => WEAPONS[wid].cat === s.cat && (perm.collection['wc_' + wid] || 0) > 0);
     }
@@ -335,6 +376,13 @@ const Skill = {
 
   lockReason(perm, id) {
     const s = SKILL_BY_ID[id];
+    if (s.needs) {
+      const meta = (typeof Game !== 'undefined' && Game.meta) ? Game.meta : null;
+      if (!meta || (meta.skills[s.needs] || 0) <= 0) {
+        const prev = SKILL_BY_ID[s.needs];
+        return '「' + (prev ? prev.name : s.needs) + '」を取ると開放';
+      }
+    }
     if (s.cat) return CATEGORIES[s.cat].name + 'の武器を手に入れると解放';
     return 'ステージを ' + s.unlock + ' 個突破すると解放';
   },
@@ -458,20 +506,27 @@ const Skill = {
 
     // カテゴリ別のノードを、定義から自動で組み立てる。
     // ノードを足したら cat と key を書くだけで、ここを直す必要は無い
+    // **同じ key のノードが1カテゴリに何個あってもよい形にする。**
+    //   取り切り型にしてダメージのノードを3段並べたら、以前の書き方では
+    //   **後のノードが前のノードを上書きしていた**（×3→×5→×8 が ×8 だけになっていた）。
+    //   mul は掛け合わせ、add は足し合わせる
     const cat = {};
     for (const c of CATEGORY_IDS) cat[c] = {};
     for (const base of SKILLS) {
       const s = Skill.node(base.id, perm);
       if (!s.cat || !s.key) continue;
       const v = A(s.id);
-      cat[s.cat][s.key] = s.mode === 'mul' ? v : v;
-      if (s.key === 'dmg' && s.mode === 'mul') cat[s.cat].dmg = v * pw;
-      if (s.key === 'crit') cat[s.cat].critMul = v * 3.75;   // 会心率1%につき倍率+0.0375
+      const c = cat[s.cat];
+      if (s.mode === 'mul') c[s.key] = (c[s.key] === undefined ? 1 : c[s.key]) * v;
+      else c[s.key] = (c[s.key] || 0) + v;
     }
     for (const c of CATEGORY_IDS) {
-      if (cat[c].dmg === undefined && SKILLS.some(s => s.cat === c && s.key === 'dmg')) cat[c].dmg = pw;
+      const k = cat[c];
+      // 恒久層（土台＋遺物）は、カテゴリのダメージにまとめて掛ける
+      if (SKILLS.some(s => s.cat === c && s.key === 'dmg')) k.dmg = (k.dmg === undefined ? 1 : k.dmg) * pw;
+      if (k.crit) k.critMul = k.crit * 3.75;   // 会心率1%につき倍率+0.0375
       // 遺物のレートは全カテゴリに掛かる（スキルのレートを持たないカテゴリにも）
-      cat[c].rate = (cat[c].rate || 1) * R.rate;
+      k.rate = (k.rate || 1) * R.rate;
     }
 
     return {

@@ -760,7 +760,9 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 #panel.treemode{display:flex;flex-direction:column;overflow:hidden;padding-bottom:0;}
 #panel.treemode .phead{flex:0 0 auto;}
 #panel.treemode .warn{flex:0 0 auto;}
-#panel.treemode #tree{flex:1 1 auto;min-height:120px;overflow:auto;margin-bottom:0;}
+/* 取り切り型にして枝が3段→7段になったので、見える高さを増やす。
+   120pxのままだと1段ぶんしか映らなかった（2026-09-21 実測 中身650px） */
+#panel.treemode #tree{flex:1 1 auto;min-height:240px;overflow:auto;margin-bottom:0;}
 #panel.treemode .tfoot{flex:0 0 auto;padding-bottom:calc(10px + var(--safe-b));
   background:var(--panel);border-top:1px solid var(--line);margin:0 -10px;padding-left:10px;padding-right:10px;}
 #panel.treemode .tdetail{margin-top:10px;}
