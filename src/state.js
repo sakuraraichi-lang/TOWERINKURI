@@ -158,21 +158,29 @@ const Game = {
 
   clearsOf(id) { return (this.perm.clears && this.perm.clears[id]) || 0; },
 
-  // **完全クリアしたステージは、次の周から即スキップできる。**
-  // 1体も通さずに凌げたなら、そのステージはもう自分のものなので、条件を免除する
   perfectedEver(id) { return !!(this.perm.bestPerfect && this.perm.bestPerfect[id]); },
+
+  // スキップを開ける鍵。**これを持っていないと1章も飛ばせない。**
+  //   以前は「完璧クリア済みなら無条件」で、第1章を完璧に凌いだだけで
+  //   2周目から飛ばせた。周2以降が実質0分になり、前半に手を動かす場面が
+  //   ほとんど残らなかった（実測 2026-09-21）。
+  //   **鍵は第13章の報酬。** そこまでは全部自分で通す
+  SKIP_KEY: 'ky_skip',
+  hasSkipKey() { return this.own(this.SKIP_KEY) > 0; },
 
   canSkip(id) {
     if (STAGE_BY_ID[id] && STAGE_BY_ID[id].experimental) return false;
+    if (!this.hasSkipKey()) return false;                 // 鍵が無ければ何も飛ばせない
     if (this.stageRec(id).cleared) return false;          // 今周でもう突破している
     if (!this.stageUnlocked(id)) return false;
-    if (this.perfectedEver(id)) return true;              // 完全クリア済みなら無条件
+    if (this.perfectedEver(id)) return true;              // 完璧に凌いだ章は鍵だけで飛ばせる
     if ((this.perm.prestiges || 0) < this.SKIP_MIN_PRESTIGES) return false;
     return this.clearsOf(id) >= this.SKIP_MIN_CLEARS;
   },
 
   skipWhy(id) {
-    if ((this.perm.prestiges || 0) < this.SKIP_MIN_PRESTIGES) return '転生するか、完璧クリアで使えます';
+    if (!this.hasSkipKey()) return '';                    // 鍵が無いうちは何も言わない
+    if ((this.perm.prestiges || 0) < this.SKIP_MIN_PRESTIGES) return '完璧クリアか、転生で使えます';
     const n = this.clearsOf(id);
     if (n < this.SKIP_MIN_CLEARS) return 'あと ' + (this.SKIP_MIN_CLEARS - n) + ' 回突破するか、完璧クリアで使えます';
     return '';

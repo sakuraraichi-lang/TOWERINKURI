@@ -19,6 +19,7 @@ const Draft = {
       const c = CARDS[id];
       if (c.kind === 'weapon') return false;        // 武器そのものはパックから
       if (c.kind === 'perm') return false;          // 遺物は3択に出さない（転生でしか増えない）
+      if (c.kind === 'key') return false;           // 鍵は章の報酬でしか手に入らない
       if (Game.own(id) <= 0) return false;
       if ((run.cards[id] || 0) >= Game.stackLimit(id)) return false;
       if (c.kind === 'mod') return ids.includes(c.weapon);

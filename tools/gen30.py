@@ -119,12 +119,22 @@ def build_30():
 CH_WEAPON = {2: 'wc_sniper', 5: 'wc_missile', 8: 'wc_tesla', 11: 'wc_flame',
              14: 'wc_gas', 17: 'wc_cryo', 20: 'wc_mortar'}
 
+# 章の報酬のうち、武器以外のもの。
+#   ky_skip（踏破の記録）＝スキップを開ける鍵。**第13章。**
+#   ここまでは全部自分で通す、という線引き（ユーザー決定 2026-09-21）
+CH_EXTRA = {13: 'ky_skip'}
+
 
 def js_stage(ch, rows):
     body = "\n".join("      '%s'," % r for r in rows)
     rw = []
+    cards = []
     if ch in CH_WEAPON:
-        rw.append("cards: ['%s']" % CH_WEAPON[ch])
+        cards.append(CH_WEAPON[ch])
+    if ch in CH_EXTRA:
+        cards.append(CH_EXTRA[ch])
+    if cards:
+        rw.append("cards: [%s]" % ", ".join("'%s'" % c for c in cards))
     # パックは3章ごとに1個。まだ解放していないものは
     # Game.addPack が弾いてコインへ振り替えるので、ここでは一律に置いてよい
     if ch % 3 == 0:

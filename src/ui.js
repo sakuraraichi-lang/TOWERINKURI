@@ -151,7 +151,8 @@ const UI = {
     // 出しっぱなしにすると「押せないボタン」が常に画面にいて邪魔になる
     if (e.homeSkip) {
       const can = Game.canSkip(st.id);
-      const near = open && !st.experimental && !rec.cleared &&
+      // **鍵を持っていないうちは、ボタンの存在ごと出さない**
+      const near = Game.hasSkipKey() && open && !st.experimental && !rec.cleared &&
                    Game.clearsOf(st.id) > 0 && !can;
       e.homeSkip.style.display = (can || near) ? '' : 'none';
       e.homeSkip.disabled = !can;
@@ -1475,6 +1476,7 @@ const UI = {
   // カードのアイコン。**どの武器のものかは絵で示し、文からは省く**
   cardIcon(c) {
     if (c.kind === 'perm') return '◈';
+    if (c.kind === 'key') return '⚿';
     if (c.kind === 'synergy') {
       // シナジーは「関わる武器のアイコン2つ」。これだけで条件が分かる
       return (c.requires || []).map(w => (WEAPONS[w] && WEAPONS[w].icon) || '◆').join('');

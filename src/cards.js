@@ -260,6 +260,12 @@ const CARDS = {
     apply(run) { const t = run.wp('tentacle'); if (t) t.flags.hang = true;
       const m = run.wp('mortar'); if (m) m.dyn.grabMul = (m.dyn.grabMul || 1) * Game.rk(1.5); } }),
 
+  // ============ 鍵（kind:'key'）============
+  //   **3択にもパックにも出ない。** 章の報酬でしか手に入らない、機能を開ける札。
+  //   遺物（kind:'perm'）と分けてあるのは、Relic.mods が数値を合計する側だから
+  ky_skip: C({ id: 'ky_skip', kind: 'key', rarity: 'legendary', maxStack: 1,
+    name: '踏破の記録', desc: '一度でも完璧に凌いだ章を、次の周から戦わずに突破できる' }),
+
   // ============ 汎用（編成に関係なく出る） ============
   gen_armor: C({ id: 'gen_armor', kind: 'generic', rarity: 'common', maxStack: 5,
     name: '増設装甲', desc: 'ライフ +6（その場で回復もする）',

@@ -346,7 +346,7 @@ const STAGES = [
   },
   {
     id: 'ch13', name: '第13章', act: 'III 恒久層',
-    reward: {},
+    reward: { cards: ['ky_skip'] },
     map: [
       '###############',
       '##S...........#',
