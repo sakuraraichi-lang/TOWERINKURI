@@ -276,8 +276,16 @@ const WEAPONS = {
     //   **この3種は「1秒あたりのダメージ」では測りきれない。**上げても無駄になる
     id: 'gas', wallThrough: true, /* 壁を抜ける：範囲もの */ stock: 1, cat: 'area', name: '毒ガス散布機', short: 'GAS', icon: '☣', color: '#8fd94a', src: 'stage', arcMin: 0.38, arcMax: 1.25,
     desc: '砲身の先へ毒の雲を撒き続ける。雲の中の敵は毒を受け続け、防御が落ちる。',
+    // **【2026-09-22】狙撃たちを上げたら、今度はここが最下位になった**（第15章・12シード・中央値71）。
+    //   ここでも威力は効かない（ダメージ 7→21 で 56 → **64**。上の2026-09-21 の観察どおり）。
+    //   6シード・中央値で振った結果：
+    //     雲を広く 76→130 … **19**
+    //     レート 0.42→1.0 … 25
+    //     雲を長く 5.5→11 … 47
+    //   **効くのは雲の広さ。**撒く武器なので当然で、
+    //   1発の毒を濃くするより、通路をどれだけ覆えるかで決まる
     base: baseStats({ arc: 0.55, dmg: 7, rate: 0.42, range: 300, speed: 260, bulletR: 5,
-                      fieldR: 76, fieldDur: 5.5, fieldVuln: 0.2, slow: 0.15, slowDur: 1 }),
+                      fieldR: 130, fieldDur: 5.5, fieldVuln: 0.2, slow: 0.15, slowDur: 1 }),
     fire(w, run) {
       if (!w.target) return;
       Combat.spawnLob(w, run, w.target.x, w.target.y, {
