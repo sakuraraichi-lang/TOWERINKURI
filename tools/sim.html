@@ -684,9 +684,11 @@ function runStageInner(stageId, loadout, buys, opts) {
   // 安い順に買う。買った額も数えておく（コインの出口はここだけ）
   let spent = 0, bought = 0;
   for (let i = 0; i < buys; i++) {
-    let ids = SKILLS.map(s => s.id).filter(id => Skill.canBuy(Game.meta, Game.perm, id));
+    // **本体の買い方（Skill.buyOrder）をそのまま使う。**
+    //   ここに別の順番を書くと「測っているもの」と「遊んでいるもの」がずれる。
+    //   取り切りの節を先に買う（安い順だけだと主力のダメージ節を買い逃す）
+    let ids = Skill.buyOrder(Game.meta, Game.perm);
     if (opts.noLure) ids = ids.filter(id => id !== 'lure');
-    ids.sort((a, b) => Skill.cost(Game.meta, a) - Skill.cost(Game.meta, b));
     if (!ids.length) break;
     const c = Skill.cost(Game.meta, ids[0]);
     if (Skill.buy(Game.meta, Game.perm, ids[0])) { spent += c; bought++; }
