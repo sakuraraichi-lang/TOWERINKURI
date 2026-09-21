@@ -858,6 +858,14 @@ const Stage = {
     const seed = (typeof Game !== 'undefined' && Game.perm && Game.perm.mapSeed) || 0;
     if (!seed || typeof MapGen === 'undefined') return def.map;
     const idx = STAGE_BY_ID[stageId].idx;
+    // **最初の2章は手で書いたマップのまま。**（2026-09-21 実測）
+    //   第1〜2章はガトリング1種・設置4基で、プレイヤーにできることがほとんど無い。
+    //   生成に任せると、20個の種のうち**第1章で1個・第2章で2個が10回挑戦しても
+    //   突破できなかった。**しかも突破が2章に届かないと転生もできない
+    //   （BAL.prestigeMinStages = 2）ので、**詰んで二度と進めない。**
+    //   第3章からはスナイパーが増えて設置も8基になり、余裕が出る。
+    //   ここだけ固定にしておけば、詰みは起きない
+    if (idx < BAL.fixedMapChapters) return def.map;
     // 章が進むほど難しい形にする（口が増え、通路が広がり、経路が短くなる）
     const d = STAGES.length > 1 ? idx / (STAGES.length - 1) : 0.5;
     const m = MapGen.build(((seed * 2654435761) ^ ((idx + 1) * 40503)) >>> 0, 160, d);

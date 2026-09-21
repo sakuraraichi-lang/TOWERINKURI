@@ -247,23 +247,42 @@ const MapGen = {
       if (sd.id === 'left') return core.x;
       return W - core.x;
     };
-    const sides = this.SIDES.slice()
-      .sort((a, b) => (sideFar(b) * (0.7 + rnd() * 0.6)) - (sideFar(a) * (0.7 + rnd() * 0.6)))
-      .slice(0, nHole);
+    //   **辺も散らす。** 上と下、左と右のように向かい合う辺を選ぶと、
+    //   通路が盤の反対側から来るので途中で交わりにくい
+    const OPP = { top: 'bottom', bottom: 'top', left: 'right', right: 'left' };
+    const pool = this.SIDES.slice()
+      .sort((a, b) => (sideFar(b) * (0.7 + rnd() * 0.6)) - (sideFar(a) * (0.7 + rnd() * 0.6)));
+    const sides = [pool[0]];
+    while (sides.length < nHole) {
+      const want = OPP[sides[sides.length - 1].id];
+      const nxt = pool.find(x => x.id === want && !sides.includes(x))
+               || pool.find(x => !sides.includes(x));
+      if (!nxt) break;
+      sides.push(nxt);
+    }
     const holeW = 2 + ((rnd() * 3) | 0);          // 穴の幅（タイル）
     const holes = [], lanes = [];
 
     for (const side of sides) {
       const tiles = [];
       let sx, sy;
-      // 辺の上でも、コアから遠いほうへ寄せる（2回引いて遠いほうを採る）
+      // 辺の上の位置。**コアから遠く、かつ「先に置いた口」からも遠いところを採る。**
+      //
+      //   口を2つ3つにすると、太い通路どうしが途中で交わって近道ができ、
+      //   最短経路が下限（20タイル）を割って検査に落ちていた。
+      //   その結果、800枚作っても口は 685/111/4 と1つに偏っていた。
+      //   **下限を緩めるのは筋が悪い**（17タイルのマップで8回挑戦して
+      //   全部ウェーブ1で撃沈した実測から置いた線）。
+      //   代わりに**口どうしを引き離して、通路が交わらないようにする。**
+      //   12回引いて「コアからの距離＋既にある口からの距離」が最大の場所を採る
       const farther = (span, fixed, horiz) => {
-        let best = 0, bestD = -1;
-        for (let k = 0; k < 2; k++) {
+        let best = 1, bestD = -1;
+        for (let k = 0; k < 12; k++) {
           const v = 1 + Math.floor(rnd() * span);
           const px = horiz ? (v + holeW / 2) * TILE : fixed;
           const py = horiz ? fixed : (v + holeW / 2) * TILE;
-          const d = Math.hypot(px - core.x, py - core.y);
+          let d = Math.hypot(px - core.x, py - core.y);
+          for (const h of holes) d += Math.hypot(px - h.x, py - h.y) * 1.4;
           if (d > bestD) { bestD = d; best = v; }
         }
         return best;
@@ -362,9 +381,12 @@ const MapGen = {
       //
       //   通路の総量にも上限を置く。**広いマップは1基の扇が覆う割合が下がる。**
       //   置かないと、第1章に通路130タイルの広間が出て
-      //   ガトリング4基では突破できない種が1割ほど混じっていた（実測 14/16）
+      //   ガトリング4基では突破できない種が1割ほど混じっていた（実測 14/16）。
+      //   **下限も置く。**スカスカのマップは逆に楽すぎて、周ごとの所要時間が
+      //   91分〜125分まで散っていた。帯に収めて振れを縮める
       ok: lens.length === spawns.length && lens.length > 0
           && Math.min.apply(null, lens) >= BAL.minRouteLen + Math.round(10 * (1 - dd))
+          && road >= Math.round(52 + 70 * dd)
           && road <= Math.round(88 + 140 * dd)
           && ground >= 40,
       spawns: spawns.length, holes: spawns.length, lens, ground, road,
