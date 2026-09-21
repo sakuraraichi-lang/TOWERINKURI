@@ -6,10 +6,35 @@
 // ---------------------------------------------------------------
 'use strict';
 
+// 敵の種類。**`from` は通算ウェーブ番号**（1章＝5ウェーブなので from:16 は第4章）。
+//
+//   **数値違いだけの3種をやめた。**（2026-09-22）
+//   grunt/swift/tank は HP と速さが違うだけで、**どの武器で相手をしても同じ**だった。
+//   難易度は数字でしか上がらず、「編成を変える理由」が生まれない。
+//   足した4種は、**プレイヤーの道具のどれかを名指しで刺す**：
+//
+//     装甲 shield … 1発ごとに固定値を引く。**手数の武器（ガトリング）が通らない。**
+//                   狙撃・迫撃のような1発の重い武器で抜く
+//     群れ swarm  … 1回の湧きでまとめて出る。**単体攻撃が追いつかない。**
+//                   爆風・炎・毒のような面で取る武器で潰す
+//     再生 regen  … 放っておくと回復する。**燃やしている間は止まる。**
+//                   遺物の「熾火核」やカードの炎上がここで効く
+//     分裂 split  … 倒すと2体に割れる。**過剰damage が無駄になる。**
+//                   削り切る前提の編成だと数が増えて崩れる
+//
+//   weight は出やすさ。合計で正規化される（Util.weighted）
 const ENEMY_TYPES = {
-  grunt: { name: 'grunt', hp: 1.0, spd: 1.0, r: 10, coin: 1.0, color: '#ff5b6e', from: 1 },
-  swift: { name: 'swift', hp: 0.5, spd: 1.9, r: 8, coin: 1.15, color: '#ff9cf0', from: 3 },
-  tank:  { name: 'tank',  hp: 3.4, spd: 0.58, r: 15, coin: 2.5, color: '#c8a05a', from: 6 },
+  grunt:  { name: 'grunt',  hp: 1.0, spd: 1.0,  r: 10, coin: 1.0,  color: '#ff5b6e', from: 1,  weight: 58 },
+  swift:  { name: 'swift',  hp: 0.5, spd: 1.9,  r: 8,  coin: 1.15, color: '#ff9cf0', from: 3,  weight: 28 },
+  tank:   { name: 'tank',   hp: 3.4, spd: 0.58, r: 15, coin: 2.5,  color: '#c8a05a', from: 6,  weight: 22 },
+  // 1発あたり「そのウェーブの雑魚HPの armor 割」を引く。小さい弾ほど損をする
+  shield: { name: 'shield', hp: 1.6, spd: 0.80, r: 12, coin: 1.9,  color: '#7fb3ff', from: 16, weight: 16, armor: 0.06 },
+  // 1回の湧きで burst 体まとめて出る。1体は小さい
+  swarm:  { name: 'swarm',  hp: 0.22, spd: 1.45, r: 6, coin: 0.45, color: '#ffe08a', from: 26, weight: 14, burst: 5 },
+  // 毎秒 maxHp の regen 割を回復。**燃えている間は回復しない**
+  regen:  { name: 'regen',  hp: 1.3, spd: 0.85, r: 11, coin: 1.8,  color: '#7fe3a0', from: 36, weight: 14, regen: 0.055 },
+  // 倒すと split 体に割れる（割れた子はもう割れない）
+  split:  { name: 'split',  hp: 2.2, spd: 0.90, r: 13, coin: 2.0,  color: '#d08aff', from: 46, weight: 12, split: 2 },
 };
 
 // 敵同士の押し合い（2026-09-19 取り込み）
@@ -166,7 +191,7 @@ const Combat = {
   pickType(g) {
     const avail = Object.values(ENEMY_TYPES).filter(t => g >= t.from);
     if (avail.length === 1) return avail[0];
-    return Util.weighted(avail, t => t.name === 'grunt' ? 58 : t.name === 'swift' ? 28 : 22);
+    return Util.weighted(avail, t => t.weight || 10);
   },
 
   // **ボスは置かない。**
@@ -174,21 +199,15 @@ const Combat = {
   //   コイン報酬は一度も支払われていなかった）。
   //   出す順番を最後に変えても 7体中1体しか倒せず、
   //   「倒せない1体に必ず税金を取られる」以上の役をしていなかったので外した
-  spawnEnemy(run) {
-    if (run.enemies.length >= BAL.enemyCap) return;
-    const st = run.stage;
-    const g = this.gw(run);
-    const t = this.pickType(g);
-    const si = run.spawnPick++ % st.spawns.length;      // 出現口は順番に使う
-    const sp = st.spawns[si];
-    const p = st.center(sp.c, sp.r);
+  // 1体作る。**種類の違いはここで全部乗る**（装甲・再生・分裂）
+  makeEnemy(run, t, g, x, y, si, hpOverride, gen) {
     // 章ごとの重み（ストップポイント／跳ね上げポイント）。表に無い章は 1.0
     const chMul = (BAL.chapterMul && BAL.chapterMul[run.stageIdx + 1]) || 1;
     const stageMul = Math.pow(BAL.stageHpMul, run.stageIdx) * chMul;
-    const hp = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * stageMul * t.hp;
-    run.enemies.push({
-      x: p.x + Util.rand(-10, 10), y: p.y + Util.rand(-10, 10),
-      hp, maxHp: hp, si,
+    const base = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * stageMul;
+    const hp = hpOverride !== undefined ? hpOverride : base * t.hp;
+    return {
+      x, y, hp, maxHp: hp, si,
       spd: Math.min(BAL.enemySpdCap, BAL.enemySpdBase * Math.pow(BAL.enemySpdGrowth, g)) * t.spd,
       r: t.r,
       // **この値は誰も読んでいない**（2026-09-21 に src 全体を検索して確認）。
@@ -197,13 +216,36 @@ const Combat = {
       coin: BAL.enemyCoinBase * Math.pow(BAL.enemyCoinGrowth, g - 1) * t.coin,
       color: t.color,
       tname: t.name,                   // 死因の内訳に使う
+      // **装甲は「そのウェーブの雑魚HPの何割か」**。固定値にすると章が進んだ瞬間に
+      //   意味が消えるし、割合にすると大きい弾も同じだけ削られて意味が出ない
+      armor: t.armor ? base * t.armor : 0,
+      regen: t.regen ? hp * t.regen : 0,
+      split: gen ? 0 : (t.split || 0),   // 割れた子はもう割れない
+      gen: gen || 0,
 
       pushX: 0, pushY: 0,
       shock: 0, slow: 0, slowT: 0, stun: 0, chill: 0,
       burn: 0, burnT: 0, fvuln: 0, fvulnT: 0,
       grabT: 0, grabV: 0, spotT: 0, dist: 1e9, counted: false,
       hitFlash: 0, dead: false, ang: 0,
-    });
+    };
+  },
+
+  spawnEnemy(run) {
+    if (run.enemies.length >= BAL.enemyCap) return;
+    const st = run.stage;
+    const g = this.gw(run);
+    const t = this.pickType(g);
+    const si = run.spawnPick++ % st.spawns.length;      // 出現口は順番に使う
+    const sp = st.spawns[si];
+    const p = st.center(sp.c, sp.r);
+    // **群れはまとめて出す。**（1体ずつだと「群れ」にならない）
+    const n = t.burst || 1;
+    for (let i = 0; i < n; i++) {
+      if (run.enemies.length >= BAL.enemyCap) break;
+      run.enemies.push(this.makeEnemy(run, t,  g,
+        p.x + Util.rand(-14, 14), p.y + Util.rand(-14, 14), si));
+    }
   },
 
   statusScale(e) { return 1; },       // ボスを外したので、今はどの敵も同じ
@@ -232,6 +274,9 @@ const Combat = {
     if (e.dead) return 0;
     opts = opts || {};
     let dmg = amount * this.vuln(run, e);
+    // **装甲は1発ごとに引く。** 手数の武器ほど損をする。
+    //   引ききっても最低 15% は通す（完全無敵にすると詰む）
+    if (e.armor > 0 && !opts.dot) dmg = Math.max(dmg * 0.15, dmg - e.armor);
     const crit = opts.crit === true || (typeof opts.crit === 'number' && Util.chance(opts.crit)) ||
                  opts.forceCrit === true;
     if (crit) dmg *= opts.critMul || 2;
@@ -285,6 +330,19 @@ const Combat = {
 
   kill(run, e, opts) {
     e.dead = true;
+    // **倒すと割れる。** 過剰ダメージで一掃する編成が、そのぶん数を増やす
+    if (e.split > 0 && run.enemies.length + e.split <= BAL.enemyCap) {
+      const t = ENEMY_TYPES[e.tname] || ENEMY_TYPES.grunt;
+      const g = this.gw(run);
+      for (let i = 0; i < e.split; i++) {
+        const c = this.makeEnemy(run, t, g, e.x + Util.rand(-12, 12), e.y + Util.rand(-12, 12),
+                                 e.si, e.maxHp * BAL.splitHp, 1);
+        c.r = Math.max(6, t.r * 0.7);
+        c.spd = e.spd * 1.25;
+        c.coin = e.coin * 0.35;
+        run.enemies.push(c);
+      }
+    }
     run.kills++;
     Game.perm.totalKills++;
     Snd.kill();
@@ -756,6 +814,8 @@ const Combat = {
       if (e.slowT > 0) { e.slowT -= dt; if (e.slowT <= 0) e.slow = 0; }
       if (e.hitFlash > 0) e.hitFlash -= dt;
       if (e.burnT > 0) { e.burnT -= dt; this.damage(run, e, e.burn * dt, { color: '#ff8a3a', dot: true }); if (e.dead) continue; }
+      // **再生。燃えている間は止まる**（炎上を積む意味をここで作る）
+      if (e.regen > 0 && e.burnT <= 0 && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.regen * dt);
 
       const tc = (e.x / TILE) | 0, tr = (e.y / TILE) | 0;
       const inside = st.walkable(tc, tr);

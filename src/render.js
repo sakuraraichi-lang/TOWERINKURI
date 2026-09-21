@@ -711,6 +711,24 @@ const Render = {
         const p = r * 0.98;
         ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * p, Math.sin(a) * p);
       }
+    } else if (e.tname === 'shield') {
+      // 装甲：前面が平らな盾。**「正面から殴っても通らない」を形で言う**
+      ctx.moveTo(r * 0.95, -r * 0.95);
+      ctx.lineTo(r * 0.95, r * 0.95);
+      ctx.lineTo(-r * 0.5, r * 1.05);
+      ctx.lineTo(-r * 1.05, 0);
+      ctx.lineTo(-r * 0.5, -r * 1.05);
+    } else if (e.tname === 'swarm') {
+      // 群れ：小さい三角。1体では何もできない見た目
+      ctx.moveTo(r * 1.3, 0);
+      ctx.lineTo(-r * 0.8, -r * 0.95);
+      ctx.lineTo(-r * 0.8, r * 0.95);
+    } else if (e.tname === 'split') {
+      // 分裂：ひし形。**割れ目が入っているのが分かるよう、あとで線を足す**
+      ctx.moveTo(r * 1.15, 0);
+      ctx.lineTo(0, -r * 1.05);
+      ctx.lineTo(-r * 1.15, 0);
+      ctx.lineTo(0, r * 1.05);
     } else {
       for (let i = 0; i < 6; i++) {
         const a = i * Math.PI / 3;
@@ -740,6 +758,28 @@ const Render = {
         ctx.strokeStyle = 'rgba(255,255,255,0.22)';
         ctx.lineWidth = 1.2;
         ctx.beginPath(); ctx.arc(0, 0, e.r * 0.5, 0, Math.PI * 2); ctx.stroke();
+      }
+      // 装甲：厚い縁。**残っている装甲が見えるように**
+      if (e.armor > 0) {
+        ctx.strokeStyle = 'rgba(180,220,255,0.65)';
+        ctx.lineWidth = 2.6;
+        this.enemyBody(ctx, e); ctx.stroke();
+      }
+      // 分裂：割れ目
+      if (e.split > 0) {
+        ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.moveTo(0, -e.r); ctx.lineTo(0, e.r); ctx.stroke();
+      }
+      // 再生：十字。**燃やしている間は消える**ので、効いているのが目で分かる
+      if (e.regen > 0 && e.burnT <= 0) {
+        ctx.strokeStyle = 'rgba(160,255,200,0.9)';
+        ctx.lineWidth = 2;
+        const q = e.r * 0.45;
+        ctx.beginPath();
+        ctx.moveTo(-q, 0); ctx.lineTo(q, 0);
+        ctx.moveTo(0, -q); ctx.lineTo(0, q);
+        ctx.stroke();
       }
       ctx.restore();
 
