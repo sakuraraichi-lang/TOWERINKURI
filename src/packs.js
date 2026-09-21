@@ -167,9 +167,22 @@ const Pack = {
         const best = Math.max.apply(null, out.map(id => BAL.rarityOrder.indexOf(CARDS[id].rarity)).concat([-1]));
         if (best < need) r = pack.guarantee;
       }
-      out.push(Util.pick(Pack.cardsOfRarity(packId, r)));
+      out.push(Pack.pickLeastOwned(Pack.cardsOfRarity(packId, r), out));
     }
     return out;
+  },
+
+  // **持っていないもの、少ないものを先に出す。**（2026-09-21・プレイヤー報告）
+  //   > 「パッシブスキルのレジェンドカードを6枚も被せていた」
+  //   レジェンドの遺物は**2種類しかない**ので、素直に等確率で引くと必ず偏る。
+  //   同じ枚数のものが複数あるときは、その中から等確率で選ぶ（偏りを作らない）。
+  //   `now` はこのパックで既に出したぶん。1パックの中でも被らせない
+  pickLeastOwned(pool, now) {
+    if (!pool || !pool.length) return null;
+    const held = (id) => (Game.own(id) || 0) + (now ? now.filter(x => x === id).length : 0);
+    let best = Infinity;
+    for (const id of pool) { const h = held(id); if (h < best) best = h; }
+    return Util.pick(pool.filter(id => held(id) === best));
   },
 
   // ステージに紐づく分野のパックid
