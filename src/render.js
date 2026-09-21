@@ -1186,6 +1186,27 @@ const Render = {
       }
       if (b.spin) { spins.push(b); continue; }   // 手裏剣はあとでまとめて描く
       const sp = Math.hypot(b.vx, b.vy) || 1;
+      // **太い弾を、太い棒で描かない。**（2026-09-22）
+      //   スナイパーの当たり半径を 4 → 20 にしたので、素直に太さへ回すと
+      //   32px の団子が飛ぶ。狙撃の弾には見えない。
+      //   **長さへ回して、当たり幅は薄い帯で示す**（レールガンの光条）。
+      //   帯を出すのは、当たり判定を絵で嘘にしないため
+      if (b.long && b.r > 6) {
+        const ux = b.vx / sp, uy = b.vy / sp;
+        const L = 26 + b.r * 2.6;
+        const x2 = b.x - ux * L, y2 = b.y - uy * L;
+        ctx.globalAlpha = 0.13;                    // 当たる幅ぶんの帯
+        ctx.strokeStyle = b.color; ctx.lineWidth = b.r * 2;
+        ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(x2, y2); ctx.stroke();
+        ctx.globalAlpha = 0.95;                    // 光条
+        ctx.lineWidth = 3.2;
+        ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(x2, y2); ctx.stroke();
+        ctx.globalAlpha = 0.85;                    // 白い芯
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.1;
+        ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(x2, y2); ctx.stroke();
+        ctx.globalAlpha = 1;
+        continue;
+      }
       const len = b.long ? 22 : Math.min(16, sp * 0.018);
       const w = Math.max(0.5, Math.round(b.r * 3.2) / 2);   // 0.5px 刻みでまとめる
       const key = b.color + '|' + w;
