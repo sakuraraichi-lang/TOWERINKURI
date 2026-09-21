@@ -55,6 +55,18 @@ const Util = {
 
   dist(ax, ay, bx, by) { return Math.hypot(ax - bx, ay - by); },
   dist2(ax, ay, bx, by) { const dx = ax - bx, dy = ay - by; return dx * dx + dy * dy; },
+
+  // 線分 AB と点 P の距離の2乗。**速い弾が敵をすり抜けるのを防ぐのに使う。**
+  //   弾は1フレームぶんをまとめて進むので、着いた先だけで当たりを見ると、
+  //   1フレームの移動が敵の直径より長いときに通り抜ける（src/combat.js の弾の更新）
+  segDist2(ax, ay, bx, by, px, py) {
+    const dx = bx - ax, dy = by - ay;
+    const len2 = dx * dx + dy * dy;
+    if (len2 <= 1e-9) return this.dist2(ax, ay, px, py);
+    let t = ((px - ax) * dx + (py - ay) * dy) / len2;
+    t = t < 0 ? 0 : t > 1 ? 1 : t;
+    return this.dist2(ax + dx * t, ay + dy * t, px, py);
+  },
   angle(ax, ay, bx, by) { return Math.atan2(by - ay, bx - ax); },
 
   // 角度を最短方向に補間（砲塔の旋回用）

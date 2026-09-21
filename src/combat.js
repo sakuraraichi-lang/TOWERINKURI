@@ -875,18 +875,38 @@ const Combat = {
         }
       }
 
+      // **1フレームぶんをまとめて進めるので、通ってきた線分で当たりを見る。**
+      //
+      //   以前は着いた先の1点だけを見ていた。弾の当たり半径は 2.6〜9、
+      //   敵の半径は 8〜15 なので、掴める幅はせいぜい 28px。
+      //   スナイパーの素の弾速 1500px/s は1フレーム25pxで、かろうじて収まっていたが、
+      //   **弾速を上げるものを積むと、そのまま敵をすり抜けていた。**
+      //   実測：「貫通レールガン」（ダメージ×1.69・貫通+198・弾速×2.56）を2枚積んでも
+      //   1ウェーブあたりの与ダメージが **1.00倍**、生存ウェーブはむしろ 5→4 に減った。
+      //   1フレーム64px 進むのに掴める幅が28pxしかないので、半分以上が素通りしていた。
+      //   遺物「加速核」（弾速+20%・上限×2.2）とツリーの弾速の節にも同じ穴があった。
+      //
+      //   **遅い弾では今までと同じ経路を通る**（線分が点に潰れるだけ）。
+      //   広げた Grid.query は、すり抜けが起こりうる長さのときだけ使う
+      const px = b.x, py = b.y;
       b.x += b.vx * dt;
       b.y += b.vy * dt;
 
       if (b.x < -60 || b.y < -60 || b.x > st.w + 60 || b.y > st.h + 60) { run.bullets.splice(i, 1); continue; }
       if (Util.dist(b.x, b.y, b.ox, b.oy) > b.range) { this.bulletEnd(run, b); run.bullets.splice(i, 1); continue; }
 
-      const near = Grid.query(b.x, b.y, b.r + 24, _q);
+      const step = Math.hypot(b.x - px, b.y - py);
+      const swept = step > b.r + 8;
+      const near = swept
+        ? Grid.query((px + b.x) * 0.5, (py + b.y) * 0.5, step * 0.5 + b.r + 24, _q)
+        : Grid.query(b.x, b.y, b.r + 24, _q);
       let consumed = false;
       for (const e of near) {
         if (e.dead) continue;
         if (b.hit && b.hit.has(e)) continue;
-        if (Util.dist(b.x, b.y, e.x, e.y) > e.r + b.r) continue;
+        const reach = e.r + b.r;
+        if (swept) { if (Util.segDist2(px, py, b.x, b.y, e.x, e.y) > reach * reach) continue; }
+        else if (Util.dist(b.x, b.y, e.x, e.y) > reach) continue;
 
         this.damage(run, e, b.dmg, {
           crit: b.crit, critMul: b.critMul, exec: b.exec, shock: b.shock,

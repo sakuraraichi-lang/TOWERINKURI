@@ -101,8 +101,9 @@ let USE_PACK_WEAPONS = true;
 //   「新しい順」だと、章が進むだけで弱い武器に持ち替えてしまう。
 //   人は持っている中から強いものを選ぶので、そちらに寄せる。
 //   **連携（syn_*）は見ていない。**ここは単体の強さだけの代理指標
-const WEAPON_RANK = ['katana', 'shuriken', 'sniper', 'cryo', 'mortar', 'tesla',
-                     'gas', 'gatling', 'flame', 'bubble', 'missile', 'tentacle'];
+//   **弾のすり抜けを直したあと（0921t）に測り直した順**
+const WEAPON_RANK = ['katana', 'sniper', 'shuriken', 'cryo', 'bubble', 'tesla',
+                     'mortar', 'flame', 'gatling', 'missile', 'gas', 'tentacle'];
 
 function loadoutFor(stageId) {
   const i = MAIN_STAGES.findIndex(s => s.id === stageId);
@@ -389,6 +390,71 @@ async function reachDistAsync(seeds, opts) {
   st.done = true;
   st.実秒 = +((performance.now() - st.t0) / 1000).toFixed(1);
   return st.rows;
+}
+
+// ---------------------------------------------------------------
+// カード1枚ずつの寄与を測る
+//
+//   武器12種を同じ条件で測ったら **7.6倍の開き**があった（刀68／触手9）。
+//   カードは59種あって一度も測っていないので、同じ穴を探す。
+//
+//   測り方：3択を止めて、そのカードだけを上限枚数まで掛けた状態で1章まわし、
+//   **何も引かなかったときの dps と比べる。**
+//     倍率 = そのカードを積んだときの dps ÷ 何も引かないときの dps
+//
+//   **武器カードと鍵は測らない**（編成そのものなので、武器の測定と二重になる）。
+//   連携カード（syn_*）は requires の武器を両方積んだ編成で測る。
+//
+//   結果 → window.CARDSCAN.rows[] = { id, name, rarity, weapon, n, mul }
+// ---------------------------------------------------------------
+async function cardScanAsync(opts) {
+  opts = opts || {};
+  const stage = opts.stage || 'ch10';
+  const seeds = opts.seeds || [11, 22];
+  const buys = opts.buys || 120;
+  const cs = window.CARDSCAN = { rows: [], done: false, now: '', t0: performance.now() };
+  const yieldNow = () => new Promise(r => setTimeout(r, 0));
+
+  // そのカードを測るのに必要な編成
+  const loadoutOf = (c) => {
+    if (c.requires) return c.requires.slice(0, BAL.loadoutSlots);
+    if (c.weapon) return [c.weapon];
+    return ['gatling'];                    // 汎用カードはガトリングの上で測る
+  };
+  const med = (a) => a.slice().sort((x, y) => x - y)[a.length >> 1];
+
+  const base = {};                          // 編成ごとの「何も引かない」dps
+  const dpsOf = (lo, pre) => {
+    const out = [];
+    for (const sd of seeds) {
+      seedRng(sd); Game.newSave();
+      out.push(runStage(stage, lo, buys, { noDraft: true, preCards: pre }).dpsAvg);
+    }
+    return med(out);
+  };
+
+  for (const id of CARD_IDS) {
+    const c = CARDS[id];
+    if (c.kind === 'weapon' || c.kind === 'key' || c.kind === 'perm') continue;
+    if (!c.apply) continue;
+    cs.now = c.name;
+    await yieldNow();
+    const lo = loadoutOf(c);
+    const k = lo.join('/');
+    if (base[k] === undefined) base[k] = dpsOf(lo, null);
+    const n = c.maxStack || 1;
+    const with1 = dpsOf(lo, { [id]: 1 });
+    const withN = n > 1 ? dpsOf(lo, { [id]: n }) : with1;
+    cs.rows.push({ id, name: c.name, rarity: c.rarity, kind: c.kind, weapon: c.weapon || k,
+                   stack: n, base: Math.round(base[k]),
+                   one: +(with1 / (base[k] || 1)).toFixed(2),
+                   full: +(withN / (base[k] || 1)).toFixed(2) });
+  }
+  unseedRng();
+  cs.rows.sort((a, b) => b.full - a.full);
+  cs.done = true;
+  cs.実秒 = +((performance.now() - cs.t0) / 1000).toFixed(1);
+  return cs.rows;
 }
 
 // ---------------------------------------------------------------
@@ -779,6 +845,15 @@ function runStageInner(stageId, loadout, buys, opts) {
   Game.beginBattle();
 
   const run = Game.run;
+  // **カード1枚の寄与を測るための口**（cardScan が使う）。
+  //   opts.preCards = { カードid: 枚数 } を戦闘開始時に掛ける
+  //   opts.noDraft = true でウェーブ間の3択を止める
+  //   この2つを併せると「そのカードだけが乗った状態」が作れる
+  if (opts.preCards) {
+    for (const [cid, n] of Object.entries(opts.preCards)) {
+      for (let i = 0; i < n; i++) { run.cards[cid] = (run.cards[cid] || 0) + 1; Game.applyCard(cid, run); }
+    }
+  }
   let t = 0, res = null;
   const offers = [];
   let cardsTaken = 0;
@@ -852,6 +927,7 @@ function runStageInner(stageId, loadout, buys, opts) {
       justCleared = true;
     }
     while (run.pendingPicks > 0) {
+      if (opts.noDraft) { run.pendingPicks = 0; break; }
       const p = UI.rollDraft(run.mods.choices);
       run.pendingPicks--;
       if (!p.length) break;
