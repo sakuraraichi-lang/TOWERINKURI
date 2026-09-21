@@ -399,14 +399,26 @@ const Combat = {
     }
     if (w.flags.mugen && hits > 0)
       w.s.range = Math.min(w.dyn.mugenBase * (w.dyn.mugenMax || 2), w.s.range * (w.dyn.mugenStep || 1.06));
+    // 爆燃（syn_backdraft）：毒の雲に炎が届くと引火する。
+    //
+    //   **以前は引火した雲を消していた（run.fields.splice）。**
+    //   火炎は毎秒12発撃つので、雲は湧いた瞬間に消し飛び、
+    //   毒ガスは「雲を出す武器」であることをやめていた。
+    //   雲が残っていれば稼げたはずの dps×持続（5.5秒ぶん）と、
+    //   雲が持つ脆弱（+20%）と減速まで一緒に捨てていたことになる。
+    //   **実測（4シード）：このカードを3枚積むと 0.94倍＝積むほど弱くなる。**
+    //
+    //   いまは**雲を消さない。**代わりに引火の間隔（BAL.igniteCooldown）を置く。
+    //   消さずに毎発（毎秒12回）爆発させると、こんどは際限なく増えるため。
+    //   実測（4シード・3枚積み）：消していた頃 0.94倍 → 1回だけ 1.02倍 → 間隔1.2秒 で下記
     if (w.flags.ignite) {
-      for (let i = run.fields.length - 1; i >= 0; i--) {
-        const f = run.fields[i];
+      for (const f of run.fields) {
         if (f.kind !== 'gas') continue;
+        if (f.ignited !== undefined && f.t < f.ignited) continue;   // 再引火の間隔
         if (Util.dist(w.x, w.y, f.x, f.y) > range + f.r) continue;
+        f.ignited = f.t + BAL.igniteCooldown;
         this.explode(run, f.x, f.y, f.r * 1.5, f.dps * 9 * (1 + run.backdraft * 0.5),
           { color: '#ff9a4a', burn: f.dps * 0.6, burnDur: 3 });
-        run.fields.splice(i, 1);
       }
     }
     return hits;

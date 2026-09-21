@@ -252,13 +252,14 @@ const CARDS = {
     apply(run) { const b = run.wp('bubble'); if (b) { b.flags.staticFoam = true; b.s.shockDur = Math.max(b.s.shockDur, Game.rka(3)); } } }),
   syn_hangman: C({ id: 'syn_hangman', kind: 'synergy', requires: ['tentacle', 'missile'], rarity: 'epic', maxStack: 2,
     name: '吊るし上げ', desc: '【触手＋ミサイル】掴まれている敵への着弾ダメージ ×2.2',
-    apply(run) { const t = run.wp('tentacle'); if (t) t.flags.hang = true;
-      const m = run.wp('missile'); if (m) m.dyn.grabMul = (m.dyn.grabMul || 1) * Game.rk(2.2); } }),
+    // **flags.hang は消した。**どこからも読まれていなかった（2026-09-21 に src 全体を検索）。
+    //   「足を止める」は Combat の掴み側が既にやっている（grabT のあいだ後退させる）ので、
+    //   この旗は書いただけで何もしていない残骸だった。効果は grabMul のほうが持っている
+    apply(run) { const m = run.wp('missile'); if (m) m.dyn.grabMul = (m.dyn.grabMul || 1) * Game.rk(2.2); } }),
 
   syn_fixfire: C({ id: 'syn_fixfire', kind: 'synergy', requires: ['tentacle', 'mortar'], rarity: 'rare', maxStack: 3,
     name: '照準固定', desc: '【触手＋迫撃砲】掴まれて足が止まった敵への着弾ダメージ ×1.5',
-    apply(run) { const t = run.wp('tentacle'); if (t) t.flags.hang = true;
-      const m = run.wp('mortar'); if (m) m.dyn.grabMul = (m.dyn.grabMul || 1) * Game.rk(1.5); } }),
+    apply(run) { const m = run.wp('mortar'); if (m) m.dyn.grabMul = (m.dyn.grabMul || 1) * Game.rk(1.5); } }),
 
   // ============ 鍵（kind:'key'）============
   //   **3択にもパックにも出ない。** 章の報酬でしか手に入らない、機能を開ける札。
