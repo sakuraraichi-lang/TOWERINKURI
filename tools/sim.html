@@ -883,6 +883,12 @@ function runStageInner(stageId, loadout, buys, opts) {
   Game.beginBattle();
 
   const run = Game.run;
+  // **ライフを厚くして、必ず5ウェーブ最後まで回す。**
+  //   武器を比べるとき、途中で落ちると「そこまでの漏れ」しか数えられず、
+  //   **弱い武器ほど数字が小さく出る**（早く死ぬので漏れも少ない）。
+  //   最後まで回してから漏れの総数で比べる。beginBattle が lives を
+  //   livesMax で埋め直すので、**その後**に上書きする
+  if (opts.lives) { run.livesMax = opts.lives; run.lives = opts.lives; }
   // **カード1枚の寄与を測るための口**（cardScan が使う）。
   //   opts.preCards = { カードid: 枚数 } を戦闘開始時に掛ける
   //   opts.noDraft = true でウェーブ間の3択を止める
