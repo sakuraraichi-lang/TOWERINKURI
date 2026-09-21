@@ -306,6 +306,16 @@ async function reachDistAsync(seeds, opts) {
     for (const stg of MAIN_STAGES.slice(0, maxCh)) {
       st.now = label + ' ' + stg.name;
       await yieldNow();
+      // **スキップできる章はスキップする。**
+      //   これまでの測定は毎周ぜんぶ手で殴り直していた。本体には
+      //   「完璧クリア済み、または 転生1回＋通算3回突破」で押せるボタンがあり、
+      //   前に手で突破したときの最高コインがそのまま入る（`Game.skipStage`）。
+      //   使う前提で測らないと、再攻略の時間を実際より長く見積もる
+      if (opts.useSkip !== false && Game.canSkip(stg.id)) {
+        Game.skipStage(stg.id);
+        cleared++; tryLog.push(0); resLog.push('S'); lastName = stg.name;
+        continue;
+      }
       let ok = false, used = 0;
       for (let i = 1; i <= tries; i++) {
         if (opts.noPacks !== true) openAllPacks();
@@ -848,6 +858,14 @@ function campaignRun(pick, opts) {
   const stages = [], allWaves = [], deaths = [];
   let total = 0, cleared = 0, attempts = 0, packsOpened = 0;
   for (const stg of MAIN_STAGES) {
+    // **スキップできる章はスキップする**（本体のボタンと同じ条件・同じ報酬）
+    if (opts.useSkip !== false && Game.canSkip(stg.id)) {
+      Game.skipStage(stg.id);
+      stages.push({ stage: stg.name, ok: true, tries: 0, sec: 0, note: 'スキップ' });
+      cleared++;
+      if (opts.stopAfter && cleared >= opts.stopAfter) break;
+      continue;
+    }
     let ok = false, tries = 0, secs = 0, note = '';
     for (let i = 1; i <= HARD_CAP; i++) {
       // プレイヤーと同じように、持っているパックは開けてから出撃する
