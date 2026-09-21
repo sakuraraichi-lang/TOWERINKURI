@@ -126,6 +126,9 @@ const Render = {
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.miniMap(ctx);
+    // **仕掛けの凡例は、盤の変換を戻してから描く。**
+    //   盤の中で描くと縮尺が掛かって字が潰れ、左端で切れていた
+    this.zoneLegend(ctx, run.stage);
   },
 
   tiles(ctx, st) {
@@ -296,37 +299,43 @@ const Render = {
       ctx.strokeRect(x + 2, y + 2, w - 4, hh - 4);
     }
 
-    // **仕掛けがある盤には、何のマスかを盤の上に書く。**（2026-09-22）
-    //   前は色と記号だけ置いていて、プレイヤーには「緑やピンクの謎のマス目」に見えた。
-    //   **見て意味が分からない仕掛けは、仕掛けとして成立していない。**
-    //   いまは BAL.zoneOn が false なので出ないが、戻すときはこの凡例ごと戻す
-    if (v.hexes.some(h => h.zone)) this.zoneLegend(ctx, st);
-
     this.heat(ctx, st);
   },
 
-  // 盤の隅に置く、仕掛けの凡例
+  // 画面の隅に置く、仕掛けの凡例。**盤の変換の外で描く**（字が潰れないように）
+  //
+  //   色の丸を添える形にしたら、丸が黒く潰れて「謎の四角」に見えた。
+  //   **部品を減らして、見出しの文字そのものに色を付ける。**
   zoneLegend(ctx, st) {
+    if (!st || !st.vec || !st.vec.hexes.some(h => h.zone)) return;
     const rows = [
-      { c: '#6ee6aa', t: '泥　敵が遅くなる' },
-      { c: '#d78cff', t: '坂　敵が速くなる' },
+      { c: '#6ee6aa', k: '泥', t: '敵が遅くなる' },
+      { c: '#d78cff', k: '坂', t: '敵が速くなる' },
     ];
-    const w = 168, h = 18 * rows.length + 12;
-    const x = 8, y = st.rows * TILE - h - 8;
-    ctx.fillStyle = 'rgba(8,10,16,0.82)';
-    ctx.strokeStyle = '#2c3446'; ctx.lineWidth = 1;
+    const d = this.dpr || 1;
+    const w = 150 * d, h = (20 * rows.length + 12) * d;
+    const x = 8 * d, y = this.canvas.height - h - 8 * d;
+    ctx.save();
+    ctx.globalAlpha = 1;
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.shadowBlur = 0;
+    if ('filter' in ctx) ctx.filter = 'none';
+    ctx.fillStyle = 'rgba(8,10,16,0.9)';
+    ctx.strokeStyle = '#2c3446'; ctx.lineWidth = 1 * d;
     ctx.beginPath(); ctx.rect(x, y, w, h); ctx.fill(); ctx.stroke();
-    ctx.font = '12px system-ui, sans-serif';
     ctx.textBaseline = 'middle';
+    ctx.textAlign = 'left';
     rows.forEach((r, i) => {
-      const cy = y + 15 + i * 18;
+      const cy = y + (18 + i * 20) * d;
+      ctx.font = '700 ' + Math.round(13 * d) + 'px system-ui, sans-serif';
       ctx.fillStyle = r.c;
-      ctx.beginPath(); ctx.arc(x + 14, cy, 5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = '#c9d2e0';
-      ctx.fillText(r.t, x + 26, cy);
+      ctx.fillText(r.k, x + 10 * d, cy);
+      ctx.font = Math.round(12 * d) + 'px system-ui, sans-serif';
+      ctx.fillStyle = '#aab4c4';
+      ctx.fillText(r.t, x + 32 * d, cy);
     });
+    ctx.restore();
   },
-
 
   // 広いステージのとき、今どこを見ているかを小さく出す。
   // **画面に収まるステージでは出さない**（邪魔にしかならない）
