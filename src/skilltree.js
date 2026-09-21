@@ -12,6 +12,42 @@
 // ---------------------------------------------------------------
 'use strict';
 
+// ---------------------------------------------------------------
+// 取り切りの「連なり」を作るための道具
+//
+//   **1つの節でレベルを何段も上げるのはやめる。**（ユーザー指示・再掲 2026-09-22）
+//   > 「幸運回路について、ツリー1個で複数レベル上げないでツリーを広げて欲しいと
+//   >   言ったはず、もちろん経済カーブも、Lvが複数ある浅い所にあるスキルは
+//   >   同じように見直して」
+//
+//   武器カテゴリの枝は先に取り切り化したが、**拠点・資源・カードの枝が漏れていた**
+//   （集金効率・幸運回路・解析装置・敵誘引・増設基盤…と16節）。
+//   ここを「取り切りの節を並べる」形に直す。
+//
+//   `chain()` は、1つの連なりを個別の節に展開する。
+//     - どれも max:1（取り切り）
+//     - 次の節は前の節を取ると開く（needs）
+//     - 値段は cost0 から1段ごとに ×g。**収入の伸びは実測 ×4.8/章**なので、
+//       g=4.8 で「1段およそ1章」、g=9 で「1段およそ2章」
+//     - `gkey` は「この連なりが何を伸ばすか」。合計は Skill.gsum で取る
+// ---------------------------------------------------------------
+function chain(o) {
+  const out = [];
+  for (let i = 0; i < o.steps; i++) {
+    out.push({
+      id: o.id + (i + 1), name: o.names[i] || (o.name + (i + 1)),
+      icon: o.icon, group: o.group, gkey: o.gkey || o.id,
+      eff: o.eff, mode: o.mode || 'add', tmpl: o.tmpl,
+      cost0: Math.round(o.cost0 * Math.pow(o.g, i)),
+      costG: 1, max: 1, unlock: o.unlock || 0,
+      needs: i === 0 ? o.needs : (o.id + i),
+      cat: o.cat, key: o.key,
+    });
+  }
+  return out;
+}
+
+
 // mode: 'mul' … レベルごとに eff 倍（累乗）
 //       'add' … レベルごとに eff を加算
 // tmpl の {e} が eff に置き換わる
@@ -21,9 +57,10 @@ const SKILLS = [
   // 実測で Lv39・×153倍まで伸び、これが収入爆発の本体だった
   // （1面あたりの稼ぎが ×25.7 / ×6.4 / ×38.1 と暴れていた原因）。
   // 加算なら、レベルを積んでも収入の「次数」が上がらない
-  { id: 'coin', name: '集金効率', icon: '◈', group: '資源',
-    eff: 0.14, mode: 'add', tmpl: '敵から得るコイン +{e}倍',
-    cost0: 15, costG: 1.33, max: Infinity, unlock: 0 },
+  ...chain({ id: 'coin', gkey: 'coin', icon: '◈', group: '資源',
+    names: ['集金効率', '回収機構', '精錬炉', '金融演算'],
+    steps: 4, eff: 0.5, mode: 'add', tmpl: '敵から得るコイン +{e}倍',
+    cost0: 40, g: 4.8, unlock: 0 }),
   // **【撤去 2026-09-21・ユーザー決定】「防衛線」（ライフ +3/段・上限なし）を外した。**
   //   > 「基本タワーのHP鍛えるスキルツリーはノーサンキュー、せめてカードで固定値上昇」
   //   漏れの重さは章によらず1体＝ライフ1のまま据え置くので、
@@ -31,9 +68,10 @@ const SKILLS = [
   //   実測では Lv62（+186）まで積まれていた。
   //   ライフを増やす手段はカードの固定値（`gen_armor` 増設装甲 ライフ+6）に残してある。
   //   **`regen`（応急修理班）は残した。** 上限10段の回復で、HPの天井を上げるものではないため
-  { id: 'regen', name: '応急修理班', icon: '✚', group: '拠点',
-    eff: 1, mode: 'add', tmpl: 'ウェーブを1つ突破するごとにライフ +{e}（上限まで）',
-    cost0: 90, costG: 1.55, max: 10, unlock: 1 },
+  ...chain({ id: 'regen', gkey: 'regen', icon: '✚', group: '拠点',
+    names: ['応急修理班', '衛生分隊', '再建部隊'],
+    steps: 3, eff: 1, mode: 'add', tmpl: 'ウェーブを1つ突破するごとにライフ +{e}（上限まで）',
+    cost0: 200, g: 4.8, unlock: 1 }),
   //   **設置枠は「値段の跳ね上がり」で間隔を作る。**（ユーザー指示 2026-09-21）
   //
   //   > 「無尽蔵に増やしまくれるか章毎に絞るかじゃなくて、スキルツリーの深さとかで
@@ -69,21 +107,15 @@ const SKILLS = [
   //     6   … 6,9,12,14,17,20,20       第20〜24章で20基（まだ早い）
   //     **9 … 6,6,9,11,13,16,18,19**    第17章で14基、**第30章でようやく19〜20基**
   //     14  … 6,8,8,9,11,13,14,16,17   20に届かない（遅すぎる）
-  { id: 'units', name: '増設基盤', icon: '⛁', group: '拠点',
-    eff: 1, mode: 'add', tmpl: '盤に置ける数が +{e} 基（全体）',
-    cost0: 6e3, costG: 9, max: 14, unlock: 1 },
-  // 拠点の枝は「防衛線」を外したぶん浅いので、**HP以外**で深くする
-  //   **上限なしの累乗だが、ここは意図して残している。**（2026-09-22 に確認）
-  //   `w.s.turn` を読んでいるのは `Combat.aimUpdate` の1箇所だけで、
-  //   **指定攻撃（ミサイル・迫撃・泡）が砲身を着弾円へ向ける速さ**にしか効かない。
-  //   首振りの往復そのものは `BAL.sweepSpeed` で、こことは別。
-  //   積んでも「円に向き終わるのが速くなる」で頭打ちになり、火力にはならない
-  { id: 'turn', name: '旋回機構', icon: '⛁', group: '拠点',
-    eff: 1.08, mode: 'mul', tmpl: 'どの武器も首を振る速さ ×{e}',
-    cost0: 70, costG: 1.30, max: Infinity, unlock: 1 },
-  { id: 'build', name: '前倒し配備', icon: '⛁', group: '拠点',
-    eff: 1, mode: 'add', tmpl: 'ウェーブを凌ぐごとにコイン +{e}%（凌いだ時点の残りライフに比例）',
-    cost0: 300, costG: 1.45, max: 20, unlock: 2 },
+  //   **取り切りの連なりに直した。**（2026-09-22）14段 × +1基 ＝ 土台6 と合わせて20基。
+  //   **7段 × +2 にしたら周4で20に届いてしまった**（基数 8,12,16,20）。
+  //   同じ天井でも、段が少ないと1段あたりの値段に対して増え方が急になる。
+  //   1段ごとに ×9（＝およそ2章に1段）で、**第30章でようやく20基**になる
+  ...chain({ id: 'units', gkey: 'units', icon: '⛁', group: '拠点',
+    names: ['増設基盤', '第二基盤', '第三基盤', '拡張基盤', '重層基盤', '要塞化', '総力配備',
+            '前線拡張', '補給拠点', '常設陣地', '恒久基盤', '大増設', '過剰配備', '限界配備'],
+    steps: 14, eff: 1, mode: 'add', tmpl: '盤に置ける数が +{e} 基（全体）',
+    cost0: 6e3, g: 9, unlock: 1 }),
 
   // ============ カテゴリ別：**取り切りで1段ずつ開く**（2026-09-21 作り直し）============
   //
@@ -127,9 +159,11 @@ const SKILLS = [
   { id: 'short_dmg3', name: '近接極大', icon: '◤', group: '短射程', cat: 'short', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '短射程カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'short_util' },
-  { id: 'short_unit', name: '前線基盤', icon: '◤', group: '短射程', cat: 'short', key: 'units',
-    eff: 1, mode: 'add', tmpl: '短射程の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
-    cost0: 1320, costG: 2548, max: 4, unlock: 0 },
+  ...chain({ id: 'short_unit', gkey: 'short_unit', icon: '◤', group: '短射程',
+    cat: 'short', key: 'units', names: ['前線基盤', '前線基盤II'],
+    steps: 2, eff: 1, mode: 'add',
+    tmpl: '短射程の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
+    cost0: 1400, g: 9, unlock: 0 }),
 
   { id: 'mid_dmg', name: '汎用兵装', icon: '◈', group: '中射程', cat: 'mid', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
@@ -149,9 +183,11 @@ const SKILLS = [
   { id: 'mid_dmg3', name: '汎用極大', icon: '◈', group: '中射程', cat: 'mid', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'mid_util' },
-  { id: 'mid_unit', name: '量産設備', icon: '◈', group: '中射程', cat: 'mid', key: 'units',
-    eff: 1, mode: 'add', tmpl: '中射程の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
-    cost0: 1290, costG: 2548, max: 4, unlock: 0 },
+  ...chain({ id: 'mid_unit', gkey: 'mid_unit', icon: '◈', group: '中射程',
+    cat: 'mid', key: 'units', names: ['量産設備', '量産設備II'],
+    steps: 2, eff: 1, mode: 'add',
+    tmpl: '中射程の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
+    cost0: 1400, g: 9, unlock: 0 }),
 
   { id: 'long_dmg', name: '徹甲兵装', icon: '◎', group: '長射程', cat: 'long', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
@@ -171,9 +207,11 @@ const SKILLS = [
   { id: 'long_dmg3', name: '徹甲極大', icon: '◎', group: '長射程', cat: 'long', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'long_util' },
-  { id: 'long_unit', name: '狙撃陣地', icon: '◎', group: '長射程', cat: 'long', key: 'units',
-    eff: 1, mode: 'add', tmpl: '長射程の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
-    cost0: 1140, costG: 2548, max: 4, unlock: 0 },
+  ...chain({ id: 'long_unit', gkey: 'long_unit', icon: '◎', group: '長射程',
+    cat: 'long', key: 'units', names: ['狙撃陣地', '狙撃陣地II'],
+    steps: 2, eff: 1, mode: 'add',
+    tmpl: '長射程の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
+    cost0: 1400, g: 9, unlock: 0 }),
 
   { id: 'area_dmg', name: '高熱兵装', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
@@ -193,9 +231,11 @@ const SKILLS = [
   { id: 'area_dmg3', name: '高熱極大', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'area_util' },
-  { id: 'area_unit', name: '散布基盤', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'units',
-    eff: 1, mode: 'add', tmpl: '範囲攻撃の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
-    cost0: 480, costG: 2548, max: 4, unlock: 0 },
+  ...chain({ id: 'area_unit', gkey: 'area_unit', icon: '▲', group: '範囲攻撃',
+    cat: 'area', key: 'units', names: ['散布基盤', '散布基盤II'],
+    steps: 2, eff: 1, mode: 'add',
+    tmpl: '範囲攻撃の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
+    cost0: 1400, g: 9, unlock: 0 }),
 
   { id: 'target_dmg', name: '成形兵装', icon: '✛', group: '指定攻撃', cat: 'target', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
@@ -215,9 +255,11 @@ const SKILLS = [
   { id: 'target_dmg3', name: '成形極大', icon: '✛', group: '指定攻撃', cat: 'target', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'target_util' },
-  { id: 'target_unit', name: '支持架台', icon: '✛', group: '指定攻撃', cat: 'target', key: 'units',
-    eff: 1, mode: 'add', tmpl: '指定攻撃の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
-    cost0: 1500, costG: 2548, max: 4, unlock: 0 },
+  ...chain({ id: 'target_unit', gkey: 'target_unit', icon: '✛', group: '指定攻撃',
+    cat: 'target', key: 'units', names: ['支持架台', '支持架台II'],
+    steps: 2, eff: 1, mode: 'add',
+    tmpl: '指定攻撃の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
+    cost0: 1400, g: 9, unlock: 0 }),
 
   { id: 'support_dmg', name: '制圧兵装', icon: '❉', group: '支援', cat: 'support', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
@@ -237,28 +279,37 @@ const SKILLS = [
   { id: 'support_dmg3', name: '制圧極大', icon: '❉', group: '支援', cat: 'support', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'support_util' },
-  { id: 'support_unit', name: '支援拠点', icon: '❉', group: '支援', cat: 'support', key: 'units',
-    eff: 1, mode: 'add', tmpl: '支援の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
-    cost0: 1860, costG: 2548, max: 4, unlock: 0 },
+  ...chain({ id: 'support_unit', gkey: 'support_unit', icon: '✤', group: '支援',
+    cat: 'support', key: 'units', names: ['支援拠点', '支援拠点II'],
+    steps: 2, eff: 1, mode: 'add',
+    tmpl: '支援の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
+    cost0: 1400, g: 9, unlock: 0 }),
 
   // ============ カード側の枠を増やす ============
-  { id: 'picks', name: '増設スロット', icon: '★', group: 'カード',
-    eff: 1, mode: 'add', tmpl: 'ウェーブ突破ごとに取れるカードが +{e} 枚',
-    cost0: 900, costG: 6.0, max: 3, unlock: 2 },
-  { id: 'choices', name: '選択肢拡張', icon: '✧', group: 'カード',
-    eff: 1, mode: 'add', tmpl: 'カード選択の提示枚数 +{e}（3択 → 4択 …）',
-    cost0: 500, costG: 4.2, max: 3, unlock: 2 },
-  { id: 'luck', name: '幸運回路', icon: '✧', group: 'カード',
-    eff: 1, mode: 'add', tmpl: 'カード選択で高レアリティが出やすくなる',
-    cost0: 120, costG: 1.55, max: Infinity, unlock: 1 },
-  { id: 'pack', name: '解析装置', icon: '⬢', group: 'カード',
-    eff: 1, mode: 'add', tmpl: '転生で得るカードパックの等級が上がりやすくなる',
-    cost0: 300, costG: 1.80, max: 12, unlock: 3 },
+  ...chain({ id: 'picks', gkey: 'picks', icon: '★', group: 'カード',
+    names: ['増設スロット', '二重スロット'],
+    steps: 2, eff: 1, mode: 'add', tmpl: 'ウェーブ突破ごとに取れるカードが +{e} 枚',
+    cost0: 900, g: 9, unlock: 2 }),
+  ...chain({ id: 'choices', gkey: 'choices', icon: '✧', group: 'カード',
+    names: ['選択肢拡張', '広域走査'],
+    steps: 2, eff: 1, mode: 'add', tmpl: 'カード選択の提示枚数 +{e}（3択 → 4択 …）',
+    cost0: 500, g: 9, unlock: 2 }),
+  //   **上限なしの1節をやめた。**（2026-09-22）Lv20 まで積むと3択からコモンが消えていた
+  //   （draft.js 側にも下限を入れてある）。取り切り3段で、効き幅も設計で決まる
+  ...chain({ id: 'luck', gkey: 'luck', icon: '✧', group: 'カード',
+    names: ['幸運回路', '選別装置', '天運演算'],
+    steps: 3, eff: 4, mode: 'add', tmpl: 'カード選択で高レアリティが出やすくなる（+{e}）',
+    cost0: 400, g: 4.8, unlock: 1 }),
+  ...chain({ id: 'pack', gkey: 'pack', icon: '⬢', group: 'カード',
+    names: ['解析装置', '深層解析', '完全解析'],
+    steps: 3, eff: 4, mode: 'add', tmpl: '転生で得るカードパックの等級が上がりやすくなる（+{e}）',
+    cost0: 900, g: 4.8, unlock: 3 }),
 
   // ============ 危険と引き換え ============
-  { id: 'lure', name: '敵誘引', icon: '◌', group: '危険',
-    eff: 0.12, mode: 'add', tmpl: '敵の出現数 +{e}倍 / コイン獲得 +6%（危険だが儲かる）',
-    cost0: 40, costG: 1.45, max: 60, unlock: 1 },
+  ...chain({ id: 'lure', gkey: 'lure', icon: '◌', group: '危険',
+    names: ['敵誘引', '挑発信号', '撹乱電波', '総攻撃誘発'],
+    steps: 4, eff: 0.25, mode: 'add', tmpl: '敵の出現数 +{e}倍 / コイン獲得 +6%（危険だが儲かる）',
+    cost0: 120, g: 4.8, unlock: 1 }),
 ];
 
 const SKILL_BY_ID = {};
@@ -324,7 +375,7 @@ const Skill = {
     //   2026-09-21 に設置枠を「進行の縛り」から「値段の跳ね上がり」へ変えたときに
     //   maxPerClear を外したので、その条件だと**下駄が復活してしまう。**
     //   設置枠かどうかは `key === 'units'` で直接見る
-    const isUnitNode = s && (s.key === 'units' || s.id === 'units');
+    const isUnitNode = s && (s.key === 'units' || s.gkey === 'units');
     const base = (p && typeof Relic !== 'undefined' && !isUnitNode)
       ? Relic.mods(p).startLv : 0;
     const lv = (meta.skills[id] || 0) + base;
@@ -452,8 +503,9 @@ const Skill = {
   // そのカテゴリの「置ける数」の加算ぶん。
   // **設置数は倍率ではなく加算なので、mods を通さず直接引けるようにしておく**
   unitBonusFor(meta, cat) {
-    const node = SKILLS.find(s => s.cat === cat && s.key === 'units');
-    return node ? Skill.amount(meta, node.id) : 0;
+    let t = 0;
+    for (const s of SKILLS) if (s.cat === cat && s.key === 'units') t += Skill.amount(meta, s.id);
+    return t;
   },
 
   // 安い順にまとめ買いする。**周回のたびに同じ買い物を手で繰り返させないため。**
@@ -468,7 +520,7 @@ const Skill = {
   //   取り切り（max 1）＝枝を進める節なので、こちらを優先する
   buyOrder(meta, perm) {
     return SKILLS.map(s => s.id)
-      .filter(id => id !== 'lure' && Skill.canBuy(meta, perm, id))
+      .filter(id => (SKILL_BY_ID[id].gkey !== 'lure') && Skill.canBuy(meta, perm, id))
       .sort((a, b) => {
         const sa = SKILL_BY_ID[a], sb = SKILL_BY_ID[b];
         const oa = sa.max === 1 ? 0 : 1, ob = sb.max === 1 ? 0 : 1;
@@ -491,7 +543,7 @@ const Skill = {
 
   // まとめ買いで1つでも買えるか
   canBuyAny(meta, perm) {
-    return SKILLS.some(s => s.id !== 'lure' && Skill.canBuy(meta, perm, s.id));
+    return SKILLS.some(s => s.gkey !== 'lure' && Skill.canBuy(meta, perm, s.id));
   },
 
   // パックで出す換装の候補。**買っていないノードは換えられない**（換える意味が無い）。
@@ -534,8 +586,18 @@ const Skill = {
   },
 
   // アップグレード＋転生ボーナスを、出撃時の倍率一式にまとめる
+  // **連なり全体の合計。**（2026-09-22）
+  //   取り切りに割ったので、`coin` のような1つのidはもう存在しない
+  //   （coin1〜coin4 になった）。gkey で束ねて足す
+  gsum(meta, gkey) {
+    let t = 0;
+    for (const s of SKILLS) if (s.gkey === gkey) t += Skill.amount(meta, s.id);
+    return t;
+  },
+
   mods(meta, perm) {
     const A = (id) => Skill.amount(meta, id);
+    const G = (k) => Skill.gsum(meta, k);
     // 転生で残る層。**以前は prestigePower^回数 の ×1.35 一本だった。**
     // それだと1周で積む ×133 に対して 1% しかなく、実測で 2周目が 0.99〜1.10倍の速さ
     // ＝ ほとんど楽にならなかったので、遺物カードに置き換えた
@@ -573,15 +635,15 @@ const Skill = {
     }
 
     return {
-      coin:   (1 + A('coin')) * (1 + 0.06 * Skill.lv(meta, 'lure')) * R.coin,
+      coin:   (1 + G('coin')) * (1 + 0.06 * Skill.gsum(meta, 'lure') / 0.25) * R.coin,
       lives:  R.lives,        // ツリーからは増えない（「防衛線」を撤去した）
-      regen:  A('regen') + (R.regen || 0),
-      spawn:  1 + A('lure'),
-      luck:   Skill.lv(meta, 'luck'),
-      packLuck: Skill.lv(meta, 'pack'),
-      picks:   1 + A('picks') + (R.picks || 0),
-      choices: BAL.draftSize + A('choices') + (R.choices || 0),
-      units:   A('units'),   // **遺物からは増やさない。**（R.units は存在せず NaN になっていた）
+      regen:  G('regen') + (R.regen || 0),
+      spawn:  1 + G('lure'),
+      luck:   G('luck'),
+      packLuck: G('pack'),
+      picks:   1 + G('picks') + (R.picks || 0),
+      choices: BAL.draftSize + G('choices') + (R.choices || 0),
+      units:   G('units'),   // **遺物からは増やさない。**（R.units は存在せず NaN になっていた）
       prestige: pw,
       relic: R,
       cat,

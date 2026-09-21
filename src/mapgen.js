@@ -276,9 +276,11 @@ const MapGen = {
   //   > 「（六角マップの上に作って）はい、それで構いません」
   //
   //   数値ではなく**地形で難易度を作る**ための最初の一歩。
-  //     泥 mud   … 通る敵が遅くなる。置いた武器が長く撃てる ＝ 守りやすい場所
-  //     坂 slope … 通る敵が速くなる。抜けられやすい ＝ 守りにくい場所
-  //   章が深いほど坂が増え、泥が減る。**形で難易度が動く**
+  //     減速 … 通る敵が遅くなる。置いた武器が長く撃てる ＝ 守りやすい場所
+  //     加速 … 通る敵が速くなる。抜けられやすい ＝ 守りにくい場所
+  //   章が深いほど加速が増え、減速が減る。**形で難易度が動く**
+  //   （名前はユーザー指定 2026-09-22：「幾何学的模様に泥と坂はやや変な印象が
+  //     あるため、加速と減速で良いでしょう」）
   ZONE: { none: 0, mud: 1, slope: 2 },
 
   tagZones(hexes, rnd, d) {
@@ -292,8 +294,8 @@ const MapGen = {
     if (!BAL.zoneOn) return hexes;
     // 出入口とコアの近くには置かない（置いた瞬間に詰む形を避ける）
     const n = hexes.length;
-    const mudN = Math.round(n * (0.16 - 0.10 * d));     // 序盤ほど泥が多い
-    const slpN = Math.round(n * (0.02 + 0.12 * d));     // 終盤ほど坂が多い
+    const mudN = Math.round(n * (0.16 - 0.10 * d));     // 序盤ほど減速が多い
+    const slpN = Math.round(n * (0.02 + 0.12 * d));     // 終盤ほど加速が多い
     const idx = hexes.map((_, i) => i).sort(() => rnd() - 0.5);
     let k = 0;
     for (let i = 0; i < mudN && k < idx.length; i++, k++) hexes[idx[k]].zone = this.ZONE.mud;

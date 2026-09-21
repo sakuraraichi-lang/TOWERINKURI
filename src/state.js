@@ -445,7 +445,8 @@ const Game = {
   //   **盤全体の総数で持つ。** ここだけ見れば「何基置けるか」が決まる。
   //   種類ごとの上限（unitCap）は「1種類で埋め尽くさせない」ためだけに残す
   slotsTotal() {
-    return BAL.slotsBase + Skill.amount(this.meta, 'units');
+    // 取り切りの連なりに割ったので、合計は gkey で取る（skilltree.js の chain）
+    return BAL.slotsBase + Skill.gsum(this.meta, 'units');
   },
 
   slotsUsed() { return this.run ? this.run.units.length : 0; },

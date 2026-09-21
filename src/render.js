@@ -309,11 +309,11 @@ const Render = {
   zoneLegend(ctx, st) {
     if (!st || !st.vec || !st.vec.hexes.some(h => h.zone)) return;
     const rows = [
-      { c: '#6ee6aa', k: '泥', t: '敵が遅くなる' },
-      { c: '#d78cff', k: '坂', t: '敵が速くなる' },
+      { c: '#6ee6aa', k: '減速', t: '敵が遅くなる' },
+      { c: '#d78cff', k: '加速', t: '敵が速くなる' },
     ];
     const d = this.dpr || 1;
-    const w = 150 * d, h = (20 * rows.length + 12) * d;
+    const w = 168 * d, h = (20 * rows.length + 12) * d;
     const x = 8 * d, y = this.canvas.height - h - 8 * d;
     ctx.save();
     ctx.globalAlpha = 1;
@@ -332,7 +332,7 @@ const Render = {
       ctx.fillText(r.k, x + 10 * d, cy);
       ctx.font = Math.round(12 * d) + 'px system-ui, sans-serif';
       ctx.fillStyle = '#aab4c4';
-      ctx.fillText(r.t, x + 32 * d, cy);
+      ctx.fillText(r.t, x + 44 * d, cy);
     });
     ctx.restore();
   },
