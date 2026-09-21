@@ -73,14 +73,19 @@ const UI = {
 // **実ゲームの初期所持（STARTER_CARDS）に合わせること。**
 // ここを勝手に「ガトリング1種」にしていて、第1章が 撃破1／漏れ20 で即死していた。
 // 「初期武器を1種に絞る」は設計書 §13 の未承認の提案であって、まだ入っていない
+// 武器がいつ手に入るか。**数字は「その章を突破したときにもらえる」**。
+//   本体は `clearStage` で報酬を配るので、**使えるのは次の章から。**
+//   ここを `ch >= N` にしていたため、**測定器の側だけ全部の武器が1章ぶん早かった。**
+//   （出どころは tools/gen30.py の CH_WEAPON。ずれたら両方を直す）
+const WEAPON_START = ['gatling', 'sniper'];   // src:'start'。最初から持っている
 const WEAPON_AT = [
-  [1, 'gatling'], [1, 'sniper'], [5, 'missile'], [8, 'tesla'],
+  [5, 'missile'], [8, 'tesla'],
   [11, 'flame'], [14, 'gas'], [17, 'cryo'], [20, 'mortar'],
 ];
 function loadoutFor(stageId) {
   const i = MAIN_STAGES.findIndex(s => s.id === stageId);
   const ch = i < 0 ? 1 : i + 1;
-  const have = WEAPON_AT.filter(w => ch >= w[0]).map(w => w[1]);
+  const have = WEAPON_START.concat(WEAPON_AT.filter(w => ch > w[0]).map(w => w[1]));
   // 編成枠は4。**新しいものを優先する**（古い武器は章が進むと相対的に弱くなるため）
   return have.slice(-BAL.loadoutSlots);
 }
