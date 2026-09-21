@@ -46,6 +46,20 @@ const Game = {
       stages: { ch1: { cleared: false, perfect: false, bestWave: 0, attempts: 0 } },
       currentStage: 'ch1',
       placements: {},
+      // 30章ぶんのマップを決める種（src/mapgen.js）。
+      //   **0 ＝ 生成を切っている。** stages.js に書いてある固定のマップを使う。
+      //
+      //   **まだ入れられない。**（2026-09-21 実測）
+      //   生成マップにすると、**12個の種すべてで第1章が突破できなかった（0/12）。**
+      //   経路は30〜49タイルと十分長く、通路の量（56〜129）も旧マップ並みなのに、
+      //   ガトリング4基では1度も凌げない。章ごとの難易度付け（MapGen の d）を
+      //   入れても直らなかったので、**原因はまだ分かっていない。**疑っている順に：
+      //     1. 自動配置が有機的な通路に弱い（tools/sim.html の autoPlace）
+      //     2. コアが開けた場所に置かれ、四方から来るので扇で覆えない
+      //     3. 通路の総量ではなく「広がり方」が効いている
+      //   生成そのものは通っている（800枚すべて別物・失敗0・通路の中央値93＝旧94相当）。
+      //   絵も繋がっている（Render.tilesVec）。**原因が分かるまで切っておく**
+      mapSeed: 0,
       heat: {},          // stageId -> { traffic: [], leak: [] }
       // **タブは最初から全部出さない。** 遊んで意味が分かった順に開く
       tabs: { skill: false, load: false, pack: false, deck: false },
@@ -70,6 +84,8 @@ const Game = {
       bestPerfect: {}, // stageId -> 一度でも完璧クリアしたか
     };
     this.meta = { coins: 0, skills: {} };
+    // **マップの種が変わったので、焼いた地形を捨てる**（src/mapgen.js）
+    if (typeof Stage !== 'undefined' && Stage.invalidate) Stage.invalidate();
   },
 
   save() {
@@ -782,6 +798,15 @@ const Game = {
     // deepest（到達した深さ）だけは戻さないので、パックの解放は保たれる
     this.perm.stages = {};
     this.perm.currentStage = 'ch1';
+    // **マップの作り直しは、生成を入れてから。**（上の mapSeed の注記を参照）
+    //   いまは種が 0 なので地形は変わらない ＝ 配置も消さない。
+    //   生成を入れるときは、ここで種を作り直して placements を捨てる
+    //   （ユーザー決定 2026-09-21：「配置は転生で消える」）
+    if (this.perm.mapSeed) {
+      this.perm.mapSeed = (Math.random() * 0x7fffffff) >>> 0;
+      this.perm.placements = {};
+      if (typeof Stage !== 'undefined' && Stage.invalidate) Stage.invalidate();
+    }
     this.run = null;
     this.phase = 'prep';
     const missions = this.checkMissions();

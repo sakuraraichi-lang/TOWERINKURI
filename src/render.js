@@ -129,6 +129,12 @@ const Render = {
   },
 
   tiles(ctx, st) {
+    // **折れ線があるなら、通路は滑らかに描く**（src/mapgen.js の vec）。
+    //   タイルに焼いた地形をそのまま四角で描くと、せっかく自由な角度で作った通路が
+    //   また45度の階段に見える。**遊びの判定はタイルのまま**で、絵だけベクタを見る。
+    //   焼くときに使った判定（タイルの中心が幅の内側か）と同じ線を描くので、
+    //   通路タイルの中心は必ず描いた帯の中に入る。ずれるのは縁の半タイルぶんだけ
+    if (st.vec) return this.tilesVec(ctx, st);
     for (let r = 0; r < st.rows; r++) {
       for (let c = 0; c < st.cols; c++) {
         const ch = st.grid[r][c];
@@ -164,6 +170,7 @@ const Render = {
     // 通行量と漏れルートのヒートマップ
     this.heat(ctx, st);
 
+
     // **進行方向の矢印は出さない。**
     // 通路のどこをどう通るかは、敵が来てから目で見て分かればいい。
     // 盤面いっぱいに散った記号は、敵と弾を読むのを邪魔していた
@@ -190,6 +197,62 @@ const Render = {
       }
     }
   },
+
+  // 折れ線から描く通路。**tiles() の代わり**
+  tilesVec(ctx, st) {
+    const v = st.vec;
+    // 1. 盤ぜんぶを地面で塗る
+    ctx.fillStyle = '#31384a';
+    ctx.fillRect(0, 0, st.w, st.h);
+
+    // 2. 通路を「太い線」で抜く。round にして角を丸める＝格子の匂いを消す
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    for (const pass of [{ w: 8, c: '#232838' }, { w: 0, c: '#05060a' }]) {
+      ctx.strokeStyle = pass.c;
+      for (const lane of v.lanes) {
+        ctx.lineWidth = lane.w + pass.w;
+        ctx.beginPath();
+        ctx.moveTo(lane.pts[0].x, lane.pts[0].y);
+        for (let i = 1; i < lane.pts.length; i++) ctx.lineTo(lane.pts[i].x, lane.pts[i].y);
+        ctx.stroke();
+      }
+    }
+
+    // 3. 置ける場所の格子。**設置はタイルのままなので、ここは四角で見せる。**
+    //    （ユーザー決定 2026-09-21「タイルのまま」）
+    ctx.strokeStyle = 'rgba(255,170,80,0.10)';
+    ctx.lineWidth = 1;
+    for (let r = 0; r < st.rows; r++) {
+      for (let c = 0; c < st.cols; c++) {
+        if (st.grid[r][c] !== '#') continue;
+        ctx.strokeRect(c * TILE + 0.5, r * TILE + 0.5, TILE - 1, TILE - 1);
+      }
+    }
+
+    // 4. 障害物
+    ctx.fillStyle = '#0a0b0f';
+    for (let r = 0; r < st.rows; r++) {
+      for (let c = 0; c < st.cols; c++) {
+        if (st.grid[r][c] === ' ') ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
+      }
+    }
+
+    // 5. **壁に開いた穴。** 1タイルの印ではなく、開いている幅ぶんを1本の口として描く
+    for (const h of v.holes) {
+      const t0 = h.tiles[0], t1 = h.tiles[h.tiles.length - 1];
+      const x = Math.min(t0.c, t1.c) * TILE, y = Math.min(t0.r, t1.r) * TILE;
+      const w = (Math.abs(t1.c - t0.c) + 1) * TILE, hh = (Math.abs(t1.r - t0.r) + 1) * TILE;
+      ctx.fillStyle = 'rgba(255,60,90,0.16)';
+      ctx.fillRect(x, y, w, hh);
+      ctx.strokeStyle = '#ff5566';
+      ctx.lineWidth = 3;
+      ctx.strokeRect(x + 2, y + 2, w - 4, hh - 4);
+    }
+
+    this.heat(ctx, st);
+  },
+
 
   // 広いステージのとき、今どこを見ているかを小さく出す。
   // **画面に収まるステージでは出さない**（邪魔にしかならない）

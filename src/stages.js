@@ -850,17 +850,40 @@ function globalWave(stageIdx, wave) { return stageIdx * BAL.wavesPerStage + wave
 const Stage = {
   _cache: {},
 
+  // **盤面の種があれば、マップはその場で作る**（src/mapgen.js）。
+  //   種は転生のたびに新しくなるので、周ごとに30章ぶんのマップが入れ替わる
+  //   （ユーザー決定 2026-09-21：「配置は転生で消える」「1000組み合わせで作れない？」）。
+  //   種が無い＝旧セーブや測定器の既定では、これまでどおり def.map を使う
+  mapRowsFor(stageId, def) {
+    const seed = (typeof Game !== 'undefined' && Game.perm && Game.perm.mapSeed) || 0;
+    if (!seed || typeof MapGen === 'undefined') return def.map;
+    const idx = STAGE_BY_ID[stageId].idx;
+    // 章が進むほど難しい形にする（口が増え、通路が広がり、経路が短くなる）
+    const d = STAGES.length > 1 ? idx / (STAGES.length - 1) : 0.5;
+    const m = MapGen.build(((seed * 2654435761) ^ ((idx + 1) * 40503)) >>> 0, 40, d);
+    if (!m) return def.map;                 // 作れなかったら元のマップに落とす
+    this._vec[stageId] = m.vec;
+    return m.rows;
+  },
+
+  _vec: {},
+  vecOf(stageId) { return this._vec[stageId] || null; },
+
+  // 種が変わったら作り直す（転生のとき）
+  invalidate() { this._cache = {}; this._vec = {}; },
+
   build(stageId) {
     if (this._cache[stageId]) return this._cache[stageId];
     const def = STAGE_BY_ID[stageId];
-    const rows = def.map.length;
-    const cols = Math.max.apply(null, def.map.map(r => r.length));
+    const map = this.mapRowsFor(stageId, def);
+    const rows = map.length;
+    const cols = Math.max.apply(null, map.map(r => r.length));
 
     const grid = [];
     const spawns = [];
     let core = null;
     for (let r = 0; r < rows; r++) {
-      const line = def.map[r];
+      const line = map[r];
       const row = [];
       for (let c = 0; c < cols; c++) {
         const ch = line[c] || ' ';
@@ -912,6 +935,7 @@ const Stage = {
 
     const built = {
       def, id: stageId, cols, rows, grid, spawns, core, dist, next, idx, walkable, routes,
+      vec: this._vec[stageId] || null,        // 折れ線と幅。絵を滑らかに描くのに使う
       w: cols * TILE, h: rows * TILE,
       center: (c, r) => ({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2 }),
       // 置けるのは地面だけ（通路・出現口・コア・障害物には置けない）
