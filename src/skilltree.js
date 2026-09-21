@@ -34,9 +34,21 @@ const SKILLS = [
   { id: 'regen', name: '応急修理班', icon: '✚', group: '拠点',
     eff: 1, mode: 'add', tmpl: 'ウェーブを1つ突破するごとにライフ +{e}（上限まで）',
     cost0: 90, costG: 1.55, max: 10, unlock: 1 },
+  //   **【2026-09-21・ユーザー報告で発覚】ここは maxPerClear が無く、
+  //   お金だけで5段まで買えていた。** CLAUDE.md の
+  //   「設置枠はお金で買えない。踏破したステージ数でしか増えない」を破っていた。
+  //   設置枠は火力・カバー範囲・漏れにくさが同時に増え、他の全強化と掛け算になるので、
+  //   **6章突破ごとに1段**（30章で5段）に縛り、値段も上げた
   { id: 'units', name: '増設基盤', icon: '⛁', group: '拠点',
     eff: 1, mode: 'add', tmpl: 'どの武器も設置できる数が +{e} 基',
-    cost0: 900, costG: 7.5, max: 5, unlock: 1 },
+    cost0: 3000, costG: 7.5, max: 5, maxPerClear: 1 / 6, unlock: 1 },
+  // 拠点の枝は「防衛線」を外したぶん浅いので、**HP以外**で深くする
+  { id: 'turn', name: '旋回機構', icon: '⛁', group: '拠点',
+    eff: 1.08, mode: 'mul', tmpl: 'どの武器も首を振る速さ ×{e}',
+    cost0: 70, costG: 1.30, max: Infinity, unlock: 1 },
+  { id: 'build', name: '前倒し配備', icon: '⛁', group: '拠点',
+    eff: 1, mode: 'add', tmpl: 'ウェーブを凌ぐごとにコイン +{e}%（凌いだ時点の残りライフに比例）',
+    cost0: 300, costG: 1.45, max: 20, unlock: 2 },
 
   // ============ カテゴリ別（その分類の武器を1つでも持つと解放） ============
   { id: 'short_dmg', name: '近接兵装', icon: '◤', group: '短射程', cat: 'short', key: 'dmg',
@@ -47,7 +59,16 @@ const SKILLS = [
     cost0: 45, costG: 1.36, max: Infinity, unlock: 0 },
   { id: 'short_unit', name: '前線基盤', icon: '◤', group: '短射程', cat: 'short', key: 'units',
     eff: 1, mode: 'add', tmpl: '短射程カテゴリの武器を置ける数 +{e} 基',
-    cost0: 440, costG: 3.1, max: 4, maxPerClear: 1, unlock: 0 },
+    cost0: 1320, costG: 4.5, max: 4, maxPerClear: 1 / 5, unlock: 0 },
+  { id: 'short_rate', name: '連撃機構', icon: '◤', group: '短射程', cat: 'short', key: 'rate',
+    eff: 1.06, mode: 'mul', tmpl: '短射程カテゴリの発射レート ×{e}',
+    cost0: 120, costG: 1.35, max: Infinity, unlock: 1 },
+  { id: 'short_dur', name: '粘着処理', icon: '◤', group: '短射程', cat: 'short', key: 'dur',
+    eff: 1.08, mode: 'mul', tmpl: '短射程カテゴリの状態異常の持続 ×{e}',
+    cost0: 210, costG: 1.40, max: Infinity, unlock: 2 },
+  { id: 'short_pierce', name: '刃金', icon: '◤', group: '短射程', cat: 'short', key: 'pierce',
+    eff: 1, mode: 'add', tmpl: '短射程カテゴリの貫通 +{e}',
+    cost0: 700, costG: 2.6, max: 6, unlock: 3 },
 
   { id: 'mid_dmg', name: '汎用弾薬', icon: '◈', group: '中射程', cat: 'mid', key: 'dmg',
     eff: 1.13, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
@@ -57,7 +78,16 @@ const SKILLS = [
     cost0: 40, costG: 1.34, max: Infinity, unlock: 0 },
   { id: 'mid_unit', name: '量産設備', icon: '◈', group: '中射程', cat: 'mid', key: 'units',
     eff: 1, mode: 'add', tmpl: '中射程カテゴリの武器を置ける数 +{e} 基',
-    cost0: 430, costG: 3.1, max: 4, maxPerClear: 1, unlock: 0 },
+    cost0: 1290, costG: 4.5, max: 4, maxPerClear: 1 / 5, unlock: 0 },
+  { id: 'mid_range', name: '延伸銃身', icon: '◈', group: '中射程', cat: 'mid', key: 'range',
+    eff: 1.08, mode: 'mul', tmpl: '中射程カテゴリの射程 ×{e}',
+    cost0: 110, costG: 1.34, max: Infinity, unlock: 1 },
+  { id: 'mid_pierce', name: '硬芯弾', icon: '◈', group: '中射程', cat: 'mid', key: 'pierce',
+    eff: 1, mode: 'add', tmpl: '中射程カテゴリの貫通 +{e}',
+    cost0: 600, costG: 2.4, max: 8, unlock: 2 },
+  { id: 'mid_count', name: '多口射出', icon: '◈', group: '中射程', cat: 'mid', key: 'count',
+    eff: 1, mode: 'add', tmpl: '中射程カテゴリの同時発射 +{e} 発',
+    cost0: 1600, costG: 3.4, max: 6, unlock: 3 },
 
   { id: 'long_dmg', name: '徹甲弾頭', icon: '◎', group: '長射程', cat: 'long', key: 'dmg',
     eff: 1.18, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
@@ -67,7 +97,16 @@ const SKILLS = [
     cost0: 90, costG: 1.42, max: 20, unlock: 0 },
   { id: 'long_unit', name: '狙撃陣地', icon: '◎', group: '長射程', cat: 'long', key: 'units',
     eff: 1, mode: 'add', tmpl: '長射程カテゴリの武器を置ける数 +{e} 基',
-    cost0: 380, costG: 3.1, max: 4, maxPerClear: 1, unlock: 0 },
+    cost0: 1140, costG: 4.5, max: 4, maxPerClear: 1 / 5, unlock: 0 },
+  { id: 'long_range', name: '観測気球', icon: '◎', group: '長射程', cat: 'long', key: 'range',
+    eff: 1.10, mode: 'mul', tmpl: '長射程カテゴリの射程 ×{e}',
+    cost0: 130, costG: 1.37, max: Infinity, unlock: 1 },
+  { id: 'long_speed', name: '加速装薬', icon: '◎', group: '長射程', cat: 'long', key: 'speed',
+    eff: 1.12, mode: 'mul', tmpl: '長射程カテゴリの弾速 ×{e}',
+    cost0: 240, costG: 1.44, max: Infinity, unlock: 2 },
+  { id: 'long_pierce', name: '徹甲芯', icon: '◎', group: '長射程', cat: 'long', key: 'pierce',
+    eff: 1, mode: 'add', tmpl: '長射程カテゴリの貫通 +{e}',
+    cost0: 800, costG: 2.5, max: 8, unlock: 3 },
 
   { id: 'area_dmg', name: '高熱反応', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'dmg',
     eff: 1.14, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
@@ -77,7 +116,16 @@ const SKILLS = [
     cost0: 70, costG: 1.38, max: Infinity, unlock: 0 },
   { id: 'area_unit', name: '散布基盤', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'units',
     eff: 1, mode: 'add', tmpl: '範囲攻撃カテゴリの武器を置ける数 +{e} 基',
-    cost0: 160, costG: 3.1, max: 4, maxPerClear: 1, unlock: 0 },
+    cost0: 480, costG: 4.5, max: 4, maxPerClear: 1 / 5, unlock: 0 },
+  { id: 'area_rate', name: '連続噴射', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'rate',
+    eff: 1.07, mode: 'mul', tmpl: '範囲攻撃カテゴリの発射レート ×{e}',
+    cost0: 100, costG: 1.33, max: Infinity, unlock: 1 },
+  { id: 'area_dur', name: '残留処方', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'dur',
+    eff: 1.10, mode: 'mul', tmpl: '範囲攻撃カテゴリの効果の持続 ×{e}（燃焼・毒・場すべて）',
+    cost0: 150, costG: 1.39, max: Infinity, unlock: 2 },
+  { id: 'area_range', name: '長管ノズル', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'range',
+    eff: 1.07, mode: 'mul', tmpl: '範囲攻撃カテゴリの射程 ×{e}',
+    cost0: 260, costG: 1.41, max: Infinity, unlock: 3 },
 
   { id: 'target_dmg', name: '成形炸薬', icon: '✛', group: '指定攻撃', cat: 'target', key: 'dmg',
     eff: 1.16, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
@@ -87,7 +135,16 @@ const SKILLS = [
     cost0: 65, costG: 1.36, max: Infinity, unlock: 0 },
   { id: 'target_unit', name: '支持架台', icon: '✛', group: '指定攻撃', cat: 'target', key: 'units',
     eff: 1, mode: 'add', tmpl: '指定攻撃カテゴリの武器を置ける数 +{e} 基',
-    cost0: 500, costG: 3.1, max: 4, maxPerClear: 1, unlock: 0 },
+    cost0: 1500, costG: 4.5, max: 4, maxPerClear: 1 / 5, unlock: 0 },
+  { id: 'target_size', name: '炸薬量', icon: '✛', group: '指定攻撃', cat: 'target', key: 'size',
+    eff: 1.09, mode: 'mul', tmpl: '指定攻撃カテゴリの効果範囲 ×{e}',
+    cost0: 120, costG: 1.36, max: Infinity, unlock: 1 },
+  { id: 'target_count', name: '多連装', icon: '✛', group: '指定攻撃', cat: 'target', key: 'count',
+    eff: 1, mode: 'add', tmpl: '指定攻撃カテゴリの同時発射 +{e} 発',
+    cost0: 1400, costG: 3.2, max: 6, unlock: 2 },
+  { id: 'target_range', name: '遠隔観測', icon: '✛', group: '指定攻撃', cat: 'target', key: 'range',
+    eff: 1.08, mode: 'mul', tmpl: '指定攻撃カテゴリの射程 ×{e}',
+    cost0: 230, costG: 1.40, max: Infinity, unlock: 3 },
 
   { id: 'sup_pow', name: '制圧出力', icon: '❉', group: '支援', cat: 'support', key: 'dur',
     eff: 1.12, mode: 'mul', tmpl: '支援カテゴリの 減速・拘束・感電の持続 ×{e}',
@@ -97,7 +154,16 @@ const SKILLS = [
     cost0: 55, costG: 1.34, max: Infinity, unlock: 0 },
   { id: 'support_unit', name: '支援拠点', icon: '❉', group: '支援', cat: 'support', key: 'units',
     eff: 1, mode: 'add', tmpl: '支援カテゴリの武器を置ける数 +{e} 基',
-    cost0: 620, costG: 3.1, max: 4, maxPerClear: 1, unlock: 0 },
+    cost0: 1860, costG: 4.5, max: 4, maxPerClear: 1 / 5, unlock: 0 },
+  { id: 'sup_dmg', name: '凍結核', icon: '❉', group: '支援', cat: 'support', key: 'dmg',
+    eff: 1.12, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
+    cost0: 80, costG: 1.32, max: Infinity, unlock: 1 },
+  { id: 'sup_rate', name: '循環冷媒', icon: '❉', group: '支援', cat: 'support', key: 'rate',
+    eff: 1.07, mode: 'mul', tmpl: '支援カテゴリの発射レート ×{e}',
+    cost0: 140, costG: 1.36, max: Infinity, unlock: 2 },
+  { id: 'sup_size', name: '拡張リング', icon: '❉', group: '支援', cat: 'support', key: 'size',
+    eff: 1.09, mode: 'mul', tmpl: '支援カテゴリの効果範囲 ×{e}',
+    cost0: 260, costG: 1.40, max: Infinity, unlock: 3 },
 
   // ============ カード側の枠を増やす ============
   { id: 'picks', name: '増設スロット', icon: '★', group: 'カード',
@@ -263,7 +329,9 @@ const Skill = {
     if (!s.maxPerClear) return s.max;
     const p = perm || ((typeof Game !== 'undefined' && Game.perm) ? Game.perm : null);
     const cleared = p ? MAIN_STAGES.filter(x => (p.stages[x.id] || {}).cleared).length : 0;
-    return Math.min(s.max, cleared * s.maxPerClear);
+    // **切り捨てる。** maxPerClear が 1/6 のような分数だと、
+    //   6章突破で 1.0、7章で 1.166… になり、切り捨てないと1段多く買えてしまう
+    return Math.min(s.max, Math.floor(cleared * s.maxPerClear));
   },
 
   // 上限に届いていて、その理由が進行なら、そう言う（値段のせいだと誤解させない）
@@ -271,7 +339,7 @@ const Skill = {
     const s = SKILL_BY_ID[id];
     if (!s.maxPerClear) return '';
     if (Skill.maxOf(perm, id) >= s.max) return '';
-    return 'ステージを突破すると、あと ' + (s.max - Skill.maxOf(perm, id)) + ' 段まで伸ばせます';
+    return 'ステージを突破すると、あと ' + Math.round(s.max - Skill.maxOf(perm, id)) + ' 段まで伸ばせます';
   },
 
   canBuy(meta, perm, id) {
@@ -393,7 +461,7 @@ const Skill = {
       packLuck: Skill.lv(meta, 'pack'),
       picks:   1 + A('picks'),
       choices: BAL.draftSize + A('choices'),
-      units:   A('units') + R.units,
+      units:   A('units'),   // **遺物からは増やさない。**（R.units は存在せず NaN になっていた）
       prestige: pw,
       relic: R,
       cat,
@@ -420,5 +488,10 @@ const Skill = {
       w.s.shockDur *= c.dur;
       w.s.fieldDur *= c.dur;
     }
+    // ---- ここから下は、ツリーを深くしたときに足した口（2026-09-21）----
+    if (c.pierce) w.s.pierce += c.pierce;       // 貫通は整数で足す
+    if (c.count)  w.s.count  += c.count;        // 同時発射も整数で足す
+    if (c.speed)  w.s.speed  *= c.speed;        // 弾速
+    if (c.turn)   w.s.turn   *= c.turn;         // 首振りの速さ
   },
 };
