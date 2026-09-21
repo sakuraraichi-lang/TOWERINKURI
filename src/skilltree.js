@@ -77,9 +77,14 @@ const SKILLS = [
   //   **1ノードは `max: 1`。取ると `needs` で次が開く。** 効果は1回で体感できる大きさにする。
   //
   //   **天井が設計で決まるのが、この形のいちばんの利点。**
-  //   1カテゴリを全部取ると ダメージ ×4 → ×7 → ×12 ＝ **×336**、
-  //   レート ×2.2、射程 ×1.6 で、実効 **×740前後**。
-  //   （最初 ×120 で組んだら周1が第4章で止まったので、6章ぶん＝×706 に合わせて上げた）
+  //   1カテゴリを全部取ると ダメージ ×3.5 → ×3.5 → ×3.5 ＝ **×43**、
+  //   レート ×2.2、射程 ×1.6 で、実効 **×151**。
+  //
+  //   **この数字は「1周で進む章数」から逆算している。**
+  //     1周で進む章数 = log(土台の余裕 × ツリーの天井) / log(敵の重さ/章)
+  //     周1で進む章数 = log(ツリーの天井)              / log(敵の重さ/章)
+  //   敵 ×6.54/章・土台の余裕 ×2 のとき、ツリー ×151 で **周1が2.7章・1周あたり3.0章**。
+  //   ユーザーの狙い「13章に行くのに転生4回」に合う（→ docs/DESIGN-CORE-2026-09-21.md §5）
   //   敵は 0921h 以降 ウェーブ全体の重さが **×3.71/章** なので、6章ぶんが ×706。
   //   **ツリーを取り切ると、だいたい6章ぶん進める**計算（残りはカードが埋める）。
   //   周1で6章＝転生4回で第13章、というユーザーの狙いに合わせてある。
@@ -88,13 +93,13 @@ const SKILLS = [
   //   **1段＝およそ1章**のペース。`costG` は使わない（取り切りなので意味がない）
 
   { id: 'short_dmg', name: '近接兵装', icon: '◤', group: '短射程', cat: 'short', key: 'dmg',
-    eff: 4.0, mode: 'mul', tmpl: '短射程カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '短射程カテゴリのダメージ ×{e}',
     cost0: 100, costG: 1, max: 1, unlock: 0 },
   { id: 'short_rate', name: '近接機構', icon: '◤', group: '短射程', cat: 'short', key: 'rate',
     eff: 2.2, mode: 'mul', tmpl: '短射程カテゴリの発射レート ×{e}',
     cost0: 480, costG: 1, max: 1, unlock: 0, needs: 'short_dmg' },
   { id: 'short_dmg2', name: '近接増幅', icon: '◤', group: '短射程', cat: 'short', key: 'dmg',
-    eff: 7.0, mode: 'mul', tmpl: '短射程カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '短射程カテゴリのダメージ ×{e}',
     cost0: 2304, costG: 1, max: 1, unlock: 0, needs: 'short_rate' },
   { id: 'short_rng', name: '近接観測', icon: '◤', group: '短射程', cat: 'short', key: 'range',
     eff: 1.6, mode: 'mul', tmpl: '短射程カテゴリの射程 ×{e}',
@@ -103,20 +108,20 @@ const SKILLS = [
     eff: 1.8, mode: 'mul', tmpl: '短射程カテゴリの状態異常の持続 ×{e}',
     cost0: 53084, costG: 1, max: 1, unlock: 0, needs: 'short_rng' },
   { id: 'short_dmg3', name: '近接極大', icon: '◤', group: '短射程', cat: 'short', key: 'dmg',
-    eff: 12.0, mode: 'mul', tmpl: '短射程カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '短射程カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'short_util' },
   { id: 'short_unit', name: '前線基盤', icon: '◤', group: '短射程', cat: 'short', key: 'units',
     eff: 1, mode: 'add', tmpl: '短射程カテゴリの武器を置ける数 +{e} 基',
     cost0: 1320, costG: 2548, max: 4, unlock: 0 },
 
   { id: 'mid_dmg', name: '汎用兵装', icon: '◈', group: '中射程', cat: 'mid', key: 'dmg',
-    eff: 4.0, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
     cost0: 100, costG: 1, max: 1, unlock: 0 },
   { id: 'mid_rate', name: '汎用機構', icon: '◈', group: '中射程', cat: 'mid', key: 'rate',
     eff: 2.2, mode: 'mul', tmpl: '中射程カテゴリの発射レート ×{e}',
     cost0: 480, costG: 1, max: 1, unlock: 0, needs: 'mid_dmg' },
   { id: 'mid_dmg2', name: '汎用増幅', icon: '◈', group: '中射程', cat: 'mid', key: 'dmg',
-    eff: 7.0, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
     cost0: 2304, costG: 1, max: 1, unlock: 0, needs: 'mid_rate' },
   { id: 'mid_rng', name: '汎用観測', icon: '◈', group: '中射程', cat: 'mid', key: 'range',
     eff: 1.6, mode: 'mul', tmpl: '中射程カテゴリの射程 ×{e}',
@@ -125,20 +130,20 @@ const SKILLS = [
     eff: 3, mode: 'add', tmpl: '中射程カテゴリの貫通 +{e}',
     cost0: 53084, costG: 1, max: 1, unlock: 0, needs: 'mid_rng' },
   { id: 'mid_dmg3', name: '汎用極大', icon: '◈', group: '中射程', cat: 'mid', key: 'dmg',
-    eff: 12.0, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'mid_util' },
   { id: 'mid_unit', name: '量産設備', icon: '◈', group: '中射程', cat: 'mid', key: 'units',
     eff: 1, mode: 'add', tmpl: '中射程カテゴリの武器を置ける数 +{e} 基',
     cost0: 1290, costG: 2548, max: 4, unlock: 0 },
 
   { id: 'long_dmg', name: '徹甲兵装', icon: '◎', group: '長射程', cat: 'long', key: 'dmg',
-    eff: 4.0, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
     cost0: 100, costG: 1, max: 1, unlock: 0 },
   { id: 'long_rate', name: '徹甲機構', icon: '◎', group: '長射程', cat: 'long', key: 'rate',
     eff: 2.2, mode: 'mul', tmpl: '長射程カテゴリの発射レート ×{e}',
     cost0: 480, costG: 1, max: 1, unlock: 0, needs: 'long_dmg' },
   { id: 'long_dmg2', name: '徹甲増幅', icon: '◎', group: '長射程', cat: 'long', key: 'dmg',
-    eff: 7.0, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
     cost0: 2304, costG: 1, max: 1, unlock: 0, needs: 'long_rate' },
   { id: 'long_rng', name: '徹甲観測', icon: '◎', group: '長射程', cat: 'long', key: 'range',
     eff: 1.6, mode: 'mul', tmpl: '長射程カテゴリの射程 ×{e}',
@@ -147,20 +152,20 @@ const SKILLS = [
     eff: 0.25, mode: 'add', tmpl: '長射程カテゴリの会心率 +{e}（会心倍率も上がる）',
     cost0: 53084, costG: 1, max: 1, unlock: 0, needs: 'long_rng' },
   { id: 'long_dmg3', name: '徹甲極大', icon: '◎', group: '長射程', cat: 'long', key: 'dmg',
-    eff: 12.0, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'long_util' },
   { id: 'long_unit', name: '狙撃陣地', icon: '◎', group: '長射程', cat: 'long', key: 'units',
     eff: 1, mode: 'add', tmpl: '長射程カテゴリの武器を置ける数 +{e} 基',
     cost0: 1140, costG: 2548, max: 4, unlock: 0 },
 
   { id: 'area_dmg', name: '高熱兵装', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'dmg',
-    eff: 4.0, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
     cost0: 100, costG: 1, max: 1, unlock: 0 },
   { id: 'area_rate', name: '高熱機構', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'rate',
     eff: 2.2, mode: 'mul', tmpl: '範囲攻撃カテゴリの発射レート ×{e}',
     cost0: 480, costG: 1, max: 1, unlock: 0, needs: 'area_dmg' },
   { id: 'area_dmg2', name: '高熱増幅', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'dmg',
-    eff: 7.0, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
     cost0: 2304, costG: 1, max: 1, unlock: 0, needs: 'area_rate' },
   { id: 'area_rng', name: '高熱観測', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'range',
     eff: 1.6, mode: 'mul', tmpl: '範囲攻撃カテゴリの射程 ×{e}',
@@ -169,20 +174,20 @@ const SKILLS = [
     eff: 1.8, mode: 'mul', tmpl: '範囲攻撃カテゴリの効果範囲 ×{e}',
     cost0: 53084, costG: 1, max: 1, unlock: 0, needs: 'area_rng' },
   { id: 'area_dmg3', name: '高熱極大', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'dmg',
-    eff: 12.0, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'area_util' },
   { id: 'area_unit', name: '散布基盤', icon: '▲', group: '範囲攻撃', cat: 'area', key: 'units',
     eff: 1, mode: 'add', tmpl: '範囲攻撃カテゴリの武器を置ける数 +{e} 基',
     cost0: 480, costG: 2548, max: 4, unlock: 0 },
 
   { id: 'target_dmg', name: '成形兵装', icon: '✛', group: '指定攻撃', cat: 'target', key: 'dmg',
-    eff: 4.0, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
     cost0: 100, costG: 1, max: 1, unlock: 0 },
   { id: 'target_rate', name: '成形機構', icon: '✛', group: '指定攻撃', cat: 'target', key: 'rate',
     eff: 2.2, mode: 'mul', tmpl: '指定攻撃カテゴリの発射レート ×{e}',
     cost0: 480, costG: 1, max: 1, unlock: 0, needs: 'target_dmg' },
   { id: 'target_dmg2', name: '成形増幅', icon: '✛', group: '指定攻撃', cat: 'target', key: 'dmg',
-    eff: 7.0, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
     cost0: 2304, costG: 1, max: 1, unlock: 0, needs: 'target_rate' },
   { id: 'target_rng', name: '成形観測', icon: '✛', group: '指定攻撃', cat: 'target', key: 'range',
     eff: 1.6, mode: 'mul', tmpl: '指定攻撃カテゴリの射程 ×{e}',
@@ -191,20 +196,20 @@ const SKILLS = [
     eff: 2, mode: 'add', tmpl: '指定攻撃カテゴリの同時発射 +{e} 発',
     cost0: 53084, costG: 1, max: 1, unlock: 0, needs: 'target_rng' },
   { id: 'target_dmg3', name: '成形極大', icon: '✛', group: '指定攻撃', cat: 'target', key: 'dmg',
-    eff: 12.0, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'target_util' },
   { id: 'target_unit', name: '支持架台', icon: '✛', group: '指定攻撃', cat: 'target', key: 'units',
     eff: 1, mode: 'add', tmpl: '指定攻撃カテゴリの武器を置ける数 +{e} 基',
     cost0: 1500, costG: 2548, max: 4, unlock: 0 },
 
   { id: 'support_dmg', name: '制圧兵装', icon: '❉', group: '支援', cat: 'support', key: 'dmg',
-    eff: 4.0, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
     cost0: 100, costG: 1, max: 1, unlock: 0 },
   { id: 'support_rate', name: '制圧機構', icon: '❉', group: '支援', cat: 'support', key: 'rate',
     eff: 2.2, mode: 'mul', tmpl: '支援カテゴリの発射レート ×{e}',
     cost0: 480, costG: 1, max: 1, unlock: 0, needs: 'support_dmg' },
   { id: 'support_dmg2', name: '制圧増幅', icon: '❉', group: '支援', cat: 'support', key: 'dmg',
-    eff: 7.0, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
     cost0: 2304, costG: 1, max: 1, unlock: 0, needs: 'support_rate' },
   { id: 'support_rng', name: '制圧観測', icon: '❉', group: '支援', cat: 'support', key: 'range',
     eff: 1.6, mode: 'mul', tmpl: '支援カテゴリの射程 ×{e}',
@@ -213,7 +218,7 @@ const SKILLS = [
     eff: 1.8, mode: 'mul', tmpl: '支援カテゴリの効果範囲 ×{e}',
     cost0: 53084, costG: 1, max: 1, unlock: 0, needs: 'support_rng' },
   { id: 'support_dmg3', name: '制圧極大', icon: '❉', group: '支援', cat: 'support', key: 'dmg',
-    eff: 12.0, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
+    eff: 3.5, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'support_util' },
   { id: 'support_unit', name: '支援拠点', icon: '❉', group: '支援', cat: 'support', key: 'units',
     eff: 1, mode: 'add', tmpl: '支援カテゴリの武器を置ける数 +{e} 基',
