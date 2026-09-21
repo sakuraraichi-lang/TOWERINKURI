@@ -151,6 +151,13 @@ const Combat = {
   // ================= ウェーブ =================
   gw(run) { return globalWave(run.stageIdx, run.wave); },
 
+  // 章ごとの重み。表に無い章は 1.0。
+  //   **「最前線からの距離」で拍を付ける案は、測って駄目だったので入れていない。**
+  //   理由は balance.js の chapterMul の下に書いてある
+  chapterWeight(run) {
+    return (BAL.chapterMul && BAL.chapterMul[run.stageIdx + 1]) || 1;
+  },
+
   // 1ウェーブに出る敵の数。
   //   **線形の項（waveCountPerWave）だけだと、章が進んでも数がほとんど増えない。**
   //   敵の指数を1本増やすため、通算ウェーブの累乗（waveCountGrowth）を足してある。
@@ -195,7 +202,7 @@ const Combat = {
       ? { x: (at % st.cols) * TILE + TILE / 2, y: ((at / st.cols) | 0) * TILE + TILE / 2 }
       : st.center(sp.c, sp.r);
     const t = ENEMY_TYPES.grunt;
-    const chMul = (BAL.chapterMul && BAL.chapterMul[run.stageIdx + 1]) || 1;
+    const chMul = this.chapterWeight(run);
     const base = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1)
                * Math.pow(BAL.stageHpMul, run.stageIdx) * chMul;
     const e = this.makeEnemy(run, t, g, p.x, p.y, si, base * BAL.bossHp);
@@ -251,8 +258,8 @@ const Combat = {
   //   「倒せない1体に必ず税金を取られる」以上の役をしていなかったので外した
   // 1体作る。**種類の違いはここで全部乗る**（装甲・再生・分裂）
   makeEnemy(run, t, g, x, y, si, hpOverride, gen) {
-    // 章ごとの重み（ストップポイント／跳ね上げポイント）。表に無い章は 1.0
-    const chMul = (BAL.chapterMul && BAL.chapterMul[run.stageIdx + 1]) || 1;
+    // 章ごとの重み（ストップポイント／跳ね上げポイント）
+    const chMul = this.chapterWeight(run);
     const stageMul = Math.pow(BAL.stageHpMul, run.stageIdx) * chMul;
     const base = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * stageMul;
     const hp = hpOverride !== undefined ? hpOverride : base * t.hp;
