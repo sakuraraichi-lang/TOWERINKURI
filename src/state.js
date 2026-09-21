@@ -29,6 +29,9 @@ const Game = {
 
   // ---------- セーブ ----------
   newSave() {
+    // **遺物のキャッシュを捨てる。** これが無いと、リセットしても
+    //   前のセーブの遺物効果（ライフ・ダメージ・コイン）が残ったままになる
+    Relic.invalidate();
     this.perm = {
       collection: Object.assign({}, STARTER_CARDS),
       // **最初はパックを持っていない。** 基本パックは2ステージ突破で解放される
@@ -39,7 +42,7 @@ const Game = {
       totalRuns: 0,
       packsEarned: 0,     // **遊んで手に入れた**パックの数（最初から持っている1個は数えない）
       missions: {},
-      loadout: ['wc_gatling', 'wc_sniper', null, null],
+      loadout: ['wc_gatling', null, null, null],   // 初期武器はガトリングのみ（2026-09-21）
       stages: { ch1: { cleared: false, perfect: false, bestWave: 0, attempts: 0 } },
       currentStage: 'ch1',
       placements: {},

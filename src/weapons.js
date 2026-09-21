@@ -105,7 +105,7 @@ const WEAPONS = {
   },
 
   sniper: {
-    id: 'sniper', stock: 3, cat: 'long', name: 'スナイパー', short: 'SNP', icon: '🎯', color: '#6fe3ff', src: 'start', arcMin: 0.03, arcMax: 0.3,
+    id: 'sniper', stock: 3, cat: 'long', name: 'スナイパー', short: 'SNP', icon: '🎯', color: '#6fe3ff', src: 'stage', arcMin: 0.03, arcMax: 0.3,
     // **貫通役。** 並んだ敵を撃ち抜くのが仕事なので、狙うのは「敵が濃いほう」。
     // 以前は最も硬い敵（＝たいてい後方のタンク）を狙っていて、
     // 1.28秒に1発しかないのに目の前の群れを素通りしていた

@@ -334,9 +334,12 @@ function weaponCardSrc(cardId) {
 }
 
 // 初期所持。ミサイル以降はステージ突破、刀以降はパックから手に入る
+// **【2026-09-21・ユーザー決定】初期武器はガトリングだけ。**
+//   > 「初期武器はガトリングでよし、クリアするたびに武器が貰えるからそれでやりくり」
+//   スナイパーは第2章の突破報酬に回した（`tools/gen30.py` の CH_WEAPON）。
+//   スナイパー用のカードも、武器が来るまで持たせない（3択に出ても使えないため）
 const STARTER_CARDS = {
-  wc_gatling: 1, wc_sniper: 1,
+  wc_gatling: 1,
   gat_belt: 1, gat_cool: 1,
-  snp_scope: 1, snp_he: 1,
   gen_armor: 1,
 };

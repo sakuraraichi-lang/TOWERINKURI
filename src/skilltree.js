@@ -24,9 +24,13 @@ const SKILLS = [
   { id: 'coin', name: '集金効率', icon: '◈', group: '資源',
     eff: 0.14, mode: 'add', tmpl: '敵から得るコイン +{e}倍',
     cost0: 15, costG: 1.33, max: Infinity, unlock: 0 },
-  { id: 'core', name: '防衛線', icon: '▣', group: '拠点',
-    eff: 3, mode: 'add', tmpl: 'ライフ +{e}（抜けられてよい敵が{e}体増える）',
-    cost0: 40, costG: 1.26, max: Infinity, unlock: 0 },
+  // **【撤去 2026-09-21・ユーザー決定】「防衛線」（ライフ +3/段・上限なし）を外した。**
+  //   > 「基本タワーのHP鍛えるスキルツリーはノーサンキュー、せめてカードで固定値上昇」
+  //   漏れの重さは章によらず1体＝ライフ1のまま据え置くので、
+  //   ライフを無限に買えると**難易度そのものを買って消せてしまう**。
+  //   実測では Lv62（+186）まで積まれていた。
+  //   ライフを増やす手段はカードの固定値（`gen_armor` 増設装甲 ライフ+6）に残してある。
+  //   **`regen`（応急修理班）は残した。** 上限10段の回復で、HPの天井を上げるものではないため
   { id: 'regen', name: '応急修理班', icon: '✚', group: '拠点',
     eff: 1, mode: 'add', tmpl: 'ウェーブを1つ突破するごとにライフ +{e}（上限まで）',
     cost0: 90, costG: 1.55, max: 10, unlock: 1 },
@@ -382,7 +386,7 @@ const Skill = {
 
     return {
       coin:   (1 + A('coin')) * (1 + 0.06 * Skill.lv(meta, 'lure')) * R.coin,
-      lives:  A('core') + R.lives,
+      lives:  R.lives,        // ツリーからは増えない（「防衛線」を撤去した）
       regen:  A('regen'),
       spawn:  1 + A('lure'),
       luck:   Skill.lv(meta, 'luck'),
