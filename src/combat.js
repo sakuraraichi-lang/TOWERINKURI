@@ -174,7 +174,26 @@ const Combat = {
     //   枠を倍にするだけで楽勝になっていた
     const sh = run.stage.shape;
     const wm = sh && sh.waveMul ? sh.waveMul : 1;
-    return Math.min(BAL.waveCountMax, Math.floor(base * run.mods.spawn * wm));
+    // **湧き口の数が、そのまま敵の量になる。**（ユーザー 2026-09-22・中優先）
+    //   > 「バランス調整する時に、敵の数を増やしたい時は**素直に湧き口を増やして**
+    //   >   ください、**一つから出る数にはかなり限度がある**事に
+    //   >   すでに気がついているはずです」
+    //   > 「口が1つから3つになれば**敵の一回の総量が増えます**」
+    //
+    //   **そうなっていなかった。**（実測 2026-09-22）
+    //   `spawnPick++ % st.spawns.length` で、1ウェーブの総数を口で**割って**
+    //   配っていただけ。口を増やしても総量は1体も増えず、
+    //   1つあたりの流れが細くなるだけだった
+    //   （第27章＝穴3で5,004体／第30章＝穴3で6,313体。深さだけで決まっていた）。
+    //   **穴1つにつき1本ぶんの流れを足す。** 1 で「穴の数だけ倍」、
+    //   0 にすればこれまでどおり（割って配るだけ）に戻る
+    const mouths = Math.max(1, (run.stage.mouths && run.stage.mouths.length) || 1);
+    const ph = BAL.waveCountPerHole === undefined ? 1 : BAL.waveCountPerHole;
+    const hm = 1 + (mouths - 1) * ph;
+    // **上限も穴の数で伸ばす。** 伸ばさないと、この倍率は第12章から先で
+    //   まるごと上限に食われて効かない（そこから先はずっと waveCountMax のまま）
+    return Math.min(Math.floor(BAL.waveCountMax * hm),
+                    Math.floor(base * run.mods.spawn * wm * hm));
   },
 
   isLastWave(run) { return run.wave >= BAL.wavesPerStage; },

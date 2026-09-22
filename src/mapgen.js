@@ -947,8 +947,17 @@ const MapGen = {
           //   >   口を増やしたらどうにかなる」
           //   残すのは「短すぎると撃つ時間が無くて必ず漏れる」という**遊べる下限だけ**
           //   （深さで上乗せしていた `+ round(10*(1-dd))` を外した）
+          //   **第1〜2章だけは、遊べる下限が別にある（BAL.earlyRouteMin = 30）。**
+          //   0922ac で「経路長を難易度に結びつけない」ようにしたとき、
+          //   深さで上乗せしていた `+ round(10*(1-dd))` を外した。
+          //   **その式が序盤の下限も兼ねていたので、一緒に消えていた**
+          //   （実測：第1章の地図が経路20でも通るようになり、
+          //     新規セーブの2/20 が6回挑戦しても第1章を突破できない）。
+          //   序盤はガトリング1種・設置6基しか無いので、撃つ時間が足りない。
+          //   **難易度カーブではなく、序盤2章の遊べる下限として戻す**
           && Math.min.apply(null, lens) >= (shape.routeMin !== undefined
-               ? shape.routeMin : BAL.minRouteLen)
+               ? shape.routeMin
+               : (dd < 0.08 ? (BAL.earlyRouteMin || BAL.minRouteLen) : BAL.minRouteLen))
           && (shape.routeMax === undefined
                || Math.min.apply(null, lens) <= shape.routeMax)
           && road >= Math.round((shape.roadMin !== undefined ? shape.roadMin
