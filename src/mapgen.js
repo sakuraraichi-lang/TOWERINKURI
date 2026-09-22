@@ -446,6 +446,399 @@ const MapGen = {
   //     blockThick  … 指の太さ（タイル・既定2）
   //     fingerMin/Max … 指の長さの帯（タイル・既定4〜9）
   //     chamber     … コアの周りに空ける半径（タイル・既定3）
+
+  // ---- 六角そのものを単位にして掘る（ブロック式の置き換え）----
+  //
+  //   **ユーザー 2026-09-23**
+  //   > 「全てブロック式は廃止、六角形で固定」
+  //
+  //   ブロック式は**軸に沿った長方形の塊**を撒いて、その隙間を道にしていた。
+  //   絵も設置も六角になった以上、**作るときだけ四角い**のは筋が通らない。
+  //   斜めの塊を長方形で近似する都合で置けない、という無駄も出ていた。
+  //
+  //   **こちらは最初から六角で掘る。**
+  //     1. 盤ぜんぶを壁の六角で埋める
+  //     2. 中央にコアの部屋を開ける
+  //     3. 縁に口を開け、**六角の隣づたい**にコアまで掘る
+  //     4. 同心の囲いを立て、入り口を層ごとにずらす（道を伸ばすのはこれ）
+  //     5. 最後にタイルへ焼く（経路探索と押し合いはタイルのまま）
+  //
+  //   **掘るので、連結は作り方から保証される**（口からコアへ必ず道がある）。
+  //   ブロック式は「撒いた隙間がたまたま繋がる」形だったので、
+  //   作り直しが31〜33回かかる盤があった
+  //
+  //   shape で効くもの
+  //     cols/rows   … 盤の大きさ
+  //     holes       … 口の数（省くと holesFor(d)）
+  //     roadW       … 道の太さ（1＝掘った筋だけ／2＝隣も掘る）
+  //     wander      … 道の蛇行の強さ（0〜1・既定0.45）
+  //     chamber     … コアの周りに開ける半径（六角・既定2）
+  //     ringStep    … 同心の囲いの間隔（六角・既定3）
+  //     doorN       … 囲い1層あたりの入り口の数（既定2）
+  makeHex(seed, d, shape) {
+    const rnd = this.rng(seed);
+    const cols = (shape.cols | 0) || 23, rows = (shape.rows | 0) || 31;
+    const W = cols * TILE, H = rows * TILE;
+    const R = this.HEX_R;
+
+    // ---- 1. 盤に乗る六角を全部ならべる ----
+    const cells = {}, list = [];
+    const g0 = this.hexRange(0, 0, W, H, 0);
+    for (let c = g0.c0; c <= g0.c1; c++) {
+      for (let r = g0.r0; r <= g0.r1; r++) {
+        const h = this.hexAt(c, r);
+        // **縁の六角も掘る対象に入れる。**（実測 2026-09-23）
+        //   ここを内側に寄せていたら、**口のタイルに乗る六角が掘れず、
+        //   どの口からもコアへ届かなかった**（経路0で全部落ちた）。
+        //   「縁の六角には置かせない」のは設置側（stages.js の hexBuildable）の仕事で、
+        //   作るときに除いてはいけない
+        if (h.x < 0 || h.y < 0 || h.x > W || h.y > H) continue;
+        cells[c + ',' + r] = h;
+        list.push(h);
+      }
+    }
+    if (!list.length) return null;
+
+    // 中央に一番近い六角＝コア
+    const cx = W / 2, cy = H / 2;
+    let core = list[0], cd = Infinity;
+    for (const h of list) {
+      const dd = (h.x - cx) * (h.x - cx) + (h.y - cy) * (h.y - cy);
+      if (dd < cd) { cd = dd; core = h; }
+    }
+
+    const key = (c, r) => c + ',' + r;
+
+    // コアからの歩数。掘るときの「近づいているか」に使う
+    const step = {};
+    {
+      const q = [core]; step[key(core.c, core.r)] = 0;
+      for (let i = 0; i < q.length; i++) {
+        const cur = q[i], s = step[key(cur.c, cur.r)];
+        for (const nb of this.hexNbr(cur.c, cur.r)) {
+          const k = key(nb[0], nb[1]);
+          if (!cells[k] || step[k] !== undefined) continue;
+          step[k] = s + 1; q.push(cells[k]);
+        }
+      }
+    }
+
+    // ---- 2. コアの部屋を開ける ----
+    const open = {};
+    const dig = (c, r) => { const k = key(c, r); if (cells[k]) open[k] = 1; };
+
+    // **六角を2つ掘っただけでは、焼いたタイルが繋がらない。**（実測 2026-09-23）
+    //   六角は幅60・高さ52 で、タイルは40。**1つの六角が覆うタイルは1〜2枚**しかなく、
+    //   隣り合う六角でも、覆うタイルが4近傍にならない組み合わせが出る
+    //   （例：hex(6,5)→タイル(6,6) と hex(5,6)→タイル(5,8) は接していない）。
+    //   ＝ 経路探索（4近傍のBFS）から見ると道が途切れる。
+    //   **掘るときに、中心どうしを結ぶ線に乗るタイルの六角も掘る。**
+    //   線の上のタイルは連続しているので、これで焼いたあとも必ず繋がる
+    //   **タイルの中心を辿ること。**（ここを間違えて一度悪化させた）
+    //   タイルが通路になる条件は「**タイルの中心**がその六角の中にあること」。
+    //   線の上の適当な点で `hexPick` しても、その点を含むタイルの**中心**は
+    //   別の六角に入っていることがあり、掘っても通路にならない。
+    //   タイルからタイルへ4近傍で歩き、**そのタイルの中心に乗る六角**を掘る
+    const digLine = (a, b) => {
+      let tc = Math.max(0, Math.min(cols - 1, (a.x / TILE) | 0));
+      let tr = Math.max(0, Math.min(rows - 1, (a.y / TILE) | 0));
+      const ec = Math.max(0, Math.min(cols - 1, (b.x / TILE) | 0));
+      const er = Math.max(0, Math.min(rows - 1, (b.y / TILE) | 0));
+      let guard = 0;
+      for (;;) {
+        const p = this.hexPick(tc * TILE + TILE / 2, tr * TILE + TILE / 2);
+        if (p) dig(p.c, p.r);
+        if ((tc === ec && tr === er) || guard++ > 200) break;
+        // 差の大きいほうへ1マス。**斜めに動かない**（4近傍で繋がらなくなる）
+        if (Math.abs(ec - tc) >= Math.abs(er - tr)) tc += (ec > tc) ? 1 : -1;
+        else tr += (er > tr) ? 1 : -1;
+      }
+    };
+    const chamber = shape.chamber === undefined ? 2 : shape.chamber;
+    {
+      const q = [{ c: core.c, r: core.r, d: 0 }];
+      const seen = {};
+      seen[key(core.c, core.r)] = 1;
+      for (let i = 0; i < q.length; i++) {
+        const cur = q[i];
+        dig(cur.c, cur.r);
+        if (cur.d >= chamber) continue;
+        for (const nb of this.hexNbr(cur.c, cur.r)) {
+          const k = key(nb[0], nb[1]);
+          if (!cells[k] || seen[k]) continue;
+          seen[k] = 1; q.push({ c: nb[0], r: nb[1], d: cur.d + 1 });
+        }
+      }
+    }
+
+    // ---- 3. 同心の囲い（入り口を層ごとにずらす）----
+    //   **道を伸ばしているのはこれ。** 掘っただけだと縁からコアまで直進できる
+    const ring = {};
+    {
+      const stepR = shape.ringStep || 3;
+      const doorN = shape.doorN || 2;
+      let maxS = 0;
+      for (const k in step) if (step[k] > maxS) maxS = step[k];
+      let turn = rnd() * Math.PI * 2;
+      for (let s = chamber + 2; s < maxS - 1; s += stepR) {
+        turn += Math.PI / 2 + (rnd() - 0.5) * 0.6;   // 層ごとに四半周ずらす
+        const doors = [];
+        for (let q = 0; q < doorN; q++) doors.push(turn + (q * 2 * Math.PI) / doorN);
+        for (const k in step) {
+          if (step[k] !== s) continue;
+          const h = cells[k];
+          const a = Math.atan2(h.y - core.y, h.x - core.x);
+          let near = false;
+          for (const da of doors) {
+            const t = Math.abs(((a - da + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+            if (t < 0.34) { near = true; break; }     // 入り口の幅（角度）
+          }
+          if (!near) ring[k] = 1;
+        }
+      }
+    }
+
+    // ---- 4. 口を開けて、コアまで掘る ----
+    const nHole = Math.max(1, shape.holes ? shape.holes : this.holesFor(d, rnd));
+    const holeW = 2 + ((rnd() * 3) | 0);
+    const holes = [];
+    const a0 = rnd() * Math.PI * 2;
+    const wander = shape.wander === undefined ? 0.45 : shape.wander;
+    const roadW = shape.roadW || 1;
+
+    for (let k = 0; k < nHole; k++) {
+      const want = a0 + (k * 2 * Math.PI) / nHole;
+      // その方角で、コアから一番遠い六角＝縁の口
+      let mouth = null, best = -1;
+      for (const kk in cells) {
+        const h = cells[kk];
+        const a = Math.atan2(h.y - core.y, h.x - core.x);
+        const da = Math.abs(((a - want + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        if (da > 0.45) continue;
+        const s = step[kk];
+        if (s === undefined || s <= best) continue;
+        let bad = false;
+        for (const o of holes) { if (Math.hypot(h.x - o.x, h.y - o.y) < R * 4) { bad = true; break; } }
+        if (bad) continue;
+        best = s; mouth = h;
+      }
+      if (!mouth) continue;
+
+      // 縁のタイルを口にする（敵はここから出る）
+      const tc = Math.max(0, Math.min(cols - 1, (mouth.x / TILE) | 0));
+      const tr = Math.max(0, Math.min(rows - 1, (mouth.y / TILE) | 0));
+      const dl = tc, dr2 = cols - 1 - tc, dt = tr, db = rows - 1 - tr;
+      const m = Math.min(dl, dr2, dt, db);
+      const tiles = [];
+      if (m === dt || m === db) {
+        const c0 = Math.max(0, Math.min(cols - holeW, tc - (holeW >> 1)));
+        for (let q = 0; q < holeW; q++) tiles.push({ c: c0 + q, r: (m === dt) ? 0 : rows - 1 });
+      } else {
+        const r0 = Math.max(0, Math.min(rows - holeW, tr - (holeW >> 1)));
+        for (let q = 0; q < holeW; q++) tiles.push({ c: (m === dl) ? 0 : cols - 1, r: r0 + q });
+      }
+      const mx = (tiles[0].c + tiles[tiles.length - 1].c) / 2 * TILE + TILE / 2;
+      const my = (tiles[0].r + tiles[tiles.length - 1].r) / 2 * TILE + TILE / 2;
+      holes.push({ side: 'hex' + k, tiles: tiles, x: mx, y: my, w: holeW });
+
+      // **口のタイルと、掘った道を必ず繋ぐ。**（実測 2026-09-23 でここが抜けていた）
+      //   口は盤の縁のタイル、掘り始めは縁に一番近い六角。
+      //   その間が壁のままだと、**どの口からもコアへ届かない**（経路0で全部落ちる）。
+      //   口のタイルに乗る六角を掘り、そこから掘り始めの六角まで繋ぐ
+      //   **タイルを1マスずつ内側へ辿り、そのタイルの中心に乗る六角を掘る。**
+      //   タイルの中心は必ずどれか1つの六角の中にあるので、
+      //   その六角を掘れば**焼いたあとそのタイルが必ず通路になる**。
+      //   六角を「口の近く」で選ぶだけでは、その六角が内側のタイルを覆っておらず
+      //   壁のままになることがあった（実測：口が角にかかると `S###` で塞がる）
+      const inward = (t) => {
+        if (t.r === 0) return { dc: 0, dr: 1 };
+        if (t.r === rows - 1) return { dc: 0, dr: -1 };
+        if (t.c === 0) return { dc: 1, dr: 0 };
+        return { dc: -1, dr: 0 };
+      };
+      let tipKey = null;
+      for (const t of tiles) {
+        const v = inward(t);
+        for (let s = 0; s < 6; s++) {
+          const tc2 = t.c + v.dc * s, tr2 = t.r + v.dr * s;
+          if (tc2 < 0 || tr2 < 0 || tc2 >= cols || tr2 >= rows) break;
+          const p = this.hexPick(tc2 * TILE + TILE / 2, tr2 * TILE + TILE / 2);
+          if (!p) break;
+          const kk = key(p.c, p.r);
+          dig(p.c, p.r);
+          if (cells[kk]) tipKey = kk;
+          if (s > 0 && open[kk] && s >= 2) break;   // 既にある道に届いたら終わり
+        }
+      }
+      // **掘り始めは、いま掘ったトンネルの先端にする。**
+      //   `mouth`（方角で選んだ縁の六角）から掘り始めると、
+      //   トンネルと繋がらないまま別の筋ができることがある
+      if (tipKey && cells[tipKey]) mouth = cells[tipKey];
+
+      // **口からコアへ、六角の隣づたいに掘る。**
+      //   毎歩「コアに近づく隣」を選ぶが、`wander` の割合で横にそれる。
+      //   囲い（ring）は避ける＝入り口を回り込むので、道が伸びる
+      let cur = mouth, guard = 0;
+      while (step[key(cur.c, cur.r)] > 0 && guard++ < 4000) {
+        dig(cur.c, cur.r);
+        if (roadW > 1) for (const nb of this.hexNbr(cur.c, cur.r)) dig(nb[0], nb[1]);
+        const here = step[key(cur.c, cur.r)];
+        const near = [], side = [], thru = [];
+        for (const nb of this.hexNbr(cur.c, cur.r)) {
+          const kk = key(nb[0], nb[1]);
+          if (!cells[kk]) continue;
+          const s = step[kk], isRing = !!ring[kk];
+          if (s < here) thru.push(cells[kk]);
+          if (isRing) continue;
+          if (s < here) near.push(cells[kk]);
+          else if (s === here) side.push(cells[kk]);
+        }
+        let pick = null;
+        if (near.length && (!side.length || rnd() > wander)) pick = near[(rnd() * near.length) | 0];
+        else if (side.length) pick = side[(rnd() * side.length) | 0];
+        else if (near.length) pick = near[(rnd() * near.length) | 0];
+        else if (thru.length) pick = thru[(rnd() * thru.length) | 0];
+        if (!pick) break;
+        digLine(cur, pick);            // 途切れないように中心どうしを結ぶ
+        cur = pick;
+      }
+      dig(core.c, core.r);
+    }
+
+    // ---- 5. 行き止まりの枝を掘って、死にマスを消す ----
+    //
+    //   **掘っただけだと、道から遠い地面が大量に残る。**（実測 2026-09-23）
+    //   23×31 で「通路まで2マス以内の地面」が36%しかなかった
+    //   （ユーザーの積年の指摘「ゲームに関与してない広場がほとんどを占めている」）。
+    //
+    //   **行き止まりの枝なので、近道を作らない**＝経路の長さを縮めない。
+    //   道から遠い壁を選び、一番近い道まで掘って繋ぐ、を繰り返す
+    {
+      const want = shape.cover === undefined ? 0.55 : shape.cover;
+      const far = () => {
+        // 道からの歩数（六角）
+        const dist = {};
+        const q = [];
+        for (const k in open) { dist[k] = 0; q.push(k); }
+        for (let i = 0; i < q.length; i++) {
+          const p = q[i].split(','), c = +p[0], r = +p[1], s = dist[q[i]];
+          for (const nb of this.hexNbr(c, r)) {
+            const k = key(nb[0], nb[1]);
+            if (!cells[k] || dist[k] !== undefined) continue;
+            dist[k] = s + 1; q.push(k);
+          }
+        }
+        const out = [];
+        let near = 0, wall = 0;
+        for (const k in cells) {
+          if (open[k]) continue;
+          wall++;
+          if (dist[k] !== undefined && dist[k] <= 1) near++;
+          else out.push(k);
+        }
+        return { list: out, ratio: wall ? near / wall : 1 };
+      };
+      for (let pass = 0; pass < 40; pass++) {
+        const f = far();
+        if (f.ratio >= want || !f.list.length) break;
+        const k = f.list[(rnd() * f.list.length) | 0];
+        const p = k.split(',');
+        let cur = cells[key(+p[0], +p[1])], guard = 0;
+        // 一番近い道へ向かって掘る
+        while (cur && !open[key(cur.c, cur.r)] && guard++ < 60) {
+          dig(cur.c, cur.r);
+          let best = null, bd = Infinity;
+          for (const nb of this.hexNbr(cur.c, cur.r)) {
+            const kk = key(nb[0], nb[1]);
+            if (!cells[kk]) continue;
+            let dd = Infinity;
+            for (const ok2 in open) {
+              const h2 = cells[ok2];
+              const q2 = cells[kk];
+              const e = (h2.x - q2.x) * (h2.x - q2.x) + (h2.y - q2.y) * (h2.y - q2.y);
+              if (e < dd) dd = e;
+            }
+            if (dd < bd) { bd = dd; best = cells[kk]; }
+          }
+          if (!best) break;
+          digLine(cur, best);          // 途切れないように中心どうしを結ぶ
+          cur = best;
+        }
+      }
+    }
+
+    // ---- 6. タイルへ焼いて、**届かない口をタイル側で必ず救う** ----
+    //
+    //   **六角が提案し、タイルが保証する。**（2026-09-23・作り方そのものの置き換え）
+    //   掘り方をいくら調整しても、焼いたあと届かない口が 12枚中4〜7枚残った。
+    //   原因は変換にある：**タイルが通路になる条件は「タイルの中心がその六角に入る」**で、
+    //   六角（幅60・高さ52）が覆うタイル（40）は1〜2枚しかないため、
+    //   六角では隣どうしでも、タイルでは4近傍にならない組み合わせが出る。
+    //
+    //   掘り方の微調整でこれを潰すのは、原理的に無理筋だった（3回やって直らなかった）。
+    //   **焼いたあとに、タイルの上で届かない口を繋ぐ。**
+    //   繋いだタイルを覆う六角も道に足すので、**絵は六角のまま**。
+    //   ここを通ると、**連結していないマップは原理的に出てこない**
+    const bakeNow = () => this.edge(this.bake([], { x: core.x, y: core.y }, holes, W, H,
+      Object.keys(open).map((k) => cells[k])));
+    const walkOf = (g2) => (c, r) => {
+      if (c < 0 || r < 0 || c >= cols || r >= rows) return false;
+      const ch = g2[r][c];
+      return ch === '.' || ch === 'S' || ch === 'C';
+    };
+    for (let fix = 0; fix < 8; fix++) {
+      const g2 = bakeNow();
+      const walk = walkOf(g2);
+      // コアから届くタイルを塗る
+      let cc2 = 0, cr2 = 0;
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (g2[r][c] === 'C') { cc2 = c; cr2 = r; }
+      const seen2 = {};
+      const q2 = [{ c: cc2, r: cr2 }];
+      seen2[cc2 + ',' + cr2] = 1;
+      for (let i = 0; i < q2.length; i++) {
+        const cur = q2[i];
+        const nb4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+        for (const dd of nb4) {
+          const nc = cur.c + dd[0], nr = cur.r + dd[1];
+          const kk = nc + ',' + nr;
+          if (seen2[kk] || !walk(nc, nr)) continue;
+          seen2[kk] = 1; q2.push({ c: nc, r: nr });
+        }
+      }
+      // 届いていない口を探す
+      let lost = null;
+      for (const h of holes) {
+        let any = false;
+        for (const t of h.tiles) if (seen2[t.c + ',' + t.r]) { any = true; break; }
+        if (!any) { lost = h; break; }
+      }
+      if (!lost) break;
+      // 一番近い「届いているタイル」まで掘る
+      const from = lost.tiles[(lost.tiles.length / 2) | 0];
+      let goal = null, gd = Infinity;
+      for (const kk in seen2) {
+        const p = kk.split(','), c = +p[0], r = +p[1];
+        const e = (c - from.c) * (c - from.c) + (r - from.r) * (r - from.r);
+        if (e < gd) { gd = e; goal = { c: c, r: r }; }
+      }
+      if (!goal) break;
+      digLine({ x: from.c * TILE + TILE / 2, y: from.r * TILE + TILE / 2 },
+              { x: goal.c * TILE + TILE / 2, y: goal.r * TILE + TILE / 2 });
+    }
+
+    let hexes = [];
+    for (const k in open) hexes.push(cells[k]);
+    if (!hexes.length) return null;
+    hexes = this.tagZones(hexes, rnd, d);
+    const g = this.edge(this.bake([], { x: core.x, y: core.y }, holes, W, H, hexes));
+
+    return {
+      rows: g.map(function (r) { return r.join(''); }),
+      vec: { lanes: [], holes: holes, core: { x: core.x, y: core.y }, w: W, h: H, hexes: hexes, hexR: R },
+      zone: this._zone,
+      shape: shape, seed: seed, style: 'hex',
+    };
+  },
   makeBlock(seed, d, shape) {
     const rnd = this.rng(seed);
     const cols = (shape.cols | 0) || 23, rows = (shape.rows | 0) || 31;
@@ -666,7 +1059,11 @@ const MapGen = {
     d = Math.max(0, Math.min(1, d === undefined ? 0.5 : d));
     // **ブロック式はここで分岐する。** 通路の作り方が逆（塊を撒いて残りを道にする）ので、
     //   この先の折れ線の組み立てとは共有できない。焼いたあとの形は同じ
-    if (shape.style === 'block') return this.makeBlock(seed, d, shape);
+    // **六角式が本線。**（ユーザー 2026-09-23「全てブロック式は廃止、六角形で固定」）
+    if (shape.style === 'hex') return this.makeHex(seed, d, shape);
+    // **ブロック式は廃止。** 呼ばれても六角式に回す。
+    //   定義（makeBlock）は、何をどう測って捨てたかの記録として残してある
+    if (shape.style === 'block') return this.makeHex(seed, d, shape);
     const rnd = this.rng(seed);
     // **盤の大きさも章ごとに変えられる。**（ユーザー 2026-09-22
     //   「ボス章や後半ステージ、ラスボスは広いマップ…を意識して」）

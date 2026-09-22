@@ -914,20 +914,18 @@ const Stage = {
       for (const row of BAL.boardByDepth) { if (d < row[0]) { b = row; break; } }
       if (b[1] !== MapGen.COLS || b[2] !== MapGen.ROWS) base = { cols: b[1], rows: b[2] };
     }
-    // **深い章はブロック式（指を放射状に撒いて、隙間を道にする）で作る。**
-    //   折れ線で彫ると彫り残しが広場として残る、というのがユーザーの指摘だった
-    //   （2026-09-22「ゲームに関与してない広場がほとんどを占めているマップとかさ」）
-    if (BAL.blockFromDepth !== undefined && d >= BAL.blockFromDepth) {
+    // **六角式で作る。**（ユーザー 2026-09-23「全てブロック式は廃止、六角形で固定」）
+    //   六角そのものを単位にして掘る。絵も設置も六角になったので、
+    //   **作るときだけ四角い**ブロック式はやめた
+    if (BAL.hexFromDepth !== undefined && d >= BAL.hexFromDepth) {
       base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, {
-        style: 'block',
-        gap: BAL.blockGap, fingerMin: BAL.blockFingerMin,
-        fingerMax: BAL.blockFingerMax, chamber: BAL.blockChamber,
-        // **通路の量の帯を、ブロック式の専用のものに差し替える。**
-        //   既定の帯（折れ線用）は「道は彫るもの＝盤の3〜5割」という前提で置いてある。
-        //   ブロック式は隙間ぜんぶが道なので 55〜70% になり、**上限に当たって全部落ちる**
-        //   （実測 2026-09-22：第19〜24章が1枚も通らず、盤の大きさだけの形に落ちていた）。
+        style: 'hex',
+        chamber: BAL.hexChamber, ringStep: BAL.hexRingStep,
+        doorN: BAL.hexDoorN, wander: BAL.hexWander, roadW: BAL.hexRoadW,
+        // **通路の量の帯。** 既定の帯（折れ線用）は「道は彫るもの＝盤の3〜5割」の前提。
+        //   六角式は筋を掘るだけなので道が細く、下限に当たりやすい。
         //   単位は「15×21 の盤あたりのタイル数」なので、315 × 割合
-        roadMin: BAL.blockRoadMin, roadMax: BAL.blockRoadMax,
+        roadMin: BAL.hexRoadMin, roadMax: BAL.hexRoadMax,
       });
     }
     const own = (BAL.mapShape && BAL.mapShape[idx + 1]) || null;
