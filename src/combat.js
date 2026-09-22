@@ -328,7 +328,7 @@ const Combat = {
 
       pushX: 0, pushY: 0,
       shock: 0, slow: 0, slowT: 0, stun: 0, chill: 0,
-      burn: 0, burnT: 0, fvuln: 0, fvulnT: 0,
+      burn: 0, burnT: 0, poison: 0, poisonT: 0, fvuln: 0, fvulnT: 0,
       grabT: 0, grabV: 0, spotT: 0, dist: 1e9, counted: false,
       hitFlash: 0, dead: false, ang: 0,
     };
@@ -493,11 +493,21 @@ const Combat = {
 
     if (run.fx.length < 180) {
       this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 1.5, color: e.color, life: 0.22 });
+      // **血飛沫。**（ユーザー 2026-09-22 の要望1）
+      //   > 「敵を撃破すると**侵攻方向と逆に**、血飛沫に見えるようなものが弾け飛ぶ
+      //   >   エフェクト、赤でなくていい、**敵の色遵守**で」
+      //   `e.ang` は進んでいた向き（`combat.js` の移動で入る）。その逆へ散らす。
+      //   **1体につき破片は1つの fx にまとめる**（敵は同時に100体を超えるので、
+      //   1体あたりの fx を増やすと数が跳ねる）
+      this.fx(run, {
+        type: 'splat', x: e.x, y: e.y, color: e.color, life: 0.42,
+        a: (e.ang || 0) + Math.PI, n: 5 + ((Math.random() * 4) | 0), sp: e.r * 3.2 + 26,
+      });
       // **倒す＝儲かる、を目で見えるようにする。**
       // これまでHUDの数字が静かに増えるだけで、報酬を得た実感が無かった
       if (this.coinFx < 26) {
         this.coinFx++;
-        this.fx(run, { type: 'coin', x: e.x, y: e.y, life: 0.5 });
+        this.fx(run, { type: 'coin', x: e.x, y: e.y, life: 0.72, seed: (Math.random() * 100) | 0 });
       }
     }
   },
@@ -981,6 +991,17 @@ const Combat = {
             e.slow = Math.max(e.slow, Math.min(BAL.slowMax, f.slow + run.st.slowAdd));
             e.slowT = Math.max(e.slowT, 0.5 + run.st.chillDur);
           }
+          // **毒は敵に乗る。**（ユーザー要望6・8・2026-09-22）
+          //   > 「毒、氷も同じく（燃えてるエフェクト）」
+          //   > 「各武器にそういったエフェクトに合う効果や**スリップダメージ**が
+          //   >   搭載されてなければつけて」
+          //   前は**雲の上にいる間だけ**削れていたので、
+          //   「毒を受けた敵」という状態が存在せず、絵を足しようがなかった。
+          //   炎上（`burnT`）と同じ形にして、雲を出たあとも少し続くようにする
+          if (f.kind === 'gas') {
+            e.poison = Math.max(e.poison || 0, f.dps * BAL.poisonKeep);
+            e.poisonT = Math.max(e.poisonT || 0, BAL.poisonDur + run.st.burnDur);
+          }
           this.damage(run, e, f.dps * step, { color: f.kind === 'gas' ? '#c6ff7a' : '#ffb066', dot: true });
         }
       }
@@ -1004,6 +1025,9 @@ const Combat = {
       if (e.slowT > 0) { e.slowT -= dt; if (e.slowT <= 0) e.slow = 0; }
       if (e.hitFlash > 0) e.hitFlash -= dt;
       if (e.burnT > 0) { e.burnT -= dt; this.damage(run, e, e.burn * dt, { color: '#ff8a3a', dot: true }); if (e.dead) continue; }
+      // **毒のスリップダメージ。**（ユーザー要望8・2026-09-22）
+      //   雲を出たあとも続く。炎上と同じ形
+      if (e.poisonT > 0) { e.poisonT -= dt; this.damage(run, e, (e.poison || 0) * dt, { color: '#c6ff7a', dot: true }); if (e.dead) continue; }
       // **ボスは雑魚を出し続ける。** 倒すまで手が空かない、が罰になる
       if (e.boss) {
         e.addT -= dt;
@@ -1045,9 +1069,14 @@ const Combat = {
           // **地形の仕掛け。**泥は遅く、坂は速くなる（src/mapgen.js の tagZones）。
           //   数値ではなく**地形で難易度を作る**ための口
           let zm = 1;
+          // **いま加速／減速マスにいるかを、描画に渡す。**（ユーザー要望4・2026-09-22）
+          //   > 「加速する時に敵が加速してそうな軽いエフェクト、減速も同様に」
+          //   これまで速度だけ変えていて、敵の側には何も出ていなかった
+          e.zfx = 0;
           if (inside && st.zone) {
             const z = st.zoneAt(tc, tr);
-            if (z === 1) zm = BAL.zoneMud; else if (z === 2) zm = BAL.zoneSlope;
+            if (z === 1) { zm = BAL.zoneMud; e.zfx = -1; }
+            else if (z === 2) { zm = BAL.zoneSlope; e.zfx = 1; }
           }
           const slowMul = Math.max(BAL.enemySlowFloor, 1 - e.slow);
           e.x += Math.cos(a) * e.spd * slowMul * zm * dt;
@@ -1179,8 +1208,17 @@ const Combat = {
 
       // **壁に当たったらそこで終わる。**（山なりの弾は越えるので素通り）
       if (!b.through && this.losBlocked(st, px, py, b.x, b.y, b.ox, b.oy)) {
-        if (run.fx.length < 150)
+        // **壁に当たったら細かく砕ける。**（ユーザー要望9・2026-09-22）
+        //   > 「壁に向かって銃弾が当たると**細かく砕けてる**ようなエフェクト」
+        //   前は光の点を1つ置くだけだった。**入射の逆向きへ破片を跳ね返す**。
+        //   壁の色（灰）を混ぜると「壁が削れた」に見える
+        if (run.fx.length < 150) {
           this.fx(run, { type: 'spark', x: b.x, y: b.y, color: b.color, life: 0.12 });
+          this.fx(run, {
+            type: 'splat', x: b.x, y: b.y, color: '#9aa6bd', life: 0.3,
+            a: Math.atan2(py - b.y, px - b.x), n: 4, sp: 26,
+          });
+        }
         run.bullets.splice(i, 1); continue;
       }
 

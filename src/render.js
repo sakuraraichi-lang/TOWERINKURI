@@ -1178,6 +1178,70 @@ const Render = {
         }
         ctx.stroke();
       }
+      // **燃えている敵。**（ユーザー要望5・2026-09-22）
+      //   > 「火炎放射器で焼いたら**燃えてるエフェクト**」
+      //   前は塗りが橙になるだけだった。**炎の舌を3本、揺らして立てる**
+      //   （敵は同時に100体を超えるので、1体あたりは3本まで）
+      if (e.burnT > 0) {
+        const t = run.time * 9 + e.x * 0.11;
+        ctx.globalAlpha = 0.85;
+        for (let i = 0; i < 3; i++) {
+          const ox = (i - 1) * e.r * 0.55;
+          const h = e.r * (1.1 + 0.45 * Math.sin(t + i * 2.1));
+          const sw = Math.sin(t * 1.7 + i) * e.r * 0.3;
+          ctx.beginPath();
+          ctx.moveTo(e.x + ox - e.r * 0.26, e.y - e.r * 0.2);
+          ctx.quadraticCurveTo(e.x + ox + sw, e.y - e.r * 0.2 - h * 0.6,
+                               e.x + ox + sw * 0.6, e.y - e.r * 0.2 - h);
+          ctx.quadraticCurveTo(e.x + ox + sw, e.y - e.r * 0.2 - h * 0.5,
+                               e.x + ox + e.r * 0.26, e.y - e.r * 0.2);
+          ctx.closePath();
+          ctx.fillStyle = i === 1 ? '#ffd27a' : '#ff8a3a';
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+      // **毒を受けている敵。**（ユーザー要望6・2026-09-22）
+      //   泡が立ちのぼる。`poisonT` は雲を出たあとも続く（BAL.poisonDur）
+      if (e.poisonT > 0) {
+        const t = run.time * 2.2 + e.y * 0.07;
+        ctx.fillStyle = 'rgba(198,255,122,0.8)';
+        for (let i = 0; i < 3; i++) {
+          const q = (t + i * 0.37) % 1;
+          const bx = e.x + Math.sin((t + i) * 3.1) * e.r * 0.6;
+          const by = e.y - q * (e.r * 2.2);
+          ctx.globalAlpha = (1 - q) * 0.8;
+          ctx.beginPath(); ctx.arc(bx, by, 1.6 + (1 - q) * 1.6, 0, 7); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
+      }
+      // **加速・減速しているのが見える。**（ユーザー要望4・2026-09-22）
+      //   > 「加速する時に敵が加速してそうな軽いエフェクト、減速も同様に」
+      //   前はマスの色が変わるだけで、**敵の側には何も出ていなかった**。
+      //   加速＝進む向きの後ろへ速度線、減速＝進む向きの前に止める線
+      if (e.zfx) {
+        const a = e.ang || 0;
+        ctx.lineWidth = 1.4;
+        if (e.zfx > 0) {
+          ctx.strokeStyle = 'rgba(215,140,255,0.8)';
+          ctx.beginPath();
+          for (let i = -1; i <= 1; i++) {
+            const ox = -Math.sin(a) * i * e.r * 0.6, oy = Math.cos(a) * i * e.r * 0.6;
+            ctx.moveTo(e.x + ox - Math.cos(a) * e.r * 1.0, e.y + oy - Math.sin(a) * e.r * 1.0);
+            ctx.lineTo(e.x + ox - Math.cos(a) * e.r * 2.1, e.y + oy - Math.sin(a) * e.r * 2.1);
+          }
+          ctx.stroke();
+        } else {
+          ctx.strokeStyle = 'rgba(110,230,170,0.85)';
+          ctx.beginPath();
+          for (let i = -1; i <= 1; i++) {
+            const ox = -Math.sin(a) * i * e.r * 0.5, oy = Math.cos(a) * i * e.r * 0.5;
+            ctx.moveTo(e.x + ox + Math.cos(a) * e.r * 1.0, e.y + oy + Math.sin(a) * e.r * 1.0);
+            ctx.lineTo(e.x + ox + Math.cos(a) * e.r * 1.5, e.y + oy + Math.sin(a) * e.r * 1.5);
+          }
+          ctx.stroke();
+        }
+      }
       if (e.hp < e.maxHp) {
         const bw = e.r * 2.2, bh = 2.5;
         ctx.fillStyle = 'rgba(0,0,0,0.55)';
@@ -1445,15 +1509,66 @@ const Render = {
           ctx.quadraticCurveTo(mx, my, f.e.x, f.e.y);
           ctx.stroke();
         }
+      } else if (f.type === 'splat') {
+        // **血飛沫。**（ユーザー要望1・2026-09-22）
+        //   > 「撃破すると**侵攻方向と逆に**、血飛沫に見えるようなものが弾け飛ぶ、
+        //   >   赤でなくていい、**敵の色遵守**で」
+        //   進んでいた向きの逆へ、扇の中に散らす。**飛ぶほど細くなって落ちる**
+        //   （まっすぐ伸びるだけだと「線が出た」にしか見えない）
+        ctx.globalAlpha = (1 - k) * 0.9;
+        ctx.fillStyle = f.color;
+        const n = f.n || 6;
+        for (let i = 0; i < n; i++) {
+          // `i` だけで散らす＝毎フレーム同じ飛び方になる（乱数を持たない）
+          const t = (i / n) * 2 - 1;
+          const a = f.a + t * 0.75 + Math.sin(i * 12.9898) * 0.12;
+          const sp = f.sp * (0.45 + ((i * 7919) % 100) / 180);
+          const d = sp * (k * (1.6 - k * 0.6));            // 最初速く、だんだん止まる
+          const x = f.x + Math.cos(a) * d;
+          const y = f.y + Math.sin(a) * d + k * k * 10;    // 少し落ちる
+          const r = (2.6 - k * 1.8) * (0.7 + ((i * 104729) % 60) / 100);
+          if (r <= 0.2) continue;
+          ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+        }
+        ctx.globalAlpha = 1;
       } else if (f.type === 'coin') {
-        // 撃破した場所から、画面上のコイン表示のほうへ飛ばす
+        // **弾け出てから、キラキラと右上へ集まる。**（ユーザー要望2・3・2026-09-22）
+        //   > 「撃破した時にコインが弾け出てくるエフェクト」
+        //   > 「それが**キラキラ**と右上に集まっていくエフェクト」
+        //   前は撃破地点からいきなり吸われていた（弾け出る段が無く、単色の丸だった）。
+        //   **前半は弾け出て、後半で吸われる。** 境目は `POP`
         const st = this.stage;
         const ex = st.w - 26, ey = 18;
-        const q = k * k;                       // 最初ゆっくり、あとで速く
-        const x = f.x + (ex - f.x) * q, y = f.y + (ey - f.y) * q - Math.sin(k * Math.PI) * 14;
-        ctx.globalAlpha = 1 - k * 0.55;
+        const POP = 0.32;
+        const sd = (f.seed || 0);
+        const a0 = (sd % 31) / 31 * Math.PI * 2;
+        const pop = Math.min(1, k / POP);
+        // 弾け出る：斜め上へ跳ねて、重力で落ちる
+        const px = f.x + Math.cos(a0) * 16 * pop;
+        const py = f.y - 20 * pop + 26 * pop * pop;
+        let x = px, y = py;
+        if (k > POP) {
+          const q = (k - POP) / (1 - POP);
+          const e2 = q * q;                    // 最初ゆっくり、あとで速く
+          x = px + (ex - px) * e2;
+          y = py + (ey - py) * e2 - Math.sin(q * Math.PI) * 14;
+        }
+        const r = f.big ? 5 : 3.2;
+        ctx.globalAlpha = 1 - k * 0.45;
         ctx.fillStyle = '#ffb43c';
-        ctx.beginPath(); ctx.arc(x, y, f.big ? 5 : 2.8, 0, 7); ctx.fill();
+        ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+        // **キラキラ。** 十字の光を、回しながら明滅させる
+        const tw = 0.5 + 0.5 * Math.sin(k * 26 + sd);
+        ctx.globalAlpha = (1 - k * 0.45) * tw;
+        ctx.strokeStyle = '#fff1c2'; ctx.lineWidth = 1.2;
+        const s = r * (1.5 + tw);
+        const rot = k * 5 + sd;
+        ctx.beginPath();
+        ctx.moveTo(x - Math.cos(rot) * s, y - Math.sin(rot) * s);
+        ctx.lineTo(x + Math.cos(rot) * s, y + Math.sin(rot) * s);
+        ctx.moveTo(x - Math.cos(rot + 1.5708) * s, y - Math.sin(rot + 1.5708) * s);
+        ctx.lineTo(x + Math.cos(rot + 1.5708) * s, y + Math.sin(rot + 1.5708) * s);
+        ctx.stroke();
         ctx.globalAlpha = 1;
       } else if (f.type === 'trail') {
         // 貫通の軌跡。**当たった数だけ太くなる**ので、何体抜いたかが見える
