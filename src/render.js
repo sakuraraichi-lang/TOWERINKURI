@@ -181,39 +181,7 @@ const Render = {
     // 通路のどこをどう通るかは、敵が来てから目で見て分かればいい。
     // 盤面いっぱいに散った記号は、敵と弾を読むのを邪魔していた
 
-    // 置き場所を選んでいるとき。**盤面を落として、置けるところだけ光らせる。**
-    // 薄く塗るだけでは「どこに置けるか分からない」ままだった
-    const picking = (UI.placingType || UI.moving) && Game.canBuild();
-    if (picking) {
-      ctx.fillStyle = 'rgba(4,8,13,0.5)';
-      ctx.fillRect(0, 0, st.cols * TILE, st.rows * TILE);
-
-      // **武器ごとに要るマスが違う**（weapons.js の foot）ので、
-      //   「1マス空いている」ではなく「その武器が収まる」で光らせる。
-      //   ここを1マス判定のままにすると、光っているのに置けない場所ができる
-      const wid = UI.placingType || (UI.moving && UI.moving.id);
-      const def = wid ? WEAPONS[wid] : null;
-      const pulse = 0.16 + 0.08 * Math.sin((Game.run ? Game.run.time : 0) * 5);
-      // **射線が通らない壁マスは、置けても仕事をしない。**（2026-09-22）
-      //   壁が弾を止めるようにしたので、壁の奥へ引っ込めた砲は何も撃てない。
-      //   置けるかどうかと同じ色で光らせると、**押しても何も起きない罠**になる。
-      //   通路が1マスも見えないところは暗いままにして、光らせない。
-      //   **毎フレーム数えない。**武器ごとに1回だけ作ってステージに持たせる
-      //   （全マス × 全通路 × 射線で、素直に回すと1フレーム百万回になる）
-      const sees = this.losMap(st, def);
-      for (let r = 0; r < st.rows; r++) {
-        for (let c = 0; c < st.cols; c++) {
-          if (!def || !Game.canPlaceAt(def, c, r, UI.moving || null)) continue;
-          const ok = !sees || sees[r * st.cols + c];
-          ctx.fillStyle = ok ? 'rgba(255,170,50,' + pulse.toFixed(3) + ')'
-                             : 'rgba(120,132,152,0.10)';
-          // その武器が埋めるマスをまとめて光らせる＝**置く前に広さが分かる**
-          for (const t of Game.footTiles(def, c, r)) {
-            ctx.fillRect(t.c * TILE + 2, t.r * TILE + 2, TILE - 4, TILE - 4);
-          }
-        }
-      }
-    }
+    this.placeOverlay(ctx, st);
   },
 
   // 「そのマスから通路が1マスでも見えるか」を、武器ごとに1枚作る。
@@ -250,6 +218,77 @@ const Render = {
   },
 
   // 折れ線から描く通路。**tiles() の代わり**
+  // 置き場所を選んでいるとき。**盤面を落として、置けるところだけ光らせる。**
+  //
+  //   **【2026-09-22】生成マップでは一度も動いていなかった。**
+  //   `tiles()` は折れ線のある地形だと先頭で `tilesVec()` へ逃げるので、
+  //   この下にあったこの処理に届かなかった。**ほぼ全章で「どこに置けるか」が
+  //   光らないままだった。** 両方から呼ぶ形にする
+  placeOverlay(ctx, st) {
+  // 薄く塗るだけでは「どこに置けるか分からない」ままだった
+  const picking = (UI.placingType || UI.moving) && Game.canBuild();
+  if (picking) {
+    ctx.fillStyle = 'rgba(4,8,13,0.5)';
+    ctx.fillRect(0, 0, st.cols * TILE, st.rows * TILE);
+
+    // **武器ごとに要るマスが違う**（weapons.js の foot）ので、
+    //   「1マス空いている」ではなく「その武器が収まる」で光らせる。
+    //   ここを1マス判定のままにすると、光っているのに置けない場所ができる
+    const wid = UI.placingType || (UI.moving && UI.moving.id);
+    const def = wid ? WEAPONS[wid] : null;
+    const pulse = 0.16 + 0.08 * Math.sin((Game.run ? Game.run.time : 0) * 5);
+    // **射線が通らない壁マスは、置けても仕事をしない。**（2026-09-22）
+    //   壁が弾を止めるようにしたので、壁の奥へ引っ込めた砲は何も撃てない。
+    //   置けるかどうかと同じ色で光らせると、**押しても何も起きない罠**になる。
+    //   通路が1マスも見えないところは暗いままにして、光らせない。
+    //   **毎フレーム数えない。**武器ごとに1回だけ作ってステージに持たせる
+    //   （全マス × 全通路 × 射線で、素直に回すと1フレーム百万回になる）
+    const sees = this.losMap(st, def);
+    for (let r = 0; r < st.rows; r++) {
+      for (let c = 0; c < st.cols; c++) {
+        if (!def || !Game.canPlaceAt(def, c, r, UI.moving || null)) continue;
+        const ok = !sees || sees[r * st.cols + c];
+        ctx.fillStyle = ok ? 'rgba(255,170,50,' + pulse.toFixed(3) + ')'
+                           : 'rgba(120,132,152,0.10)';
+        // その武器が埋めるマスをまとめて光らせる＝**置く前に広さが分かる**
+        for (const t of Game.footTiles(def, c, r)) {
+          ctx.fillRect(t.c * TILE + 2, t.r * TILE + 2, TILE - 4, TILE - 4);
+        }
+      }
+    }
+  }
+
+  },
+
+  // 壁（置ける地面）側の六角セル。**通路と同じ格子から、通路ぶんを抜いたもの。**
+  //
+  //   **ユーザー 2026-09-22**
+  //   > 「壁の中がハニカム構造なのにグリッドが残っている、
+  //   >   デザイン面の問題を解決してくれると助かります」
+  //
+  //   通路だけ六角で、壁は四角の格子という状態だった。
+  //   盤ぜんぶを同じ六角の格子で作り、**設置の格子は置くときだけ出す**
+  //   （設置はタイルのままなので、格子そのものは必要。常時は出さない）
+  wallHexes(st) {
+    if (st._wallHex) return st._wallHex;
+    const v = st.vec;
+    if (!v) return (st._wallHex = []);
+    const used = {};
+    for (const h of v.hexes) used[h.c + ',' + h.r] = 1;
+    const g = MapGen.hexRange(0, 0, st.w, st.h, 0);
+    const R = v.hexR || MapGen.HEX_R;
+    const out = [];
+    for (let c = g.c0; c <= g.c1; c++) {
+      for (let r = g.r0; r <= g.r1; r++) {
+        if (used[c + ',' + r]) continue;
+        const hx = MapGen.hexAt(c, r);
+        if (hx.x < -R || hx.y < -R || hx.x > st.w + R || hx.y > st.h + R) continue;
+        out.push(hx);
+      }
+    }
+    return (st._wallHex = out);
+  },
+
   tilesVec(ctx, st) {
     const v = st.vec;
     // 1. 盤ぜんぶを地面で塗る
@@ -276,6 +315,13 @@ const Render = {
     ctx.beginPath();
     ctx.rect(0, 0, st.cols * TILE, st.rows * TILE);
     ctx.clip();
+    // 1b. **壁も同じ六角で作る。**（2026-09-22）
+    //   通路だけ六角で壁が四角の格子だと、同じ盤の上で作りが食い違って見える。
+    //   壁は「通路を彫り出した素材」なので、明るめ＋継ぎ目だけを見せる
+    ctx.fillStyle = '#353c50';
+    ctx.strokeStyle = 'rgba(12,16,26,0.55)';
+    ctx.lineWidth = 1.4;
+    for (const h of this.wallHexes(st)) { hexPath(h.x, h.y); ctx.fill(); ctx.stroke(); }
     // 縁：一回り大きく塗って、通路の外周に枠が出るようにする
     ctx.fillStyle = '#232838';
     for (const h of v.hexes) { hexPath(h.x, h.y); ctx.fill(); }
@@ -306,26 +352,33 @@ const Render = {
     // 2b. **盤の縁は六角を描いたあとで塗り直す。**
     //   edge() が縁の通路を壁に戻しているので、そこだけ「絵は道／規則は壁」になる。
     //   内側は食い違わない（実測：40枚で内側のずれ0・縁だけ783）
-    ctx.fillStyle = '#31384a';
+    //
+    //   **四角で塗ると、六角の盤に四角い額縁が付く。**（2026-09-22）
+    //   縁のタイルに切り抜いてから、**六角の続きとして**塗り直す
+    ctx.save();
+    ctx.beginPath();
     for (let c = 0; c < st.cols; c++) {
-      if (st.grid[0][c] === '#') ctx.fillRect(c * TILE, 0, TILE, TILE);
-      if (st.grid[st.rows - 1][c] === '#') ctx.fillRect(c * TILE, (st.rows - 1) * TILE, TILE, TILE);
+      if (st.grid[0][c] === '#') ctx.rect(c * TILE, 0, TILE, TILE);
+      if (st.grid[st.rows - 1][c] === '#') ctx.rect(c * TILE, (st.rows - 1) * TILE, TILE, TILE);
     }
     for (let r = 0; r < st.rows; r++) {
-      if (st.grid[r][0] === '#') ctx.fillRect(0, r * TILE, TILE, TILE);
-      if (st.grid[r][st.cols - 1] === '#') ctx.fillRect((st.cols - 1) * TILE, r * TILE, TILE, TILE);
+      if (st.grid[r][0] === '#') ctx.rect(0, r * TILE, TILE, TILE);
+      if (st.grid[r][st.cols - 1] === '#') ctx.rect((st.cols - 1) * TILE, r * TILE, TILE, TILE);
     }
+    ctx.clip();
+    ctx.fillStyle = '#353c50';
+    ctx.fillRect(0, 0, st.w, st.h);
+    // 継ぎ目は、通路ぶんの六角も含めて引き直す（縁で六角が途切れて見えないように）
+    ctx.strokeStyle = 'rgba(12,16,26,0.55)';
+    ctx.lineWidth = 1.4;
+    for (const h of v.hexes) { hexPath(h.x, h.y); ctx.stroke(); }
+    for (const h of this.wallHexes(st)) { hexPath(h.x, h.y); ctx.stroke(); }
+    ctx.restore();
 
-    // 3. 置ける場所の格子。**設置はタイルのままなので、ここは四角で見せる。**
-    //    （ユーザー決定 2026-09-21「タイルのまま」）
-    ctx.strokeStyle = 'rgba(255,170,80,0.10)';
-    ctx.lineWidth = 1;
-    for (let r = 0; r < st.rows; r++) {
-      for (let c = 0; c < st.cols; c++) {
-        if (st.grid[r][c] !== '#') continue;
-        ctx.strokeRect(c * TILE + 0.5, r * TILE + 0.5, TILE - 1, TILE - 1);
-      }
-    }
+    // 3. **置ける場所の四角い格子は、常時は出さない。**（2026-09-22）
+    //   設置はタイルのままなので格子そのものは要るが、
+    //   出しっぱなしだと**六角の盤に四角の網がかぶって作りが食い違って見える。**
+    //   置くときだけ出す（tiles() の「置き場所を選んでいるとき」の塗り）
 
     // 4. 障害物
     ctx.fillStyle = '#0a0b0f';
@@ -348,6 +401,8 @@ const Render = {
     }
 
     this.heat(ctx, st);
+    // 置き場所を選んでいるときの表示。**四角の格子はここでだけ出る**
+    this.placeOverlay(ctx, st);
   },
 
   // 炎の舌。**扇1枚ではなく、長さの違う舌を重ねて「噴いている」形にする**
