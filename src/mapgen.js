@@ -586,6 +586,10 @@ const MapGen = {
       //   出現口が2〜3個のマップがほとんど通らなかった（1000枚中 884/113/2）
       //   経路：序盤ほど遠回りさせる（撃てる時間を長く取る）
       const near = Math.hypot(sx - core.x, sy - core.y) < 12 * TILE;
+      // **経由点を増やすのは逆効果だった。**（2026-09-22 実測）
+      //   深い章で道が短くなるのは経由点が足りないからだと考えて
+      //   `+1 + round(d*1.6)` を足したら、**手書き落ちが7章から17章に増えた。**
+      //   経由点が増えると道が自分と交差して近道ができ、最短経路はむしろ縮む
       const nWp = (near ? 2 : 1) + ((rnd() * 2) | 0) + (d < 0.35 ? 1 : 0);
       const wps = [];
       for (let k = 0; k < nWp; k++) {
@@ -613,7 +617,12 @@ const MapGen = {
       //   幅：序盤は細く（覆いやすい）、終盤は広く（覆いにくい）。
       //   （第1〜2章だけ細く作る案は外した。こんどは通路の量が下限を割って、
       //     かえって作り直しが増えた：手書き落ち 5/16 → 11/20）
-      const base = ((74 + rnd() * 34) + d * 46) * (shape.widthMul || 1);
+      //   深さで太さをどれだけ増やすかは BAL.roadWidthDepth（既定46）。
+      //   **太いほど道が自分と近づいて近道ができ、最短経路が縮む**ので、
+      //   ここは「生成が通るか」に直結する
+      const dw = (typeof BAL !== 'undefined' && BAL.roadWidthDepth !== undefined)
+        ? BAL.roadWidthDepth : 46;
+      const base = ((74 + rnd() * 34) + d * dw) * (shape.widthMul || 1);
       const wMul = parts.reduce((a, p) => a + this.PARTS[p].w, 0) / parts.length;
       const raw = this.path(rnd, { x: sx, y: sy }, side.ang, wps.concat([core]), parts, W, H);
       lanes.push({ pts: this.smooth(raw, 6), w: base * wMul, parts, side: side.id });
@@ -685,7 +694,10 @@ const MapGen = {
       //   通路を太くする／口を増やす、を指定しても、帯が元のままだと
       //   作った端から検査で落ちて、黙って別の形になる
       ok: lens.length === spawns.length && lens.length > 0
-          && (shape.holes ? spawns.length === shape.holes : true)
+          // **口の数はここで見ない。**（2026-09-22）
+          //   `spawns` は S タイルの数で、口の数ではない（1つの口が2〜4タイル）。
+          //   比べると必ず不成立になり、**口を減らして作り直す道が塞がっていた。**
+          //   口の数は make() が守っているので、検査で確かめる必要はない
           && Math.min.apply(null, lens) >= (shape.routeMin !== undefined
                ? shape.routeMin : BAL.minRouteLen + Math.round(10 * (1 - dd)))
           && (shape.routeMax === undefined
@@ -717,7 +729,18 @@ const MapGen = {
     //   帯を変えても漏れが動かない、という測定結果になっていた。
     //   **効きの強い順に残す。** 経路の下限がいちばん難易度を動かすので最後まで残し、
     //   上限・通路量・口の数・部品・幅の順に落とす
+    // **口の数は、作れなければ減らす。**（2026-09-22・実測で見つけた回帰）
+    //   0922v で「口の数を深さで固定」にしたところ、
+    //   **第10章以降は160回作り直しても1枚も通らず、手書きマップに落ちていた**
+    //   （30章中7章）。口が2つあると道どうしが近道を作り、
+    //   最短経路が中央12まで潰れる（要求は24〜27）。
+    //   **以前はランダムだったので「次の試行で1口を引き直す」逃げ道があった。**
+    //   固定にしてそれを塞いでいたので、ここで段階的に減らす
     const steps = [shape];
+    if (!shape) {
+      const want = this.holesFor(d === undefined ? 0.5 : d, null);
+      for (let h = want - 1; h >= 1; h--) steps.push({ holes: h });
+    }
     if (shape) {
       const drop = (o, keys) => { const c = Object.assign({}, o); for (const k of keys) delete c[k]; return c; };
       steps.push(drop(shape, ['routeMax']));
