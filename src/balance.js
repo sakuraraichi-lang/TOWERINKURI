@@ -475,11 +475,62 @@ const BAL = {
   //   **ばらつきは減らない。** 1周が5章ぶんを平均するので、
   //   章ごとの引きは周の合計では均されてしまう。生成が遅くなるだけなので外した。
   //   （章ごとの指定＝下の mapShape は、狙った章だけに効くので別の話）
+  //   **章ごとに狙った道の長さを与える。**（ユーザー 2026-09-22
+  //   「章ごとに狙った長さを与えて難易度カーブそのものを引き直す」）
+  //
+  //   **幕（5章）ごとに、ボスへ向かって道が詰まっていく。**
+  //     幕の1章目 … いちばん長い ＝ ボスを抜けた直後の息継ぎ
+  //     2 → 3 → 4 … 少しずつ短く
+  //     幕の5章目（ボス）… いちばん短い ＝ その幕の頂点
+  //
+  //   **この起伏は何周目でも同じように効く。**敵のHPを重くする方法だと、
+  //   恒久の土台（Legacy）が既に抜けた章ぶんをちょうど打ち消すので、
+  //   効くのは常に「その周の最前線」だけだった。道の長さはマップの性質なので
+  //   打ち消されない。**だから難易度カーブをここで引ける。**
+  //
+  //   **第1幕（1〜5章）だけ緩い。**ガトリング1種・設置6基しか無く、
+  //   ここで詰まると転生もできない（prestigeMinStages）。
+  //   第5章も「ボス」だが、他の幕の頂点ほど詰めない
+  //
+  //   長い側（routeMin だけ指定）は生成が届かないことがあるが、
+  //   届かないときは伸びる方向へ流れるので、狙い（＝楽）とずれない。
+  //   短い側（routeMin+routeMax）は10枚とも指定どおり当たる
   mapShape: {
+    // 第1幕（緩い）
+    1:  { routeMin: 42 },
+    2:  { routeMin: 40 },
+    3:  { routeMin: 34 },
+    4:  { routeMin: 30, routeMax: 40 },
+    5:  { routeMin: 26, routeMax: 34 },
+    // 第2幕
+    6:  { routeMin: 42 },
+    7:  { routeMin: 36, routeMax: 48 },
+    8:  { routeMin: 30, routeMax: 38 },
+    9:  { routeMin: 25, routeMax: 31 },
     10: { routeMin: 20, routeMax: 25 },
+    // 第3幕
+    11: { routeMin: 42 },
+    12: { routeMin: 36, routeMax: 48 },
+    13: { routeMin: 30, routeMax: 38 },
+    14: { routeMin: 25, routeMax: 31 },
     15: { routeMin: 20, routeMax: 25 },
+    // 第4幕
+    16: { routeMin: 42 },
+    17: { routeMin: 36, routeMax: 48 },
+    18: { routeMin: 30, routeMax: 38 },
+    19: { routeMin: 25, routeMax: 31 },
     20: { routeMin: 20, routeMax: 25 },
+    // 第5幕
+    21: { routeMin: 42 },
+    22: { routeMin: 36, routeMax: 48 },
+    23: { routeMin: 30, routeMax: 38 },
+    24: { routeMin: 25, routeMax: 31 },
     25: { routeMin: 20, routeMax: 25 },
+    // 第6幕
+    26: { routeMin: 42 },
+    27: { routeMin: 36, routeMax: 48 },
+    28: { routeMin: 30, routeMax: 38 },
+    29: { routeMin: 25, routeMax: 31 },
     30: { routeMin: 20, routeMax: 25 },
   },
 

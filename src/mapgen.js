@@ -217,7 +217,13 @@ const MapGen = {
   //   **絵と規則が食い違う。**
   //   **タイルではなく六角の側で埋める。** タイルを埋めると、こんどは
   //   「通路なのに六角が無い＝絵では地面」という逆のずれが出る
-  fillHexGaps(hexes, W, H) {
+  //   minN … 隣が何個そろったら埋めるか（既定4）。
+  //     **放射状（spokes）の盤では6にする。**4のままだと、
+  //     中央へ集まってくる扇と扇の「あいだ」が埋まって、
+  //     盤ぜんぶが一枚の広間になる（実測：通路175〜249タイル）。
+  //     6＝完全に囲まれた穴だけ埋める、なら道は分かれたまま
+  fillHexGaps(hexes, W, H, minN) {
+    minN = minN || 4;
     const R = this.HEX_R;
     const key = (c, r) => c + ',' + r;
     const set = {};
@@ -232,7 +238,7 @@ const MapGen = {
           seen[k] = 1;
           let n = 0;
           for (const [c2, r2] of this.hexNbr(c, r)) if (set[key(c2, r2)]) n++;
-          if (n < 4) continue;
+          if (n < minN) continue;
           const hx = this.hexAt(c, r);
           if (hx.x < -R || hx.y < -R || hx.x > W + R || hx.y > H + R) continue;
           add.push(hx);
@@ -376,7 +382,15 @@ const MapGen = {
   //   holes     … 出現口の数を固定する
   //   widthMul  … 通路の基準幅の倍率
   //   partPool  … 使う部品を絞る（'straight' だけ＝一直線、'switchbk' だけ＝つづら折り…）
-  //   routeMin/routeMax … 最短経路の帯（タイル）。**難易度がいちばん動くのはここ**
+  //   routeMin/routeMax … 最短経路の帯（タイル）
+  //   spokes    … **中央のコアへ、N方向から別々の道が来る。**（ユーザー 2026-09-22）
+  //                > 「広大なマップで自分が真ん中にいて、6方向くらいから
+  //                >   分断された敵に襲われるから武器の置き方を考える必要がある」
+  //                道どうしの間は地面（＝壁）なので、**0922q で弾が壁を抜けなく
+  //                なった以上、別の方角の道は別の砲でしか守れない。**
+  //                ＝ 火力ではなく「置き方」を要求する
+  //   laneW     … 道ごとの太さの倍率の配列（例 [0.7, 1.4, 0.7, 1.4]）。
+  //                細い道は足止めが効き、太い道は火力を集めないと抜けられない
   //   roadMin/roadMax … 通路の総量の帯を上書きする
   make(seed, d, shape) {
     shape = shape || {};
@@ -386,8 +400,13 @@ const MapGen = {
     const W = cols * TILE, H = rows * TILE;
     const pick = (arr) => arr[(rnd() * arr.length) | 0];
 
-    // コアの位置。**中央に寄せすぎない**（寄せると全部同じ形になる）
-    const core = {
+    // **放射状の盤は、コアを真ん中に置く。**（そこへ N 方向から別々の道が来る）
+    const spokes = (shape.spokes | 0) >= 2 ? (shape.spokes | 0) : 0;
+    const core = spokes ? {
+      x: ((cols >> 1) + (rnd() < 0.5 ? 0 : (rnd() < 0.5 ? -1 : 1))) * TILE + TILE / 2,
+      y: ((rows >> 1) + (rnd() < 0.5 ? 0 : (rnd() < 0.5 ? -1 : 1))) * TILE + TILE / 2,
+    } : {
+      // コアの位置。**中央に寄せすぎない**（寄せると全部同じ形になる）
       x: (3 + Math.floor(rnd() * (cols - 6))) * TILE + TILE / 2,
       y: (4 + Math.floor(rnd() * (rows - 8))) * TILE + TILE / 2,
     };
@@ -401,7 +420,7 @@ const MapGen = {
     //   遠い側に寄せると、口を増やしても経路が足りる
     //   口の数：序盤は1つだけ。中盤で2つ、終盤でようやく3つ目が出る
     const maxHole = d < 0.30 ? 1 : d < 0.62 ? 2 : 3;
-    const nHole = shape.holes ? shape.holes : 1 + ((rnd() * maxHole) | 0);
+    const nHole = spokes ? spokes : (shape.holes ? shape.holes : 1 + ((rnd() * maxHole) | 0));
     const sideFar = (sd) => {
       if (sd.id === 'top') return core.y;
       if (sd.id === 'bottom') return H - core.y;
@@ -414,7 +433,7 @@ const MapGen = {
     const pool = this.SIDES.slice()
       .sort((a, b) => (sideFar(b) * (0.7 + rnd() * 0.6)) - (sideFar(a) * (0.7 + rnd() * 0.6)));
     const sides = [pool[0]];
-    while (sides.length < nHole) {
+    while (!spokes && sides.length < nHole) {
       const want = OPP[sides[sides.length - 1].id];
       const nxt = pool.find(x => x.id === want && !sides.includes(x))
                || pool.find(x => !sides.includes(x));
@@ -424,7 +443,73 @@ const MapGen = {
     const holeW = 2 + ((rnd() * 3) | 0);          // 穴の幅（タイル）
     const holes = [], lanes = [];
 
-    for (const side of sides) {
+    // ---- 放射状（spokes）----
+    //   コアから N 方向へ等間隔に向きを取り、盤の縁まで伸ばしたところを口にする。
+    //   経由点はその方角の扇の中だけ。**だから道どうしが混ざらない**
+    if (spokes) {
+      const a0 = rnd() * Math.PI * 2;
+      const halfSec = Math.PI / spokes;
+      for (let k = 0; k < spokes; k++) {
+        const ang = a0 + (k * 2 * Math.PI) / spokes;
+        // コアから外へ伸ばして、先に当たった縁を口にする
+        const ex = Math.cos(ang), ey = Math.sin(ang);
+        let t = 1e9;
+        if (ex > 1e-6) t = Math.min(t, (W - TILE / 2 - core.x) / ex);
+        if (ex < -1e-6) t = Math.min(t, (TILE / 2 - core.x) / ex);
+        if (ey > 1e-6) t = Math.min(t, (H - TILE / 2 - core.y) / ey);
+        if (ey < -1e-6) t = Math.min(t, (TILE / 2 - core.y) / ey);
+        const hx = core.x + ex * t, hy = core.y + ey * t;
+        let hc = Math.max(0, Math.min(cols - 1, Math.floor(hx / TILE)));
+        let hr = Math.max(0, Math.min(rows - 1, Math.floor(hy / TILE)));
+        // どの縁に着いたか（口のタイルはその縁に沿って holeW 枚）
+        const onL = hc === 0, onR = hc === cols - 1, onT = hr === 0, onB = hr === rows - 1;
+        const tiles = [];
+        if (onT || onB) {
+          const c0 = Math.max(0, Math.min(cols - holeW, hc - (holeW >> 1)));
+          for (let q = 0; q < holeW; q++) tiles.push({ c: c0 + q, r: onT ? 0 : rows - 1 });
+          hc = c0 + (holeW >> 1);
+        } else {
+          const r0 = Math.max(0, Math.min(rows - holeW, hr - (holeW >> 1)));
+          for (let q = 0; q < holeW; q++) tiles.push({ c: onL ? 0 : cols - 1, r: r0 + q });
+          hr = r0 + (holeW >> 1);
+        }
+        const sx = hc * TILE + TILE / 2, sy = hr * TILE + TILE / 2;
+        holes.push({ side: 'spoke' + k, tiles, x: sx, y: sy, w: holeW });
+
+        // 経由点は自分の扇の中だけ。**混ざらないので、別の砲が要る**
+        //   **外から内へ、扇の中で振りながら降りてくる。**
+        //   まっすぐ入れると道が10タイル前後にしかならず、撃つ時間が無い
+        const wps = [];
+        const nWp = 2 + ((rnd() * 2) | 0);
+        const R0 = Math.hypot(sx - core.x, sy - core.y);
+        let swing = rnd() < 0.5 ? 1 : -1;
+        for (let q = 0; q < nWp; q++) {
+          const f = 1 - (q + 1) / (nWp + 1);            // 外 → 内
+          const aa = ang + swing * halfSec * (0.55 + rnd() * 0.35);
+          swing = -swing;                                 // 左右に振る＝道が伸びる
+          const rr = R0 * (0.30 + f * 0.62);
+          wps.push({
+            x: Math.max(TILE, Math.min(W - TILE, core.x + Math.cos(aa) * rr)),
+            y: Math.max(TILE, Math.min(H - TILE, core.y + Math.sin(aa) * rr)),
+          });
+        }
+        const n = 3 + ((rnd() * 3) | 0);
+        const pool = shape.partPool && shape.partPool.length ? shape.partPool : this.PART_IDS;
+        const parts = [];
+        for (let q = 0; q < n; q++) parts.push(pool[(rnd() * pool.length) | 0]);
+        // **道ごとに太さを変えられる。**細い道は足止めが効き、太い道は火力が要る
+        const lw = (shape.laneW && shape.laneW.length)
+          ? shape.laneW[k % shape.laneW.length] : 1;
+        // **放射状の道は細い。**太いと隣の扇とくっついて、盤がただの広間になる
+        //   （実測：ふつうの太さ 90〜120px で作ったら通路236タイル＝盤の大半が道）
+        const base = (44 + rnd() * 16 + d * 12) * (shape.widthMul || 1) * lw;
+        const wMul = parts.reduce((a, pp) => a + this.PARTS[pp].w, 0) / parts.length;
+        const raw = this.path(rnd, { x: sx, y: sy }, ang + Math.PI, wps.concat([core]), parts, W, H);
+        lanes.push({ pts: this.smooth(raw, 6), w: base * wMul, parts, side: 'spoke' + k });
+      }
+    }
+
+    for (const side of (spokes ? [] : sides)) {
       const tiles = [];
       let sx, sy;
       // 辺の上の位置。**コアから遠く、かつ「先に置いた口」からも遠いところを採る。**
@@ -501,8 +586,10 @@ const MapGen = {
       lanes.push({ pts: this.smooth(raw, 6), w: base * wMul, parts, side: side.id });
     }
 
-    const hexes = this.tagZones(this.fillHexGaps(this.hexesFor(lanes, W, H), W, H), rnd, d);
+    const hexes = this.tagZones(
+      this.fillHexGaps(this.hexesFor(lanes, W, H), W, H, spokes ? 6 : 4), rnd, d);
     const g = this.edge(this.bake(lanes, core, holes, W, H, hexes));
+
     return {
       rows: g.map(r => r.join('')),
       // 絵は六角セルをそのまま描く（Render.tilesVec）
