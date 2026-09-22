@@ -101,7 +101,7 @@ function stagePackOf(stageId) {
 }
 
 const Pack = {
-  clearedCount(perm) { return MAIN_STAGES.filter(s => (perm.stages[s.id] || {}).cleared).length; },
+  clearedCount(perm) { return stageProgressCount(perm); },   // 突破＋スキップ（進んだ深さ）
 
   isUnlocked(perm, id) {
     const pk = PACKS[id];
@@ -245,7 +245,7 @@ const Pack = {
 };
 
 // --- ミッション（パックの入手経路その3） ---
-function clearedStages(p) { return MAIN_STAGES.filter(s => (p.stages[s.id] || {}).cleared).length; }
+function clearedStages(p) { return stageProgressCount(p); }   // 突破＋スキップ（進んだ深さ）
 
 const MISSIONS = [
   { id: 'st1',      name: '第1章を突破',               reward: { basic: 1 }, check: (p) => clearedStages(p) >= 1 },

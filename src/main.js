@@ -146,8 +146,9 @@ const Main = {
     const res = Game.skipStage(st.id);
     if (!res) return;
     // 次のステージへ自動で送る。スキップは「先へ進むため」の機能なので
-    const nx = res.stageGot && res.stageGot.next;
-    if (nx) { Game.perm.currentStage = nx.id; UI.pick = STAGES.findIndex(s => s.id === nx.id); }
+    //   （currentStage は skipStage が進めている）
+    const nx = res.next;
+    if (nx) UI.pick = STAGES.findIndex(s => s.id === nx.id);
     Game.save();
     UI.renderHome();
     UI.renderPanel();

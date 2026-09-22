@@ -470,7 +470,7 @@ const Skill = {
   cost(meta, id, perm) {
     const s = SKILL_BY_ID[id];
     const p = perm || ((typeof Game !== 'undefined' && Game.perm) ? Game.perm : null);
-    const cleared = p ? MAIN_STAGES.filter(x => (p.stages[x.id] || {}).cleared).length : 0;
+    const cleared = p ? stageProgressCount(p) : 0;   // 突破＋スキップ
     return Math.ceil(s.cost0
       * Math.pow(s.costG, Skill.lv(meta, id))
       * Math.pow(BAL.costPerStage, cleared));
@@ -495,7 +495,7 @@ const Skill = {
     if (s.cat) {
       return WEAPON_IDS.some(wid => WEAPONS[wid].cat === s.cat && (perm.collection['wc_' + wid] || 0) > 0);
     }
-    const cleared = MAIN_STAGES.filter(x => (perm.stages[x.id] || {}).cleared).length;
+    const cleared = stageProgressCount(perm);        // 突破＋スキップ
     return cleared >= s.unlock;
   },
 
@@ -523,7 +523,7 @@ const Skill = {
     const s = SKILL_BY_ID[id];
     if (!s.maxPerClear) return s.max;
     const p = perm || ((typeof Game !== 'undefined' && Game.perm) ? Game.perm : null);
-    const cleared = p ? MAIN_STAGES.filter(x => (p.stages[x.id] || {}).cleared).length : 0;
+    const cleared = p ? stageProgressCount(p) : 0;   // 突破＋スキップ
     // **切り捨てる。** maxPerClear が 1/6 のような分数だと、
     //   6章突破で 1.0、7章で 1.166… になり、切り捨てないと1段多く買えてしまう
     return Math.min(s.max, Math.floor(cleared * s.maxPerClear));

@@ -147,6 +147,8 @@ const UI = {
     if (!open) line = '<span class="ck">🔒</span>前のステージを突破すると開きます';
     else if (rec.perfect) line = '<span class="ck">✓</span>完璧クリア済み　<em>★★</em>';
     else if (rec.cleared) line = '<span class="ck">✓</span>突破済み　<em>W' + rec.bestWave + '</em>';
+    // **飛ばして通っただけ。**突破ではないので、初回報酬はまだ残っている
+    else if (rec.skipped) line = '<span class="ck">✓</span>通過（未突破）　<em>報酬は未取得</em>';
     else if (rec.attempts) line = '<span class="ck">…</span>最高 <em>ウェーブ ' + rec.bestWave + '</em>' +
       '　挑戦 ' + rec.attempts + '回';
     else line = '<span class="ck">＊</span>未挑戦　' + (st.experimental ? '報酬なし' : '全' + BAL.wavesPerStage + 'ウェーブ');
@@ -160,12 +162,13 @@ const UI = {
     if (e.homeSkip) {
       const can = Game.canSkip(st.id);
       // **鍵を持っていないうちは、ボタンの存在ごと出さない**
-      const near = Game.hasSkipKey() && open && !st.experimental && !rec.cleared &&
-                   Game.clearsOf(st.id) > 0 && !can;
+      const near = Game.hasSkipKey() && open && !st.experimental &&
+                   !rec.cleared && !rec.skipped && !can;
       e.homeSkip.style.display = (can || near) ? '' : 'none';
       e.homeSkip.disabled = !can;
+      // **もらえるものは無い。**チェックが付いて次へ行けるだけ、と書いておく
       e.homeSkip.innerHTML = can
-        ? 'スキップ<u>◈ ' + Util.fmt(Game.skipCoins(st.id)) + '</u>'
+        ? 'スキップ<u>報酬なし・次へ進むだけ</u>'
         : '<u>' + Game.skipWhy(st.id) + '</u>';
     }
   },
@@ -1656,23 +1659,12 @@ const UI = {
   // スキップの結果。**手で突破したときと同じものが出た**ことを、そのまま並べる
   showSkipResult(res) {
     const body = Util.el('div');
-    body.appendChild(this.choiceHead('スキップ', res.stage.name + ' を突破扱いにしました'));
-    const st = Util.el('div', 'stats');
-    st.innerHTML =
-      '<div><span>受け取ったコイン</span><b>◈ ' + Util.fmt(res.coins) + '</b></div>' +
-      '<div><span>完璧クリア</span><b>' + (res.perfect ? '★★ 引き継ぎ' : '—') + '</b></div>';
-    body.appendChild(st);
+    body.appendChild(this.choiceHead('スキップ',
+      res.stage.name + ' を通過しました（突破ではありません）'));
     body.appendChild(Util.el('div', 'note',
-      '前に自分で突破したときと同じ結果です。**削られたものはありません。**'
-        .replace(/\*\*(.+?)\*\*/g, '$1')));
-    if (res.stageGot && (res.stageGot.cards.length || Object.keys(res.stageGot.packs).length)) {
-      const bits = res.stageGot.cards.map(c => CARDS[c].name)
-        .concat(Object.entries(res.stageGot.packs).map(([k, v]) => PACKS[k].name + ' ×' + v));
-      body.appendChild(Util.el('div', 'reward', '初回突破の報酬: ' + bits.join(' / ')));
-    }
-    for (const m of (res.missions || [])) {
-      body.appendChild(Util.el('div', 'reward', 'ミッション達成: ' + m.name));
-    }
+      'チェックマークが付いて次の章へ進めます。'
+      + 'コインもカードも手に入りません。'
+      + 'この章の初回突破報酬は残っているので、あとから自分で突破すれば受け取れます。'));
     const ok = Util.el('button', 'bigbtn', '次へ');
     ok.addEventListener('click', () => { this.closeModal(); this.renderHome(); });
     body.appendChild(ok);

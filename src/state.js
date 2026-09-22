@@ -11,8 +11,22 @@
 // ---------------------------------------------------------------
 'use strict';
 
-const SAVE_KEY = 'inkuriment_save_v3';
-const OLD_KEYS = ['inkuriment_save_v2', 'inkuriment_save_v1'];
+// **【2026-09-22】鍵を v4 に上げて、全員の進捗をリセットする。**
+//
+//   **ユーザー指示**
+//   > 「あと**全ユーザーの進捗状態をリセットしない**と、
+//   >   既に30章まで辿り着いた人間が転生し続けて**無限ファーム**ができます」
+//
+//   スキップが「前に手で突破したときの最高コイン」をそのまま配っていたせいで、
+//   30章まで到達した記録が作られてしまった。その記録のまま転生を繰り返すと、
+//   恒久の土台（Legacy）が最大のまま延々と回せる。
+//
+//   **引き継ぎはしない。** v3 以前のセーブからカードやパックを移すと、
+//   ファームで貯めたぶんがそのまま残る。OLD_KEYS を空にしてある。
+//   古い鍵は読み込み時に消して、あとから復活しないようにする
+const SAVE_KEY = 'inkuriment_save_v4';
+const OLD_KEYS = [];
+const PURGE_KEYS = ['inkuriment_save_v3', 'inkuriment_save_v2', 'inkuriment_save_v1'];
 
 const Game = {
   perm: null,
@@ -97,13 +111,15 @@ const Game = {
 
   save() {
     try {
-      localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 3, perm: this.perm, meta: this.meta }));
+      localStorage.setItem(SAVE_KEY, JSON.stringify({ v: 4, perm: this.perm, meta: this.meta }));
     } catch (e) { /* プライベートモードなどでは黙って諦める */ }
   },
 
   load() {
     let d = null;
     try { d = JSON.parse(localStorage.getItem(SAVE_KEY) || 'null'); } catch (e) { d = null; }
+    // 古い鍵は消す。**残しておくと、あとで引き継ぎを足したときに復活してしまう**
+    try { for (const k of PURGE_KEYS) localStorage.removeItem(k); } catch (e) {}
     this.newSave();
     if (!d) {
       // 旧バージョンのセーブが残っていたら、カードとパックだけ引き継ぐ
@@ -143,7 +159,7 @@ const Game = {
     if (typeof this.perm.autoWave !== 'boolean') this.perm.autoWave = true;
     // 定義から消えた換装は落とす（古いセーブが未知のidを持ち続けないように）
     for (const k of Object.keys(this.perm.swaps)) if (!SWAP_BY_ID[this.perm.swaps[k]]) delete this.perm.swaps[k];
-    if (typeof this.perm.deepest !== 'number') this.perm.deepest = this.clearedCount();
+    if (typeof this.perm.deepest !== 'number') this.perm.deepest = this.progressCount();
     // パックは今の定義と同じキーだけにする。
     // 昔の save には rare / epic が残っていて、開けられないまま数え続けていた
     if (!this.perm.packs) this.perm.packs = {};
@@ -155,18 +171,22 @@ const Game = {
   },
 
   hardReset() {
-    try { localStorage.removeItem(SAVE_KEY); for (const k of OLD_KEYS) localStorage.removeItem(k); } catch (e) {}
+    try { localStorage.removeItem(SAVE_KEY); for (const k of PURGE_KEYS) localStorage.removeItem(k); } catch (e) {}
     this.newSave();
     Relic.invalidate();
   },
 
   // ---------- ステージ ----------
   stageRec(id) {
-    if (!this.perm.stages[id]) this.perm.stages[id] = { cleared: false, perfect: false, bestWave: 0, attempts: 0 };
+    if (!this.perm.stages[id]) this.perm.stages[id] = { cleared: false, skipped: false, perfect: false, bestWave: 0, attempts: 0 };
     return this.perm.stages[id];
   },
 
+  // **実際に突破した数。** 報酬と表示はこちら
   clearedCount() { return MAIN_STAGES.filter(s => this.stageRec(s.id).cleared).length; },
+  // **そこまで進んだ数（突破＋スキップ）。** 進行・値段・転生・深さはこちら
+  progressCount() { return stageProgressCount(this.perm); },
+  stagePassed(id) { return stagePassedRec(this.stageRec(id)); },
 
   // ---------- スキップ ----------
   //
@@ -174,14 +194,11 @@ const Game = {
   //   周回のたびに同じステージを手で殴り直させないのが目的で、
   //   報酬を削ると「速く回りたいのに損をする」になって本末転倒になる。
   //
-  //   代わりに**解放を慎重にする**：
-  //     ・転生を1回以上している（初周は全部自分で遊ぶ）
-  //     ・そのステージを**通算3回以上**突破している（1回では手応えを覚えていない）
-  //     ・**まだ突破していない**ステージは対象外（記録が無いので自動的にそうなる）
-  //   通算の突破回数は perm.clears に持つ。**転生でも消えない**
-  SKIP_MIN_CLEARS: 3,
-  SKIP_MIN_PRESTIGES: 1,
-
+  //   **【2026-09-22・作り替えた】上の説明はもう当てはまらない。**
+  //   「手で突破したときと同じものが出る」をやめ、**何ももらえない**ようにした。
+  //   条件も「通算3回突破」から「**前回到達地点まで**」に置き換えた。
+  //   `clears` / `bestPerfect` / `bestCoins` の記録はそのまま残している
+  //   （図鑑や表示で使うため。スキップの条件では、もう見ていない）
   clearsOf(id) { return (this.perm.clears && this.perm.clears[id]) || 0; },
 
   perfectedEver(id) { return !!(this.perm.bestPerfect && this.perm.bestPerfect[id]); },
@@ -194,38 +211,46 @@ const Game = {
   SKIP_KEY: 'ky_skip',
   hasSkipKey() { return this.own(this.SKIP_KEY) > 0; },
 
+  //   **【2026-09-22・作り替え】飛ばしても何ももらえない。**
+  //   前は「前に手で突破したときの最高コイン」をそのまま渡していた。
+  //   ユーザー報告：**もらえる金額が多すぎて30章を完全クリアされた。**
+  //
+  //   いまは**チェックマークだけ。** 突破したことにはならないので、
+  //   初回クリア報酬はあとから自分で取りに行ける。
+  //   飛ばせるのは**前回到達した地点まで**（perm.deepest）
   canSkip(id) {
     if (STAGE_BY_ID[id] && STAGE_BY_ID[id].experimental) return false;
     if (!this.hasSkipKey()) return false;                 // 鍵が無ければ何も飛ばせない
-    if (this.stageRec(id).cleared) return false;          // 今周でもう突破している
+    const rec = this.stageRec(id);
+    if (rec.cleared || rec.skipped) return false;         // 今周でもう通っている
     if (!this.stageUnlocked(id)) return false;
-    if (this.perfectedEver(id)) return true;              // 完璧に凌いだ章は鍵だけで飛ばせる
-    if ((this.perm.prestiges || 0) < this.SKIP_MIN_PRESTIGES) return false;
-    return this.clearsOf(id) >= this.SKIP_MIN_CLEARS;
+    // **前回到達地点まで。** そこから先は自分で戦う
+    const i = MAIN_STAGES.findIndex(s => s.id === id);
+    return i >= 0 && (i + 1) <= (this.perm.deepest || 0);
   },
 
   skipWhy(id) {
     if (!this.hasSkipKey()) return '';                    // 鍵が無いうちは何も言わない
-    if ((this.perm.prestiges || 0) < this.SKIP_MIN_PRESTIGES) return '完璧クリアか、転生で使えます';
-    const n = this.clearsOf(id);
-    if (n < this.SKIP_MIN_CLEARS) return 'あと ' + (this.SKIP_MIN_CLEARS - n) + ' 回突破するか、完璧クリアで使えます';
+    const i = MAIN_STAGES.findIndex(s => s.id === id);
+    if (i >= 0 && (i + 1) > (this.perm.deepest || 0)) return '前回到達したところまで飛ばせます';
     return '';
   },
 
-  // スキップで得るコイン。**前に手で突破したときの最高額**をそのまま渡す
-  skipCoins(id) { return Math.round((this.perm.bestCoins && this.perm.bestCoins[id]) || 0); },
+  // **飛ばしても1コインももらえない。** チェックマークが付くだけ
+  skipCoins() { return 0; },
 
-  // 戦わずに突破扱いにする。得るものは手で突破したときと同じ
+  // 戦わずに通過する。**突破にはならない**ので、初回報酬はあとから取りに行ける
   skipStage(id) {
     if (!this.canSkip(id)) return null;
-    const coins = this.skipCoins(id);
-    this.meta.coins += coins;
-    // 前に完璧クリアまで届いていたステージは、その記録どおり完璧扱いにする
-    const perfect = !!(this.perm.bestPerfect && this.perm.bestPerfect[id]);
-    const got = this.clearStage(id, perfect);
-    const missions = this.checkMissions();
+    const rec = this.stageRec(id);
+    rec.skipped = true;
+    this.perm.deepest = Math.max(this.perm.deepest || 0, this.progressCount());
+    // 通過したら次の章へ進める（突破したときと同じ扱い）
+    const mi = MAIN_STAGES.findIndex(s => s.id === id);
+    const next = (mi >= 0) ? (MAIN_STAGES[mi + 1] || null) : null;
+    if (next && this.perm.currentStage === id) this.perm.currentStage = next.id;
     this.save();
-    return { coins, perfect, stageGot: got, missions, stage: STAGE_BY_ID[id] };
+    return { coins: 0, skipped: true, next, stage: STAGE_BY_ID[id] };
   },
 
   stageUnlocked(id) {
@@ -234,7 +259,7 @@ const Game = {
     if (def.experimental) return true;
     const i = MAIN_STAGES.findIndex(s => s.id === id);
     if (i <= 0) return true;
-    return this.stageRec(MAIN_STAGES[i - 1].id).cleared;
+    return this.stagePassed(MAIN_STAGES[i - 1].id);   // スキップでも次へ行ける
   },
 
   // perfect = 1体も抜けさせずに5ウェーブ凌いだ（完璧クリア）
@@ -244,7 +269,7 @@ const Game = {
     const firstPerfect = perfect && !rec.perfect;
     rec.cleared = true;
     if (perfect) rec.perfect = true;
-    this.perm.deepest = Math.max(this.perm.deepest || 0, this.clearedCount());
+    this.perm.deepest = Math.max(this.perm.deepest || 0, this.progressCount());
     const def = STAGE_BY_ID[id];
     // 次のステージも本編の並びで探す（実験用へは送らない）
     const mi = MAIN_STAGES.findIndex(s => s.id === id);
@@ -929,11 +954,11 @@ const Game = {
   },
 
   // ---------- 転生 ----------
-  canPrestige() { return this.clearedCount() >= BAL.prestigeMinStages; },
+  canPrestige() { return this.progressCount() >= BAL.prestigeMinStages; },
 
   prestige() {
     if (!this.canPrestige()) return null;
-    const cleared = this.clearedCount();
+    const cleared = this.progressCount();
     const mods = Skill.mods(this.meta, this.perm);
     // **回数を先に増やす。** 遺物パックは「転生1回」で解放されるので、
     // 増やす前に配ると、初回転生の報酬である遺物パックが自分自身の条件で弾かれる
