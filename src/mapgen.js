@@ -204,6 +204,41 @@ const MapGen = {
   },
 
   // 六角どうしの隣（flat-top・列が奇数かどうかでずれる）
+  // 画素の位置から、そこに乗っている六角セルを返す。
+  //   **設置がハニカムになったので要る。**（ユーザー 2026-09-23）
+  //   > 「ハニカムの壁の中のデザインをハニカムにしろという指示、これは同じく
+  //   >   **武器設置時の置ける場所もハニカムにする**という、システム面での変更でもあります」
+  //   中心の式（`hexAt`）を逆に解いて列の当たりを付け、
+  //   前後の列と上下の行の候補だけを `inHex` で試す（総当たりにしない）
+  hexPick(x, y) {
+    const R = this.HEX_R, dx = R * 1.5, dy = Math.sqrt(3) * R;
+    const c0 = Math.round(x / dx);
+    let best = null, bestD = Infinity;
+    for (let c = c0 - 1; c <= c0 + 1; c++) {
+      const off = (c & 1) ? dy / 2 : 0;
+      const r0 = Math.round((y - off) / dy);
+      for (let r = r0 - 1; r <= r0 + 1; r++) {
+        const h = this.hexAt(c, r);
+        const d = (x - h.x) * (x - h.x) + (y - h.y) * (y - h.y);
+        if (d < bestD && this.inHex(x - h.x, y - h.y, R)) { bestD = d; best = { c, r }; }
+      }
+    }
+    // **縁で取りこぼさない。** `inHex` は境界ちょうどで falsy になることがあるので、
+    //   どれにも入らなかったときは一番近い中心の六角を返す
+    if (!best) {
+      for (let c = c0 - 1; c <= c0 + 1; c++) {
+        const off = (c & 1) ? dy / 2 : 0;
+        const r0 = Math.round((y - off) / dy);
+        for (let r = r0 - 1; r <= r0 + 1; r++) {
+          const h = this.hexAt(c, r);
+          const d = (x - h.x) * (x - h.x) + (y - h.y) * (y - h.y);
+          if (d < bestD) { bestD = d; best = { c, r }; }
+        }
+      }
+    }
+    return best;
+  },
+
   hexNbr(c, r) {
     return (c & 1)
       ? [[c, r - 1], [c, r + 1], [c - 1, r], [c - 1, r + 1], [c + 1, r], [c + 1, r + 1]]

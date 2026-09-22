@@ -95,9 +95,12 @@ const Render = {
     };
   },
 
+  //   `c,r` はタイル（経路・着弾点むけ）、`hc,hr` は**六角セル**（設置むけ）。
+  //   設置がハニカムになったので、同じタップから両方返す（ユーザー 2026-09-23）
   tileAt(clientX, clientY) {
     const p = this.toStage(clientX, clientY);
-    return { c: Math.floor(p.x / TILE), r: Math.floor(p.y / TILE), x: p.x, y: p.y };
+    const h = MapGen.hexPick(p.x, p.y) || { c: 0, r: 0 };
+    return { c: Math.floor(p.x / TILE), r: Math.floor(p.y / TILE), hc: h.c, hr: h.r, x: p.x, y: p.y };
   },
 
   draw(run) {
@@ -200,17 +203,16 @@ const Render = {
     }
     const rng = def.base.range * 1.6;      // ツリーで伸びるぶんを見込む
     const rng2 = rng * rng;
-    const out = new Uint8Array(st.cols * st.rows);
-    for (let r = 0; r < st.rows; r++) {
-      for (let c = 0; c < st.cols; c++) {
-        if (!st.buildable(c, r)) continue;
-        const g = st.center(c, r);
-        for (const p of path) {
-          const dx = p.x - g.x, dy = p.y - g.y;
-          if (dx * dx + dy * dy > rng2) continue;
-          if (Combat.losBlocked(st, g.x, g.y, p.x, p.y)) continue;
-          out[r * st.cols + c] = 1; break;
-        }
+    // **六角セル単位で持つ。**（設置がハニカムになったので・2026-09-23）
+    //   前はタイルの配列だったが、光らせる単位が六角になったので合わせる
+    const out = {};
+    for (const h of st.hexCells()) {
+      const g = st.hexCenter(h.c, h.r);
+      for (const p of path) {
+        const dx = p.x - g.x, dy = p.y - g.y;
+        if (dx * dx + dy * dy > rng2) continue;
+        if (Combat.losBlocked(st, g.x, g.y, p.x, p.y)) continue;
+        out[h.c + ',' + h.r] = 1; break;
       }
     }
     cache[def.id] = out;
@@ -244,15 +246,29 @@ const Render = {
     //   **毎フレーム数えない。**武器ごとに1回だけ作ってステージに持たせる
     //   （全マス × 全通路 × 射線で、素直に回すと1フレーム百万回になる）
     const sees = this.losMap(st, def);
-    for (let r = 0; r < st.rows; r++) {
-      for (let c = 0; c < st.cols; c++) {
-        if (!def || !Game.canPlaceAt(def, c, r, UI.moving || null)) continue;
-        const ok = !sees || sees[r * st.cols + c];
+    // **六角で光らせる。**（ユーザー 2026-09-23）
+    //   壁がハニカムなのに、置ける場所だけ四角いタイルで光っていた。
+    //   同じ盤の上で作りが2つあると、**どこに置けるのかが読めない**
+    const R = MapGen.HEX_R - 3;
+    const hexPath = (x, y) => {
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) {
+        const a = Math.PI / 3 * i;
+        const px = x + Math.cos(a) * R, py = y + Math.sin(a) * R;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+    };
+    if (def) {
+      for (const h of st.hexCells()) {
+        if (!Game.canPlaceAt(def, h.c, h.r, UI.moving || null)) continue;
+        const ok = !sees || sees[h.c + ',' + h.r];
         ctx.fillStyle = ok ? 'rgba(255,170,50,' + pulse.toFixed(3) + ')'
                            : 'rgba(120,132,152,0.10)';
-        // その武器が埋めるマスをまとめて光らせる＝**置く前に広さが分かる**
-        for (const t of Game.footTiles(def, c, r)) {
-          ctx.fillRect(t.c * TILE + 2, t.r * TILE + 2, TILE - 4, TILE - 4);
+        // その武器が埋めるセルをまとめて光らせる＝**置く前に広さが分かる**
+        for (const t of Game.footTiles(def, h.c, h.r)) {
+          const p = st.hexCenter(t.c, t.r);
+          hexPath(p.x, p.y); ctx.fill();
         }
       }
     }

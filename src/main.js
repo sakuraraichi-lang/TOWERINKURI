@@ -171,10 +171,13 @@ const Main = {
   //   置いたものをタップ → 選択（向き・射界はバーで決める）
   //   「配置を変える」 → また光る → タップで移動
   bindPlacement(cv) {
+    // **六角セルの上にいるユニット。**（ユーザー 2026-09-23 で設置がハニカムになった）
+    //   2セル使う武器は、**どちらの側を押しても選べる**ようにする
+    //   （前は基準セルだけ見ていたので、半分は押しても反応しなかった）
     const unitAt = (c, r) => {
       const run = Game.run;
       if (!run) return null;
-      return run.units.find(u => u.c === c && u.r === r) || null;
+      return run.units.find(u => Game.tilesOf(u).some(t => t.c === c && t.r === r)) || null;
     };
     const no = (msg) => { Snd.deny(); UI.toastMsg(msg, '#ff8080'); };
 
@@ -203,7 +206,7 @@ const Main = {
       const run = Game.run;
       if (!run || run.over) return;
       const t = Render.tileAt(e.clientX, e.clientY);
-      const onTile = unitAt(t.c, t.r);
+      const onTile = unitAt(t.hc, t.hr);
 
       // 着弾点を指している最中。**盤面のどこでも指せる**（壁の上でもよい）
       if (UI.aiming) {
@@ -221,8 +224,8 @@ const Main = {
       if (UI.moving) {
         if (!Game.canBuild()) { no('戦闘中は動かせません'); return; }
         if (onTile) { no('そこには別のユニットがいます'); return; }
-        if (!run.stage.buildable(t.c, t.r)) { no('地面にしか置けません'); return; }
-        Game.moveUnit(UI.moving, t.c, t.r);
+        if (!run.stage.hexBuildable(t.hc, t.hr)) { no('地面にしか置けません'); return; }
+        Game.moveUnit(UI.moving, t.hc, t.hr);
         Snd.place();
         UI.moving = null;
         Game.save();
@@ -234,8 +237,8 @@ const Main = {
       // 新しく置く
       if (UI.placingType && !onTile) {
         if (!Game.canBuild()) { no('戦闘中は配置を変えられません'); return; }
-        if (!run.stage.buildable(t.c, t.r)) { no('地面にしか置けません'); return; }
-        const u = Game.placeUnit(UI.placingType, t.c, t.r);
+        if (!run.stage.hexBuildable(t.hc, t.hr)) { no('地面にしか置けません'); return; }
+        const u = Game.placeUnit(UI.placingType, t.hc, t.hr);
         if (!u) { no('そこには置けません'); return; }
         Snd.place();
         Game.save();

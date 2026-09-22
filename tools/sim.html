@@ -165,11 +165,13 @@ function aimField(st, range, arc, thru) {
   }
 
   const N = 48;                       // 向きの候補（7.5度刻み）
+  // **候補は六角セル。**（2026-09-23・設置がハニカムになった）
+  //   タイルで回すと、本体と別の場所に置く測定器になる
   const out = [];
-  for (let r = 0; r < st.rows; r++) {
-    for (let c = 0; c < st.cols; c++) {
-      if (!st.buildable(c, r)) continue;
-      const g = st.center(c, r);
+  {
+    for (const h of st.hexCells()) {
+      const c = h.c, r = h.r;
+      const g = st.hexCenter(c, r);
       const seen = [];
       for (const t of path) {
         const dx = t.p.x - g.x, dy = t.p.y - g.y;
@@ -557,7 +559,8 @@ function arcCandidates() {
 
 // 近似評価：その地点・その向きで、幅ごとの「通路の重み × 集弾率」
 function arcScores(st, c, r, face, range, _arcDef) {
-  const g = st.center(c, r);
+  // (c,r) は六角セル（2026-09-23）
+  const g = st.hexCenter(c, r);
   const seen = [];
   let maxD = 1;
   for (let rr = 0; rr < st.rows; rr++) for (let cc = 0; cc < st.cols; cc++) {
@@ -630,10 +633,11 @@ function seenField(st, range) {
     if (d > maxD) maxD = d;
     path.push({ p: st.center(c, r), d, i: st.idx(c, r) });
   }
+  // **候補は六角セル。**（2026-09-23・設置がハニカムになった）
   const out = [];
-  for (let r = 0; r < st.rows; r++) for (let c = 0; c < st.cols; c++) {
-    if (!st.buildable(c, r)) continue;
-    const g = st.center(c, r);
+  for (const h of st.hexCells()) {
+    const c = h.c, r = h.r;
+    const g = st.hexCenter(c, r);
     const seen = [];
     for (const t of path) {
       const dx = t.p.x - g.x, dy = t.p.y - g.y;
@@ -740,17 +744,20 @@ function replaceUnits(run) {
 // ゲーム側の話なのか、この配置のせいなのかを同じ条件で見比べるため
 function autoPlaceHug(run) {
   const st = run.stage;
+  // **候補は六角セル。**（2026-09-23・設置がハニカムになった）
   const cand = [];
-  for (let r = 0; r < st.rows; r++) {
-    for (let c = 0; c < st.cols; c++) {
-      if (!st.buildable(c, r)) continue;
-      let near = Infinity;
-      for (const [dc, dr] of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]) {
-        const nc = c + dc, nr = r + dr;
-        if (st.walkable(nc, nr)) near = Math.min(near, st.dist[st.idx(nc, nr)]);
-      }
-      if (near < Infinity) cand.push({ c, r, near });
+  for (const h of st.hexCells()) {
+    const g = st.hexCenter(h.c, h.r);
+    // その六角の中心からいちばん近い通路タイルの「コアまでの距離」を見る
+    let near = Infinity;
+    for (let rr = 0; rr < st.rows; rr++) for (let cc = 0; cc < st.cols; cc++) {
+      if (!st.walkable(cc, rr)) continue;
+      const p = st.center(cc, rr);
+      if (Math.hypot(p.x - g.x, p.y - g.y) > TILE * 1.6) continue;
+      const d = st.dist[st.idx(cc, rr)];
+      if (d < near) near = d;
     }
+    if (near < Infinity) cand.push({ c: h.c, r: h.r, near });
   }
   cand.sort((a, b) => a.near - b.near);
   if (!cand.length) return;

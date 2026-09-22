@@ -156,6 +156,14 @@ const Game = {
     for (const id of Object.keys(this.perm.collection)) if (!CARDS[id]) delete this.perm.collection[id];
     if (!this.perm.stages) this.perm.stages = {};
     if (!this.perm.placements) this.perm.placements = {};
+    // **設置がハニカムになった（2026-09-23）ので、四角のタイルで保存された配置は捨てる。**
+    //   セルの座標系が変わったため、古い (c,r) を六角として読むと
+    //   まったく違う場所に置かれる。**セーブ全体は消さない**
+    //   （進捗・カード・遺物はそのまま。置き直してもらうだけ）
+    if (!this.perm.hexPlace) {
+      this.perm.placements = {};
+      this.perm.hexPlace = 1;
+    }
     if (!this.perm.heat) this.perm.heat = {};
     if (!this.perm.swaps) this.perm.swaps = {};
     if (!this.perm.swapsOwned) this.perm.swapsOwned = {};
@@ -533,18 +541,21 @@ const Game = {
   //   **武器ごとに要る広さが違う。**（ユーザー 2026-09-22）
   //   回さない（形は固定）。強い武器ほど広いので、置ける場所が限られる
 
-  // その武器を (c,r) に置いたとき、実際に埋まるマス
+  // その武器を (c,r) に置いたとき、実際に埋まる**六角セル**
+  //   `def.foot` は隣の向きの番号（`MapGen.hexNbr`）。null なら1セルだけ
   footTiles(def, c, r) {
-    const f = (def && def.foot) || [[0, 0]];
-    const out = [];
-    for (const [dc, dr] of f) out.push({ c: c + dc, r: r + dr });
+    const out = [{ c, r }];
+    const d = def && def.foot;
+    if (d === null || d === undefined) return out;
+    const n = MapGen.hexNbr(c, r)[d];
+    if (n) out.push({ c: n[0], r: n[1] });
     return out;
   },
 
-  // そのユニットがいま埋めているマス
+  // そのユニットがいま埋めているセル
   tilesOf(u) { return this.footTiles(u.def, u.c, u.r); },
 
-  // (c,r) を基準にその武器を置けるか。**全部のマスが地面で、空いていること**
+  // (c,r) を基準にその武器を置けるか。**全部のセルが地面で、空いていること**
   canPlaceAt(def, c, r, ignore) {
     const run = this.run;
     if (!run) return false;
@@ -554,17 +565,17 @@ const Game = {
       for (const t of this.tilesOf(o)) taken[t.c + ',' + t.r] = 1;
     }
     for (const t of this.footTiles(def, c, r)) {
-      if (!run.stage.buildable(t.c, t.r)) return false;
+      if (!run.stage.hexBuildable(t.c, t.r)) return false;
       if (taken[t.c + ',' + t.r]) return false;
     }
     return true;
   },
 
-  // 見た目の中心（広い武器は、埋めたマスの真ん中に描く・撃つ）
+  // 見た目の中心（広い武器は、埋めたセルの真ん中に描く・撃つ）
   footCenter(st, def, c, r) {
     const ts = this.footTiles(def, c, r);
     let sx = 0, sy = 0;
-    for (const t of ts) { const p = st.center(t.c, t.r); sx += p.x; sy += p.y; }
+    for (const t of ts) { const p = st.hexCenter(t.c, t.r); sx += p.x; sy += p.y; }
     return { x: sx / ts.length, y: sy / ts.length };
   },
 
@@ -595,17 +606,22 @@ const Game = {
   },
 
   // 置いた地点から見て、一番近い通路の方向。置いた瞬間に自動で向く
+  //   **(c,r) は六角のセル、通路はタイル。**単位が違うので、
+  //   画素に直してから比べる（前はセル番号どうしを引き算していて、
+  //   六角に変えた瞬間にあらぬ方向を向くようになる）
   defaultFacing(st, c, r) {
+    const p = st.hexCenter(c, r);
     let best = null, bd = 1e9;
     for (let rr = 0; rr < st.rows; rr++) {
       for (let cc = 0; cc < st.cols; cc++) {
         if (!st.walkable(cc, rr)) continue;
-        const d = (cc - c) * (cc - c) + (rr - r) * (rr - r);
-        if (d < bd) { bd = d; best = { c: cc, r: rr }; }
+        const q = st.center(cc, rr);
+        const d = (q.x - p.x) * (q.x - p.x) + (q.y - p.y) * (q.y - p.y);
+        if (d < bd) { bd = d; best = q; }
       }
     }
     if (!best) return -Math.PI / 2;
-    return Math.atan2(best.r - r, best.c - c);
+    return Math.atan2(best.y - p.y, best.x - p.x);
   },
 
   // ---------- ユニットの設置・撤去・調整 ----------
@@ -780,7 +796,7 @@ const Game = {
       const ts = this.footTiles(def0, p.c, p.r);
       let ok = true;
       for (const t of ts) {
-        if (!run.stage.buildable(t.c, t.r) || taken[t.c + ',' + t.r]) { ok = false; break; }
+        if (!run.stage.hexBuildable(t.c, t.r) || taken[t.c + ',' + t.r]) { ok = false; break; }
       }
       if (!ok) continue;
       used[p.w] = (used[p.w] || 0) + 1;

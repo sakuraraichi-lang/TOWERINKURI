@@ -1051,6 +1051,76 @@ const Stage = {
       center: (c, r) => ({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2 }),
       // 置けるのは地面だけ（通路・出現口・コア・障害物には置けない）
       buildable: (c, r) => (c >= 0 && r >= 0 && c < cols && r < rows && grid[r][c] === '#'),
+
+      // ---------- 設置は六角（ハニカム）----------
+      //
+      //   **ユーザー 2026-09-23**
+      //   > 「ハニカムの壁の中のデザインをハニカムにしろという指示、これは同じく
+      //   >   **武器設置時の置ける場所もハニカムにする**という、
+      //   >   システム面での変更でもあります、必ず着手するように」
+      //
+      //   絵は六角なのに**置ける場所だけ四角のタイル**だったので、
+      //   ハニカムの壁の上に四角い光が並ぶ食い違いが出ていた。
+      //   **セルの座標系を六角に差し替える。**
+      //   経路探索（BFS）と押し合いはタイルのまま。触るのは「どこに置けるか」だけ
+      //
+      //   **置ける六角の決め方：中心が `#` タイルに乗っていること。**
+      //   通路の六角は、焼くときに覆ったタイルを '.' にしているので中心が '.' になる。
+      //   ＝ この1本の規則で、**絵に出ている壁の六角とちょうど一致する**
+      //   （手で書いたマップでも同じ規則で動く）
+      hexCenter: (c, r) => MapGen.hexAt(c, r),
+      hexBuildable(c, r) {
+        if (!this._hexOk) {
+          const ok = {}, R = MapGen.HEX_R;
+          // **絵に出ている壁の六角と、まったく同じ集合を使う。**（2026-09-23）
+          //   最初は「中心が `#` タイルに乗っている」で判定したが、
+          //   **描く壁とずれた**（第20章で37セル、第30章で21セルが
+          //   「通路として描かれているのに置ける」状態になった）。
+          //   原因は焼き方で、六角は「タイルの中心が六角に入るか」でタイルを塗るので、
+          //   **六角の中心タイルが塗られないことがある。**
+          //   通路の六角（`vec.hexes`）を除いた残り、という
+          //   `Render.wallHexes` と同じ引き算にすれば、必ず一致する
+          const used = {};
+          const v = this.vec;
+          if (v) for (const h of v.hexes) used[h.c + ',' + h.r] = 1;
+          const g = MapGen.hexRange(0, 0, cols * TILE, rows * TILE, 0);
+          for (let cc = g.c0; cc <= g.c1; cc++) {
+            for (let rr = g.r0; rr <= g.r1; rr++) {
+              const h = MapGen.hexAt(cc, rr);
+              // **盤の縁で切れている六角には置かせない。**
+              //   中心が盤の中にあるだけだと、角の六角（中心が 0,0）が通ってしまい、
+              //   置いた武器が半分はみ出して描かれる
+              const m = R * 0.5;
+              if (h.x < m || h.y < m || h.x > cols * TILE - m || h.y > rows * TILE - m) continue;
+              if (v) {
+                if (used[cc + ',' + rr]) continue;            // 通路の六角には置けない
+              } else {
+                // 手で書いたマップには六角の情報が無いので、中心のタイルで見る
+                const tc = (h.x / TILE) | 0, tr = (h.y / TILE) | 0;
+                if (grid[tr][tc] !== '#') continue;
+              }
+              // コアと出現口の上には置かせない（六角がまたいでいることがある）
+              const tc2 = (h.x / TILE) | 0, tr2 = (h.y / TILE) | 0;
+              const ch = grid[tr2][tc2];
+              if (ch === 'C' || ch === 'S') continue;
+              ok[cc + ',' + rr] = 1;
+            }
+          }
+          this._hexOk = ok;
+        }
+        return !!this._hexOk[c + ',' + r];
+      },
+      // 置ける六角を全部返す（設置の光と、測定器の自動配置が使う）
+      hexCells() {
+        this.hexBuildable(0, 0);            // 作らせる
+        const out = [];
+        for (const k in this._hexOk) {
+          const p = k.split(',');
+          out.push({ c: +p[0], r: +p[1] });
+        }
+        return out;
+      },
+      hexPick: (x, y) => MapGen.hexPick(x, y),
       // このタイルから次に向かうべきタイルの中心（無ければコア）
       flowTo(c, r) {
         const n = next[idx(c, r)];
