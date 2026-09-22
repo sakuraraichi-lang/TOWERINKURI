@@ -1448,6 +1448,7 @@ const UI = {
             : c.kind === 'synergy' ? 'シナジー'
             : (c.weapon ? WEAPONS[c.weapon].name + ' 強化' : '全体強化'),
         rank: Game.cardRank(id), rankMul: c.noRank ? 1 : Game.rankMul(id),
+        owned: Game.own(id), totuNext: c.noRank ? null : Game.cardTotuNext(id),
         pips: { have: run.cards[id] || 0, limit: Game.stackLimit(id) },
         hot: BAL.rarity[c.rarity].glow >= 2,
       });
@@ -1529,7 +1530,7 @@ const UI = {
     el.style.setProperty('--ac', o.color || 'var(--acc)');
     el.innerHTML =
       (o.isNew ? '<span class="chnew">NEW</span>' : '') +
-      this.rankBadge(o.rank, o.rankMul) +
+      this.rankBadge(o.rank, o.rankMul, o.owned, o.totuNext) +
       '<div class="chname">' + o.name + '</div>' +
       '<div class="chart">' + o.icon + '</div>' +
       '<div class="chdesc">' + o.desc + '</div>' +
@@ -1541,16 +1542,24 @@ const UI = {
 
   // ---- ダブり・所持・選択を **絵で** 示す部品（文は増やさない） ----
   //
-  //   右上の菱形 … 手持ちの枚数＝ランク。1枚のときは出さない（出すと常に付いて意味が薄れる）
+  //   右上の菱形 … **凸の数**（4枚で1凸・8枚で2凸・16枚で3凸）。0凸のときは出さない。
+  //                 何枚で次の凸かも添える（枚数＝ランクではなくなったので）
   //   下の丸     … この出撃で何枚積んだか。塗り＝積み済み、白抜き＝いま押すと埋まる枠
   //   倍率を数字で添えるのは、説明文の「×1.32」が実際と食い違うのを防ぐため。
   //   説明文そのものは書き換えない（代償や上限は倍率が乗らないので、嘘になる）
-  rankBadge(rank, mul) {
-    if (!rank || rank <= 1) return '';
-    const n = Math.min(rank, 5);
+  rankBadge(rank, mul, owned, next) {
+    const totu = (rank || 1) - 1;
+    // 0凸でも「あと何枚で1凸か」は出す。**枚数が増えても何も起きない**のを
+    // 黙っていると、壊れているように見える
+    if (totu <= 0) {
+      if (!owned || !next) return '';
+      return '<span class="chrank dim"><u>あと' + (next - owned) + '枚で1凸</u></span>';
+    }
+    const n = Math.min(totu, 5);
     // ランクで伸びないカードは倍率を出さない（×1.00 と出すのは嘘に近い）
     const m = (mul || 1) > 1.0001 ? '<b>×' + mul.toFixed(2) + '</b>' : '';
-    return '<span class="chrank">' + '<i></i>'.repeat(n) + (rank > 5 ? '<u>+</u>' : '') + m + '</span>';
+    const nx = next ? '<u>あと' + (next - owned) + '枚</u>' : '';
+    return '<span class="chrank">' + '<i></i>'.repeat(n) + (totu > 5 ? '<u>+</u>' : '') + m + nx + '</span>';
   },
   stackPips(p) {
     const lim = Math.min(p.limit, 8);

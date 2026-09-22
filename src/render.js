@@ -352,20 +352,26 @@ const Render = {
 
   // 炎の舌。**扇1枚ではなく、長さの違う舌を重ねて「噴いている」形にする**
   //   `f.seed` は発射ごとに固定なので、1回の噴射のあいだ形が暴れない
-  flameCone(ctx, f, k) {
+  flameCone(ctx, f, k, glare) {
     const n = 7;
-    const fade = 1 - k;
+    // **長さと広がりに天井を置く。**（2026-09-22）
+    //   射程を伸ばすカードを積むと f.r が跳ね上がり、
+    //   扇1枚が盤ぜんぶを覆って加算で白飛びしていた。
+    //   いま伸ばす手は消したが、**描く側でも止める**（同じ事故を二度起こさない）
+    const R = Math.min(f.r, BAL.fxConeMax || 260);
+    const ARC = Math.min(f.arc, BAL.fxConeArcMax || 0.9);
+    const fade = (1 - k) * (glare === undefined ? 1 : glare);
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < n; i++) {
       // 舌ごとの向きと長さ。seed と i から決める（毎フレーム同じ）
       const t = (i + 0.5) / n;
       const rnd = ((f.seed + i * 9781) % 997) / 997;
-      const a = f.a + (t * 2 - 1) * f.arc;
+      const a = f.a + (t * 2 - 1) * ARC;
       // 中央ほど長い（噴流の芯）。k が進むと伸びて薄れる＝噴き出して散る
       const core = 1 - Math.abs(t * 2 - 1) * 0.55;
-      const len = f.r * core * (0.62 + rnd * 0.38) * (0.65 + 0.5 * k);
-      const halfW = f.arc / n * (1.5 + rnd * 0.9);
+      const len = R * core * (0.62 + rnd * 0.38) * (0.65 + 0.5 * k);
+      const halfW = ARC / n * (1.5 + rnd * 0.9);
       const g = ctx.createLinearGradient(f.x, f.y, f.x + Math.cos(a) * len, f.y + Math.sin(a) * len);
       g.addColorStop(0, 'rgba(255,250,214,' + (0.55 * fade) + ')');
       g.addColorStop(0.35, 'rgba(255,196,64,' + (0.42 * fade) + ')');
@@ -583,10 +589,14 @@ const Render = {
   //     酸 … ほとんど動かず、縁だけ泡立つ＝たまり
   fields(ctx, run) {
     ctx.save();
+    // **火の海は加算なので、重なると白飛びする。**（2026-09-22・フラッシュ対策）
+    //   枚数で薄める。半径にも天井を置く
+    const glare = this.glareScale(run);
+    const RMAX = BAL.fxFieldMax || 170;
     for (const f of run.fields) {
       const k = f.t / f.dur;
-      const fade = 1 - k * 0.65;
       const fire = f.kind === 'fire';
+      const fade = (1 - k * 0.65) * (fire ? glare : 1);
       ctx.globalCompositeOperation = fire ? 'lighter' : 'source-over';
       const lobes = 6;
       for (let i = 0; i < lobes; i++) {
@@ -594,9 +604,11 @@ const Render = {
         // 種類ごとの動き
         const spin = fire ? 0 : f.t * 0.5;
         const a = base + spin;
-        const rad = f.r * (0.34 + 0.30 * ((i * 37) % 11) / 11);
-        const dist = f.r * (0.18 + 0.36 * ((i * 53) % 7) / 7) * (fire ? 1 : 1 + k * 0.25);
-        const wob = fire ? Math.sin(f.t * 9 + i) * f.r * 0.10 : 0;
+        // 半径に天井。**巨大な場が重なると、加算で盤ごと白くなる**
+        const FR = Math.min(f.r, RMAX);
+        const rad = FR * (0.34 + 0.30 * ((i * 37) % 11) / 11);
+        const dist = FR * (0.18 + 0.36 * ((i * 53) % 7) / 7) * (fire ? 1 : 1 + k * 0.25);
+        const wob = fire ? Math.sin(f.t * 9 + i) * FR * 0.10 : 0;
         const x = f.x + Math.cos(a) * dist;
         const y = f.y + Math.sin(a) * dist - (fire ? Math.abs(wob) : 0);
         const g = ctx.createRadialGradient(x, y, 0, x, y, rad + Math.abs(wob));
@@ -1275,7 +1287,22 @@ const Render = {
     ctx.globalAlpha = 1;
   },
 
+  // **加算合成が重なると画面が白飛びする。**（ユーザー報告 2026-09-22・写真あり）
+  //   > 「まともにゲームが出来ないフラッシュになります」
+  //
+  //   範囲を広げるカード／スキルを消して原因そのものは断ったが、
+  //   **点滅は目に障る事故なので、描画側にも歯止めを置く。**
+  //   1フレームに出ている加算のエフェクトの数で、明るさを割る。
+  //   3枚までは等倍、それ以上は枚数の平方根で薄める（重ねても総量が増えない）
+  glareScale(run) {
+    let n = 0;
+    for (const f of run.fx) if (f.type === 'cone') n++;
+    for (const f of run.fields) if (f.kind === 'fire') n++;
+    return n <= 3 ? 1 : Math.sqrt(3 / n);
+  },
+
   effects(ctx, run) {
+    const glare = this.glareScale(run);
     for (const f of run.fx) {
       const k = f.t / f.life;
       if (f.type === 'boom') {
@@ -1301,7 +1328,7 @@ const Render = {
         //   前は扇を1枚、放射グラデーションで塗っていただけだった。
         //   **炎の舌を何本か、長さを変えて重ねる。**
         //   根元は白熱、先は赤から煙へ。加算合成で重なりが明るくなる
-        this.flameCone(ctx, f, k);
+        this.flameCone(ctx, f, k, glare);
       } else if (f.type === 'slash') {
         // **斬撃を、太さの変わらない円弧1本で描いていた。**（ユーザー 2026-09-22）
         //   刃は真ん中が一番深く入り、両端へ抜けていく。三日月の帯にする

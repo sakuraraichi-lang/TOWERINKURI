@@ -333,6 +333,8 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .chcard .chrank i{width:5px;height:5px;background:var(--ac);transform:rotate(45deg);
   box-shadow:0 0 4px var(--ac);}
 .chcard .chrank u{text-decoration:none;font-size:8px;color:var(--ac);line-height:1;}
+/* 0凸のときの「あと◯枚で1凸」。**控えめに出す**（まだ何も起きていないので） */
+.chcard .chrank.dim u{color:#7b8698;}
 .chcard .chrank b{font-size:9px;font-weight:900;color:var(--ac);line-height:1;margin-left:1px;}
 /* 下の丸＝この出撃で積んだ枚数。白抜きの1つが「いま押すと埋まる枠」 */
 .chpip{display:flex;gap:4px;justify-content:center;margin-top:7px;}

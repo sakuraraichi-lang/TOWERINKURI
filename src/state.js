@@ -323,16 +323,37 @@ const Game = {
   //   狙っていない方向へビルドが勝手に寄るのを止めるため
   cardWeight() { return 1; },
 
-  // ダブりで上がるランク。**1枚目がランク1。** 同じカードを重ねるほど効果が伸びる。
-  //   効果量は CARDS[].apply が rankMul を掛けて使う
-  cardRank(cardId) { return Math.max(1, this.own(cardId)); },
+  // ダブりで上がるランク（凸）。**1枚被っただけでは上がらない。**
+  //
+  //   **ユーザー指示（2026-09-22）**
+  //   > 「現在カードが被った時に性能が上がるシステムですが、
+  //   >   **一枚被っただけでは性能が上がらないようにします、
+  //   >   4枚で1凸、8枚で2凸、16枚で3凸**、というようにします、
+  //   >   これの理由は**1章クリア転生連打でカード重ねるのが最強**になっているから」
+  //
+  //   必要枚数は倍々：4 / 8 / 16 / 32 / 64 …
+  //     1〜3枚 … 0凸（等倍）
+  //     4〜7枚 … 1凸   ／ 8〜15枚 … 2凸   ／ 16〜31枚 … 3凸 …
+  //   前は「1枚増えるごとに1ランク」だったので、
+  //   浅い章を周回して枚数を稼ぐのがそのまま最強手になっていた
+  cardTotu(cardId) {
+    const n = this.own(cardId);
+    if (n < BAL.totuBase) return 0;
+    return Math.floor(Math.log2(n / BAL.totuBase)) + 1;
+  },
+  // 次の凸に要る枚数（画面用）。これ以上無いときは null
+  cardTotuNext(cardId) {
+    const t = this.cardTotu(cardId);
+    return BAL.totuBase * Math.pow(2, t);
+  },
+  cardRank(cardId) { return this.cardTotu(cardId) + 1; },
 
   // ランクごとの効果倍率。**1枚目は等倍。** 1枚増えるごとに +12%
   //   累乗にしないのは、上限なしの累乗が必ず壊れるから（集金効率の事故）
   rankMul(cardId) {
     // 伸ばす数字を持たないカード（noRank）は、何枚あっても等倍
     if (CARDS[cardId] && CARDS[cardId].noRank) return 1;
-    return 1 + 0.12 * (this.cardRank(cardId) - 1);
+    return 1 + BAL.totuStep * this.cardTotu(cardId);
   },
 
   // ---------- カードの効果量に、ランクを通す ----------
