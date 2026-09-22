@@ -914,6 +914,22 @@ const Stage = {
       for (const row of BAL.boardByDepth) { if (d < row[0]) { b = row; break; } }
       if (b[1] !== MapGen.COLS || b[2] !== MapGen.ROWS) base = { cols: b[1], rows: b[2] };
     }
+    // **深い章はブロック式（指を放射状に撒いて、隙間を道にする）で作る。**
+    //   折れ線で彫ると彫り残しが広場として残る、というのがユーザーの指摘だった
+    //   （2026-09-22「ゲームに関与してない広場がほとんどを占めているマップとかさ」）
+    if (BAL.blockFromDepth !== undefined && d >= BAL.blockFromDepth) {
+      base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, {
+        style: 'block',
+        gap: BAL.blockGap, fingerMin: BAL.blockFingerMin,
+        fingerMax: BAL.blockFingerMax, chamber: BAL.blockChamber,
+        // **通路の量の帯を、ブロック式の専用のものに差し替える。**
+        //   既定の帯（折れ線用）は「道は彫るもの＝盤の3〜5割」という前提で置いてある。
+        //   ブロック式は隙間ぜんぶが道なので 55〜70% になり、**上限に当たって全部落ちる**
+        //   （実測 2026-09-22：第19〜24章が1枚も通らず、盤の大きさだけの形に落ちていた）。
+        //   単位は「15×21 の盤あたりのタイル数」なので、315 × 割合
+        roadMin: BAL.blockRoadMin, roadMax: BAL.blockRoadMax,
+      });
+    }
     const own = (BAL.mapShape && BAL.mapShape[idx + 1]) || null;
     const shape = (base || own) ? Object.assign({}, base, own) : null;
     const m = MapGen.build(((seed * 2654435761) ^ ((idx + 1) * 40503) ^ (roll * 2246822519)) >>> 0, 160, d, shape);

@@ -382,6 +382,220 @@ const MapGen = {
     return Math.max(1, Math.min(6, n));
   },
 
+
+  // ---- ブロック式（指を放射状に並べる）----
+  //
+  //   **ユーザーの手書きの案をそのまま形にしたもの。**（2026-09-22）
+  //   > 「こういうステージだと実質的に分断を実現できるよね？黄色がコア、赤が敵口」
+  //   > 「今はブロック式で作ってますよね、それをハニカム式で再現してみてください」
+  //
+  //   **折れ線（lanes）と発想が逆。** 折れ線は「壁を彫って道を作る」ので、
+  //   彫り残しが広場として残る。実測でそこが致命傷だった：
+  //   > 「なんかデッドスペース多くない？ゲームに関与してない広場がほとんどを占めている」
+  //
+  //   こちらは**先に「置ける塊（指）」を撒いて、残り全部を道にする。**
+  //   塊どうしの隙間が道になるので、**道から遠い地面が構造上できない。**
+  //   実測（4枚・各1シード）：通路まで2マス以内の地面が **99〜100%**
+  //   （折れ線の盤は 62〜76%）。
+  //
+  //   **指はコアを向ける。** 塊の長い辺を「コアから見た主な方角」に合わせると、
+  //   隙間＝道がコアへ向かう放射状になり、**方角ごとに別の道**になる。
+  //   実測：地面の 42〜54% が「ちょうど1本の道だけを見張れる場所」
+  //   （折れ線の盤は 60% が「どの道も見張れない場所」だった）。
+  //   ＝ 火力を1か所に集めても他の方角が素通りになる ＝ 置き方を問う形
+  //
+  //   shape で効くもの
+  //     cols/rows   … 盤の大きさ
+  //     holes       … 口の数（省くと holesFor(d)）
+  //     gap         … 塊どうしの隙間＝道の太さ（タイル・既定2）
+  //     blockThick  … 指の太さ（タイル・既定2）
+  //     fingerMin/Max … 指の長さの帯（タイル・既定4〜9）
+  //     chamber     … コアの周りに空ける半径（タイル・既定3）
+  makeBlock(seed, d, shape) {
+    const rnd = this.rng(seed);
+    const cols = (shape.cols | 0) || 23, rows = (shape.rows | 0) || 31;
+    const W = cols * TILE, H = rows * TILE;
+    const cc = cols >> 1, cr = rows >> 1;
+    const core = { x: cc * TILE + TILE / 2, y: cr * TILE + TILE / 2 };
+    const gap = shape.gap || 2;
+    const thick = shape.blockThick || (2 + ((rnd() * 2) | 0));
+    const lo = shape.fingerMin || 4, hi = shape.fingerMax || 9;
+    const chamber = shape.chamber || 3;
+
+    // ---- 1. 指を撒く ----
+    //   置く場所は乱択。**隙間 gap ぶん離れていなければ置かない**ので、
+    //   通れない詰まりが原理的にできない（道の幅は必ず gap 以上）
+    const blocks = [];
+    const fits = (x, y, w, h) => {
+      if (x < 1 || y < 1 || x + w > cols - 1 || y + h > rows - 1) return false;
+      // コアの部屋。ここを埋めると「守る中心」が読めなくなる
+      if (x - gap <= cc + chamber && cc - chamber <= x + w + gap - 1
+        && y - gap <= cr + chamber && cr - chamber <= y + h + gap - 1) return false;
+      for (const b of blocks) {
+        if (x - gap < b.x + b.w && b.x < x + w + gap
+          && y - gap < b.y + b.h && b.y < y + h + gap) return false;
+      }
+      return true;
+    };
+    // **撒ける数は回数ではなく「余白」で決まる。**（2026-09-22 実測）
+    //   1200回 → 9000回に増やしても塊の数は 13〜19 → 12.5〜16.2 で変わらなかった。
+    //   1つの塊は周囲に gap ぶんの余白を要求するので、実際に食う面積は
+    //   (長さ+4)×(太さ+4) ≒ 60タイル。27×37（999タイル）なら16個で埋まりきる。
+    //   **密度を上げたいなら gap か太さを触る。回数を増やしても無駄。**
+    //   （結果の地面の割合は 23×31 で45%・27×37 で42%。
+    //     そのうち通路まで2マス以内が 97〜98%）
+    const cap = Math.round((cols * rows) / 13);
+    for (let t = 0; t < 3000 && blocks.length < cap; t++) {
+      const x0 = 1 + ((rnd() * (cols - 2)) | 0), y0 = 1 + ((rnd() * (rows - 2)) | 0);
+      const dx = (x0 + 0.5) - cc, dy = (y0 + 0.5) - cr;
+      // **長い辺をコアから見た主な方角に合わせる**＝ 指がコアを指す
+      const horiz = Math.abs(dx) >= Math.abs(dy);
+      const len = lo + ((rnd() * (hi - lo + 1)) | 0);
+      const w = horiz ? len : thick, h = horiz ? thick : len;
+      const x = horiz ? (dx >= 0 ? x0 : x0 - w + 1) : x0;
+      const y = horiz ? y0 : (dy >= 0 ? y0 : y0 - h + 1);
+      if (!fits(x, y, w, h)) continue;
+      blocks.push({ x, y, w, h });
+    }
+    const solid = new Array(cols * rows).fill(0);
+    for (const b of blocks) {
+      for (let r = b.y; r < b.y + b.h; r++) for (let c = b.x; c < b.x + b.w; c++) solid[r * cols + c] = 1;
+    }
+
+    // ---- 1b. 同心の囲い（入り口をずらして重ねる）----
+    //
+    //   **指だけでは道が短すぎた。**（実測 2026-09-22・20シード）
+    //   指の隙間がそのまま道になるので格子状に抜けてしまい、
+    //   最短経路は 19×27 で中央値10、27×37 まで広げても15。要求は20。
+    //   ＝ **盤を広げても解決しない構造の問題。**
+    //   （指を同心の帯に並べて半ピッチずらす案も試したが、
+    //     対角の指を軸に沿った長方形で近似する都合で当たり判定が膨らみ、
+    //     ほとんど置けずに道率82%＝ただの広間になった。**これは失敗。**）
+    //
+    //   **囲いを重ねて、入り口を層ごとにずらす。**
+    //   敵は入り口を探して横へ回り込むので、道の幅を変えずに距離だけ伸びる。
+    //   守る側から見ると「入り口の前」が要所になり、置き場所に意味が出る
+    const rings = [];
+    {
+      const k0 = chamber + 2;
+      const stepMin = shape.ringStep || (typeof BAL !== 'undefined' && BAL.blockRingStep) || 3;
+      const doorMin = shape.doorN || (typeof BAL !== 'undefined' && BAL.blockDoorN) || 2;
+      const stepR = stepMin + ((rnd() * 3) | 0);
+      let turn = rnd() * Math.PI * 2;
+      for (let k = k0; k < Math.min(cc, cr) - 1; k += stepR) {
+        const nd = doorMin + (rnd() < 0.35 ? 1 : 0);   // 入り口の数
+        const dw = 2 + ((rnd() * 2) | 0);              // 入り口の幅
+        // **層ごとに四半周ずらす。** 外の入り口から入ると、内の入り口は
+        //   囲いの四分の一だけ横にある。そこを歩かせるぶんが距離になる
+        turn += Math.PI / 2 + (rnd() - 0.5) * 0.5;
+        const doors = [];
+        for (let q = 0; q < nd; q++) {
+          const th = turn + (q * 2 * Math.PI) / nd;
+          // 正方形の囲いの上で、その方角に当たるところ
+          const ux = Math.cos(th), uy = Math.sin(th);
+          const t = k / Math.max(Math.abs(ux), Math.abs(uy));
+          doors.push({ c: Math.round(cc + ux * t), r: Math.round(cr + uy * t), w: dw });
+        }
+        rings.push({ k, doors });
+        // 囲いを立てる
+        for (let c = cc - k; c <= cc + k; c++) {
+          for (const r of [cr - k, cr + k]) {
+            if (c < 1 || r < 1 || c >= cols - 1 || r >= rows - 1) continue;
+            solid[r * cols + c] = 1;
+          }
+        }
+        for (let r = cr - k; r <= cr + k; r++) {
+          for (const c of [cc - k, cc + k]) {
+            if (c < 1 || r < 1 || c >= cols - 1 || r >= rows - 1) continue;
+            solid[r * cols + c] = 1;
+          }
+        }
+        // 入り口を開ける。**前後1マスも一緒に空ける**（指が入り口をふさぐため）
+        for (const dr0 of doors) {
+          // **入り口の幅はきっかり w 枚。** ここを ±w にしていたら 5〜7枚の
+          //   大穴になり、囲いが囲いとして働いていなかった（実測：経路が伸びない）
+          for (let a = -((dr0.w - 1) >> 1); a <= (dr0.w >> 1); a++) {
+            for (let b = -1; b <= 1; b++) {
+              const c1 = dr0.c + (Math.abs(dr0.r - cr) === k ? a : b);
+              const r1 = dr0.r + (Math.abs(dr0.r - cr) === k ? b : a);
+              if (c1 < 0 || r1 < 0 || c1 >= cols || r1 >= rows) continue;
+              solid[r1 * cols + c1] = 0;
+            }
+          }
+        }
+      }
+    }
+
+    // ---- 2. 口を開ける ----
+    //   縁のうち「内側が道になっている」ところだけが候補。
+    //   そこから**狙った方角にいちばん近いもの**を採るので、口が盤を取り巻く
+    const nHole = Math.max(1, shape.holes ? shape.holes : this.holesFor(d, rnd));
+    const holeW = 2 + ((rnd() * 3) | 0);
+    const cand = [];
+    const push = (c, r, dc, dr) => {
+      const tiles = [];
+      for (let k = 0; k < holeW; k++) {
+        const tc = c + dc * k, tr = r + dr * k;
+        if (tc < 0 || tr < 0 || tc >= cols || tr >= rows) return;
+        // その口のタイルの「ひとつ内側」が塊だと、出た先が壁になる
+        const ic = tc + (tc === 0 ? 1 : tc === cols - 1 ? -1 : 0);
+        const ir = tr + (tr === 0 ? 1 : tr === rows - 1 ? -1 : 0);
+        if (solid[ir * cols + ic]) return;
+        tiles.push({ c: tc, r: tr });
+      }
+      const mx = (tiles[0].c + tiles[tiles.length - 1].c) / 2 * TILE + TILE / 2;
+      const my = (tiles[0].r + tiles[tiles.length - 1].r) / 2 * TILE + TILE / 2;
+      cand.push({ tiles, x: mx, y: my, ang: Math.atan2(my - core.y, mx - core.x) });
+    };
+    for (let c = 1; c + holeW <= cols - 1; c++) { push(c, 0, 1, 0); push(c, rows - 1, 1, 0); }
+    for (let r = 1; r + holeW <= rows - 1; r++) { push(0, r, 0, 1); push(cols - 1, r, 0, 1); }
+    if (!cand.length) return null;
+    const holes = [];
+    const a0 = rnd() * Math.PI * 2;
+    for (let k = 0; k < nHole; k++) {
+      const want = a0 + (k * 2 * Math.PI) / nHole;
+      let best = null, bestD = 1e9;
+      for (const q of cand) {
+        let dA = Math.abs(((q.ang - want + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
+        // 既に開けた口と重なるものは採らない
+        let bad = false;
+        for (const h of holes) {
+          if (Math.hypot(q.x - h.x, q.y - h.y) < (holeW + 2) * TILE) { bad = true; break; }
+        }
+        if (bad) continue;
+        if (dA < bestD) { bestD = dA; best = q; }
+      }
+      if (!best) break;
+      holes.push({ side: 'blk' + k, tiles: best.tiles, x: best.x, y: best.y, w: holeW });
+    }
+    if (!holes.length) return null;
+
+    // ---- 3. 六角へ焼く ----
+    //   中心が塊に乗っていない六角＝道。**そのあと六角からタイルを引き直す**ので、
+    //   絵（六角）と規則（タイル）が必ず一致する
+    const R = this.HEX_R;
+    const g0 = this.hexRange(0, 0, W, H, 0);
+    let hexes = [];
+    for (let c = g0.c0; c <= g0.c1; c++) {
+      for (let r = g0.r0; r <= g0.r1; r++) {
+        const hx = this.hexAt(c, r);
+        if (hx.x < -R || hx.y < -R || hx.x > W + R || hx.y > H + R) continue;
+        const tc = Math.max(0, Math.min(cols - 1, (hx.x / TILE) | 0));
+        const tr = Math.max(0, Math.min(rows - 1, (hx.y / TILE) | 0));
+        if (solid[tr * cols + tc]) continue;
+        hexes.push(hx);
+      }
+    }
+    hexes = this.tagZones(hexes, rnd, d);
+    const g = this.edge(this.bake([], core, holes, W, H, hexes));
+
+    return {
+      rows: g.map(r => r.join('')),
+      vec: { lanes: [], holes, core, w: W, h: H, hexes, hexR: R, blocks },
+      zone: this._zone,
+      shape, seed, style: 'block',
+    };
+  },
   // ---- 1枚作る ----
   //
   //   `d` は 0（第1章）〜1（第30章）の難しさ。**マップの形で難易度を付けるのはここ。**
@@ -415,6 +629,9 @@ const MapGen = {
   make(seed, d, shape) {
     shape = shape || {};
     d = Math.max(0, Math.min(1, d === undefined ? 0.5 : d));
+    // **ブロック式はここで分岐する。** 通路の作り方が逆（塊を撒いて残りを道にする）ので、
+    //   この先の折れ線の組み立てとは共有できない。焼いたあとの形は同じ
+    if (shape.style === 'block') return this.makeBlock(seed, d, shape);
     const rnd = this.rng(seed);
     // **盤の大きさも章ごとに変えられる。**（ユーザー 2026-09-22
     //   「ボス章や後半ステージ、ラスボスは広いマップ…を意識して」）
@@ -674,6 +891,32 @@ const MapGen = {
     for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
       if (at(c, r) === '#') ground++; else if (at(c, r) !== ' ') road++;
     }
+
+    // **通路から近い地面（＝実際に使える置き場所）の割合。**
+    //   通路のタイルを全部起点にして、地面の上を幅優先で広げる。
+    //   武器の射程はおおむね5タイル前後なので、そこまでを「使える」とする。
+    //   射線までは見ない（検査は160回走るので、そこまでやると重すぎる）
+    const NEAR = (BAL.mapLiveDist !== undefined ? BAL.mapLiveDist : 5);
+    let live = 0;
+    {
+      const d2 = new Array(cols * rows).fill(-1);
+      const q = [];
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        if (walk(c, r)) { d2[idx(c, r)] = 0; q.push({ c, r }); }
+      }
+      for (let h = 0; h < q.length; h++) {
+        const cur = q[h], dd2 = d2[idx(cur.c, cur.r)];
+        if (dd2 >= NEAR) continue;
+        for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nc = cur.c + dc, nr = cur.r + dr;
+          if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) continue;
+          if (at(nc, nr) !== '#') continue;
+          if (d2[idx(nc, nr)] >= 0) continue;
+          d2[idx(nc, nr)] = dd2 + 1; live++; q.push({ c: nc, r: nr });
+        }
+      }
+    }
+    const liveRatio = ground > 0 ? live / ground : 0;
     return {
       // **序盤は検査を厳しくする。** BAL.minRouteLen(20) は「これを割ると必ず漏れる」線であって、
       //   第1章に出していい長さではない。序盤ほど余裕を積む。
@@ -698,8 +941,14 @@ const MapGen = {
           //   `spawns` は S タイルの数で、口の数ではない（1つの口が2〜4タイル）。
           //   比べると必ず不成立になり、**口を減らして作り直す道が塞がっていた。**
           //   口の数は make() が守っているので、検査で確かめる必要はない
+          // **経路の長さを難易度に結びつけるのはやめた。**（ユーザー 2026-09-22）
+          //   > 「口を増やすって解決策が見つかったから、
+          //   >   **敵の出現位置からコアまでの距離を直接難易度と結びつけるのをやめよう**、
+          //   >   口を増やしたらどうにかなる」
+          //   残すのは「短すぎると撃つ時間が無くて必ず漏れる」という**遊べる下限だけ**
+          //   （深さで上乗せしていた `+ round(10*(1-dd))` を外した）
           && Math.min.apply(null, lens) >= (shape.routeMin !== undefined
-               ? shape.routeMin : BAL.minRouteLen + Math.round(10 * (1 - dd)))
+               ? shape.routeMin : BAL.minRouteLen)
           && (shape.routeMax === undefined
                || Math.min.apply(null, lens) <= shape.routeMax)
           && road >= Math.round((shape.roadMin !== undefined ? shape.roadMin
@@ -708,9 +957,15 @@ const MapGen = {
                : (88 + 140 * dd)) * area)
           && ground >= 40
           && (dd >= 0.08 || shape.roadMax !== undefined
-              || (road <= Math.round(BAL.earlyRoadMax * area)
-                  && Math.min.apply(null, lens) >= BAL.earlyRouteMin)),
+              || road <= Math.round(BAL.earlyRoadMax * area))
+          // **遊びに関わらない広場を作らない。**（ユーザー 2026-09-22）
+          //   > 「なんかデッドスペース多くない？ってのが率直な感想、
+          //   >   **ゲームに関与してない広場がほとんどを占めている**マップとかさ」
+          //   通路から遠い地面は、置いても撃てないので盤の面積を食っているだけ。
+          //   実測（2026-09-22）：通路が見える地面は全体の **32〜63%** しかなかった
+          && liveRatio >= (BAL.mapLiveMin !== undefined ? BAL.mapLiveMin : 0),
       spawns: spawns.length, holes: spawns.length, lens, ground, road,
+      live, liveRatio: +liveRatio.toFixed(3),
       shortest: lens.length ? Math.min.apply(null, lens) : 0,
     };
   },
@@ -747,6 +1002,19 @@ const MapGen = {
       steps.push(drop(shape, ['routeMax', 'roadMin', 'roadMax']));
       steps.push(drop(shape, ['routeMax', 'roadMin', 'roadMax', 'holes']));
       steps.push(drop(shape, ['routeMax', 'roadMin', 'roadMax', 'holes', 'partPool', 'widthMul']));
+      // **ブロック式は、通らなければ指を短くしてから折れ線へ落とす。**
+      //   指が長いほど道が遠回りになる代わりに、口がふさがって届かない形が出る
+      if (shape.style === 'block') {
+        steps.push(Object.assign(drop(shape, ['routeMax', 'roadMin', 'roadMax']),
+          { fingerMax: Math.max(3, (shape.fingerMax || 9) - 3) }));
+        steps.push(Object.assign(drop(shape, ['routeMax', 'roadMin', 'roadMax', 'holes']),
+          { fingerMax: 4, fingerMin: 3, chamber: 2 }));
+      }
+      // **最後まで盤の大きさだけは残す。**（2026-09-22・実測で見つけた回帰）
+      //   ここが直接 null に落ちていたので、指定が1つでも通らないと
+      //   **盤が 15×21 に戻っていた**（第12〜24章がそうなっていた）。
+      //   口の数も通路の量も盤の広さで決まるので、ここを捨てると別物のマップになる
+      if (shape.cols || shape.rows) steps.push({ cols: shape.cols, rows: shape.rows });
       steps.push(null);
     }
     for (let sI = 0; sI < steps.length; sI++) {
