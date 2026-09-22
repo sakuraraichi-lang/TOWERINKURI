@@ -166,7 +166,15 @@ const Combat = {
     const g = this.gw(run);
     const base = (BAL.waveCountBase + g * BAL.waveCountPerWave)
                * Math.pow(BAL.waveCountGrowth || 1, g - 1);
-    return Math.min(BAL.waveCountMax, Math.floor(base * run.mods.spawn));
+    // **道が N 方向に分かれる盤は、敵も増やす。**（2026-09-22）
+    //   分けただけだと1本あたり 1/N になって、**置き場所が足りないだけの難しさ**になる。
+    //   ユーザー「設置できる数的に対策出来ないだけで火力だけが過剰、
+    //   みたいな状態は健全じゃない」。
+    //   実測（第30章・12シード・漏れ）：増やす前は 20基274 → 40基48 で、
+    //   枠を倍にするだけで楽勝になっていた
+    const sh = run.stage.shape;
+    const wm = sh && sh.waveMul ? sh.waveMul : 1;
+    return Math.min(BAL.waveCountMax, Math.floor(base * run.mods.spawn * wm));
   },
 
   isLastWave(run) { return run.wave >= BAL.wavesPerStage; },

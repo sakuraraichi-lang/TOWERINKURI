@@ -92,6 +92,13 @@ const Main = {
     Snd.bgmStop();
     UI.placingType = null; UI.selected = null; UI.moving = null;
     Game.paused = false;
+    // **ホームの選択を、いま居る章に合わせる。**（2026-09-22）
+    //   突破しても `UI.pick` が動かないので、戻ってきたときに
+    //   突破したばかりの章が選ばれたままだった。
+    //   出撃を押すと同じ章をもう一度遊ぶことになり、
+    //   「突破していないことになっている」と見える
+    const i = STAGES.findIndex(x => x.id === Game.perm.currentStage);
+    if (i >= 0) UI.pick = i;
     UI.setScreen('home');
   },
 

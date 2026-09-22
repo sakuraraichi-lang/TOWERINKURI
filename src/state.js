@@ -249,6 +249,17 @@ const Game = {
     // 次のステージも本編の並びで探す（実験用へは送らない）
     const mi = MAIN_STAGES.findIndex(s => s.id === id);
     const nextStage = (mi >= 0) ? (MAIN_STAGES[mi + 1] || null) : null;
+    // **突破したら、その場で次の章へ進める。**（ユーザー報告 2026-09-22・最優先）
+    //   > 「章を突破したとき、次のステージへを押さないと
+    //   >   クリアしたはずの突破してない事になる」
+    //
+    //   `cleared` はここで立っていたが、**どの章にいるか（currentStage）を
+    //   進めているのが結果画面の「次のステージへ」ボタンの中だけ**だった。
+    //   「準備に戻る」を押す／モーダルを閉じると、ホームは突破した章を指したままで、
+    //   出撃を押すと同じ章をもう一度遊ぶことになる。**突破していないように見える。**
+    //
+    //   いま居る章を突破したときだけ進める（前の章を遊び直したときは動かさない）
+    if (nextStage && this.perm.currentStage === id) this.perm.currentStage = nextStage.id;
     const got = { first, perfect: !!perfect, firstPerfect,
                   cards: [], packs: {}, stage: def, next: nextStage };
     const addPack = (k, n) => this.addPack(k, n, got);
@@ -368,14 +379,18 @@ const Game = {
   //   足し算にすると 26%×3 = +78% で頭打ちが読める。
   //   **基準はツリーを掛けたあとの値**（applyMods が組み直した直後）なので、
   //   ツリーで伸ばしたぶんにもちゃんと乗る
+  //
+  // **【2026-09-22・最優先で止めた】これを使う効果は全部落とした。**
+  //   ユーザー「武器の範囲を広げるスキル、カードなどゲーム内から全て削除してください、
+  //   コメントアウトです、**バグの温床です**。代替案は後回しでいいです、
+  //   本当に一番やばいです」
+  //
+  //   足し算にしても**基準（sBase）の取り直しと噛み合わず**、
+  //   組み直し（applyMods）のたびに効き方が変わる作りだった。
+  //   いま呼び出しは0箇所。**残してあるのは、なぜ消えたのかを次に読む人へ伝えるため。**
+  //   代替案を入れるときは、`w.s.range` を直接いじる素直な形にすること
   addPct(w, key, pct) {
-    const b = w.sBase || (w.sBase = {});
-    if (b[key] === undefined) b[key] = w.s[key];
-    const acc = w.sAdd || (w.sAdd = {});
-    acc[key] = (acc[key] || 0) + this.rka(pct);
-    let v = b[key] * (1 + acc[key]);
-    if (key === 'cone') v = Math.min(Math.PI * 0.95, v);
-    w.s[key] = v;
+    return;                      // **何もしない**
   },
 
   applyCard(id, run) {

@@ -994,6 +994,9 @@ const Stage = {
     });
 
     const built = {
+      // 章ごとのマップの形（BAL.mapShape）。**戦闘側もここを読む**
+      //   （道が N 方向に分かれるぶん、敵の数も増やさないと1本あたりが薄くなる）
+      shape: (BAL.mapShape && BAL.mapShape[STAGE_BY_ID[stageId].idx + 1]) || null,
       def, id: stageId, cols, rows, grid, spawns, mouths, core, dist, next, idx, walkable, routes,
       vec: this._vec[stageId] || null,        // 折れ線と幅。絵を滑らかに描くのに使う
       // 地形の仕掛け（0=なし 1=泥 2=坂）。手で書いたマップには無い

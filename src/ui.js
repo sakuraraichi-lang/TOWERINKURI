@@ -1076,8 +1076,10 @@ const UI = {
   //   中身は1枚ずつ開けたときと完全に同じ（同じ Pack.open を回数ぶん呼ぶだけ）。
   //   換装だけは選ばせる必要があるので、まとめたあとに順番に出す
   openPackBulk(pid) {
+    if (this._opening) return;
     const n = Game.perm.packs[pid] || 0;
     if (n <= 0) return;
+    this._opening = true;
     Snd.resume();
     const luck = Skill.mods(Game.meta, Game.perm).packLuck;
     const got = {};            // cardId -> 枚数
@@ -1168,8 +1170,16 @@ const UI = {
     }
   },
 
+  // **1回のタップで2枚以上減ることがあった。**（ユーザー報告 2026-09-22・最優先）
+  //   減らしているのはこの1箇所だけ（`Game.perm.packs[pid]--`）なので、
+  //   **この関数が1タップで複数回呼ばれている。**
+  //   開封のモーダルが出るまでのあいだ、下の「開封」ボタンは生きたままで、
+  //   連打・二重タップ・合成クリックのどれでも二度目が入る。
+  //   **開いている間は受け付けない。**（closeModal で解除する）
   openPack(pid) {
+    if (this._opening) return;
     if ((Game.perm.packs[pid] || 0) <= 0) return;
+    this._opening = true;
     Game.perm.packs[pid]--;
     const luck = Skill.mods(Game.meta, Game.perm).packLuck;
     const ids = Pack.open(pid, luck);
@@ -1596,6 +1606,7 @@ const UI = {
   closeModal() {
     this.el.modal.classList.remove('on');
     this.el.modal.innerHTML = '';
+    this._opening = false;          // パックの多重開封の鍵を戻す（openPack）
     if (!this.draftOpen) Game.paused = false;
   },
 

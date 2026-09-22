@@ -312,6 +312,41 @@ const SKILLS = [
     cost0: 120, g: 4.8, unlock: 1 }),
 ];
 
+// ============ 範囲を広げる節を、ゲームから外す ============
+//
+//   **ユーザー指示（2026-09-22・最優先）**
+//   > 「武器の範囲を広げるスキル、カードなどゲーム内から全て削除してください、
+//   >   コメントアウトです、**バグの温床です**。代替案は後回しでいいです、
+//   >   本当に一番やばいです」
+//
+//   外すのは **射程（key:'range'）と 効果範囲（key:'size'）** の節。
+//   節は一本の連なり（dmg → rate → dmg2 → **rng** → util → dmg3）なので、
+//   単に消すと後ろが繋がらなくなる。**外した節の `needs` を、
+//   その節を必要としていた節へ引き継がせて、連なりを詰める。**
+//
+//   **戻すときは OFF_KEYS を空にするだけ。**（代替案が決まったら）
+//   既に買われている節は、一覧から消えるので効果も集計されなくなる
+//   （Skill.mods は SKILLS を回すため）。コインは戻さない
+const OFF_KEYS = ['range', 'size'];
+const SKILLS_OFF = SKILLS.filter(s => OFF_KEYS.indexOf(s.key) >= 0);
+{
+  const offIds = {};
+  for (const s of SKILLS_OFF) offIds[s.id] = s.needs || null;
+  // 外した節どうしが連なっている場合もあるので、生きている節まで辿る
+  const liveNeeds = (id) => {
+    let n = offIds[id];
+    let guard = 0;
+    while (n && offIds[n] !== undefined && guard++ < 20) n = offIds[n];
+    return n || undefined;
+  };
+  for (const s of SKILLS) {
+    if (s.needs && offIds[s.needs] !== undefined) s.needs = liveNeeds(s.needs);
+  }
+  for (let i = SKILLS.length - 1; i >= 0; i--) {
+    if (offIds[SKILLS[i].id] !== undefined) SKILLS.splice(i, 1);
+  }
+}
+
 const SKILL_BY_ID = {};
 for (const s of SKILLS) SKILL_BY_ID[s.id] = s;
 
@@ -342,17 +377,33 @@ for (const s of SKILLS) SKILL_BY_ID[s.id] = s;
 const SWAPS = [
   { id: 'sw_mid_crit', base: 'mid_rate', name: '収束照準', icon: '◈', key: 'crit',
     eff: 0.04, mode: 'add', tmpl: '中射程カテゴリの会心率 +{e}（会心倍率も上がる）' },
-  { id: 'sw_short_rate', base: 'short_rng', name: '速振り', icon: '◤', key: 'rate',
+  //   **【2026-09-22】base が存在しない節を指していた部品が3つあった。**
+  //     sw_long_rate → 'long_crit' ／ sw_area_crit → 'area_size'
+  //     ／ sw_sup_dmg → 'sup_pow'
+  //   どれも節の一覧に無い id で、**この3つはどのノードにも刺さらなかった。**
+  //   （範囲の節を外したときに、刺さらない部品を落とす処理を入れて発覚した）
+  //   生きている節に繋ぎ直す。刺さる先は同じカテゴリの節
+  { id: 'sw_short_rate', base: 'short_util', name: '速振り', icon: '◤', key: 'rate',
     eff: 1.07, mode: 'mul', tmpl: '短射程カテゴリの発射レート ×{e}' },
-  { id: 'sw_long_rate', base: 'long_crit', name: '速射砲身', icon: '◎', key: 'rate',
+  { id: 'sw_long_rate', base: 'long_util', name: '速射砲身', icon: '◎', key: 'rate',
     eff: 1.08, mode: 'mul', tmpl: '長射程カテゴリの発射レート ×{e}' },
-  { id: 'sw_area_crit', base: 'area_size', name: '起爆同調', icon: '▲', key: 'crit',
+  { id: 'sw_area_crit', base: 'area_dmg2', name: '起爆同調', icon: '▲', key: 'crit',
     eff: 0.04, mode: 'add', tmpl: '範囲攻撃カテゴリの会心率 +{e}（会心倍率も上がる）' },
-  { id: 'sw_target_rng', base: 'target_rate', name: '遠隔観測', icon: '✛', key: 'range',
-    eff: 1.09, mode: 'mul', tmpl: '指定攻撃カテゴリの射程 ×{e}' },
-  { id: 'sw_sup_dmg', base: 'sup_pow', name: '過負荷回路', icon: '❉', key: 'dmg',
+  //   sw_target_rng（射程を伸ばす部品）は、範囲の節と一緒に落とした
+  { id: 'sw_sup_dmg', base: 'support_rate', name: '過負荷回路', icon: '❉', key: 'dmg',
     eff: 1.12, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}' },
 ];
+
+// **換装部品も同じ扱い。**（2026-09-22）
+//   ・射程／効果範囲に変える部品そのもの（sw_target_rng）
+//   ・外した節にしか刺さらない部品（base が消えたもの）
+//   の両方を落とす。落とさないと、刺さらない部品がパックから出る
+{
+  for (let i = SWAPS.length - 1; i >= 0; i--) {
+    const w = SWAPS[i];
+    if (OFF_KEYS.indexOf(w.key) >= 0 || !SKILL_BY_ID[w.base]) SWAPS.splice(i, 1);
+  }
+}
 
 const SWAP_BY_ID = {};
 const SWAPS_FOR = {};

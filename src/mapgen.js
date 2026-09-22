@@ -313,7 +313,7 @@ const MapGen = {
   //   タイルの中心が、拾った六角セルのどれかの中にあれば通路。
   //   **ここでタイルへ落とすので、この先（BFS・Crowd・設置）は何も変わらない**
   bake(lanes, core, holes, W, H, hexes) {
-    const cols = this.COLS, rows = this.ROWS;
+    const cols = Math.round(W / TILE), rows = Math.round(H / TILE);
     const g = [];
     for (let r = 0; r < rows; r++) g.push(new Array(cols).fill('#'));
 
@@ -353,7 +353,7 @@ const MapGen = {
   // 盤の縁を障害物にして、通路が画面外に触れないようにする。
   // ただし**出現口のある縁は残す**（そこが穴なので）
   edge(g) {
-    const cols = this.COLS, rows = this.ROWS;
+    const rows = g.length, cols = g[0].length;
     for (let r = 0; r < rows; r++) {
       for (let c = 0; c < cols; c++) {
         if (r !== 0 && r !== rows - 1 && c !== 0 && c !== cols - 1) continue;
@@ -389,6 +389,7 @@ const MapGen = {
   //                道どうしの間は地面（＝壁）なので、**0922q で弾が壁を抜けなく
   //                なった以上、別の方角の道は別の砲でしか守れない。**
   //                ＝ 火力ではなく「置き方」を要求する
+  //   waveMul   … その章だけ敵の数を掛ける（道が N 方向に分かれるぶんの埋め合わせ）
   //   laneW     … 道ごとの太さの倍率の配列（例 [0.7, 1.4, 0.7, 1.4]）。
   //                細い道は足止めが効き、太い道は火力を集めないと抜けられない
   //   roadMin/roadMax … 通路の総量の帯を上書きする
@@ -396,7 +397,11 @@ const MapGen = {
     shape = shape || {};
     d = Math.max(0, Math.min(1, d === undefined ? 0.5 : d));
     const rnd = this.rng(seed);
-    const cols = this.COLS, rows = this.ROWS;
+    // **盤の大きさも章ごとに変えられる。**（ユーザー 2026-09-22
+    //   「ボス章や後半ステージ、ラスボスは広いマップ…を意識して」）
+    //   広げると1タイルが小さく描かれるので、どこまで広げられるかは
+    //   携帯の画面幅で決まる（Render.fit が盤ぜんぶを入れる）
+    const cols = (shape.cols | 0) || this.COLS, rows = (shape.rows | 0) || this.ROWS;
     const W = cols * TILE, H = rows * TILE;
     const pick = (arr) => arr[(rnd() * arr.length) | 0];
 
@@ -607,8 +612,8 @@ const MapGen = {
   check(rowsArr, d, shape) {
     shape = shape || {};
     const dd = (d === undefined ? 0.5 : d);
-    const area = (this.COLS * this.ROWS) / (15 * 21);   // 15×21 を 1 とした広さ
     const rows = rowsArr.length, cols = rowsArr[0].length;
+    const area = (cols * rows) / (15 * 21);            // 15×21 を 1 とした広さ
     const at = (c, r) => (c < 0 || r < 0 || c >= cols || r >= rows) ? ' ' : rowsArr[r][c];
     const walk = (c, r) => { const ch = at(c, r); return ch === '.' || ch === 'S' || ch === 'C'; };
     let core = null; const spawns = [];

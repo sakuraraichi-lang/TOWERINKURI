@@ -82,8 +82,8 @@ const CARDS = {
 
   // ============ スナイパー ============
   snp_scope: C({ id: 'snp_scope', kind: 'mod', weapon: 'sniper', rarity: 'common', maxStack: 5,
-    name: '高倍率スコープ', desc: 'スナイパーの射程 +10%（重ねると足し算）、ダメージ ×1.10',
-    apply(run) { const w = run.wp('sniper'); if (w) { Game.addPct(w, 'range', 0.10); w.s.dmg *= Game.rk(1.10); } } }),
+    name: '高倍率スコープ', desc: 'スナイパーのダメージ ×1.10',
+    apply(run) { const w = run.wp('sniper'); if (w) { w.s.dmg *= Game.rk(1.10); } } }),
   snp_he: C({ id: 'snp_he', kind: 'mod', weapon: 'sniper', rarity: 'common', maxStack: 5,
     name: '徹甲榴弾', desc: 'スナイパーのダメージ ×1.55',
     apply(run) { const w = run.wp('sniper'); if (w) w.s.dmg *= Game.rk(1.55); } }),
@@ -99,8 +99,8 @@ const CARDS = {
 
   // ============ ミサイル ============
   msl_warhead: C({ id: 'msl_warhead', kind: 'mod', weapon: 'missile', rarity: 'common', maxStack: 5,
-    name: '増装弾頭', desc: 'ミサイルの爆風半径 +18%（重ねると足し算）、ダメージ ×1.22',
-    apply(run) { const w = run.wp('missile'); if (w) { Game.addPct(w, 'splash', 0.18); w.s.dmg *= Game.rk(1.22); } } }),
+    name: '増装弾頭', desc: 'ミサイルのダメージ ×1.22',
+    apply(run) { const w = run.wp('missile'); if (w) { w.s.dmg *= Game.rk(1.22); } } }),
   msl_guide: C({ id: 'msl_guide', kind: 'mod', weapon: 'missile', rarity: 'common', maxStack: 5,
     name: '速装填', desc: 'ミサイルの着弾までが速くなり、発射レート ×1.2',
     apply(run) { const w = run.wp('missile'); if (w) { w.s.speed *= Game.rk(1.35); w.s.rate *= Game.rk(1.2); } } }),
@@ -111,8 +111,8 @@ const CARDS = {
     name: 'クラスター弾', desc: '爆発時に子ミサイルを4発ばら撒く',
     apply(run) { const w = run.wp('missile'); if (w) w.dyn.cluster = (w.dyn.cluster || 0) + Game.rki(4); } }),
   msl_nuke: C({ id: 'msl_nuke', kind: 'mod', weapon: 'missile', rarity: 'legendary', maxStack: 1,
-    name: '戦術核', desc: 'ミサイルのダメージ ×3.2 / 爆風 +110% / レート ×0.55',
-    apply(run) { const w = run.wp('missile'); if (w) { w.s.dmg *= Game.rk(3.2); Game.addPct(w, 'splash', 1.10); w.s.rate *= Game.rk(0.55); } } }),
+    name: '戦術核', desc: 'ミサイルのダメージ ×3.2 / レート ×0.55',
+    apply(run) { const w = run.wp('missile'); if (w) { w.s.dmg *= Game.rk(3.2); w.s.rate *= Game.rk(0.55); } } }),
 
   // ============ テスラコイル ============
   tsl_coil: C({ id: 'tsl_coil', kind: 'mod', weapon: 'tesla', rarity: 'common', maxStack: 5,
@@ -136,8 +136,8 @@ const CARDS = {
     name: '高圧燃料', desc: '火炎のダメージ ×1.40',
     apply(run) { const w = run.wp('flame'); if (w) w.s.dmg *= Game.rk(1.40); } }),
   flm_wide: C({ id: 'flm_wide', kind: 'mod', weapon: 'flame', rarity: 'rare', maxStack: 3,
-    name: '拡散ノズル', desc: '火炎の扇が +26% 広がり、射程 +10%（どちらも重ねると足し算）',
-    apply(run) { const w = run.wp('flame'); if (w) { Game.addPct(w, 'cone', 0.26); Game.addPct(w, 'range', 0.10); } } }),
+    name: '高圧ノズル', desc: '火炎のダメージ ×1.30',
+    apply(run) { const w = run.wp('flame'); if (w) { w.s.dmg *= Game.rk(1.30); } } }),
   flm_napalm: C({ id: 'flm_napalm', kind: 'mod', weapon: 'flame', rarity: 'epic', maxStack: 2,
     name: 'ナパーム', desc: '燃焼ダメージ ×1.8。さらに炎の先端に火の海を残す',
     apply(run) { const w = run.wp('flame'); if (w) { w.s.burn *= Game.rk(1.8); w.s.burnDur += Game.rka(1.5); w.flags.napalm = true; } } }),
@@ -147,8 +147,8 @@ const CARDS = {
     name: '濃縮ガス', desc: '毒の雲のダメージ ×1.45',
     apply(run) { const w = run.wp('gas'); if (w) w.s.dmg *= Game.rk(1.45); } }),
   gas_wide: C({ id: 'gas_wide', kind: 'mod', weapon: 'gas', rarity: 'rare', maxStack: 3,
-    name: '拡散弾頭', desc: '雲の半径 +22%、持続 +18%（重ねると足し算）',
-    apply(run) { const w = run.wp('gas'); if (w) { Game.addPct(w, 'fieldR', 0.22); Game.addPct(w, 'fieldDur', 0.18); } } }),
+    name: '長期滞留', desc: '毒の雲の持続 ×1.22',
+    apply(run) { const w = run.wp('gas'); if (w) { w.s.fieldDur *= Game.rk(1.22); } } }),
   gas_nerve: C({ id: 'gas_nerve', kind: 'mod', weapon: 'gas', rarity: 'legendary', maxStack: 1,
     name: '神経ガス', desc: '雲の中の敵は 50%減速し、受けるダメージ +45%。毒 ×1.6',
     apply(run) { const w = run.wp('gas'); if (w) { w.s.dmg *= Game.rk(1.6); w.s.slow = Math.min(0.85, Math.max(w.s.slow, Game.rka(0.5)));
@@ -159,8 +159,8 @@ const CARDS = {
     name: '深冷', desc: '冷気のダメージ ×1.5、減速の持続 +0.6秒',
     apply(run) { const w = run.wp('cryo'); if (w) { w.s.dmg *= Game.rk(1.5); w.s.slowDur += Game.rka(0.6); } } }),
   cry_wide: C({ id: 'cry_wide', kind: 'mod', weapon: 'cryo', rarity: 'rare', maxStack: 3,
-    name: '冷却範囲拡大', desc: '冷気の範囲 +20%（重ねると足し算）、発動レート ×1.2',
-    apply(run) { const w = run.wp('cryo'); if (w) { Game.addPct(w, 'range', 0.20); w.s.rate *= Game.rk(1.2); } } }),
+    name: '急速冷却', desc: '冷気の発動レート ×1.2、減速の持続 ×1.25',
+    apply(run) { const w = run.wp('cryo'); if (w) { w.s.rate *= Game.rk(1.2); w.s.slowDur *= Game.rk(1.25); } } }),
   cry_shatter: C({ id: 'cry_shatter', kind: 'mod', weapon: 'cryo', rarity: 'epic', maxStack: 2,
     name: '砕氷', desc: '凍っている敵が受けるダメージ +60%。凍った敵を倒すと氷片が周囲に飛ぶ',
     apply(run) { const w = run.wp('cryo'); if (w) { w.flags.shatter = true; run.chillVuln += Game.rka(0.6); } } }),
@@ -193,16 +193,16 @@ const CARDS = {
     name: '握力', desc: '触手のダメージ ×1.60',
     apply(run) { const w = run.wp('tentacle'); if (w) w.s.dmg *= Game.rk(1.60); } }),
   tnt_long: C({ id: 'tnt_long', kind: 'mod', weapon: 'tentacle', rarity: 'rare', maxStack: 3,
-    name: '伸長', desc: '触手の射程 +20%（重ねると足し算）、引き戻す力 ×1.35',
-    apply(run) { const w = run.wp('tentacle'); if (w) { Game.addPct(w, 'range', 0.20); w.s.knock *= Game.rk(1.35); } } }),
+    name: '剛腕', desc: '触手が引き戻す力 ×1.35、掴む時間 ×1.2',
+    apply(run) { const w = run.wp('tentacle'); if (w) { w.s.knock *= Game.rk(1.35); w.s.knockDur *= Game.rk(1.2); } } }),
   tnt_many: C({ id: 'tnt_many', kind: 'mod', weapon: 'tentacle', rarity: 'epic', maxStack: 2,
     name: '多腕', desc: '同時に掴める敵 +1',
     apply(run) { const w = run.wp('tentacle'); if (w) w.s.count += Game.rki(1); } }),
 
   // ============ 泡 ============
   bbl_big: C({ id: 'bbl_big', kind: 'mod', weapon: 'bubble', rarity: 'common', maxStack: 5,
-    name: '大泡', desc: '閉じ込める時間 ×1.35、割れたときの範囲 +14%（重ねると足し算）',
-    apply(run) { const w = run.wp('bubble'); if (w) { w.s.stunDur *= Game.rk(1.35); Game.addPct(w, 'splash', 0.14); } } }),
+    name: '大泡', desc: '閉じ込める時間 ×1.35',
+    apply(run) { const w = run.wp('bubble'); if (w) { w.s.stunDur *= Game.rk(1.35); } } }),
   bbl_rapid: C({ id: 'bbl_rapid', kind: 'mod', weapon: 'bubble', rarity: 'rare', maxStack: 3,
     name: '連泡', desc: '泡の発射レート ×1.55',
     apply(run) { const w = run.wp('bubble'); if (w) w.s.rate *= Game.rk(1.55); } }),
@@ -215,8 +215,8 @@ const CARDS = {
     name: '大口径榴弾', desc: '迫撃砲のダメージ ×1.45',
     apply(run) { const w = run.wp('mortar'); if (w) w.s.dmg *= Game.rk(1.45); } }),
   mtr_wide: C({ id: 'mtr_wide', kind: 'mod', weapon: 'mortar', rarity: 'rare', maxStack: 3,
-    name: '広域炸裂', desc: '迫撃砲の爆風 +24%、射程 +10%（どちらも重ねると足し算）',
-    apply(run) { const w = run.wp('mortar'); if (w) { Game.addPct(w, 'splash', 0.24); Game.addPct(w, 'range', 0.10); } } }),
+    name: '重装炸薬', desc: '迫撃砲のダメージ ×1.35',
+    apply(run) { const w = run.wp('mortar'); if (w) { w.s.dmg *= Game.rk(1.35); } } }),
   mtr_carpet: C({ id: 'mtr_carpet', kind: 'mod', weapon: 'mortar', rarity: 'epic', maxStack: 2,
     name: '絨毯爆撃', desc: '迫撃砲の同時発射 +3、ダメージ ×0.8',
     apply(run) { const w = run.wp('mortar'); if (w) { w.s.count += Game.rki(3); w.s.dmg *= Game.rk(0.8); } } }),
@@ -233,8 +233,8 @@ const CARDS = {
       if (s) s.flags.spot = true;
       if (m) m.dyn.spotMul = (m.dyn.spotMul || 1) * Game.rk(1.6); } }),
   syn_implode: C({ id: 'syn_implode', kind: 'synergy', requires: ['missile', 'tesla'], rarity: 'rare', maxStack: 3,
-    name: '電磁爆縮', desc: '【ミサイル＋テスラ】ミサイルの爆発が感電を付与し、爆風 +20%',
-    apply(run) { const m = run.wp('missile'); if (m) { m.flags.implode = true; Game.addPct(m, 'splash', 0.20); m.s.shockDur = Math.max(m.s.shockDur, Game.rka(2.5)); } } }),
+    name: '電磁爆縮', desc: '【ミサイル＋テスラ】ミサイルの爆発が感電を付与する',
+    apply(run) { const m = run.wp('missile'); if (m) { m.flags.implode = true; m.s.shockDur = Math.max(m.s.shockDur, Game.rka(2.5)); } } }),
   syn_resonance: C({ id: 'syn_resonance', kind: 'synergy', requires: ['gatling', 'sniper'], rarity: 'epic', maxStack: 2,
     name: '弾道共鳴', desc: '【ガトリング＋スナイパー】ガトリング命中ごとにスナイパーのダメージ +0.6%（上限 +400%）',
     apply(run) { const g = run.wp('gatling'); if (g) { g.flags.resonance = true;
@@ -275,8 +275,8 @@ const CARDS = {
     name: '金メッキ弾', desc: 'このランのコイン獲得 ×1.35',
     apply(run) { run.coinMul *= Game.rk(1.35); } }),
   gen_boost: C({ id: 'gen_boost', kind: 'generic', rarity: 'rare', maxStack: 3,
-    name: '過給機', desc: '全武器の発射レート ×1.15、射程 +8%（重ねると足し算）',
-    apply(run) { for (const w of run.units) { w.s.rate *= Game.rk(1.15); Game.addPct(w, 'range', 0.08); } } }),
+    name: '過給機', desc: '全武器の発射レート ×1.15',
+    apply(run) { for (const w of run.units) { w.s.rate *= Game.rk(1.15); } } }),
   // ============ 遺物（永続パッシブ）============
   //
   //   **転生で消えない唯一の数値成長。** 遺物パックからのみ出る。
@@ -391,6 +391,23 @@ const CARDS = {
   rl_brittle: P({ id: 'rl_brittle', rarity: 'legendary', key: 'chillVuln', eff: 0.20, mode: 'add', cap: 0.8, fixed: true,
     name: '脆化の理', tmpl: '凍っている敵が受けるダメージ +{p}' }),
 };
+
+// ============ 範囲を広げるものを、ゲームから外す ============
+//
+//   **ユーザー指示（2026-09-22・最優先）**
+//   > 「武器の範囲を広げるスキル、カードなどゲーム内から全て削除してください、
+//   >   コメントアウトです、**バグの温床です**」
+//
+//   遺物のうち **射程（key:'range'）と 効果範囲（key:'size'）** を外す。
+//   `delete` してしまえば、パックの抽選（CARD_IDS）にも
+//   遺物の集計（relics.js の RELIC_IDS）にも出てこない。
+//   **戻すときは OFF_CARD_KEYS を空にするだけ。**
+//   既に持っている枚数は perm.collection に残るが、
+//   CARDS から消えているので効果は乗らない
+const OFF_CARD_KEYS = ['range', 'size'];
+for (const id of Object.keys(CARDS)) {
+  if (OFF_CARD_KEYS.indexOf(CARDS[id].key) >= 0) delete CARDS[id];
+}
 
 const CARD_IDS = Object.keys(CARDS);
 
