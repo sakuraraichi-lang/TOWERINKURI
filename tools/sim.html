@@ -881,13 +881,17 @@ function runStageInner(stageId, loadout, buys, opts) {
   //   **武器どうしを比べるときは同じ額を持たせてから買わせる**
   if (opts.coins) Game.meta.coins = opts.coins;
   // **恒久の土台を持たせる。**（relics.js の Legacy）
-  //   土台は `prestiges > 0` と `deepest` からしか出ないので、
+  //   土台は `prestiges > 0` と `legacyDeep` からしか出ないので、
   //   まっさらなセーブで深い章に置くと、**設計どおり手も足も出ない**
   //   （元手を 1e11 積んで強化を120段買っても撃破0。第10章は1周目では届かない章）。
   //   深い章で武器やカードを比べるときは、そこへ到達した人の土台を再現する
   if (opts.deep) {
     Game.perm.prestiges = opts.deep.prestiges;
     Game.perm.deepest = opts.deep.deepest;
+    // **土台の基準は legacyDeep。**（2026-09-22）
+    //   本体は転生のときだけ deepest から写すので、
+    //   測定器も同じ値を入れておかないと土台が0倍のままになる
+    Game.perm.legacyDeep = opts.deep.deepest;
     Relic.invalidate();
   }
   Game.perm.loadout = loadout.map(w => 'wc_' + w);

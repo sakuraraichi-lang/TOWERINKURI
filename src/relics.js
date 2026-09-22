@@ -52,9 +52,13 @@ const Legacy = {
   perChapter() { return Math.pow(BAL.enemyHpGrowth, BAL.wavesPerStage); },
 
   // 到達した深さから出す恒久倍率。**転生していなければ 1（土台は無い）**
+  //   **基準は `legacyDeep`（転生したときの到達章）で、`deepest` ではない。**
+  //   （2026-09-22）`deepest` は周の途中でも伸びるので、それを見ると
+  //   **1章突破するたびに約5倍強くなる暴走**になる（実測で 3 → 30 の2周クリア）。
+  //   設計（§6-2）が言う「前回到達章」は、周が始まる時点で固定された値のこと
   of(perm) {
     if (!perm || !(perm.prestiges > 0)) return 1;
-    const deepest = Math.max(0, perm.deepest || 0);
+    const deepest = Math.max(0, perm.legacyDeep || 0);
     if (deepest <= 1) return 1;
     // N(deepest) = perChapter^(deepest-1) を、余裕 BAL.legacyMargin 倍する
     return Math.pow(this.perChapter(), deepest - 1) * BAL.legacyMargin;

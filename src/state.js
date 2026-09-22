@@ -51,6 +51,9 @@ const Game = {
       // **最初はパックを持っていない。** 基本パックは2ステージ突破で解放される
       packs: { basic: 0, arms: 0, chem: 0, syn: 0, relic: 0 },
       deepest: 0,        // 転生を挟んでも戻らない「到達した深さ」。パックの解放条件に使う
+      // **恒久の土台（Legacy）の基準。転生したときだけ deepest から写す。**
+      //   deepest を直接見ると周の途中で伸びて暴走する（relics.js 参照）
+      legacyDeep: 0,
       prestiges: 0,
       totalKills: 0,
       totalRuns: 0,
@@ -160,6 +163,7 @@ const Game = {
     // 定義から消えた換装は落とす（古いセーブが未知のidを持ち続けないように）
     for (const k of Object.keys(this.perm.swaps)) if (!SWAP_BY_ID[this.perm.swaps[k]]) delete this.perm.swaps[k];
     if (typeof this.perm.deepest !== 'number') this.perm.deepest = this.progressCount();
+    if (typeof this.perm.legacyDeep !== 'number') this.perm.legacyDeep = 0;
     // パックは今の定義と同じキーだけにする。
     // 昔の save には rare / epic が残っていて、開けられないまま数え続けていた
     if (!this.perm.packs) this.perm.packs = {};
@@ -269,6 +273,12 @@ const Game = {
     const firstPerfect = perfect && !rec.perfect;
     rec.cleared = true;
     if (perfect) rec.perfect = true;
+    // **ここで Relic.invalidate() を呼んではいけない。**（2026-09-22・やって壊した）
+    //   恒久の土台（Legacy）は「**前回**到達章」を基準にする設計。
+    //   周の途中で deepest が伸びるたびに作り直すと、
+    //   **1章突破するごとに約5倍強くなる暴走**になる
+    //   （実測：入れた瞬間に 3 → 30 で2周クリアになった）。
+    //   土台は転生のときだけ更新する（下の prestige で legacyDeep を固定する）
     this.perm.deepest = Math.max(this.perm.deepest || 0, this.progressCount());
     const def = STAGE_BY_ID[id];
     // 次のステージも本編の並びで探す（実験用へは送らない）
@@ -979,6 +989,16 @@ const Game = {
     // **回数を先に増やす。** 遺物パックは「転生1回」で解放されるので、
     // 増やす前に配ると、初回転生の報酬である遺物パックが自分自身の条件で弾かれる
     this.perm.prestiges++;
+    // **ここで捨てないと、転生した直後の出撃に恒久の土台が乗らない。**
+    //   （2026-09-22・総点検で発見）Legacy.of は `prestiges > 0` で初めて効くのに、
+    //   Relic.mods は転生前に作ったキャッシュ（土台1倍）を返し続けていた。
+    //   遺物パックを開ければ Game.grant が捨ててくれるので気づきにくいが、
+    //   **開けずに出撃した1回は、土台なしで戦うことになる**
+    // **土台の基準を、この時点の到達で固定する。**
+    //   `deepest` を直接見ると周の途中で伸びて暴走するので、
+    //   **転生のときだけ写し取る。**これが「前回到達章」の正体
+    this.perm.legacyDeep = this.perm.deepest || 0;
+    Relic.invalidate();
     const reward = Pack.prestigeReward(cleared, this.perm.prestiges - 1, mods.packLuck);
     const sink = { packs: {} };
     for (const k in reward) if (reward[k] > 0) this.addPack(k, reward[k], sink);
