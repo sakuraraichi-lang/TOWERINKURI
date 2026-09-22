@@ -168,7 +168,7 @@ const UI = {
       e.homeSkip.disabled = !can;
       // **もらえるものは無い。**チェックが付いて次へ行けるだけ、と書いておく
       e.homeSkip.innerHTML = can
-        ? 'スキップ<u>報酬なし・次へ進むだけ</u>'
+        ? 'スキップ<u>報酬なし・転生の評価にも入りません</u>'
         : '<u>' + Game.skipWhy(st.id) + '</u>';
     }
   },
@@ -1663,8 +1663,9 @@ const UI = {
       res.stage.name + ' を通過しました（突破ではありません）'));
     body.appendChild(Util.el('div', 'note',
       'チェックマークが付いて次の章へ進めます。'
-      + 'コインもカードも手に入りません。'
-      + 'この章の初回突破報酬は残っているので、あとから自分で突破すれば受け取れます。'));
+      + 'コインもカードも手に入らず、**転生でもらえる量にも数えません。**'
+      + 'この章の初回突破報酬は残っているので、あとから自分で突破すれば受け取れます。'
+      + '先へ急ぐための機能で、強くなるための機能ではありません。'));
     const ok = Util.el('button', 'bigbtn', '次へ');
     ok.addEventListener('click', () => { this.closeModal(); this.renderHome(); });
     body.appendChild(ok);

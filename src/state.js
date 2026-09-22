@@ -954,11 +954,27 @@ const Game = {
   },
 
   // ---------- 転生 ----------
-  canPrestige() { return this.progressCount() >= BAL.prestigeMinStages; },
+  //
+  //   **【2026-09-22・最重要】転生の評価は「実際に突破した数」だけで決める。**
+  //
+  //   ユーザー指示
+  //   > 「仕様変更後のスキップによる**最高到達地点の無限ファーム**も対策しないと
+  //   >   いけません、**クリアフラグのチェックマークだけ与えられても
+  //   >   転生スコアが伸びないように**してください、
+  //   >   **これは本当にゲームの命に関わります**」
+  //
+  //   スキップは前回到達地点まで無料で飛べるので、
+  //   **飛ばす → 転生 → 飛ばす → 転生** を繰り返すだけで、
+  //   1回も戦わずに転生報酬（遺物パック）が無限に出てしまう。
+  //
+  //   なので**転生できる条件も、転生で出る量も、`clearedCount()`（実際の突破）で見る。**
+  //   進行や値段の桁は `progressCount()`（突破＋スキップ）のままでよい。
+  //   そちらは「どこまで来たか」であって、報酬ではないため
+  canPrestige() { return this.clearedCount() >= BAL.prestigeMinStages; },
 
   prestige() {
     if (!this.canPrestige()) return null;
-    const cleared = this.progressCount();
+    const cleared = this.clearedCount();
     const mods = Skill.mods(this.meta, this.perm);
     // **回数を先に増やす。** 遺物パックは「転生1回」で解放されるので、
     // 増やす前に配ると、初回転生の報酬である遺物パックが自分自身の条件で弾かれる

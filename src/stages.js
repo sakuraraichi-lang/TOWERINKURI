@@ -907,7 +907,15 @@ const Stage = {
     // **章ごとの形。**（2026-09-22）
     //   数値（敵のHP）では拍が作れないことが実測で分かったので、
     //   難易度は**マップの形**でも付ける。表は BAL.mapShape、無い章は今までどおり
-    const shape = (BAL.mapShape && BAL.mapShape[idx + 1]) || null;
+    // **盤の大きさは深さで決める。**章ごとの指定（mapShape）があればそちらが勝つ
+    let base = null;
+    if (BAL.boardByDepth) {
+      let b = BAL.boardByDepth[BAL.boardByDepth.length - 1];
+      for (const row of BAL.boardByDepth) { if (d < row[0]) { b = row; break; } }
+      if (b[1] !== MapGen.COLS || b[2] !== MapGen.ROWS) base = { cols: b[1], rows: b[2] };
+    }
+    const own = (BAL.mapShape && BAL.mapShape[idx + 1]) || null;
+    const shape = (base || own) ? Object.assign({}, base, own) : null;
     const m = MapGen.build(((seed * 2654435761) ^ ((idx + 1) * 40503) ^ (roll * 2246822519)) >>> 0, 160, d, shape);
     if (!m) return def.map;                 // 作れなかったら元のマップに落とす
     this._vec[stageId] = m.vec;

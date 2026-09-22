@@ -101,7 +101,8 @@ function stagePackOf(stageId) {
 }
 
 const Pack = {
-  clearedCount(perm) { return stageProgressCount(perm); },   // 突破＋スキップ（進んだ深さ）
+  // パックの中身の深さ。**実際の突破**で見る（到達の深さは下で max を取る）
+  clearedCount(perm) { return MAIN_STAGES.filter(s => (perm.stages[s.id] || {}).cleared).length; },
 
   isUnlocked(perm, id) {
     const pk = PACKS[id];
@@ -245,7 +246,10 @@ const Pack = {
 };
 
 // --- ミッション（パックの入手経路その3） ---
-function clearedStages(p) { return stageProgressCount(p); }   // 突破＋スキップ（進んだ深さ）
+// **ミッションは「実際に突破した数」で見る。**（2026-09-22）
+//   スキップは報酬を出さない約束なので、
+//   飛ばして通っただけで「全30章を突破」が達成されてはいけない
+function clearedStages(p) { return MAIN_STAGES.filter(s => (p.stages[s.id] || {}).cleared).length; }
 
 const MISSIONS = [
   { id: 'st1',      name: '第1章を突破',               reward: { basic: 1 }, check: (p) => clearedStages(p) >= 1 },
