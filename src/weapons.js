@@ -215,7 +215,12 @@ const WEAPONS = {
     //   **威力ではなく「1発が何体に届くか」で決まる。**
     //   連鎖を伸ばして減衰を緩め、射程を 170→200 に寄せた。
     //   200 でも12種で2番目に短く、`cat:'short'` の立ち位置は変わらない
-    base: baseStats({ arc: 0.55, dmg: 11, rate: 1.6, range: 200, chain: 8, chainFalloff: 0.95 }),
+    // **感電を素で起こす。**（2026-09-23）
+    //   ユーザー判断「凍結にスリップダメージは不要、**感電と拘束につける**」を受けて
+    //   スリップを実装したが、測ったら**感電を起こす武器が1つも無かった**
+    //   （`shockDur` が0で、カード3枚と遺物1個でしか付かない）。
+    //   電気の武器が感電させないのは、テーマと実装の食い違い。素で起こすようにする
+    base: baseStats({ arc: 0.55, dmg: 11, rate: 1.6, range: 200, chain: 8, chainFalloff: 0.95, shockDur: 1.2 }),
     fire(w, run) {
       if (!w.target) return;
       Combat.chainLightning(w, run, w.target, w.s.chain, w.s.dmg);
