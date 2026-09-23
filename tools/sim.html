@@ -850,6 +850,26 @@ function autoPlaceRange(run) {
 //   opts.noLure … 敵誘引を買わせない（リスク・リターンの比較用）
 //   opts.buildId… どのビルドの行かを記録に残す
 // ---------------------------------------------------------------
+// **`withBal` の `finally` は、当てにならないことがある。**
+//   2026-09-23 に踏んだ：ブラウザから長い測定を流すと途中で打ち切られることがあり、
+//   **打ち切られると `finally` が走らず、`BAL` が差し替わったまま残る。**
+//   そのあとの測定は、黙って別のゲームを測っていた
+//   （`enemySpdCap` 260 のはずが 390、`slotsBase` 6 のはずが 34 のまま固定されていて、
+//    同じ条件の数字が 5倍ずれた。その回の表は全部捨てた）。
+//   → **読み込み時に BAL の原本を取っておき、毎回の測定の入口で見張る。**
+const BAL_PRISTINE = JSON.parse(JSON.stringify(BAL));
+
+// 差し替わったまま残っている項目を元に戻す。戻したものの名前を返す
+function balRestore() {
+  const fixed = [];
+  for (const k in BAL_PRISTINE) {
+    const a = BAL[k], b = BAL_PRISTINE[k];
+    const same = (typeof a === 'object') ? JSON.stringify(a) === JSON.stringify(b) : a === b;
+    if (!same) { BAL[k] = JSON.parse(JSON.stringify(b)); fixed.push(k); }
+  }
+  return fixed;
+}
+
 function withBal(over, fn) {
   if (!over) return fn();
   const keep = {};
@@ -859,6 +879,9 @@ function withBal(over, fn) {
 
 function runStage(stageId, loadout, buys, opts) {
   opts = opts || {};
+  // 前の測定が途中で打ち切られて BAL が汚れていたら、ここで戻す（上の注記）
+  const dirty = balRestore();
+  if (dirty.length) console.warn('[sim] 前の測定の BAL が残っていたので戻した:', dirty.join(', '));
   const keepArc = ARC_MODE, keepRep = REPLACE_MODE;
   if (opts.arc) ARC_MODE = opts.arc;
   if (opts.replace !== undefined) REPLACE_MODE = opts.replace;
