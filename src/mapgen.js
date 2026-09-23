@@ -362,7 +362,24 @@ const MapGen = {
       for (let r = minr; r <= maxr; r++) {
         for (let c = minc; c <= maxc; c++) {
           const cx = c * TILE + TILE / 2, cy = r * TILE + TILE / 2;
-          if (!this.inHex(cx - hx.x, cy - hx.y, R)) continue;
+          // **タイル1枚につき5点で見る。**（2026-09-23・実測で作り直した）
+          //   中心1点だけで判定すると、**通路が砕ける**。
+          //   六角は幅60・高さ52、タイルは40なので、**六角1つが覆うタイルは約1.5枚**。
+          //   隣り合う六角でも、覆うタイルが上下左右で繋がらない組み合わせが出て、
+          //   焼いたあとの通路が断片に割れていた
+          //   （実測：19×27 の1枚で、通路202タイルが**8個の島**になっていた。
+          //     コア63・口58・口42・小片5個で、どの口からもコアへ届かない）。
+          //   中心＋四隅（内側に寄せた点）のどれか2点が六角に入っていれば通路にする。
+          //   **2点にするのは、絵とのずれを半タイル未満に抑えるため**
+          //   （1点だと、壁として描いた六角の縁を歩けてしまう）
+          const q = TILE * 0.3;
+          let hit = 0;
+          if (this.inHex(cx - hx.x, cy - hx.y, R)) hit++;
+          if (this.inHex(cx - q - hx.x, cy - q - hx.y, R)) hit++;
+          if (this.inHex(cx + q - hx.x, cy - q - hx.y, R)) hit++;
+          if (this.inHex(cx - q - hx.x, cy + q - hx.y, R)) hit++;
+          if (this.inHex(cx + q - hx.x, cy + q - hx.y, R)) hit++;
+          if (hit < 2) continue;
           g[r][c] = '.';
           if (hx.zone) zone[r * cols + c] = hx.zone;      // 地形の仕掛け
         }
@@ -443,7 +460,6 @@ const MapGen = {
   //     cols/rows   … 盤の大きさ
   //     holes       … 口の数（省くと holesFor(d)）
   //     gap         … 塊どうしの隙間＝道の太さ（タイル・既定2）
-  //     blockThick  … 指の太さ（タイル・既定2）
   //     fingerMin/Max … 指の長さの帯（タイル・既定4〜9）
   //     chamber     … コアの周りに空ける半径（タイル・既定3）
 
@@ -527,32 +543,19 @@ const MapGen = {
     const open = {};
     const dig = (c, r) => { const k = key(c, r); if (cells[k]) open[k] = 1; };
 
-    // **六角を2つ掘っただけでは、焼いたタイルが繋がらない。**（実測 2026-09-23）
-    //   六角は幅60・高さ52 で、タイルは40。**1つの六角が覆うタイルは1〜2枚**しかなく、
-    //   隣り合う六角でも、覆うタイルが4近傍にならない組み合わせが出る
-    //   （例：hex(6,5)→タイル(6,6) と hex(5,6)→タイル(5,8) は接していない）。
-    //   ＝ 経路探索（4近傍のBFS）から見ると道が途切れる。
-    //   **掘るときに、中心どうしを結ぶ線に乗るタイルの六角も掘る。**
-    //   線の上のタイルは連続しているので、これで焼いたあとも必ず繋がる
-    //   **タイルの中心を辿ること。**（ここを間違えて一度悪化させた）
-    //   タイルが通路になる条件は「**タイルの中心**がその六角の中にあること」。
-    //   線の上の適当な点で `hexPick` しても、その点を含むタイルの**中心**は
-    //   別の六角に入っていることがあり、掘っても通路にならない。
-    //   タイルからタイルへ4近傍で歩き、**そのタイルの中心に乗る六角**を掘る
-    const digLine = (a, b) => {
-      let tc = Math.max(0, Math.min(cols - 1, (a.x / TILE) | 0));
-      let tr = Math.max(0, Math.min(rows - 1, (a.y / TILE) | 0));
-      const ec = Math.max(0, Math.min(cols - 1, (b.x / TILE) | 0));
-      const er = Math.max(0, Math.min(rows - 1, (b.y / TILE) | 0));
-      let guard = 0;
-      for (;;) {
-        const p = this.hexPick(tc * TILE + TILE / 2, tr * TILE + TILE / 2);
-        if (p) dig(p.c, p.r);
-        if ((tc === ec && tr === er) || guard++ > 200) break;
-        // 差の大きいほうへ1マス。**斜めに動かない**（4近傍で繋がらなくなる）
-        if (Math.abs(ec - tc) >= Math.abs(er - tr)) tc += (ec > tc) ? 1 : -1;
-        else tr += (er > tr) ? 1 : -1;
-      }
+    // **道は「六角とその隣ぜんぶ」で掘る。**（ユーザー 2026-09-23）
+    //   > 「**ハニカムを無理やり切り貼りした直線通路がある**」
+    //   そのとおりで、ここには「タイルを1マスずつ辿って掘る」処理があった。
+    //   六角1つが覆うタイルは1〜2枚しかなく、隣り合う六角でも
+    //   タイルでは4近傍にならない組み合わせが出るため、
+    //   **タイルの直線で継ぎ足して**繋げていた。**盤の上でそこだけ直線に見える。**
+    //
+    //   **太さで解く。** 六角とその隣6つをまとめて掘れば、
+    //   覆うタイルが十分に重なって、焼いたあとも自然に繋がる。
+    //   継ぎ足しが要らないので、**通路の形が最後まで六角のまま**になる
+    const digHex = (c, r) => {
+      dig(c, r);
+      for (const nb of this.hexNbr(c, r)) dig(nb[0], nb[1]);
     };
     const chamber = shape.chamber === undefined ? 2 : shape.chamber;
     {
@@ -665,7 +668,7 @@ const MapGen = {
           const p = this.hexPick(tc2 * TILE + TILE / 2, tr2 * TILE + TILE / 2);
           if (!p) break;
           const kk = key(p.c, p.r);
-          dig(p.c, p.r);
+          digHex(p.c, p.r);          // 隣ぜんぶ。継ぎ足しなしで繋がる太さにする
           if (cells[kk]) tipKey = kk;
           if (s > 0 && open[kk] && s >= 2) break;   // 既にある道に届いたら終わり
         }
@@ -699,7 +702,7 @@ const MapGen = {
         else if (near.length) pick = near[(rnd() * near.length) | 0];
         else if (thru.length) pick = thru[(rnd() * thru.length) | 0];
         if (!pick) break;
-        digLine(cur, pick);            // 途切れないように中心どうしを結ぶ
+        digHex(cur.c, cur.r);          // 六角とその隣ぜんぶ。継ぎ足さずに繋がる
         cur = pick;
       }
       dig(core.c, core.r);
@@ -761,71 +764,86 @@ const MapGen = {
             if (dd < bd) { bd = dd; best = cells[kk]; }
           }
           if (!best) break;
-          digLine(cur, best);          // 途切れないように中心どうしを結ぶ
+          digHex(cur.c, cur.r);        // 六角とその隣ぜんぶ
           cur = best;
         }
       }
     }
 
-    // ---- 6. タイルへ焼いて、**届かない口をタイル側で必ず救う** ----
+    // ---- 5b. 掘った六角がバラバラなら、六角のまま繋ぐ ----
     //
-    //   **六角が提案し、タイルが保証する。**（2026-09-23・作り方そのものの置き換え）
-    //   掘り方をいくら調整しても、焼いたあと届かない口が 12枚中4〜7枚残った。
-    //   原因は変換にある：**タイルが通路になる条件は「タイルの中心がその六角に入る」**で、
-    //   六角（幅60・高さ52）が覆うタイル（40）は1〜2枚しかないため、
-    //   六角では隣どうしでも、タイルでは4近傍にならない組み合わせが出る。
+    //   **【訂正 2026-09-23】断片化はタイルへの変換ではなく、掘る側で起きていた。**
+    //   一度「六角をタイルに焼くと1.5枚しか覆えないので割れる」と結論して
+    //   タイルの直線で継ぎ足したが、**それは誤りだった**。
+    //   六角空間で数え直すと、掘った169個が**8つの島**（51/42/40/12/7/7/5/5）に
+    //   割れていた。焼き方を多点サンプリングに変えても島の数は8個のままで、
+    //   **タイル側の問題ではない**ことがはっきりした。
     //
-    //   掘り方の微調整でこれを潰すのは、原理的に無理筋だった（3回やって直らなかった）。
-    //   **焼いたあとに、タイルの上で届かない口を繋ぐ。**
-    //   繋いだタイルを覆う六角も道に足すので、**絵は六角のまま**。
-    //   ここを通ると、**連結していないマップは原理的に出てこない**
-    const bakeNow = () => this.edge(this.bake([], { x: core.x, y: core.y }, holes, W, H,
-      Object.keys(open).map((k) => cells[k])));
-    const walkOf = (g2) => (c, r) => {
-      if (c < 0 || r < 0 || c >= cols || r >= rows) return false;
-      const ch = g2[r][c];
-      return ch === '.' || ch === 'S' || ch === 'C';
-    };
-    for (let fix = 0; fix < 8; fix++) {
-      const g2 = bakeNow();
-      const walk = walkOf(g2);
-      // コアから届くタイルを塗る
-      let cc2 = 0, cr2 = 0;
-      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) if (g2[r][c] === 'C') { cc2 = c; cr2 = r; }
-      const seen2 = {};
-      const q2 = [{ c: cc2, r: cr2 }];
-      seen2[cc2 + ',' + cr2] = 1;
-      for (let i = 0; i < q2.length; i++) {
-        const cur = q2[i];
-        const nb4 = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-        for (const dd of nb4) {
-          const nc = cur.c + dd[0], nr = cur.r + dd[1];
-          const kk = nc + ',' + nr;
-          if (seen2[kk] || !walk(nc, nr)) continue;
-          seen2[kk] = 1; q2.push({ c: nc, r: nr });
+    //   掘り進みが途中で行き止まる（`pick` が見つからず break する）と、
+    //   口の側とコアの側が別の島になる。
+    //   **島どうしを六角の隣づたいに繋ぐ。** タイルの直線は使わないので、
+    //   ユーザーの言う「ハニカムを無理やり切り貼りした直線通路」にならない
+    for (let pass = 0; pass < 12; pass++) {
+      // いまの島を数える
+      const cid = {}; const groups = [];
+      for (const k in open) {
+        if (cid[k] !== undefined) continue;
+        const gi = groups.length, q = [k]; cid[k] = gi;
+        for (let i = 0; i < q.length; i++) {
+          const p = q[i].split(','), c = +p[0], r = +p[1];
+          for (const nb of this.hexNbr(c, r)) {
+            const kk = key(nb[0], nb[1]);
+            if (open[kk] && cid[kk] === undefined) { cid[kk] = gi; q.push(kk); }
+          }
+        }
+        groups.push(q);
+      }
+      if (groups.length <= 1) break;
+      // コアのいる島を本体にする
+      const home = cid[key(core.c, core.r)] === undefined ? 0 : cid[key(core.c, core.r)];
+      // 本体に一番近い島を探して、一番近い2点を繋ぐ
+      let bestA = null, bestB = null, bd = Infinity;
+      for (let gi = 0; gi < groups.length; gi++) {
+        if (gi === home) continue;
+        for (const ka of groups[gi]) {
+          const a = cells[ka];
+          if (!a) continue;
+          for (const kb of groups[home]) {
+            const b = cells[kb];
+            if (!b) continue;
+            const e = (a.x - b.x) * (a.x - b.x) + (a.y - b.y) * (a.y - b.y);
+            if (e < bd) { bd = e; bestA = a; bestB = b; }
+          }
         }
       }
-      // 届いていない口を探す
-      let lost = null;
-      for (const h of holes) {
-        let any = false;
-        for (const t of h.tiles) if (seen2[t.c + ',' + t.r]) { any = true; break; }
-        if (!any) { lost = h; break; }
+      if (!bestA || !bestB) break;
+      // 六角の隣づたいに、近いほうへ歩きながら掘る
+      let cur = bestA, guard = 0;
+      while (cur && (cur.c !== bestB.c || cur.r !== bestB.r) && guard++ < 200) {
+        digHex(cur.c, cur.r);
+        let nx = null, nd = Infinity;
+        for (const nb of this.hexNbr(cur.c, cur.r)) {
+          const kk = key(nb[0], nb[1]);
+          const q2 = cells[kk];
+          if (!q2) continue;
+          const e = (q2.x - bestB.x) * (q2.x - bestB.x) + (q2.y - bestB.y) * (q2.y - bestB.y);
+          if (e < nd) { nd = e; nx = q2; }
+        }
+        if (!nx) break;
+        cur = nx;
       }
-      if (!lost) break;
-      // 一番近い「届いているタイル」まで掘る
-      const from = lost.tiles[(lost.tiles.length / 2) | 0];
-      let goal = null, gd = Infinity;
-      for (const kk in seen2) {
-        const p = kk.split(','), c = +p[0], r = +p[1];
-        const e = (c - from.c) * (c - from.c) + (r - from.r) * (r - from.r);
-        if (e < gd) { gd = e; goal = { c: c, r: r }; }
-      }
-      if (!goal) break;
-      digLine({ x: from.c * TILE + TILE / 2, y: from.r * TILE + TILE / 2 },
-              { x: goal.c * TILE + TILE / 2, y: goal.r * TILE + TILE / 2 });
+      digHex(bestB.c, bestB.r);
     }
 
+    // ---- 6. タイルへ焼く ----
+    //
+    //   **タイル側での継ぎ足しはしない。**（ユーザー 2026-09-23）
+    //   > 「ハニカムを無理やり切り貼りした直線通路がある」
+    //   ここには「焼いたあと、届かない口までタイルを1マスずつ掘って繋ぐ」処理があった。
+    //   連結は保証できたが、**その部分だけ盤の上で直線に見える**。
+    //   いまは道を「六角とその隣ぜんぶ」で掘っている（`digHex`）ので、
+    //   覆うタイルが十分に重なり、継ぎ足さなくても繋がる。
+    //   **それでも繋がらない盤は、直さずに捨てる**（`build` が作り直す）
     let hexes = [];
     for (const k in open) hexes.push(cells[k]);
     if (!hexes.length) return null;
@@ -837,191 +855,6 @@ const MapGen = {
       vec: { lanes: [], holes: holes, core: { x: core.x, y: core.y }, w: W, h: H, hexes: hexes, hexR: R },
       zone: this._zone,
       shape: shape, seed: seed, style: 'hex',
-    };
-  },
-  makeBlock(seed, d, shape) {
-    const rnd = this.rng(seed);
-    const cols = (shape.cols | 0) || 23, rows = (shape.rows | 0) || 31;
-    const W = cols * TILE, H = rows * TILE;
-    const cc = cols >> 1, cr = rows >> 1;
-    const core = { x: cc * TILE + TILE / 2, y: cr * TILE + TILE / 2 };
-    const gap = shape.gap || 2;
-    const thick = shape.blockThick || (2 + ((rnd() * 2) | 0));
-    const lo = shape.fingerMin || 4, hi = shape.fingerMax || 9;
-    const chamber = shape.chamber || 3;
-
-    // ---- 1. 指を撒く ----
-    //   置く場所は乱択。**隙間 gap ぶん離れていなければ置かない**ので、
-    //   通れない詰まりが原理的にできない（道の幅は必ず gap 以上）
-    const blocks = [];
-    const fits = (x, y, w, h) => {
-      if (x < 1 || y < 1 || x + w > cols - 1 || y + h > rows - 1) return false;
-      // コアの部屋。ここを埋めると「守る中心」が読めなくなる
-      if (x - gap <= cc + chamber && cc - chamber <= x + w + gap - 1
-        && y - gap <= cr + chamber && cr - chamber <= y + h + gap - 1) return false;
-      for (const b of blocks) {
-        if (x - gap < b.x + b.w && b.x < x + w + gap
-          && y - gap < b.y + b.h && b.y < y + h + gap) return false;
-      }
-      return true;
-    };
-    // **撒ける数は回数ではなく「余白」で決まる。**（2026-09-22 実測）
-    //   1200回 → 9000回に増やしても塊の数は 13〜19 → 12.5〜16.2 で変わらなかった。
-    //   1つの塊は周囲に gap ぶんの余白を要求するので、実際に食う面積は
-    //   (長さ+4)×(太さ+4) ≒ 60タイル。27×37（999タイル）なら16個で埋まりきる。
-    //   **密度を上げたいなら gap か太さを触る。回数を増やしても無駄。**
-    //   （結果の地面の割合は 23×31 で45%・27×37 で42%。
-    //     そのうち通路まで2マス以内が 97〜98%）
-    const cap = Math.round((cols * rows) / 13);
-    for (let t = 0; t < 3000 && blocks.length < cap; t++) {
-      const x0 = 1 + ((rnd() * (cols - 2)) | 0), y0 = 1 + ((rnd() * (rows - 2)) | 0);
-      const dx = (x0 + 0.5) - cc, dy = (y0 + 0.5) - cr;
-      // **長い辺をコアから見た主な方角に合わせる**＝ 指がコアを指す
-      const horiz = Math.abs(dx) >= Math.abs(dy);
-      const len = lo + ((rnd() * (hi - lo + 1)) | 0);
-      const w = horiz ? len : thick, h = horiz ? thick : len;
-      const x = horiz ? (dx >= 0 ? x0 : x0 - w + 1) : x0;
-      const y = horiz ? y0 : (dy >= 0 ? y0 : y0 - h + 1);
-      if (!fits(x, y, w, h)) continue;
-      blocks.push({ x, y, w, h });
-    }
-    const solid = new Array(cols * rows).fill(0);
-    for (const b of blocks) {
-      for (let r = b.y; r < b.y + b.h; r++) for (let c = b.x; c < b.x + b.w; c++) solid[r * cols + c] = 1;
-    }
-
-    // ---- 1b. 同心の囲い（入り口をずらして重ねる）----
-    //
-    //   **指だけでは道が短すぎた。**（実測 2026-09-22・20シード）
-    //   指の隙間がそのまま道になるので格子状に抜けてしまい、
-    //   最短経路は 19×27 で中央値10、27×37 まで広げても15。要求は20。
-    //   ＝ **盤を広げても解決しない構造の問題。**
-    //   （指を同心の帯に並べて半ピッチずらす案も試したが、
-    //     対角の指を軸に沿った長方形で近似する都合で当たり判定が膨らみ、
-    //     ほとんど置けずに道率82%＝ただの広間になった。**これは失敗。**）
-    //
-    //   **囲いを重ねて、入り口を層ごとにずらす。**
-    //   敵は入り口を探して横へ回り込むので、道の幅を変えずに距離だけ伸びる。
-    //   守る側から見ると「入り口の前」が要所になり、置き場所に意味が出る
-    const rings = [];
-    {
-      const k0 = chamber + 2;
-      const stepMin = shape.ringStep || (typeof BAL !== 'undefined' && BAL.blockRingStep) || 3;
-      const doorMin = shape.doorN || (typeof BAL !== 'undefined' && BAL.blockDoorN) || 2;
-      const stepR = stepMin + ((rnd() * 3) | 0);
-      let turn = rnd() * Math.PI * 2;
-      for (let k = k0; k < Math.min(cc, cr) - 1; k += stepR) {
-        const nd = doorMin + (rnd() < 0.35 ? 1 : 0);   // 入り口の数
-        const dw = 2 + ((rnd() * 2) | 0);              // 入り口の幅
-        // **層ごとに四半周ずらす。** 外の入り口から入ると、内の入り口は
-        //   囲いの四分の一だけ横にある。そこを歩かせるぶんが距離になる
-        turn += Math.PI / 2 + (rnd() - 0.5) * 0.5;
-        const doors = [];
-        for (let q = 0; q < nd; q++) {
-          const th = turn + (q * 2 * Math.PI) / nd;
-          // 正方形の囲いの上で、その方角に当たるところ
-          const ux = Math.cos(th), uy = Math.sin(th);
-          const t = k / Math.max(Math.abs(ux), Math.abs(uy));
-          doors.push({ c: Math.round(cc + ux * t), r: Math.round(cr + uy * t), w: dw });
-        }
-        rings.push({ k, doors });
-        // 囲いを立てる
-        for (let c = cc - k; c <= cc + k; c++) {
-          for (const r of [cr - k, cr + k]) {
-            if (c < 1 || r < 1 || c >= cols - 1 || r >= rows - 1) continue;
-            solid[r * cols + c] = 1;
-          }
-        }
-        for (let r = cr - k; r <= cr + k; r++) {
-          for (const c of [cc - k, cc + k]) {
-            if (c < 1 || r < 1 || c >= cols - 1 || r >= rows - 1) continue;
-            solid[r * cols + c] = 1;
-          }
-        }
-        // 入り口を開ける。**前後1マスも一緒に空ける**（指が入り口をふさぐため）
-        for (const dr0 of doors) {
-          // **入り口の幅はきっかり w 枚。** ここを ±w にしていたら 5〜7枚の
-          //   大穴になり、囲いが囲いとして働いていなかった（実測：経路が伸びない）
-          for (let a = -((dr0.w - 1) >> 1); a <= (dr0.w >> 1); a++) {
-            for (let b = -1; b <= 1; b++) {
-              const c1 = dr0.c + (Math.abs(dr0.r - cr) === k ? a : b);
-              const r1 = dr0.r + (Math.abs(dr0.r - cr) === k ? b : a);
-              if (c1 < 0 || r1 < 0 || c1 >= cols || r1 >= rows) continue;
-              solid[r1 * cols + c1] = 0;
-            }
-          }
-        }
-      }
-    }
-
-    // ---- 2. 口を開ける ----
-    //   縁のうち「内側が道になっている」ところだけが候補。
-    //   そこから**狙った方角にいちばん近いもの**を採るので、口が盤を取り巻く
-    const nHole = Math.max(1, shape.holes ? shape.holes : this.holesFor(d, rnd));
-    const holeW = 2 + ((rnd() * 3) | 0);
-    const cand = [];
-    const push = (c, r, dc, dr) => {
-      const tiles = [];
-      for (let k = 0; k < holeW; k++) {
-        const tc = c + dc * k, tr = r + dr * k;
-        if (tc < 0 || tr < 0 || tc >= cols || tr >= rows) return;
-        // その口のタイルの「ひとつ内側」が塊だと、出た先が壁になる
-        const ic = tc + (tc === 0 ? 1 : tc === cols - 1 ? -1 : 0);
-        const ir = tr + (tr === 0 ? 1 : tr === rows - 1 ? -1 : 0);
-        if (solid[ir * cols + ic]) return;
-        tiles.push({ c: tc, r: tr });
-      }
-      const mx = (tiles[0].c + tiles[tiles.length - 1].c) / 2 * TILE + TILE / 2;
-      const my = (tiles[0].r + tiles[tiles.length - 1].r) / 2 * TILE + TILE / 2;
-      cand.push({ tiles, x: mx, y: my, ang: Math.atan2(my - core.y, mx - core.x) });
-    };
-    for (let c = 1; c + holeW <= cols - 1; c++) { push(c, 0, 1, 0); push(c, rows - 1, 1, 0); }
-    for (let r = 1; r + holeW <= rows - 1; r++) { push(0, r, 0, 1); push(cols - 1, r, 0, 1); }
-    if (!cand.length) return null;
-    const holes = [];
-    const a0 = rnd() * Math.PI * 2;
-    for (let k = 0; k < nHole; k++) {
-      const want = a0 + (k * 2 * Math.PI) / nHole;
-      let best = null, bestD = 1e9;
-      for (const q of cand) {
-        let dA = Math.abs(((q.ang - want + Math.PI * 3) % (Math.PI * 2)) - Math.PI);
-        // 既に開けた口と重なるものは採らない
-        let bad = false;
-        for (const h of holes) {
-          if (Math.hypot(q.x - h.x, q.y - h.y) < (holeW + 2) * TILE) { bad = true; break; }
-        }
-        if (bad) continue;
-        if (dA < bestD) { bestD = dA; best = q; }
-      }
-      if (!best) break;
-      holes.push({ side: 'blk' + k, tiles: best.tiles, x: best.x, y: best.y, w: holeW });
-    }
-    if (!holes.length) return null;
-
-    // ---- 3. 六角へ焼く ----
-    //   中心が塊に乗っていない六角＝道。**そのあと六角からタイルを引き直す**ので、
-    //   絵（六角）と規則（タイル）が必ず一致する
-    const R = this.HEX_R;
-    const g0 = this.hexRange(0, 0, W, H, 0);
-    let hexes = [];
-    for (let c = g0.c0; c <= g0.c1; c++) {
-      for (let r = g0.r0; r <= g0.r1; r++) {
-        const hx = this.hexAt(c, r);
-        if (hx.x < -R || hx.y < -R || hx.x > W + R || hx.y > H + R) continue;
-        const tc = Math.max(0, Math.min(cols - 1, (hx.x / TILE) | 0));
-        const tr = Math.max(0, Math.min(rows - 1, (hx.y / TILE) | 0));
-        if (solid[tr * cols + tc]) continue;
-        hexes.push(hx);
-      }
-    }
-    hexes = this.tagZones(hexes, rnd, d);
-    const g = this.edge(this.bake([], core, holes, W, H, hexes));
-
-    return {
-      rows: g.map(r => r.join('')),
-      vec: { lanes: [], holes, core, w: W, h: H, hexes, hexR: R, blocks },
-      zone: this._zone,
-      shape, seed, style: 'block',
     };
   },
   // ---- 1枚作る ----
@@ -1061,9 +894,6 @@ const MapGen = {
     //   この先の折れ線の組み立てとは共有できない。焼いたあとの形は同じ
     // **六角式が本線。**（ユーザー 2026-09-23「全てブロック式は廃止、六角形で固定」）
     if (shape.style === 'hex') return this.makeHex(seed, d, shape);
-    // **ブロック式は廃止。** 呼ばれても六角式に回す。
-    //   定義（makeBlock）は、何をどう測って捨てたかの記録として残してある
-    if (shape.style === 'block') return this.makeHex(seed, d, shape);
     const rnd = this.rng(seed);
     // **盤の大きさも章ごとに変えられる。**（ユーザー 2026-09-22
     //   「ボス章や後半ステージ、ラスボスは広いマップ…を意識して」）
@@ -1443,14 +1273,6 @@ const MapGen = {
       steps.push(drop(shape, ['routeMax', 'roadMin', 'roadMax']));
       steps.push(drop(shape, ['routeMax', 'roadMin', 'roadMax', 'holes']));
       steps.push(drop(shape, ['routeMax', 'roadMin', 'roadMax', 'holes', 'partPool', 'widthMul']));
-      // **ブロック式は、通らなければ指を短くしてから折れ線へ落とす。**
-      //   指が長いほど道が遠回りになる代わりに、口がふさがって届かない形が出る
-      if (shape.style === 'block') {
-        steps.push(Object.assign(drop(shape, ['routeMax', 'roadMin', 'roadMax']),
-          { fingerMax: Math.max(3, (shape.fingerMax || 9) - 3) }));
-        steps.push(Object.assign(drop(shape, ['routeMax', 'roadMin', 'roadMax', 'holes']),
-          { fingerMax: 4, fingerMin: 3, chamber: 2 }));
-      }
       // **最後まで盤の大きさだけは残す。**（2026-09-22・実測で見つけた回帰）
       //   ここが直接 null に落ちていたので、指定が1つでも通らないと
       //   **盤が 15×21 に戻っていた**（第12〜24章がそうなっていた）。

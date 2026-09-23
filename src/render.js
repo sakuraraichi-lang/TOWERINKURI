@@ -233,9 +233,7 @@ const Render = {
     ctx.fillStyle = 'rgba(4,8,13,0.5)';
     ctx.fillRect(0, 0, st.cols * TILE, st.rows * TILE);
 
-    // **武器ごとに要るマスが違う**（weapons.js の foot）ので、
-    //   「1マス空いている」ではなく「その武器が収まる」で光らせる。
-    //   ここを1マス判定のままにすると、光っているのに置けない場所ができる
+    // どの武器も1六角（2026-09-23 に武器の大きさ概念を撤去）
     const wid = UI.placingType || (UI.moving && UI.moving.id);
     const def = wid ? WEAPONS[wid] : null;
     const pulse = 0.16 + 0.08 * Math.sin((Game.run ? Game.run.time : 0) * 5);
@@ -827,22 +825,26 @@ const Render = {
       const c = u.def.color;
       const sel = UI.selected === u;
 
-      // --- 台座。**占めているマスぜんぶを踏む。**（2026-09-22）
-      //   武器ごとに要る広さが違うので（weapons.js の foot）、
-      //   六角の座を1つ描くだけだと「2マス使っているのに1マスに見える」。
-      //   **踏んでいる面をそのまま見せる**のが、置き場所を選ぶための情報になる
-      const tiles = Game.tilesOf(u);
+      // --- 台座。**六角1つ。**（ユーザー 2026-09-23）
+      //   > 「武器を置いたら**謎の四角**が出てきます、おそらくこれは
+      //   >   武器の2マス要求とかを要望した時の名残ですね」
+      //   そのとおりで、ここは**タイル座標に四角い台座**を描いていた。
+      //   セルが六角になったのに四角を描いていたので、盤と合わない四角が浮いていた。
+      //   武器の大きさ概念も撤去したので、**六角の座を1つ**描く
       ctx.save();
       ctx.shadowColor = c; ctx.shadowBlur = sel ? 16 : 7;
       ctx.fillStyle = '#0c0e13';
       ctx.strokeStyle = sel ? '#ffffff' : c;
       ctx.lineWidth = sel ? 2.4 : 1.5;
-      const pad = 3, rr = 6;
-      for (const t of tiles) {
-        const x = t.c * TILE + pad, y = t.r * TILE + pad, w = TILE - pad * 2, h = TILE - pad * 2;
+      {
+        const R = MapGen.HEX_R - 3;
         ctx.beginPath();
-        if (ctx.roundRect) ctx.roundRect(x, y, w, h, rr);
-        else ctx.rect(x, y, w, h);
+        for (let i = 0; i < 6; i++) {
+          const a = Math.PI / 3 * i;
+          const px = u.x + Math.cos(a) * R, py = u.y + Math.sin(a) * R;
+          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        }
+        ctx.closePath();
         ctx.fill(); ctx.stroke();
       }
       ctx.restore();
@@ -853,9 +855,6 @@ const Render = {
       ctx.rotate(u.angle);
       // 撃った瞬間に後ろへ下がる。**動いて見えるのはこれだけで足りる**
       if (u.muzzle > 0) ctx.translate(-u.muzzle * 26, 0);
-      // 2マス使う武器は砲塔も大きく描く（同じ大きさだと広さが嘘になる）
-      const sc = tiles.length >= 2 ? 1.25 : 1;
-      if (sc !== 1) ctx.scale(sc, sc);
       this.turret(ctx, u, c);
       ctx.restore();
 

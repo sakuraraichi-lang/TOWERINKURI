@@ -1028,6 +1028,20 @@ const Combat = {
       // **毒のスリップダメージ。**（ユーザー要望8・2026-09-22）
       //   雲を出たあとも続く。炎上と同じ形
       if (e.poisonT > 0) { e.poisonT -= dt; this.damage(run, e, (e.poison || 0) * dt, { color: '#c6ff7a', dot: true }); if (e.dead) continue; }
+      // **感電と拘束にもスリップダメージ。**（ユーザー判断 2026-09-23）
+      //   > 「凍結にスリップダメージは不要、**感電と拘束につける**、これでいきましょう」
+      //   **凍結には付けない。**「時間を奪う軸」として上限を開かない決まりにしてあるため。
+      //
+      //   **最大HPに対する割合／秒。** 固定値にすると章が進んだ瞬間に意味が消える
+      //   （敵のHPは30章で1e14倍になる）。装甲と同じ考え方
+      if (e.shock > 0 && BAL.shockDps) {
+        this.damage(run, e, e.maxHp * BAL.shockDps * dt, { color: '#c9b3ff', dot: true });
+        if (e.dead) continue;
+      }
+      if (e.stun > 0 && BAL.stunDps) {
+        this.damage(run, e, e.maxHp * BAL.stunDps * dt, { color: '#bea0ff', dot: true });
+        if (e.dead) continue;
+      }
       // **ボスは雑魚を出し続ける。** 倒すまで手が空かない、が罰になる
       if (e.boss) {
         e.addT -= dt;

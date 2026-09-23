@@ -1454,8 +1454,16 @@ const UI = {
         type: c.kind === 'weapon' ? '武器を編成に追加'
             : c.kind === 'synergy' ? 'シナジー'
             : (c.weapon ? WEAPONS[c.weapon].name + ' 強化' : '全体強化'),
+        // **3択に「あと◯枚で1凸」は出さない。**（ユーザー 2026-09-23）
+        //   > 「**カードパックで被ったものだけ**枚数的にそう処理していただきたく、
+        //   >   **3択チョイスでは被せて取る意味は残したい**です」
+        //   凸（4枚/8枚/16枚）は**パックで増える所持枚数**の話。
+        //   ここへ進捗を出すと、**3択で被せると凸が進む**ように読めてしまう。
+        //   実際には3択の重ねは別の仕組みで、**1枚ごとにその場で効く**
+        //   （`applyCard` が積むたびに走る。下の丸がその枚数）。
+        //   **いまの倍率（×1.24 など）は出す。**その出撃での強さは知りたいので
         rank: Game.cardRank(id), rankMul: c.noRank ? 1 : Game.rankMul(id),
-        owned: Game.own(id), totuNext: c.noRank ? null : Game.cardTotuNext(id),
+        owned: Game.own(id), totuNext: null,
         pips: { have: run.cards[id] || 0, limit: Game.stackLimit(id) },
         hot: BAL.rarity[c.rarity].glow >= 2,
       });
@@ -1585,8 +1593,21 @@ const UI = {
       (o.pick ? ' pick' : '') + (o.reveal ? ' reveal' : ''));
     el.style.setProperty('--rc', R.color);
     let sub = '';
-    if (o.count !== undefined) sub = o.count > 0 ? '×' + o.count : '未所持';
-    else if (o.stacks) sub = o.stacks + ' / ' + o.limit + ' 枚目';
+    if (o.count !== undefined) {
+      // **凸の進捗はここ（コレクション）に出す。**（ユーザー 2026-09-23）
+      //   > 「**カードパックで被ったものだけ**枚数的にそう処理していただきたく、
+      //   >   3択チョイスでは被せて取る意味は残したいです」
+      //   凸は**パックで増える所持枚数**の話なので、枚数が並ぶこの画面が置き場所。
+      //   以前は3択の側だけに「あと◯枚で1凸」が出ていて、
+      //   **3択で被せると凸が進む**ように読めてしまっていた
+      sub = o.count > 0 ? '×' + o.count : '未所持';
+      if (o.count > 0 && !c.noRank) {
+        const totu = Game.cardTotu(c.id);
+        const next = Game.cardTotuNext(c.id);
+        if (totu > 0) sub += ' <b class="totu">' + totu + '凸</b>';
+        if (next) sub += ' <u class="totunx">あと' + (next - o.count) + '枚</u>';
+      }
+    } else if (o.stacks) sub = o.stacks + ' / ' + o.limit + ' 枚目';
     // **アイコン＋題名＋一行。** 長い説明は、読もうとしてタップしたときだけ出す
     const short = this.shortDesc(c);
     const full = c.desc || '';

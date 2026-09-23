@@ -243,6 +243,9 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .card .cname{font-size:12.5px;font-weight:800;margin-top:4px;line-height:1.25;}
 .card .cdesc{font-size:10px;color:var(--txt2);margin-top:5px;line-height:1.55;}
 .card .cfoot{font-size:10px;color:var(--dim);margin-top:7px;}
+/* 凸（パックで被った枚数）。3択ではなくコレクション側に出す */
+.card .cfoot .totu{color:#ffb43c;font-weight:700;}
+.card .cfoot .totunx{color:#6b7488;text-decoration:none;}
 .card .new{color:var(--gold);}
 .card.small .cdesc{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;}
 .card.r-epic{box-shadow:0 0 16px rgba(194,107,255,.22);}
