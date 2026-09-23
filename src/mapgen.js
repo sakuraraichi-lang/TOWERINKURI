@@ -1179,6 +1179,57 @@ const MapGen = {
       }
     }
     const liveRatio = ground > 0 ? live / ground : 0;
+    // **通路の平均の太さ。**（§8-3「平均通路幅 ≦ 4タイル」・ここまで未実装だった）
+    //   **「道の総量 ÷ 経路長」では測れない。** 行き止まりの枝まで数えてしまい、
+    //   太さではなく「道の多さ」を見ることになる（実測で第13章が 7.75 と出たが、
+    //   実際に太いのではなく枝が多いだけだった）。
+    //   **壁までの距離で測る。** 通路タイルごとに一番近い壁までの歩数を求め、
+    //   その平均を2倍する（＝両側ぶん）。これが素直な「太さ」
+    let widthAvg = 0;
+    {
+      const dw = new Array(cols * rows).fill(-1);
+      const q3 = [];
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        if (!walk(c, r)) { dw[idx(c, r)] = 0; q3.push({ c, r }); }
+      }
+      for (let i = 0; i < q3.length; i++) {
+        const cur = q3[i], dd3 = dw[idx(cur.c, cur.r)];
+        for (const dd of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+          const nc = cur.c + dd[0], nr = cur.r + dd[1];
+          if (nc < 0 || nr < 0 || nc >= cols || nr >= rows) continue;
+          if (dw[idx(nc, nr)] >= 0) continue;
+          dw[idx(nc, nr)] = dd3 + 1; q3.push({ c: nc, r: nr });
+        }
+      }
+      let sum = 0, n3 = 0;
+      for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
+        if (!walk(c, r)) continue;
+        const v = dw[idx(c, r)];
+        if (v > 0) { sum += v; n3++; }
+      }
+      widthAvg = n3 ? (sum / n3) * 2 : 0;
+    }
+    // **穴の数を数える。**（`spawns` は S タイルの数で、口の数ではない。1つの口が2〜4タイル）
+    //   隣り合う S をまとめて1つの穴とする（`Stage.build` の `mouths` と同じ数え方）
+    let mouthN = 0;
+    {
+      const seenS = {};
+      for (const s of spawns) {
+        const k0 = s.c + ',' + s.r;
+        if (seenS[k0]) continue;
+        mouthN++;
+        const st2 = [s]; seenS[k0] = 1;
+        while (st2.length) {
+          const t = st2.pop();
+          for (const dd of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
+            const nc = t.c + dd[0], nr = t.r + dd[1];
+            const k2 = nc + ',' + nr;
+            if (seenS[k2] || at(nc, nr) !== 'S') continue;
+            seenS[k2] = 1; st2.push({ c: nc, r: nr });
+          }
+        }
+      }
+    }
     return {
       // **序盤は検査を厳しくする。** BAL.minRouteLen(20) は「これを割ると必ず漏れる」線であって、
       //   第1章に出していい長さではない。序盤ほど余裕を積む。
@@ -1227,6 +1278,15 @@ const MapGen = {
           && road <= Math.round((shape.roadMax !== undefined ? shape.roadMax
                : (88 + 140 * dd)) * area)
           && ground >= 40
+          // **通路が広すぎないこと。**（§8-3 で「追加する予定」と書いたまま未実装だった）
+          //   広いと1基の扇が覆う割合が下がり、**置ける数だけが効く盤**になる。
+          //   幅は「通路の総タイル数 ÷ 最短経路の長さ」で見る
+          //   （通路を1本の帯とみなしたときの平均の太さ）。
+          //   盤が広いほど道の本数も増えるので、口の数で割って1本ぶんに直す
+          && (shape.widthMax === undefined || widthAvg <= shape.widthMax)
+          // **章が進むほど口を増やす。**（§8-3 の「幕IV以降は出現口3以上」）
+          //   口が1つだと支援や指定攻撃の置き場所が1か所に決まってしまう
+          && (shape.mouthMin === undefined || mouthN >= shape.mouthMin)
           && (dd >= 0.08 || shape.roadMax !== undefined
               || road <= Math.round(BAL.earlyRoadMax * area))
           // **遊びに関わらない広場を作らない。**（ユーザー 2026-09-22）
@@ -1235,7 +1295,8 @@ const MapGen = {
           //   通路から遠い地面は、置いても撃てないので盤の面積を食っているだけ。
           //   実測（2026-09-22）：通路が見える地面は全体の **32〜63%** しかなかった
           && liveRatio >= (BAL.mapLiveMin !== undefined ? BAL.mapLiveMin : 0),
-      spawns: spawns.length, holes: spawns.length, lens, ground, road,
+      spawns: spawns.length, holes: spawns.length, mouths: mouthN, lens, ground, road,
+      width: +widthAvg.toFixed(2),
       live, liveRatio: +liveRatio.toFixed(3),
       shortest: lens.length ? Math.min.apply(null, lens) : 0,
     };

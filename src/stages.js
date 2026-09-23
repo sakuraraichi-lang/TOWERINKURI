@@ -926,6 +926,18 @@ const Stage = {
         //   六角式は筋を掘るだけなので道が細く、下限に当たりやすい。
         //   単位は「15×21 の盤あたりのタイル数」なので、315 × 割合
         roadMin: BAL.hexRoadMin, roadMax: BAL.hexRoadMax,
+        // **§8-3 の2つの検査。**（設計書に「追加する予定」と書いたまま未実装だった）
+        //   通路が広すぎると1基の扇が覆う割合が下がり、**置ける数だけが効く盤**になる。
+        //   口が1つだと支援や指定攻撃の置き場所が1か所に決まる。
+        //   実測（2026-09-23・10章）では太さ 2.2〜4.3 で、ほぼ目標どおりだった
+        widthMax: BAL.mapWidthMax,
+        mouthMin: (function () {
+          const t = BAL.mouthMinByDepth;
+          if (!t) return undefined;
+          let v = t[t.length - 1][1];
+          for (const row of t) { if (d < row[0]) { v = row[1]; break; } }
+          return v;
+        }()),
       });
     }
     const own = (BAL.mapShape && BAL.mapShape[idx + 1]) || null;
