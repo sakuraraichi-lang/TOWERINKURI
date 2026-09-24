@@ -731,18 +731,43 @@ const Render = {
   core(ctx, run) {
     const t = run.tower;
     const hpR = Util.clamp(t.hp / t.maxHp, 0, 1);
+    // **コアは「炉」。**（2026-09-24 デザインの作り直し）回る2重の輪と、脈打つ光の芯。
+    //   漏れてHPが減るほど芯の色が赤に寄り、脈が速くなる
+    const tt = performance.now() / 1000;
+    const danger = 1 - hpR;
+    const beat = 1 + 0.08 * Math.sin(tt * (3 + danger * 9));
     ctx.save();
-    ctx.shadowColor = '#ff8a1f'; ctx.shadowBlur = 22;
-    ctx.fillStyle = '#2a1f08';
-    ctx.strokeStyle = '#ffa32e'; ctx.lineWidth = 2.5;
-    ctx.beginPath();
-    for (let i = 0; i < 6; i++) {
-      const a = -Math.PI / 2 + i * Math.PI / 3;
-      const px = t.x + Math.cos(a) * t.r, py = t.y + Math.sin(a) * t.r;
-      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
-    }
-    ctx.closePath(); ctx.fill(); ctx.stroke();
+    ctx.translate(t.x, t.y);
+    // 光の暈
+    const halo = ctx.createRadialGradient(0, 0, 0, 0, 0, t.r * 3.2);
+    halo.addColorStop(0, danger > 0.5 ? 'rgba(255,80,60,0.45)' : 'rgba(255,150,40,0.45)'); halo.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = halo; ctx.beginPath(); ctx.arc(0, 0, t.r * 3.2, 0, Math.PI * 2); ctx.fill();
+    // 台座（六角の金属）
+    ctx.save(); ctx.shadowColor = '#ff8a1f'; ctx.shadowBlur = 18;
+    this.hexPathOn(ctx, 0, 0, t.r * 1.25);
+    const pg = ctx.createLinearGradient(-t.r, -t.r, t.r, t.r);
+    pg.addColorStop(0, '#3a3020'); pg.addColorStop(1, '#120d05');
+    ctx.fillStyle = pg; ctx.fill();
+    ctx.strokeStyle = '#ffa32e'; ctx.lineWidth = 2.5; ctx.stroke();
     ctx.restore();
+    // 回る外輪（切れ目のある輪）
+    ctx.save(); ctx.rotate(tt * 0.8);
+    ctx.strokeStyle = 'rgba(255,190,90,0.85)'; ctx.lineWidth = 2;
+    ctx.setLineDash([t.r * 0.5, t.r * 0.28]);
+    ctx.beginPath(); ctx.arc(0, 0, t.r * 0.95, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+    ctx.save(); ctx.rotate(-tt * 1.6);
+    ctx.strokeStyle = 'rgba(255,240,200,0.7)'; ctx.lineWidth = 1.4;
+    ctx.setLineDash([3, 5]);
+    ctx.beginPath(); ctx.arc(0, 0, t.r * 0.68, 0, Math.PI * 2); ctx.stroke();
+    ctx.restore();
+    // 脈打つ芯
+    const cg = ctx.createRadialGradient(0, 0, 0, 0, 0, t.r * 0.55 * beat);
+    cg.addColorStop(0, '#fffbe8'); cg.addColorStop(0.35, danger > 0.5 ? '#ff6a4a' : '#ffb43c'); cg.addColorStop(1, 'rgba(255,100,20,0)');
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 0, t.r * 0.55 * beat, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
 
     ctx.lineWidth = 4;
     ctx.strokeStyle = 'rgba(255,255,255,0.10)';
@@ -851,31 +876,23 @@ const Render = {
       //   そのとおりで、ここは**タイル座標に四角い台座**を描いていた。
       //   セルが六角になったのに四角を描いていたので、盤と合わない四角が浮いていた。
       //   武器の大きさ概念も撤去したので、**六角の座を1つ**描く
-      ctx.save();
-      ctx.shadowColor = c; ctx.shadowBlur = sel ? 16 : 7;
-      ctx.fillStyle = '#0c0e13';
-      ctx.strokeStyle = sel ? '#ffffff' : c;
-      ctx.lineWidth = sel ? 2.4 : 1.5;
-      {
-        const R = MapGen.HEX_R - 3;
-        ctx.beginPath();
-        for (let i = 0; i < 6; i++) {
-          const a = Math.PI / 3 * i;
-          const px = u.x + Math.cos(a) * R, py = u.y + Math.sin(a) * R;
-          if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-        }
-        ctx.closePath();
-        ctx.fill(); ctx.stroke();
+      // 台座は作り置きの絵（面取りした金属板＋武器の色のネオンの輪）
+      const ped = this.pedestalSprite(c);
+      ctx.drawImage(ped.cv, u.x - ped.h, u.y - ped.h, ped.h * 2, ped.h * 2);
+      if (sel) {
+        ctx.save(); ctx.shadowColor = '#fff'; ctx.shadowBlur = 14;
+        this.hexPathOn(ctx, u.x, u.y, MapGen.HEX_R - 3);
+        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.2; ctx.stroke(); ctx.restore();
       }
-      ctx.restore();
 
-      // --- 砲塔 ---
+      // --- 砲塔。作り置きの絵（金属の光沢つき）を回して貼る ---
       ctx.save();
       ctx.translate(u.x, u.y);
       ctx.rotate(u.angle);
       // 撃った瞬間に後ろへ下がる。**動いて見えるのはこれだけで足りる**
       if (u.muzzle > 0) ctx.translate(-u.muzzle * 26, 0);
-      this.turret(ctx, u, c);
+      const tur = this.turretSprite(u.id, c);
+      ctx.drawImage(tur.cv, -tur.h, -tur.h, tur.h * 2, tur.h * 2);
       ctx.restore();
 
       // --- 発砲の火。砲身の先に出す（後退とは無関係の位置） ---
@@ -884,6 +901,12 @@ const Render = {
         ctx.save();
         ctx.translate(u.x, u.y); ctx.rotate(u.angle);
         ctx.globalAlpha = Math.min(1, u.muzzle * 12);
+        // 砲口の光の玉（加算）
+        ctx.globalCompositeOperation = 'lighter';
+        const mg = ctx.createRadialGradient(bl + 3, 0, 0, bl + 3, 0, 12);
+        mg.addColorStop(0, 'rgba(255,240,200,0.9)'); mg.addColorStop(0.4, c + 'aa'); mg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = mg; ctx.beginPath(); ctx.arc(bl + 3, 0, 12, 0, Math.PI * 2); ctx.fill();
+        ctx.globalCompositeOperation = 'source-over';
         ctx.fillStyle = '#fff6e0';
         ctx.beginPath();
         ctx.moveTo(bl, -1.5); ctx.lineTo(bl + 7, 0); ctx.lineTo(bl, 1.5);
@@ -900,6 +923,82 @@ const Render = {
         ctx.fillText(u.def.short, u.x, u.y + 18);
       }
     }
+  },
+
+  // 作り置きの絵の解像度（画面の拡大率に合わせる）
+  spriteRes() { return Math.min(3, Math.max(1.5, Math.round((this.scale || 1) * (this.dpr || 1) * 3) / 2)); },
+
+  // 武器の台座：面取りした金属の六角＋武器の色のネオンの輪
+  pedestalSprite(color) {
+    const res = this.spriteRes();
+    const key = color + '@' + res;
+    this._ped = this._ped || {};
+    if (this._ped[key]) return this._ped[key];
+    const h = MapGen.HEX_R + 6;
+    const cv = document.createElement('canvas'); cv.width = cv.height = Math.ceil(h * 2 * res);
+    const c = cv.getContext('2d'); c.setTransform(res, 0, 0, res, h * res, h * res);
+    const R = MapGen.HEX_R - 3;
+    c.save(); c.shadowColor = color; c.shadowBlur = 10;
+    this.hexPathOn(c, 0, 0, R); c.fillStyle = '#0b0d13'; c.fill();
+    c.strokeStyle = color; c.lineWidth = 2; c.stroke(); c.restore();
+    const g = c.createLinearGradient(-R, -R, R, R);
+    g.addColorStop(0, '#3a4256'); g.addColorStop(0.5, '#1c2130'); g.addColorStop(1, '#0c0f16');
+    this.hexPathOn(c, 0, 0, R - 3.5); c.fillStyle = g; c.fill();
+    c.strokeStyle = 'rgba(0,0,0,0.7)'; c.lineWidth = 1.2; c.stroke();
+    // 中央の窪み（砲塔が乗る）
+    const w = c.createRadialGradient(0, 0, 2, 0, 0, R * 0.62);
+    w.addColorStop(0, '#05060a'); w.addColorStop(1, 'rgba(5,6,10,0)');
+    c.fillStyle = w; c.beginPath(); c.arc(0, 0, R * 0.62, 0, Math.PI * 2); c.fill();
+    // 四隅の表示灯（武器の色）
+    c.fillStyle = color;
+    for (let i = 0; i < 6; i += 2) { const a = Math.PI / 3 * i + Math.PI / 6; c.beginPath(); c.arc(Math.cos(a) * (R - 6.5), Math.sin(a) * (R - 6.5), 1.3, 0, Math.PI * 2); c.fill(); }
+    return (this._ped[key] = { cv, h });
+  },
+
+  // 砲塔：turret() で描いたものに、金属の光沢（左上が明るく右下が暗い）を重ねる
+  turretSprite(id, color) {
+    const res = this.spriteRes();
+    const key = id + color + '@' + res;
+    this._tur = this._tur || {};
+    if (this._tur[key]) return this._tur[key];
+    const h = 34;
+    const cv = document.createElement('canvas'); cv.width = cv.height = Math.ceil(h * 2 * res);
+    const c = cv.getContext('2d'); c.setTransform(res, 0, 0, res, h * res, h * res);
+    c.save(); c.shadowColor = 'rgba(0,0,0,0.8)'; c.shadowBlur = 5; c.shadowOffsetY = 2;
+    this.turret(c, { id }, color);
+    c.restore();
+    c.globalCompositeOperation = 'source-atop';
+    const g = c.createLinearGradient(-h * 0.6, -h * 0.6, h * 0.6, h * 0.6);
+    g.addColorStop(0, 'rgba(255,255,255,0.38)'); g.addColorStop(0.45, 'rgba(255,255,255,0.04)');
+    g.addColorStop(0.55, 'rgba(0,0,0,0.05)'); g.addColorStop(1, 'rgba(0,0,0,0.45)');
+    c.fillStyle = g; c.fillRect(-h, -h, h * 2, h * 2);
+    return (this._tur[key] = { cv, h });
+  },
+
+  // 敵：種類・色・大きさごとに1枚。中心が明るいグラデーション・つや・暗い輪郭・進む向きの「目」
+  enemySprite(tname, color, r) {
+    const res = this.spriteRes();
+    const key = tname + color + r + '@' + res;
+    this._enm = this._enm || {};
+    if (this._enm[key]) return this._enm[key];
+    const h = r + 6;
+    const cv = document.createElement('canvas'); cv.width = cv.height = Math.ceil(h * 2 * res);
+    const c = cv.getContext('2d'); c.setTransform(res, 0, 0, res, h * res, h * res);
+    const fake = { tname, r };
+    const g = c.createRadialGradient(-r * 0.3, -r * 0.35, r * 0.1, 0, 0, r * 1.25);
+    g.addColorStop(0, '#ffffff'); g.addColorStop(0.18, color); g.addColorStop(1, 'rgba(0,0,0,0.9)');
+    c.beginPath(); this.enemyBody(c, fake); c.fillStyle = color; c.fill();
+    c.beginPath(); this.enemyBody(c, fake); c.globalAlpha = 0.55; c.fillStyle = g; c.fill(); c.globalAlpha = 1;
+    c.strokeStyle = 'rgba(0,0,0,0.75)'; c.lineWidth = tname === 'tank' ? 2.4 : 1.5; c.stroke();
+    // つや
+    c.fillStyle = 'rgba(255,255,255,0.35)';
+    c.beginPath(); c.ellipse(-r * 0.25, -r * 0.4, r * 0.35, r * 0.16, -0.5, 0, Math.PI * 2); c.fill();
+    // 重い相手は内側にもう1本（硬さを形で）
+    if (tname === 'tank') { c.strokeStyle = 'rgba(255,255,255,0.22)'; c.lineWidth = 1.2; c.beginPath(); c.arc(0, 0, r * 0.5, 0, Math.PI * 2); c.stroke(); }
+    // 目（進む向き＝+x）
+    c.fillStyle = '#fff'; c.shadowColor = color; c.shadowBlur = 4;
+    c.beginPath(); c.arc(r * 0.45, 0, Math.max(1.4, r * 0.16), 0, Math.PI * 2); c.fill();
+    return (this._enm[key] = { cv, h });
   },
 
   // 砲身の長さ（発砲の火を出す位置）
@@ -1121,23 +1220,16 @@ const Render = {
     for (const e of run.enemies) {
       ctx.save();
       ctx.translate(e.x, e.y);
+      // 足元の影（回さない）
+      ctx.fillStyle = 'rgba(0,0,0,0.35)';
+      ctx.beginPath(); ctx.ellipse(1.5, e.r * 0.55, e.r * 0.95, e.r * 0.42, 0, 0, Math.PI * 2); ctx.fill();
       ctx.rotate(e.ang || 0);
-      ctx.fillStyle = e.hitFlash > 0 ? '#ffffff'
-                    : e.chill > 0 ? '#7fd8ff'
-                    : e.burnT > 0 ? '#ff9a4a' : e.color;
-      this.enemyBody(ctx, e);
-      ctx.fill();
-      // **輪郭を入れる。** 塗りだけだと、押し合って重なったときに
-      // ひとかたまりの染みに見えて、何体いるのか読めなかった
-      ctx.strokeStyle = 'rgba(0,0,0,0.55)';
-      ctx.lineWidth = e.tname === 'tank' ? 2.2 : 1.4;
-      ctx.stroke();
-      // 重い相手だけ、内側にもう1本。**硬さを形で伝える**
-      if (e.tname === 'tank') {
-        ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-        ctx.lineWidth = 1.2;
-        ctx.beginPath(); ctx.arc(0, 0, e.r * 0.5, 0, Math.PI * 2); ctx.stroke();
-      }
+      // **体は作り置きの絵**（グラデーション・つや・輪郭・目）。数百体でも貼るだけ
+      //   輪郭は、押し合って重なったときに何体いるか読めるようにするため（以前からの理由）
+      const col = e.hitFlash > 0 ? '#ffffff' : e.chill > 0 ? '#7fd8ff' : e.burnT > 0 ? '#ff9a4a' : e.color;
+      const spr = this.enemySprite(e.tname, col, e.r);
+      ctx.drawImage(spr.cv, -spr.h, -spr.h, spr.h * 2, spr.h * 2);
+
       // ボス：残りHPを輪で見せる。**DPSチェックなので、減り方が見えないと意味がない**
       if (e.boss) {
         const f = Math.max(0, e.hp / e.maxHp);
