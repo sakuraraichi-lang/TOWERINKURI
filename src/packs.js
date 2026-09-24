@@ -203,8 +203,8 @@ const Pack = {
   prestigePreview(clearedStages, prestiges) {
     if (clearedStages <= 0) return { relic: 0, cards: 0 };
     return {
-      // 遺物：8回転生で累計 約70枚（下の経緯）
-      relic: Math.round(2 + clearedStages * 0.12),
+      // 遺物（BAL.relicPack*）。経緯は下の prestigeReward と balance.js
+      relic: Math.round(BAL.relicPackBase + clearedStages * BAL.relicPackPerStage),
       // カード：深さで増える形（^1.7）。**係数 BAL.packPrestigeMul で絞る**（ユーザー 2026-09-24「パックの配布を絞ってみましょう」）
       cards: Util.clamp(Math.round(Math.pow(clearedStages, 1.7) * BAL.packPrestigeMul) + Math.floor(prestiges / 4),
                         1, BAL.packPerPrestigeMax),
@@ -247,10 +247,18 @@ const Pack = {
     const pv = Pack.prestigePreview(clearedStages, prestiges);
     out.relic = pv.relic;
     const n = pv.cards;
-    // 出る分野は「そこまでに突破したステージ」の分野に限られる
-    const pool = STAGES.slice(0, clearedStages).map(s => Pack.forStage(s.id));
+    // 出る分野は「そこまでに突破したステージ」の分野に限られる。
+    //   **奥の章ほど重く引く**（BAL.packDepthPow）。前は突破した章から均等に引いていたので、
+    //   第1〜4章の「基本パック」がいつまでも一番多かった（2026-09-25 実測：通し2本で基本 60〜77・兵装 56〜70・化学 45〜53）
+    const pool = STAGES.slice(0, clearedStages).map((s, i) => ({ k: Pack.forStage(s.id), w: Math.pow(i + 1, BAL.packDepthPow) }));
+    const wsum = pool.reduce((a, e) => a + e.w, 0);
+    //   **連携パックは開いたら一定の割合で混ぜる**（BAL.packSynShare）。前は第28〜30章の分野にしか無く、
+    //   通し2本で連携パックは 6〜7個、連携カード15種のうち 7〜9種が最後まで手に入らなかった
+    const synOk = (prestiges + 1) >= (PACKS.syn.unlockP || 0);
     for (let i = 0; i < n; i++) {
-      const pick = pool[Math.floor(Math.random() * pool.length)];
+      if (synOk && Math.random() < BAL.packSynShare) { out.syn++; continue; }
+      let r = Math.random() * wsum, pick = pool[pool.length - 1].k;
+      for (const e of pool) { r -= e.w; if (r <= 0) { pick = e.k; break; } }
       out[pick]++;
     }
     return out;
