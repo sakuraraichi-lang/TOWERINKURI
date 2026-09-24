@@ -838,19 +838,6 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 @keyframes gcq{0%{transform:scale(.8);opacity:.5;}100%{transform:scale(1.35);opacity:1;}}
 @keyframes gpillar{0%{opacity:0;}60%{opacity:.5;}100%{opacity:1;}}
 
-/* 凸が上がった瞬間：カードの上に跳ねる */
-.card .totuup{position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);z-index:3;pointer-events:none;
-  display:flex;flex-direction:column;align-items:center;gap:2px;padding:6px 12px;border-radius:10px;
-  background:rgba(12,14,19,.9);border:1px solid #ffb43c;box-shadow:0 0 18px rgba(255,180,60,.5);
-  animation:totuup 1.9s cubic-bezier(.2,1.4,.3,1) forwards;}
-.card .totuup b{font-size:18px;color:#ffb43c;letter-spacing:.04em;white-space:nowrap;}
-.card .totuup small{font-size:11px;color:#fff;white-space:nowrap;}
-.card .totuup.big{border-color:#fff;box-shadow:0 0 28px rgba(255,220,120,.8);}
-.card .totuup.big b{color:#ffe08a;font-size:20px;}
-/* 跳ねたあとは消さずに小さく残す（あとから見返せるように） */
-@keyframes totuup{0%{transform:translate(-50%,-30%) scale(.4);opacity:0;}18%{transform:translate(-50%,-50%) scale(1.15);opacity:1;}
-  30%{transform:translate(-50%,-50%) scale(1);}75%{transform:translate(-50%,-50%) scale(1);opacity:1;}100%{transform:translate(-50%,-50%) scale(.8);opacity:.92;}}
-
 /* 次の凸までの進み */
 .card .tbar{display:block;height:3px;margin-top:5px;border-radius:2px;background:#232838;overflow:hidden;}
 .card .tbar>i{display:block;height:100%;background:linear-gradient(90deg,#ff8a1f,#ffb43c);}

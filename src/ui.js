@@ -1334,19 +1334,6 @@ const UI = {
     showSwaps();
   },
 
-  // 凸が上がった瞬間。カードの上に「1凸 → 2凸」と倍率を跳ねさせる
-  totuUp(el, c, t0, t1) {
-    const m0 = 1 + totuBonus(t0), m1 = 1 + totuBonus(t1);
-    const big = t1 >= BAL.totuBigFrom;
-    const tag = Util.el('div', 'totuup' + (big ? ' big' : ''));
-    tag.innerHTML = '<b>' + (t0 > 0 ? t0 + '凸 → ' : '') + t1 + '凸</b>' +
-      '<small>×' + m0.toFixed(2) + ' → ×' + m1.toFixed(2) + '</small>';
-    el.appendChild(tag);
-    Snd.totu(t1);
-    // **4凸に届いた瞬間は「覚醒」。**ここから1凸ごとに +50% になる段なので、見た目でも跳ねさせる
-    if (t0 < BAL.totuBigFrom && t1 >= BAL.totuBigFrom) this.awaken(c, m0, m1);
-  },
-
   awaken(c, m0, m1) {
     const ov = Util.el('div', 'awaken');
     ov.style.setProperty('--rc', BAL.rarity[c.rarity].color);
@@ -1633,53 +1620,7 @@ const UI = {
   },
 
   // ================= カードの見た目 =================
-  cardEl(c, o) {
-    o = o || {};
-    const R = BAL.rarity[c.rarity];
-    const el = Util.el('div', 'card r-' + c.rarity + (o.small ? ' small' : '') + (o.dim ? ' dim' : '') +
-      (o.pick ? ' pick' : '') + (o.reveal ? ' reveal' : ''));
-    el.style.setProperty('--rc', R.color);
-    let sub = '';
-    if (o.count !== undefined) {
-      // **凸の進捗はここ（コレクション）に出す。**（ユーザー 2026-09-23）
-      //   > 「**カードパックで被ったものだけ**枚数的にそう処理していただきたく、
-      //   >   3択チョイスでは被せて取る意味は残したいです」
-      //   凸は**パックで増える所持枚数**の話なので、枚数が並ぶこの画面が置き場所。
-      //   以前は3択の側だけに「あと◯枚で1凸」が出ていて、
-      //   **3択で被せると凸が進む**ように読めてしまっていた
-      sub = o.count > 0 ? (o.gain ? '+' + o.gain + '（計' + o.count + '）' : '×' + o.count) : '未所持';
-      if (o.count > 0 && !c.noRank) {
-        // **渡された枚数から出す。**パックを開けている途中の1枚ごとの凸を出すため（2026-09-24）
-        const totu = Game.totuOf(o.count);
-        const lo = Game.totuNeed(totu), next = Game.totuNeed(totu + 1);
-        if (totu > 0) sub += ' <b class="totu">' + totu + '凸</b>';
-        sub += ' <u class="totunx">あと' + (next - o.count) + '枚</u>';
-        // 次の凸までの進み。**あと少しで凸、を目で見せる**
-        const pct = Math.max(0, Math.min(100, 100 * (o.count - lo) / Math.max(1, next - lo)));
-        sub += '<i class="tbar"><i style="width:' + pct.toFixed(0) + '%"></i></i>';
-        if (totu >= BAL.totuBigFrom) el.classList.add('awake');   // 4凸から枠を変える（覚醒）
-      }
-    } else if (o.stacks) sub = o.stacks + ' / ' + o.limit + ' 枚目';
-    // **アイコン＋題名＋一行。** 長い説明は、読もうとしてタップしたときだけ出す
-    const short = this.shortDesc(c);
-    const full = c.desc || '';
-    el.innerHTML =
-      '<div class="chead"><span class="cico">' + this.cardIcon(c) + '</span>' +
-        '<span class="crar">' + R.name + '</span></div>' +
-      '<div class="cname">' + c.name + '</div>' +
-      '<div class="cdesc">' + short + '</div>' +
-      '<div class="cfoot">' + sub + (o.isNew ? ' <b class="new">NEW</b>' : '') + '</div>';
-
-    // 3択のカードはタップが「選ぶ」なので、そちらでは開かない
-    if (!o.pick && full !== short) {
-      el.classList.add('canopen');
-      el.addEventListener('click', () => {
-        const open = el.classList.toggle('open');
-        el.querySelector('.cdesc').textContent = open ? full : short;
-      });
-    }
-    return el;
-  },
+  // カードの見た目は CardFX.face（cardfx.js）。以前の cardEl は 0924o で置き換えた
 
   // ================= モーダル =================
   openModal(body, noClose) {
