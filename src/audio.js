@@ -152,6 +152,54 @@ const Snd = {
     [784, 988, 1175].forEach((f, i) =>
       setTimeout(() => this.tone({ type: 'sine', f0: f, f1: f, dur: 0.2, vol: 0.08 }), i * 70));
   },
+  // ---- パックの開封（cardfx.js）----
+  // 揺れ。中身が良いほど長く、低い唸りがせり上がる
+  packShake(best) {
+    const dur = best >= 3 ? 1.25 : best >= 2 ? 0.95 : 0.65;
+    this.noise({ dur, vol: 0.05, f: 700 });
+    this.tone({ type: 'sawtooth', f0: 90, f1: best >= 3 ? 520 : 300, dur, vol: 0.05 });
+  },
+  // 裂ける。破裂音＋明るい和音（中身が良いほど高い）
+  packTear(best) {
+    this.noise({ dur: 0.18, vol: 0.09, f: 2400 });
+    const root = [523, 587, 659, 784][best] || 523;
+    [0, 4, 7, 12].forEach((st, i) => setTimeout(() =>
+      this.tone({ type: 'triangle', f0: root * Math.pow(2, st / 12), f1: root * Math.pow(2, st / 12), dur: 0.35, vol: 0.07 }), i * 45));
+  },
+  // 開けているあいだの音楽。短いアルペジオを回し、1周ごとに少し高くする
+  openLoop(on) {
+    clearInterval(this._openLoop);
+    if (!on) return;
+    const seq = [0, 4, 7, 11, 12, 11, 7, 4];
+    let i = 0, lift = 0;
+    this._openLoop = setInterval(() => {
+      const f = 392 * Math.pow(2, (seq[i % seq.length] + lift) / 12);
+      this.tone({ type: 'square', f0: f, f1: f, dur: 0.09, vol: 0.025 });
+      if (++i % seq.length === 0) lift = Math.min(12, lift + 2);
+    }, 115);
+  },
+  // スロットが回る音。進むほど高くなる
+  slotTick(p) {
+    const f = 700 + 900 * Math.min(1, p);
+    this.tone({ type: 'square', f0: f, f1: f, dur: 0.025, vol: 0.03 });
+  },
+  // 止まった瞬間。レア度で大きさが変わる。idx 枚目ほど高く
+  land(g, idx) {
+    const root = 440 * Math.pow(2, ((idx || 0) * 2) / 12);
+    if (g <= 0) { this.tone({ type: 'triangle', f0: root, f1: root * 1.5, dur: 0.12, vol: 0.07 }); return; }
+    const chord = g >= 3 ? [0, 4, 7, 12, 16, 19] : g >= 2 ? [0, 4, 7, 12] : [0, 7, 12];
+    chord.forEach((st, i) => setTimeout(() =>
+      this.tone({ type: g >= 3 ? 'sine' : 'triangle', f0: root * Math.pow(2, st / 12), f1: root * Math.pow(2, st / 12) * 1.005,
+        dur: g >= 3 ? 0.8 : 0.35, vol: 0.06 }), i * (g >= 3 ? 70 : 40)));
+    if (g >= 3) this.noise({ dur: 0.5, vol: 0.04, f: 5000 });
+  },
+  // 全部めくり終わった
+  fanfare(best) {
+    const seq = best >= 3 ? [0, 4, 7, 12, 7, 12, 16, 19, 24] : [0, 4, 7, 12];
+    seq.forEach((st, i) => setTimeout(() =>
+      this.tone({ type: 'triangle', f0: 523 * Math.pow(2, st / 12), f1: 523 * Math.pow(2, st / 12), dur: 0.16, vol: 0.06 }), i * 80));
+  },
+
   // めくる前の溜め。レア度が高いほど長く、高くせり上がる（glow 2=エピック 3=レジェンド）
   charge(glow) {
     const dur = glow >= 3 ? 1.2 : 0.65;

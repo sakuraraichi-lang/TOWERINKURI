@@ -1265,29 +1265,28 @@ const UI = {
       ? Skill.swapChoices(Game.meta, Game.perm, 3) : [];
     Game.save();
 
-    const pk = PACKS[pid];
+    // **開封は CardFX に任せる。**（ユーザー 2026-09-24「カードの演出そのものを作り直しませんか」）
+    //   換装の3択が出たときは、開封が終わってから別の画面で選ばせる
+    CardFX.open(PACKS[pid], ids, steps, isNew, () => {
+      this._opening = false;
+      if (swaps.length) this.openSwapChooser(swaps);
+      else this.renderPanel();
+    });
+  },
+
+  // 換装の3択（パックから出たとき）。開封の演出のあとに出す
+  openSwapChooser(swaps) {
     const body = Util.el('div', 'gacha');
-    body.style.setProperty('--pc', pk.color);
-    body.innerHTML =
-      '<div class="gtop"><b>' + pk.name + '</b><span>' + pk.size + '枚' +
-      (swaps.length ? ' ＋ 換装' : '') + '</span></div>' +
-      '<div class="gseal"><div class="gpack">⬢</div><div class="gsealtxt">タップで開封</div></div>' +
-      '<div class="gbody"></div>' +
-      '<div class="ghint"></div>';
-    const seal = body.querySelector('.gseal');
+    body.innerHTML = '<div class="gbody"></div><div class="ghint"></div>';
     const stage = body.querySelector('.gbody');
     const hint = body.querySelector('.ghint');
     this.openModal(body, true);
-
     const finish = () => {
-      const close = Util.el('button', 'bigbtn', '受け取る');
+      const close = Util.el('button', 'bigbtn', '閉じる');
       close.addEventListener('click', () => { this.closeModal(); this.renderPanel(); });
       body.appendChild(close);
       hint.textContent = '';
-    };
-
-    // ---- ③ 換装の3択 ----
-    const showSwaps = () => {
+    };    const showSwaps = () => {
       stage.innerHTML = '';
       stage.appendChild(this.choiceHead('換装',
         'スキルツリーの節を1つ、別の効き方に差し替える部品　取ったかどうかと値段はそのまま'));
@@ -1332,70 +1331,7 @@ const UI = {
       hint.textContent = '';
     };
 
-    // ---- ② カードを1枚ずつ ----
-    //   **演出はレア度と凸で変える。**（ユーザー 2026-09-24「レアリティが高いのを引いた時、
-    //   凸れた時の喜びを与えたいです」「はいはい作業ね、と流されたくない」）
-    //   ・エピック／レジェンドは、裏向きのまま色で脈打つ「溜め」を挟んでからめくる
-    //   ・凸が上がったら、カードの上に「1凸 → 2凸」と倍率を跳ねさせる
-    //   ・4凸（×1.50）に届いた瞬間は「覚醒」として画面全体で見せる
-    const row = Util.el('div', 'popenrow');
-    let i = 0, charging = null;
-    const reveal = (k) => {
-      const c = CARDS[ids[k]];
-      const st = steps[k];
-      const el = this.cardEl(c, { reveal: true, isNew: isNew[k], count: st.n1 });
-      row.appendChild(el);
-      // **武器本体は別格。** 派手に光らせて、出たことが分かるようにする
-      if (c.kind === 'weapon' && isNew[k]) {
-        this.burst(WEAPONS[c.weapon] ? WEAPONS[c.weapon].color : '#ffb43c');
-        this.toastMsg('新しい武器 ' + c.name, '#ffb43c');
-      } else if (BAL.rarity[c.rarity].glow >= 2) {
-        this.burst(BAL.rarity[c.rarity].color);
-      }
-      const t0 = Game.totuOf(st.n0), t1 = Game.totuOf(st.n1);
-      if (t1 > t0 && !c.noRank) this.totuUp(el, c, t0, t1);
-    };
-    const flipNext = () => {
-      if (charging) { charging(); return; }          // 溜めの途中のタップは、溜めを飛ばす
-      if (i >= ids.length) return;
-      const k = i++;
-      const c = CARDS[ids[k]];
-      const glow = BAL.rarity[c.rarity].glow;
-      const after = () => {
-        hint.textContent = i < ids.length ? 'タップでめくる（' + i + ' / ' + ids.length + '）' : '';
-        if (i >= ids.length) { if (swaps.length) showSwaps(); else finish(); }
-      };
-      if (glow < 2) { reveal(k); after(); return; }
-      // 溜め：裏向きのカードがレア度の色で脈打つ。レジェンドは長く、光の柱が立つ
-      const back = Util.el('div', 'gcharge r-' + c.rarity);
-      back.style.setProperty('--rc', BAL.rarity[c.rarity].color);
-      back.innerHTML = '<div class="gcq">？</div>' + (glow >= 3 ? '<div class="gpillar"></div>' : '');
-      row.appendChild(back);
-      Snd.charge(glow);
-      hint.textContent = glow >= 3 ? '……！' : '…';
-      let done = false;
-      const go = () => {
-        if (done) return;
-        done = true; charging = null; clearTimeout(tm);
-        back.remove(); reveal(k); after();
-      };
-      charging = go;
-      const tm = setTimeout(go, glow >= 3 ? 1300 : 700);
-    };
-
-    // ---- ① 封を切る ----
-    const unseal = () => {
-      Snd.pack();
-      seal.remove();
-      stage.appendChild(row);
-      this.burst(pk.color);
-      flipNext();
-    };
-    seal.addEventListener('click', unseal);
-    stage.addEventListener('click', (e) => {
-      if (e.target.closest('.chcard') || e.target.closest('.gskip')) return;
-      flipNext();
-    });
+    showSwaps();
   },
 
   // 凸が上がった瞬間。カードの上に「1凸 → 2凸」と倍率を跳ねさせる
