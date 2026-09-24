@@ -875,20 +875,19 @@ const Stage = {
   _cache: {},
 
   // **盤面の種があれば、マップはその場で作る**（src/mapgen.js）。
-  //   種は転生のたびに新しくなるので、周ごとに30章ぶんのマップが入れ替わる
+  //   種は新しいセーブを作るときに1回だけ引く。**転生では作り直さない**
+  //   （全部作り直すと周が後退した）。まだ届いていない章だけ、下の mapRoll で引き直す
   //   （ユーザー決定 2026-09-21：「配置は転生で消える」「1000組み合わせで作れない？」）。
   //   種が無い＝旧セーブや測定器の既定では、これまでどおり def.map を使う
   mapRowsFor(stageId, def) {
     const seed = (typeof Game !== 'undefined' && Game.perm && Game.perm.mapSeed) || 0;
     if (!seed || typeof MapGen === 'undefined') return def.map;
     const idx = STAGE_BY_ID[stageId].idx;
-    // **最初の2章は手で書いたマップのまま。**（2026-09-21 実測）
-    //   第1〜2章はガトリング1種・設置4基で、プレイヤーにできることがほとんど無い。
-    //   生成に任せると、20個の種のうち**第1章で1個・第2章で2個が10回挑戦しても
-    //   突破できなかった。**しかも突破が2章に届かないと転生もできない
-    //   （BAL.prestigeMinStages = 2）ので、**詰んで二度と進めない。**
-    //   第3章からはスナイパーが増えて設置も8基になり、余裕が出る。
-    //   ここだけ固定にしておけば、詰みは起きない
+    // **最初の N 章を手で書いたマップにするノブ**（BAL.fixedMapChapters）。**いまは 0**＝全章生成。
+    //   以前は 2 で、第1〜2章を手書きにしていた（2026-09-21 実測：生成に任せると
+    //   20個の種のうち第1章で1個・第2章で2個が10回挑戦しても突破できず、
+    //   2章に届かないと転生もできないので詰む）。
+    //   2026-09-22 にユーザー指示「ハニカムマップで1章2章のマップを作り直してください」で 0 にした
     if (idx < BAL.fixedMapChapters) return def.map;
     // 章が進むほど難しい形にする（口が増え、通路が広がり、経路が短くなる）
     const d = STAGES.length > 1 ? idx / (STAGES.length - 1) : 0.5;
@@ -1057,7 +1056,7 @@ const Stage = {
       shape: (BAL.mapShape && BAL.mapShape[STAGE_BY_ID[stageId].idx + 1]) || null,
       def, id: stageId, cols, rows, grid, spawns, mouths, core, dist, next, idx, walkable, routes,
       vec: this._vec[stageId] || null,        // 折れ線と幅。絵を滑らかに描くのに使う
-      // 地形の仕掛け（0=なし 1=泥 2=坂）。手で書いたマップには無い
+      // 地形の仕掛け（0=なし 1=減速 2=加速。内部の名前は mud/slope のまま）。手で書いたマップには無い
       zone: this._zone[stageId] || null,
       zoneAt(c, r) { return this.zone ? (this.zone[r * cols + c] || 0) : 0; },
       w: cols * TILE, h: rows * TILE,

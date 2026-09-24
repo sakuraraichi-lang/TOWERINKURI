@@ -139,7 +139,8 @@ const Main = {
 
   retreat() { this.finish(false); },
 
-  // 戦わずに突破扱いにする。**何も失わない**ので、確認だけ取って進める
+  // 戦わずに通過する（チェックマークだけ。**突破にはならず、報酬も出ない**・Game.skipStage）。
+  //   何も失わないので、確認だけ取って進める
   doSkip() {
     const st = STAGES[UI.pick];
     if (!st || !Game.canSkip(st.id)) return;

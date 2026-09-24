@@ -277,7 +277,8 @@ const Render = {
   //
   //   通路だけ六角で、壁は四角の格子という状態だった。
   //   盤ぜんぶを同じ六角の格子で作り、**設置の格子は置くときだけ出す**
-  //   （設置はタイルのままなので、格子そのものは必要。常時は出さない）
+  //   （設置も六角セル＝この壁の六角そのもの（2026-09-23・stage.hexBuildable）。
+  //    置ける六角を光らせるのは置くときだけで、常時は出さない）
   wallHexes(st) {
     if (st._wallHex) return st._wallHex;
     const v = st.vec;
@@ -333,7 +334,7 @@ const Render = {
     ctx.fillStyle = '#232838';
     for (const h of v.hexes) { hexPath(h.x, h.y); ctx.fill(); }
     // 本体：境目に線を残すと、六角の集まりとして読める。
-    //   **仕掛けのあるセルは色を変える**（泥＝遅くなる／坂＝速くなる）。
+    //   **仕掛けのあるセルは色を変える**（減速＝遅くなる／加速＝速くなる）。
     //   見て分かること自体が仕掛けの半分。分からないと置き場所を選べない
     ctx.strokeStyle = '#151a26';
     ctx.lineWidth = 2;
@@ -347,9 +348,9 @@ const Render = {
       ctx.strokeStyle = h.zone === 1 ? 'rgba(110,230,170,0.55)' : 'rgba(215,140,255,0.55)';
       ctx.lineWidth = 1.6;
       ctx.beginPath();
-      if (h.zone === 1) {                    // 泥：横に3本（沈む感じ）
+      if (h.zone === 1) {                    // 減速：横に3本（沈む感じ）
         for (let i = -1; i <= 1; i++) { ctx.moveTo(h.x - R * 0.45, h.y + i * 6); ctx.lineTo(h.x + R * 0.45, h.y + i * 6); }
-      } else {                               // 坂：山形（下る感じ）
+      } else {                               // 加速：山形（下る感じ）
         ctx.moveTo(h.x - R * 0.42, h.y + 5); ctx.lineTo(h.x, h.y - 6); ctx.lineTo(h.x + R * 0.42, h.y + 5);
       }
       ctx.stroke();

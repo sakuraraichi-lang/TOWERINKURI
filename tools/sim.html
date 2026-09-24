@@ -925,8 +925,7 @@ function runStageInner(stageId, loadout, buys, opts) {
   let spent = 0, bought = 0;
   for (let i = 0; i < buys; i++) {
     // **本体の買い方（Skill.buyOrder）をそのまま使う。**
-    //   ここに別の順番を書くと「測っているもの」と「遊んでいるもの」がずれる。
-    //   取り切りの節を先に買う（安い順だけだと主力のダメージ節を買い逃す）
+    //   ここに別の順番を書くと「測っているもの」と「遊んでいるもの」がずれる
     let ids = Skill.buyOrder(Game.meta, Game.perm);
     if (opts.noLure) ids = ids.filter(id => id !== 'lure');
     if (!ids.length) break;

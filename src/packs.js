@@ -32,7 +32,8 @@ const PACKS = {
     swapChance: 0.20,
     desc: '汎用カードと、初期装備まわりの強化',
     weights: { common: 78, rare: 19, epic: 2.7, legendary: 0.3 }, guarantee: null,
-    // 汎用カード＋初期装備（ガトリング・スナイパー）の強化
+    // 汎用カード＋初期装備（src:'start' ＝ いまはガトリングだけ）の強化。
+    //   スナイパーは第2章の突破報酬（src:'stage'）になったので、その強化は兵装パックから出る
     accepts: (c) => c.kind === 'generic' ||
       (c.kind === 'mod' && WEAPONS[c.weapon] && WEAPONS[c.weapon].src === 'start'),
   },
@@ -66,7 +67,8 @@ const PACKS = {
     swapChance: 0,
     desc: '転生でしか出ない。中身は転生で消えない永続強化',
     //   **レジェンドを半分に。**（2026-09-21・ユーザー指摘「レジェンドも出やすすぎ」）
-    //   レジェンドの遺物は2種類しかないので、出やすいと同じものばかりになる
+    //   当時はレジェンドの遺物が2種類しかなく、出やすいと同じものばかりになった
+    //   （いまは6種類。遺物の母数を 13種 → 33種 に増やしたため）
     //   **ユーザー指定（2026-09-21）**：コモン60 / レア30 / エピック8 / レジェンド2
     weights: { common: 60, rare: 30, epic: 8, legendary: 2 }, guarantee: null,
     accepts: (c) => c.kind === 'perm',
