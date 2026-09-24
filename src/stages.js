@@ -919,6 +919,11 @@ const Stage = {
     // **六角式で作る。**（ユーザー 2026-09-23「全てブロック式は廃止、六角形で固定」）
     //   六角そのものを単位にして掘る。絵も設置も六角になったので、
     //   **作るときだけ四角い**ブロック式はやめた
+    // **第1〜3章は往復の生成器。**（ユーザー 2026-09-24。折れ線では序盤の検査がほぼ通らなかった）
+    if (BAL.serpUntilDepth !== undefined && d < BAL.serpUntilDepth) {
+      base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, { style: 'serp', routeMin: BAL.serpRouteMin,
+        width: BAL.serpWidth, roadMax: BAL.serpRoadMax });
+    }
     if (BAL.hexFromDepth !== undefined && d >= BAL.hexFromDepth) {
       base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, {
         style: 'hex',

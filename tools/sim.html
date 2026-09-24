@@ -119,7 +119,8 @@ function loadoutFor(stageId) {
   }
   // 編成枠は4。**強い順に取る**（実測の順位。持っていないものは飛ばす）
   const rank = (w) => { const r = WEAPON_RANK.indexOf(w); return r < 0 ? 99 : r; };
-  return have.slice().sort((a, b) => rank(a) - rank(b)).slice(0, BAL.loadoutSlots);
+  // 開いている種類数は到達章で増える（Game.loadoutSlots・本体と同じ関数）
+  return have.slice().sort((a, b) => rank(a) - rank(b)).slice(0, Game.loadoutSlots());
 }
 const LOADOUTS = new Proxy({}, { get: (_, k) => loadoutFor(String(k)) });
 
@@ -435,7 +436,7 @@ async function cardScanAsync(opts) {
 
   // そのカードを測るのに必要な編成
   const loadoutOf = (c) => {
-    if (c.requires) return c.requires.slice(0, BAL.loadoutSlots);
+    if (c.requires) return c.requires.slice(0, Game.loadoutSlots());
     if (c.weapon) return [c.weapon];
     return ['gatling'];                    // 汎用カードはガトリングの上で測る
   };
@@ -917,7 +918,13 @@ function runStageInner(stageId, loadout, buys, opts) {
     Relic.invalidate();
   }
   Game.perm.loadout = loadout.map(w => 'wc_' + w);
-  for (const w of loadout) if (!Game.own('wc_' + w)) Game.grant('wc_' + w, 1);
+  // **プレイヤーは開いている種類数までしか編成できない。**（2026-09-24）
+  //   前は渡した武器を全部並べていたので、「34基」の健全さを確かめた表が
+  //   プレイヤーに組めない5〜8種で測られていた。本体の loadoutWeapons が開いている枠で切る
+  if (loadout.length > Game.loadoutSlots()) {
+    console.warn('[sim] 編成 ' + loadout.length + '種のうち、到達' + (Game.perm.deepest || 0) +
+                 '章で使えるのは ' + Game.loadoutSlots() + '種だけ: ' + loadout.slice(0, Game.loadoutSlots()).join(','));
+  }  for (const w of loadout) if (!Game.own('wc_' + w)) Game.grant('wc_' + w, 1);
   Game.perm.currentStage = stageId;
   const run0 = Game.startPrep(stageId);
 

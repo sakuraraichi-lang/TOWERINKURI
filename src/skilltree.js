@@ -449,8 +449,13 @@ const Skill = {
     //   maxPerClear を外したので、その条件だと**下駄が復活してしまう。**
     //   設置枠かどうかは `key === 'units'` で直接見る
     const isUnitNode = s && (s.key === 'units' || s.gkey === 'units');
-    const base = (p && typeof Relic !== 'undefined' && !isUnitNode)
-      ? Relic.mods(p).startLv : 0;
+    // **遺物「初期投資」は、各連なりの1段目（根の節）だけを無料にする。**（ユーザー 2026-09-24）
+    //   段積みの頃の「Lv+1」のままだと、取り切り（max 1）では **1枚でツリー75節のうち49節**が
+    //   取得扱いになっていた（敵の数を増やす敵誘引4段まで勝手に効いていた）。
+    //   根の節＝`needs` を持たない節。設置枠と敵誘引は除く
+    const isRoot = s && !s.needs && s.gkey !== 'lure';
+    const base = (p && typeof Relic !== 'undefined' && !isUnitNode && isRoot && Relic.mods(p).startLv > 0)
+      ? 1 : 0;
     const lv = (meta.skills[id] || 0) + base;
     return s ? Math.min(lv, Skill.maxOf(p, id)) : lv;
   },
@@ -512,7 +517,8 @@ const Skill = {
     //   `needs` に前のノードのIDを書く。枝が「順に開いていく」形になる
     if (s.needs) {
       const meta = (typeof Game !== 'undefined' && Game.meta) ? Game.meta : null;
-      if (!meta || (meta.skills[s.needs] || 0) <= 0) return false;
+      // 買った数ではなく **取得扱いか** で見る（遺物「初期投資」で無料になった根の節からも次が開くように）
+      if (!meta || Skill.lv(meta, s.needs) <= 0) return false;
     }
     if (s.cat) {
       return WEAPON_IDS.some(wid => WEAPONS[wid].cat === s.cat && (perm.collection['wc_' + wid] || 0) > 0);
@@ -525,7 +531,7 @@ const Skill = {
     const s = SKILL_BY_ID[id];
     if (s.needs) {
       const meta = (typeof Game !== 'undefined' && Game.meta) ? Game.meta : null;
-      if (!meta || (meta.skills[s.needs] || 0) <= 0) {
+      if (!meta || Skill.lv(meta, s.needs) <= 0) {
         const prev = SKILL_BY_ID[s.needs];
         return '「' + (prev ? prev.name : s.needs) + '」を取ると開放';
       }

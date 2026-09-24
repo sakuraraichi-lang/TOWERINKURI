@@ -65,7 +65,7 @@ const Game = {
       totalRuns: 0,
       packsEarned: 0,     // **遊んで手に入れた**パックの数（最初から持っている1個は数えない）
       missions: {},
-      loadout: ['wc_gatling', null, null, null],   // 初期武器はガトリングのみ（2026-09-21）
+      loadout: ['wc_gatling', null, null, null, null, null],   // 初期武器はガトリングのみ（2026-09-21）。開いている枠は loadoutSlots
       stages: { ch1: { cleared: false, perfect: false, bestWave: 0, attempts: 0 } },
       currentStage: 'ch1',
       placements: {},
@@ -180,7 +180,9 @@ const Game = {
     // 定義から消えた換装は落とす（古いセーブが未知のidを持ち続けないように）
     for (const k of Object.keys(this.perm.swaps)) if (!SWAP_BY_ID[this.perm.swaps[k]]) delete this.perm.swaps[k];
     if (typeof this.perm.deepest !== 'number') this.perm.deepest = this.progressCount();
-    if (typeof this.perm.legacyDeep !== 'number') this.perm.legacyDeep = 0;
+    // 編成の枠は最大ぶん持っておく（開いていない枠は loadoutSlots で切る）
+    if (!Array.isArray(this.perm.loadout)) this.perm.loadout = ['wc_gatling'];
+    while (this.perm.loadout.length < BAL.loadoutSlotsMax) this.perm.loadout.push(null);    if (typeof this.perm.legacyDeep !== 'number') this.perm.legacyDeep = 0;
     // パックは今の定義と同じキーだけにする。
     // 昔の save には rare / epic が残っていて、開けられないまま数え続けていた
     if (!this.perm.packs) this.perm.packs = {};
@@ -797,8 +799,23 @@ const Game = {
   },
 
   // ---------- 準備フェーズ ----------
+  // いま編成できる武器の種類数（BAL.loadoutByDeep）
+  loadoutSlots() {
+    let n = BAL.loadoutSlots;
+    const d = this.perm ? (this.perm.deepest || 0) : 0;
+    for (const [need, k] of (BAL.loadoutByDeep || [])) if (d >= need) n = Math.max(n, k);
+    return n;
+  },
+
+  // 開くのに要る到達章（枠 i が閉じているときの説明に使う）
+  loadoutNeed(i) {
+    for (const [need, k] of (BAL.loadoutByDeep || [])) if (k > i) return need;
+    return null;
+  },
+
   loadoutWeapons() {
     return this.perm.loadout
+      .slice(0, this.loadoutSlots())
       .filter(Boolean)
       .map(cid => CARDS[cid] && CARDS[cid].weapon)
       .filter(wid => wid && WEAPONS[wid]);

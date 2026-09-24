@@ -830,6 +830,137 @@ const MapGen = {
       shape: shape, seed: seed, style: 'hex',
     };
   },
+  // ---- 序盤（第1〜3章）：六角の列で往復させる ----
+  //
+  //   **ユーザー 2026-09-24「序盤専用の生成器を作る」**
+  //   第1〜3章は「経路30以上・通路44〜86・通路が見える地面45%以上」を求めるが、
+  //   折れ線（make）では**400枚作って合格1枚**しか出ず、新規セーブの多くが
+  //   四角い手書きの盤に落ちていた。
+  //
+  //   **縦の列で往復させる。**六角（平らな頭）は縦に並べると辺どうしでぴったり繋がるので、
+  //   1六角の細さでも焼いたあと途切れない。ただし**列の中心がタイルの中心から10px以内の列**
+  //   に限る。境目に来る列（x=360 など）は焼くと1段おきに途切れた（実測）。
+  //   列と列の渡りだけ2段の太さで掘る（斜めの一歩で途切れないように）。
+  //
+  //   実測（15×21・200枚）：曲がり無しで合格170・途切れ0／曲がり有り（既定）で合格125・
+  //   経路の中央値39・通路80。**どの盤も形が違う**（合格125枚が125通り）。
+  //   試して駄目だったもの：横の往復（1六角だと焼くと途切れる、2六角だと通路129で多すぎ）、
+  //   列を選ばない縦の往復（途切れる列がある）
+  //
+  //   shape で効くもの
+  //     runs        … 往復の列の数（15×21 では 3。間隔 gap 以上で選べる組み合わせが要る）
+  //     gap         … 列どうしの間隔（六角の列の数・既定3）
+  //     spanMin/Max … 1列の長さ（六角の段の数・既定7〜11）
+  //     jog         … 列の途中で隣の列へ1段ずれる確率（既定0.6）
+  makeSerp(seed, d, shape) {
+    shape = shape || {};
+    const rnd = this.rng(seed);
+    const cols = (shape.cols | 0) || this.COLS, rows = (shape.rows | 0) || this.ROWS;
+    const W = cols * TILE, H = rows * TILE, R = this.HEX_R;
+    const key = (c, r) => c + ',' + r;
+    const cells = {};
+    const g0 = this.hexRange(0, 0, W, H, 0);
+    for (let c = g0.c0; c <= g0.c1; c++) {
+      for (let r = g0.r0; r <= g0.r1; r++) {
+        const h = this.hexAt(c, r);
+        if (h.x < 0 || h.y < 0 || h.x > W || h.y > H) continue;
+        cells[key(c, r)] = h;
+      }
+    }
+    const open = {};
+    const dig1 = (c, r) => { if (cells[key(c, r)]) open[key(c, r)] = 1; };
+    //   道の太さ（六角の列の数）。2 なら右隣の列も掘る
+    const width = shape.width || 1;
+    const dig = (c, r) => { for (let w = 0; w < width; w++) dig1(c + w, r); };
+    const at = (c, r) => cells[key(c, r)] || this.hexAt(c, r);
+    let cMax = 0, rMax = 0;
+    for (const k in cells) { cMax = Math.max(cMax, cells[k].c); rMax = Math.max(rMax, cells[k].r); }
+
+    // 使える列：中心がタイルの中心から10px以内
+    const isGood = (c) => {
+      if (c < 1 || c + width - 1 >= cMax) return false;
+      if (width >= 2) return true;             // 2列並べれば、どの列でも焼いて途切れない
+      const x = this.hexAt(c, 0).x;
+      const off = Math.abs(((x - TILE / 2) % TILE + TILE) % TILE);
+      return Math.min(off, TILE - off) <= 10;
+    };
+    const good = [];
+    for (let c = 1; c < cMax; c++) if (isGood(c)) good.push(c);
+    const nRun = shape.runs || 3, gap = shape.gap || (width >= 2 ? 4 : 3);
+    const combos = [];
+    const rec = (start, acc) => {
+      if (acc.length === nRun) { combos.push(acc.slice()); return; }
+      for (let i = start; i < good.length; i++) {
+        if (acc.length && good[i] - acc[acc.length - 1] < gap) continue;
+        acc.push(good[i]); rec(i + 1, acc); acc.pop();
+      }
+    };
+    rec(0, []);
+    if (!combos.length) return null;
+    const pick = combos[(rnd() * combos.length) | 0].slice();
+    if (rnd() < 0.5) pick.reverse();
+
+    const spanMin = shape.spanMin || 7, spanMax = shape.spanMax || 11;
+    const jog = shape.jog === undefined ? 0.6 : shape.jog;
+    const flip = rnd() < 0.5;                   // 口を下の縁にする
+    let down = !flip;
+    const edgeR = down ? 0 : rMax;
+    const rT = 2, rB = rMax - 2;                 // 縁の段は使わない（焼くと欠ける）
+    const span = spanMin + ((rnd() * (spanMax - spanMin + 1)) | 0);
+    const rTop = rT + ((rnd() * Math.max(1, rB - rT - span + 1)) | 0);
+    const rBot = Math.min(rB, rTop + span);
+    let core = null;
+    for (let i = 0; i < nRun; i++) {
+      let c = pick[i];
+      const rs = down ? rTop : rBot, re = down ? rBot : rTop;
+      // 最後の列は途中で止めて、そこをコアにする
+      //   **奥に置く（60〜90%）。**40%から置いていたら最後の道が短く、コアの周りに置いた砲が
+      //   道の終わりしか見えず、16本中1本が6回とも越えられなかった（実測 2026-09-24）
+      const rEnd = i === nRun - 1 ? Math.round(rs + (re - rs) * (0.6 + rnd() * 0.3)) : re;
+      if (i === 0) for (let r = Math.min(edgeR, rs); r <= Math.max(edgeR, rs); r++) dig(c, r);
+      // 途中で1段だけ隣の使える列へずれる（曲がり）。ほかの列との間は gap-1 以上残す
+      const jogAt = rnd() < jog ? Math.round(rs + (rEnd - rs) * (0.3 + rnd() * 0.4)) : null;
+      const dir = down ? 1 : -1;
+      for (let r = rs; ; r += dir) {
+        dig(c, r);
+        if (r === jogAt) {
+          const opts = [c - 1, c + 1].filter(x => isGood(x) &&
+            pick.every((p, j) => j === i || Math.abs(p - x) >= gap - 1));
+          if (opts.length) { const nc = opts[(rnd() * opts.length) | 0]; dig(nc, r); dig(nc, r + dir); c = nc; }
+        }
+        if (r === rEnd) break;
+      }
+      if (i < nRun - 1) {                        // 次の列への渡り（2段の太さ）
+        const c2 = pick[i + 1], step = c2 > c ? 1 : -1, side = down ? -1 : 1;
+        for (let cc = c; cc !== c2 + step; cc += step) { dig(cc, rEnd); dig(cc, rEnd + side); }
+      }
+      core = at(c, rEnd);
+      down = !down;
+    }
+    for (const nb of this.hexNbr(core.c, core.r)) dig(nb[0], nb[1]);   // コアの部屋
+
+    // 口：最初の列が縁に出たところ。口のタイルに乗る六角も掘る
+    const mouth = at(pick[0], edgeR);
+    const holeW = 2;
+    const tc = Math.max(0, Math.min(cols - holeW, Math.round(mouth.x / TILE - holeW / 2)));
+    const tr = edgeR === 0 ? 0 : rows - 1;
+    const tiles = [];
+    for (let q = 0; q < holeW; q++) tiles.push({ c: tc + q, r: tr });
+    for (const t of tiles) { const q = this.hexPick(t.c * TILE + TILE / 2, t.r * TILE + TILE / 2); dig(q.c, q.r); }
+    const holes = [{ side: 'serp', tiles, w: holeW,
+      x: (tiles[0].c + tiles[holeW - 1].c) / 2 * TILE + TILE / 2, y: tr * TILE + TILE / 2 }];
+
+    let hexes = [];
+    for (const k in open) hexes.push(cells[k]);
+    hexes = this.tagZones(hexes, rnd, d);
+    const g = this.bake([], { x: core.x, y: core.y }, holes, W, H, hexes);
+    return {
+      rows: g.map(r => r.join('')),
+      vec: { lanes: [], holes, core: { x: core.x, y: core.y }, w: W, h: H, hexes, hexR: R },
+      zone: this._zone,
+      shape, seed, style: 'serp',
+    };
+  },
   // ---- 1枚作る ----
   //
   //   `d` は 0（第1章）〜1（第30章）の難しさ。**マップの形で難易度を付けるのはここ。**
@@ -865,6 +996,7 @@ const MapGen = {
     d = Math.max(0, Math.min(1, d === undefined ? 0.5 : d));
     // **六角式はここで分岐する。**（第12章から。第1〜11章は下の折れ線）
     if (shape.style === 'hex') return this.makeHex(seed, d, shape);
+    if (shape.style === 'serp') return this.makeSerp(seed, d, shape);
     const rnd = this.rng(seed);
     // **盤の大きさも章ごとに変えられる。**（ユーザー 2026-09-22
     //   「ボス章や後半ステージ、ラスボスは広いマップ…を意識して」）
@@ -1316,6 +1448,7 @@ const MapGen = {
       const sh = steps[sI];
       for (let i = 0; i < tries; i++) {
         const m = this.make((seed + i * 7919) >>> 0, d, sh);
+        if (!m) continue;                // 作れなかった（組み合わせが無い等）
         const st = this.check(m.rows, d, sh);
         if (st && st.ok) {
           m.stat = st; m.retries = i;

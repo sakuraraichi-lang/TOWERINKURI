@@ -301,9 +301,7 @@ const UI = {
 
     // **盤に置ける総数。**種類ごとの上限とは別に、盤全体で頭打ちになる
     const slotsLeft = Game.slotsTotal() - Game.slotsUsed();
-    for (const cid of Game.perm.loadout) {
-      if (!cid || !CARDS[cid]) continue;
-      const wid = CARDS[cid].weapon;
+    for (const wid of Game.loadoutWeapons()) {
       const def = WEAPONS[wid];
       const have = Game.unitCount(wid);
       const cap = Game.unitCap(wid);
@@ -943,12 +941,24 @@ const UI = {
   // ================= 編成 =================
   panelLoadout(p) {
     const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>編成（' + BAL.loadoutSlots + '種類）</b><span class="sub">' +
-      '使える武器の<b>種類</b>を4つ選ぶ。同じ武器は上限まで何基でも置ける</span>';
+    const nOpen = Game.loadoutSlots();
+    head.innerHTML = '<b>編成（' + nOpen + '種類）</b><span class="sub">' +
+      '使える武器の<b>種類</b>を' + nOpen + 'つ選ぶ。同じ武器は上限まで何基でも置ける</span>';
     p.appendChild(head);
 
     const slots = Util.el('div', 'slots');
     Game.perm.loadout.forEach((cid, i) => {
+      // **まだ開いていない枠。**到達した章で開く（BAL.loadoutByDeep）
+      if (i >= nOpen) {
+        const need = Game.loadoutNeed(i);
+        if (need === null) return;
+        const s = Util.el('button', 'slot locked');
+        s.innerHTML = '<div class="sw dim">🔒</div><div class="sn dim">' + (i + 1) + '種目</div>' +
+          '<div class="sx">第' + need + '章に到達すると開く</div>';
+        s.disabled = true;
+        slots.appendChild(s);
+        return;
+      }
       const c = cid ? CARDS[cid] : null;
       const s = Util.el('button', 'slot' + (c ? ' filled' : ''));
       if (c) {
@@ -1378,7 +1388,7 @@ const UI = {
       p.appendChild(g);
       if (R.startLv > 0) {
         p.appendChild(Util.el('div', 'reward',
-          '出撃するとき、アップグレードが最初から Lv+' + R.startLv + ' の状態になります'));
+          'スキルツリーの各連なりの1段目が、最初から取得済みになります（設置枠と敵誘引を除く）'));
       }
       for (const o of owned) {
         const row = Util.el('div', 'srow');

@@ -319,8 +319,10 @@ const CARDS = {
   rl_core:  P({ id: 'rl_core',  rarity: 'legendary', key: 'dmg', eff: 0.80, mode: 'add', cap: 3.0,
     name: '特異点炉', tmpl: '全ての武器のダメージ +{p}' }),
   // **これが「登り直す時間」を消す本命。** 倍率ではなく、買う手数を減らす
-  rl_invest: P({ id: 'rl_invest', rarity: 'legendary', key: 'startLv', eff: 1, mode: 'flat', cap: 4,
-    name: '初期投資', tmpl: '出撃するとき、アップグレードが最初から Lv+{e} の状態になる' }),
+  // 取り切りのツリーでは「Lv+1」＝全節取得になるので、各連なりの1段目だけに絞った（2026-09-24）。
+  //   重ねても増えない（cap 1）。判定は Skill.lv
+  rl_invest: P({ id: 'rl_invest', rarity: 'legendary', key: 'startLv', eff: 1, mode: 'flat', cap: 1,
+    name: '初期投資', tmpl: 'スキルツリーの各連なりの1段目が、最初から取得済みになる（設置枠と敵誘引を除く）' }),
 
   // ---- 母数を増やすぶん（2026-09-21・ユーザー指摘）----
   //   > 「そもそもカード母数が足りないからそりゃ出てくるし被って強くなるわな」
