@@ -241,7 +241,9 @@ const Pack = {
     //     round(2 + 突破*0.12) … 8回転生で累計 約70枚。1種あたり5枚前後
     out.relic = Math.round(2 + clearedStages * 0.12);
     // 1ステージ=1個、5ステージ=約15個。奥へ行くほど1回の転生が重くなる
-    const n = Util.clamp(Math.round(Math.pow(clearedStages, 1.7)) + Math.floor(prestiges / 4),
+    //   **係数 BAL.packPrestigeMul で絞る。**（ユーザー 2026-09-24「パックの配布を絞ってみましょう」）
+    //   深さで増える形（^1.7）はそのまま、全体の量だけを下げる
+    const n = Util.clamp(Math.round(Math.pow(clearedStages, 1.7) * BAL.packPrestigeMul) + Math.floor(prestiges / 4),
                          1, BAL.packPerPrestigeMax);
     // 出る分野は「そこまでに突破したステージ」の分野に限られる
     const pool = MAIN_STAGES.slice(0, clearedStages).map(s => Pack.forStage(s.id));
