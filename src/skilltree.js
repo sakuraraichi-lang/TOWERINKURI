@@ -179,8 +179,11 @@ const SKILLS = [
   { id: 'short_dmg3', name: '近接極大', icon: '◤', group: '短射程', cat: 'short', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '短射程カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'short_util' },
+  // **カテゴリの置ける数の節は6カテゴリそろえてある（2段・+1ずつ）。**（2026-09-24）
+  //   強さの差はカテゴリの中で大きく割れていて（支援：凍結3.5基／触手10基超）、カテゴリの平均はほぼ同じ。
+  //   なので上限の差は武器ごとの元の数（weapons.js の stock）で付ける
   ...chain({ id: 'short_unit', gkey: 'short_unit', icon: '◤', group: '短射程',
-    cat: 'short', key: 'units', names: ['前線基盤', '前線基盤II'],
+    cat: 'short', key: 'units', names: ['前線基盤', '前線基盤II', '前線基盤III'],
     steps: 2, eff: 1, mode: 'add',
     tmpl: '短射程の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
     cost0: 1400, g: 9, unlock: 0 }),
@@ -204,7 +207,7 @@ const SKILLS = [
     eff: 3.5, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'mid_util' },
   ...chain({ id: 'mid_unit', gkey: 'mid_unit', icon: '◈', group: '中射程',
-    cat: 'mid', key: 'units', names: ['量産設備', '量産設備II'],
+    cat: 'mid', key: 'units', names: ['量産設備', '量産設備II', '量産設備III'],
     steps: 2, eff: 1, mode: 'add',
     tmpl: '中射程の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
     cost0: 1400, g: 9, unlock: 0 }),
@@ -228,7 +231,7 @@ const SKILLS = [
     eff: 3.5, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'long_util' },
   ...chain({ id: 'long_unit', gkey: 'long_unit', icon: '◎', group: '長射程',
-    cat: 'long', key: 'units', names: ['狙撃陣地', '狙撃陣地II'],
+    cat: 'long', key: 'units', names: ['狙撃陣地', '狙撃陣地II', '狙撃陣地III'],
     steps: 2, eff: 1, mode: 'add',
     tmpl: '長射程の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
     cost0: 1400, g: 9, unlock: 0 }),

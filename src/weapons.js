@@ -88,10 +88,22 @@ function baseStats(o) {
 //   設置の判定は `Game.canPlaceAt(c, r)`（state.js）
 // ---------------------------------------------------------------
 
+// ---------------------------------------------------------------
+// **置ける数（stock）で強さの釣り合いを取る。**（ユーザー 2026-09-24）
+//   > 「同じダメージ目標にせず、単純に強い奴は設置上限数が低く、ガトリングのような
+//   >   弱い手数武器は多く置ける分取り回しやすい、という方向に」
+//   上限 ＝ stock ＋ BAL.unitBonus(1) ＋ カテゴリの置ける数の節（2段）。
+//   **上限は「半分の回数で持ちこたえるのに要る基数」に比例させた**（ガトリング8基が基準）。
+//   実測（第15章・武器1種だけ・測定ごとに新しいセーブ・各12本。漏れ50以下を「持ちこたえた」）：
+//     凍結3.5 火炎3.7 泡4 ミサイル6.8 手裏剣6.8 ガトリング8 刀8.4 テスラ9 迫撃10 スナイパー/毒ガス/触手10超
+//   全部取ったときの上限：凍結4 火炎4 泡4 ミサイル7 手裏剣7 ガトリング8 刀8 テスラ9 迫撃10 スナイパー11 毒ガス11 触手11
+//   **カテゴリ単位では差を付けていない。**同じカテゴリの中で強弱が大きく割れているため
+//   （支援：凍結3.5／触手10超、範囲：火炎3.7／毒ガス10超、指定：泡4／迫撃10）
+// ---------------------------------------------------------------
 const WEAPONS = {
   // ============ 初期装備 ============
   gatling: {
-    id: 'gatling', stock: 3, cat: 'mid', name: 'ガトリング', short: 'GAT', icon: '🔫', color: '#ffd24a', src: 'start', arcMin: 0.1, arcMax: 0.8,
+    id: 'gatling', stock: 5, cat: 'mid', name: 'ガトリング', short: 'GAT', icon: '🔫', color: '#ffd24a', src: 'start', arcMin: 0.1, arcMax: 0.8,
     desc: '毎秒大量の小口径弾。単発は弱いが手数で押す。',
     //   **唯一の初期武器なので、これ1種で第1〜2章を持たせる必要がある。**（2026-09-21）
     //   ユーザー決定「初期武器はガトリングでよし」で初期所持を1種に絞ったが、
@@ -139,7 +151,7 @@ const WEAPONS = {
   },
 
   sniper: {
-    id: 'sniper', stock: 3, cat: 'long', name: 'スナイパー', short: 'SNP', icon: '🎯', color: '#6fe3ff', src: 'stage', arcMin: 0.03, arcMax: 0.3,
+    id: 'sniper', stock: 8, cat: 'long', name: 'スナイパー', short: 'SNP', icon: '🎯', color: '#6fe3ff', src: 'stage', arcMin: 0.03, arcMax: 0.3,
     // **貫通役。** 並んだ敵を撃ち抜くのが仕事なので、狙うのは「敵が濃いほう」。
     // 以前は最も硬い敵（＝たいてい後方のタンク）を狙っていて、
     // 1.28秒に1発しかないのに目の前の群れを素通りしていた
@@ -176,7 +188,7 @@ const WEAPONS = {
 
   // ============ ステージ報酬（王道TD＋化学兵器） ============
   missile: {
-    id: 'missile', stock: 3, cat: 'target', name: 'ミサイル', short: 'MSL', icon: '🚀', color: '#ff7a3c', src: 'stage',
+    id: 'missile', stock: 4, cat: 'target', name: 'ミサイル', short: 'MSL', icon: '🚀', color: '#ff7a3c', src: 'stage',
     arcMin: 0.08, arcMax: 0.42, aimPoint: true, spot: [72, 150],
     desc: '置いた円の中へ爆撃を降らせ続ける。円を絞るほど一点に集まる。',
     // **【2026-09-21】12種を同じ条件で測って、床を上げた。**
@@ -192,7 +204,7 @@ const WEAPONS = {
   },
 
   tesla: {
-    id: 'tesla', stock: 3, cat: 'short', name: 'テスラコイル', short: 'TSL', icon: '⚡', color: '#b58bff', src: 'stage', arcMin: 0.3, arcMax: 1.1,
+    id: 'tesla', stock: 6, cat: 'short', name: 'テスラコイル', short: 'TSL', icon: '⚡', color: '#b58bff', src: 'stage', arcMin: 0.3, arcMax: 1.1,
     desc: '砲身の先へ即着の電撃。当たると次々に連鎖して、群れをまとめて焼く。',
     // **【2026-09-22】下から2番目だった**（第15章・単独・12シード・漏れの中央値 264）。
     //   振って確かめた（6シード・中央値）：
@@ -244,7 +256,7 @@ const WEAPONS = {
     //   雲を撒く武器なので、効いているのは雲の重なりと持続であって1発の威力ではない。
     //   凍結装置（35で単独突破する）・触手（16→26でも17止まり）と同じで、
     //   **この3種は「1秒あたりのダメージ」では測りきれない。**上げても無駄になる
-    id: 'gas', wallThrough: true, /* 壁を抜ける：範囲もの */ stock: 1, cat: 'area', name: '毒ガス散布機', short: 'GAS', icon: '☣', color: '#8fd94a', src: 'stage', arcMin: 0.38, arcMax: 1.25,
+    id: 'gas', wallThrough: true, /* 壁を抜ける：範囲もの */ stock: 8, cat: 'area', name: '毒ガス散布機', short: 'GAS', icon: '☣', color: '#8fd94a', src: 'stage', arcMin: 0.38, arcMax: 1.25,
     desc: '砲身の先へ毒の雲を撒き続ける。雲の中の敵は毒を受け続け、防御が落ちる。',
     // **【2026-09-22】狙撃たちを上げたら、今度はここが最下位になった**（第15章・12シード・中央値71）。
     //   ここでも威力は効かない（ダメージ 7→21 で 56 → **64**。上の2026-09-21 の観察どおり）。
@@ -269,7 +281,7 @@ const WEAPONS = {
   },
 
   cryo: {
-    id: 'cryo', stock: 2, cat: 'support', name: '凍結装置', short: 'CRY', icon: '❄', color: '#7fe6ff', src: 'stage', arcMin: 0.4, arcMax: 1.2,
+    id: 'cryo', stock: 1, cat: 'support', name: '凍結装置', short: 'CRY', icon: '❄', color: '#7fe6ff', src: 'stage', arcMin: 0.4, arcMax: 1.2,
     desc: '周囲へ冷気を放つ。敵は大きく減速し、凍った敵は受けるダメージが増える。',
     base: baseStats({ arc: 0.75, dmg: 6, rate: 0.9, range: 165, slow: 0.55, slowDur: 2.4 }),
     fire(w, run) {
@@ -284,7 +296,7 @@ const WEAPONS = {
 
   // ============ パック限定（なんでもあり枠） ============
   katana: {
-    id: 'katana', wallThrough: true, /* 壁を抜ける：間合いの中をまとめて斬る */ stock: 1, cat: 'short', name: '刀', short: 'KTN', icon: '🗡', color: '#f4f6fb', src: 'pack', arcMin: 0.35, arcMax: 1.25,
+    id: 'katana', wallThrough: true, /* 壁を抜ける：間合いの中をまとめて斬る */ stock: 5, cat: 'short', name: '刀', short: 'KTN', icon: '🗡', color: '#f4f6fb', src: 'pack', arcMin: 0.35, arcMax: 1.25,
     desc: '間合いに入った敵をまとめて斬る。射程は短いが一撃が重く、会心が乗る。',
     base: baseStats({ arc: 0.80, dmg: 58, rate: 1.5, range: 100, cone: 1.5, crit: 0.2, critMul: 2.5, turn: 12 }),
     fire(w, run) {
@@ -298,7 +310,7 @@ const WEAPONS = {
   },
 
   shuriken: {
-    id: 'shuriken', stock: 2, cat: 'mid', name: '手裏剣', short: 'SHU', icon: '✳', color: '#cdd9e8', src: 'pack', arcMin: 0.15, arcMax: 0.7,
+    id: 'shuriken', stock: 4, cat: 'mid', name: '手裏剣', short: 'SHU', icon: '✳', color: '#cdd9e8', src: 'pack', arcMin: 0.15, arcMax: 0.7,
     desc: '敵から敵へ跳ね回る投擲。密集しているほど手が付けられなくなる。',
     base: baseStats({ arc: 0.38, dmg: 13, rate: 2.2, range: 230, speed: 520, bulletR: 5, bounce: 3, turn: 10 }),
     fire(w, run) {
@@ -310,7 +322,7 @@ const WEAPONS = {
   },
 
   tentacle: {
-    id: 'tentacle', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ stock: 2, cat: 'support', name: '触手', short: 'TNT', icon: '🐙', color: '#c85ab0', src: 'pack', arcMin: 0.2, arcMax: 0.8,
+    id: 'tentacle', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ stock: 8, cat: 'support', name: '触手', short: 'TNT', icon: '🐙', color: '#c85ab0', src: 'pack', arcMin: 0.2, arcMax: 0.8,
     desc: '砲身の先にいる敵を掴んで来た道へ引き戻す。掴まれている間は削られ続ける。',
     // **【2026-09-22】同時に2体まで掴めなかったのが、そのまま弱さだった。**
     //   前は「1体ずつ掴む武器だから数字を上げても頭打ち」と書いて諦めていたが、
@@ -347,7 +359,7 @@ const WEAPONS = {
   },
 
   mortar: {
-    id: 'mortar', stock: 1, cat: 'target', name: '迫撃砲', short: 'MTR', icon: '💥', color: '#e0b060', src: 'stage',
+    id: 'mortar', stock: 7, cat: 'target', name: '迫撃砲', short: 'MTR', icon: '💥', color: '#e0b060', src: 'stage',
     arcMin: 0.08, arcMax: 0.45, aimPoint: true, spot: [96, 170],
     desc: '置いた円の中へ重い砲弾を降らせ続ける。射程は長いが発射は遅い。',
     base: baseStats({ arc: 0.26, dmg: 42, rate: 0.55, range: 420, speed: 240, bulletR: 6,
