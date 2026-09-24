@@ -9,8 +9,8 @@
 //   流れ：
 //     ① パックが浮かぶ。タップすると揺れ、**中身の一番良いレア度の色の光**が漏れる（期待を先に見せる）
 //     ② パックが裂けて光が弾ける
-//     ③ カードが回りながら出てくる。絵柄がスロットのように回って減速して止まる。
-//        **レアほど長く回り、止まった瞬間が大きい**（レジェンドは画面が金色に弾ける）
+//     ③ カードが伏せて配られる。裏面はロゴで、**レア度の色が裏から透ける**。タップで1枚ずつ捲る。
+//        レア以上は捲る前に裏が震えて色が上がる（昇格）。レジェンドは画面が金色に弾ける
 //     ④ 凸が上がったら星が灯り、倍率が上がる。4凸は「覚醒」
 //   開けているあいだは音楽が鳴り、1枚ごとに高くなる
 // ---------------------------------------------------------------
@@ -65,10 +65,42 @@ const CardFX = {
     return el;
   },
 
-  back(color) {
-    const el = Util.el('div', 'cf cf-back');
-    el.style.setProperty('--rc', color || '#ff8a1f');
-    el.innerHTML = '<div class="cf-backlogo">⬢</div>';
+  // **ゲームのロゴ**（ユーザー 2026-09-24 に見本画像）。外周の輪と4方向の突起・内側の輪・
+  //   矢じりの付いた8本の光条・中心の歯車。画像を貼らずに描き起こす（どの大きさでも滲まない）
+  logoSvg() {
+    const rot = (pts, a) => pts.map(([x, y]) => {
+      const c = Math.cos(a), s = Math.sin(a);
+      return (x * c - y * s).toFixed(2) + ',' + (x * s + y * c).toFixed(2);
+    }).join(' ');
+    let spikes = '', rays = '';
+    for (let i = 0; i < 4; i++) {                     // 外周の4方向の突起
+      spikes += '<polygon points="' + rot([[0, -50], [5.5, -38], [0, -42], [-5.5, -38]], i * Math.PI / 2) + '"/>';
+    }
+    for (let i = 0; i < 8; i++) {                     // 8本の光条（縦横は長く、斜めは短い）
+      const a = i * Math.PI / 4, L = i % 2 ? 23 : 29;
+      rays += '<polygon points="' + rot([[0, -L - 3], [4.2, -L + 5], [1.3, -L + 3.6], [1.3, -10], [-1.3, -10], [-1.3, -L + 3.6], [-4.2, -L + 5]], a) + '"/>';
+    }
+    return '<svg class="gamelogo" viewBox="-52 -52 104 104" xmlns="http://www.w3.org/2000/svg">' +
+      '<defs><linearGradient id="lgGold" x1="0" y1="0" x2="1" y2="1">' +
+        '<stop offset="0" stop-color="#fff4c2"/><stop offset=".4" stop-color="#f2c34a"/>' +
+        '<stop offset=".7" stop-color="#b47212"/><stop offset="1" stop-color="#ffe08a"/></linearGradient></defs>' +
+      '<g fill="url(#lgGold)" stroke="#5a3606" stroke-width=".9" stroke-linejoin="round">' + spikes + rays + '</g>' +
+      '<g fill="none" stroke-linecap="round">' +
+        '<circle r="40" stroke="#5a3606" stroke-width="7.6"/><circle r="40" stroke="url(#lgGold)" stroke-width="5.6"/>' +
+        '<circle r="40" stroke="#fff4c2" stroke-width=".8" opacity=".7"/>' +
+        '<circle r="31" stroke="#5a3606" stroke-width="3.2"/><circle r="31" stroke="url(#lgGold)" stroke-width="1.8"/>' +
+        '<circle r="13" stroke="#5a3606" stroke-width="3.4"/><circle r="13" stroke="url(#lgGold)" stroke-width="2"/>' +
+        '<circle r="7.6" stroke="url(#lgGold)" stroke-width="3" stroke-dasharray="2.2 1.5"/>' +
+      '</g>' +
+      '<circle r="5.6" fill="url(#lgGold)" stroke="#5a3606" stroke-width=".8"/><circle r="2.6" fill="#241604"/>' +
+      '</svg>';
+  },
+
+  // カードの裏面。**レア度の色が裏から透ける**（ユーザー 2026-09-24「裏面からレア度の色が透けてると良い」）
+  back(rarity) {
+    const el = Util.el('div', 'cf cf-back br-' + (rarity || 'common'));
+    el.style.setProperty('--rc', BAL.rarity[rarity || 'common'].color);
+    el.innerHTML = '<div class="cf-backin"><div class="cf-backglow"></div>' + this.logoSvg() + '</div>';
     return el;
   },
 
@@ -100,7 +132,7 @@ const CardFX = {
     ov.innerHTML =
       '<div class="pfx-rays"></div>' +
       '<div class="pfx-pack"><div class="pfx-flap"></div>' +
-        '<div class="pfx-body"><div class="pfx-logo">⬢</div><div class="pfx-name">' + pk.name + '</div>' +
+        '<div class="pfx-body"><div class="pfx-logo">' + this.logoSvg() + '</div><div class="pfx-name">' + pk.name + '</div>' +
         '<div class="pfx-sub">' + ids.length + ' CARDS</div></div></div>' +
       '<div class="pfx-cards"></div>' +
       '<div class="pfx-hint">タップして開ける</div>' +
@@ -112,7 +144,7 @@ const CardFX = {
     const fx = ov.querySelector('.pfx-fx');
     Snd.resume && Snd.resume();
 
-    let phase = 'pack', k = 0, skip = null;
+    let phase = 'pack';
     const center = () => ({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
 
     // ① 揺れてから裂ける。**中身が良いほど光が強い**
@@ -147,75 +179,93 @@ const CardFX = {
       }, steps0.length * stepMs + 250);
     };
 
-    // ② 1枚ずつ。スロットのように絵柄が回り、減速して止まる
-    const pool = CARD_IDS.filter(id => PACKS[pk.id] && PACKS[pk.id].accepts(CARDS[id]));
-    const nextCard = () => {
-      if (k >= ids.length) { finish(); return; }
-      const idx = k++;
+    // ② 伏せて配り、1枚ずつ捲る。**ルーレットはやめた**（ユーザー 2026-09-24「カードなので
+    //   ルーレットでガチャガチャはせず、裏側から捲るようにしましょう」）。
+    //   裏面はロゴ。**レア度の色が裏から透ける**ので、捲る前から期待できる
+    const slots = [];
+    let flipped = 0, busy = false;
+    const deal = () => {
+      ids.forEach((id, idx) => {
+        const c = CARDS[id];
+        const slot = Util.el('div', 'pfx-slot r-' + c.rarity);
+        slot.style.setProperty('--rc', BAL.rarity[c.rarity].color);
+        slot.style.animationDelay = (idx * 0.14).toFixed(2) + 's';
+        const flip = Util.el('div', 'pfx-flip');
+        const inner = Util.el('div', 'pfx-inner');
+        const backF = Util.el('div', 'pfx-side pfx-backside');
+        backF.appendChild(this.back(c.rarity));
+        const front = Util.el('div', 'pfx-side pfx-frontside');
+        inner.appendChild(backF); inner.appendChild(front);
+        flip.appendChild(inner); slot.appendChild(flip);
+        row.appendChild(slot);
+        slots.push({ slot, inner, front, done: false });
+        setTimeout(() => Snd.deal(idx), idx * 140);
+        slot.addEventListener('click', (e) => { e.stopPropagation(); open1(idx); });
+      });
+      hint.textContent = 'タップして捲る';
+    };
+    // 次に捲るのは、まだ伏せてある一番左
+    const nextIdx = () => slots.findIndex(s => !s.done);
+    const open1 = (idx) => {
+      if (busy || idx < 0 || slots[idx].done) return;
+      busy = true;
+      const s = slots[idx];
       const c = CARDS[ids[idx]];
       const g = glows[idx];
-      const slot = Util.el('div', 'pfx-slot r-' + c.rarity);
-      slot.style.setProperty('--rc', BAL.rarity[c.rarity].color);
-      row.appendChild(slot);
-      // 回る時間：コモン0.6秒〜レジェンド2.2秒
-      const total = [600, 900, 1400, 2200][g];
-      let el = null, t = 0, gap = 45, done = false;
-      let lvl = 0;
-      const spin = () => {
-        if (done) return;
-        const f = CARDS[Util.pick(pool.length ? pool : CARD_IDS)];
-        const face = this.face(f, {});
-        face.classList.add('spinning');
-        // 回転中の昇格：減速するほど枠が 銀→青→紫→金 と上がる（そのカードのレア度まで）
-        const lv = Math.min(g, Math.floor((t / total) * (g + 1)));
-        const rr = BAL.rarityOrder[lv];
-        face.classList.remove('r-' + f.rarity); face.classList.add('r-' + rr);
-        face.style.setProperty('--rc', BAL.rarity[rr].color);
-        if (lv > lvl) { lvl = lv; Snd.promote(lv); slot.classList.remove('promote'); void slot.offsetWidth; slot.classList.add('promote'); }
-        slot.innerHTML = ''; slot.appendChild(face);
-        Snd.slotTick(t / total);
-        t += gap;
-        gap *= 1.09;                        // だんだん遅くなる
-        if (t >= total) land(); else tm = setTimeout(spin, gap);
-      };
-      let tm = null;
-      const land = () => {
-        if (done) return;
-        done = true; clearTimeout(tm); skip = null;
+      s.done = true;
+      // **溜め**：レア以上は、捲る前に裏が震え、透けている色が コモン→…→そのレア度 と上がる
+      const lv = BAL.rarityOrder.slice(0, g + 1);
+      const stepMs = g >= 3 ? 360 : 300;
+      if (g >= 1) {
+        s.slot.classList.add('charging');
+        lv.forEach((r, i) => setTimeout(() => {
+          s.slot.style.setProperty('--glowc', BAL.rarity[r].color);
+          s.slot.classList.remove('gl0', 'gl1', 'gl2', 'gl3'); s.slot.classList.add('gl' + i);
+          if (i > 0) Snd.promote(i);
+          if (i >= 3) { document.body.classList.remove('bigshake'); void document.body.offsetWidth; document.body.classList.add('bigshake'); }
+        }, i * stepMs));
+      }
+      const wait0 = g >= 1 ? lv.length * stepMs + 120 : 0;
+      setTimeout(() => {
+        s.slot.classList.remove('charging');
         const st = steps[idx];
-        el = this.face(c, { count: st.n1, isNew: isNew[idx] });
-        el.classList.add('landed');
-        slot.innerHTML = ''; slot.appendChild(el);
-        slot.classList.add('landed');
-        const r = slot.getBoundingClientRect();
-        const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-        this.particles(fx, cx, cy, BAL.rarity[c.rarity].color, 8 + g * 8, false);
-        Snd.land(g, idx);
-        if (g >= 3) {                       // レジェンド：画面が金色に弾け、帯が横切り、コインが降る
-          ov.classList.remove('flash'); void ov.offsetWidth; ov.classList.add('flash');
-          this.particles(fx, cx, cy, '#ffe08a', 24, true);
-          this.banner(ov, 'LEGENDARY', c.name, '#ffb020');
-          this.coinRain(fx, 42);
-        } else if (g >= 2) {
-          ov.classList.remove('flashp'); void ov.offsetWidth; ov.classList.add('flashp');
-          this.banner(ov, 'EPIC', c.name, '#c26bff');
-        }
-        if (c.kind === 'weapon' && isNew[idx]) UI.toastMsg('新しい武器 ' + c.name, '#ffb43c');
-        // 凸が上がった
-        const t0 = Game.totuOf(st.n0), t1 = Game.totuOf(st.n1);
-        let wait = g >= 3 ? 1700 : g >= 2 ? 1100 : 420;
-        if (t1 > t0 && !c.noRank) {
-          wait += 700;
-          setTimeout(() => this.totuUp(el, ov, fx, c, t0, t1), 250);
-          if (t0 < BAL.totuBigFrom && t1 >= BAL.totuBigFrom) wait += 1800;
-        }
-        skip = () => { clearTimeout(nt); skip = null; nextCard(); };
-        const nt = setTimeout(() => { skip = null; nextCard(); }, wait);
-      };
-      skip = () => land();                  // 回っている途中のタップは止める
-      spin();
+        const el = this.face(c, { count: st.n1, isNew: isNew[idx] });
+        s.front.appendChild(el);
+        s.slot.classList.add('flipped');
+        Snd.flip(g);
+        // 表が見えた瞬間（回転の半ばを過ぎたところ）
+        setTimeout(() => {
+          const r = s.slot.getBoundingClientRect();
+          const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+          this.particles(fx, cx, cy, BAL.rarity[c.rarity].color, 8 + g * 8, false);
+          Snd.land(g, idx);
+          s.slot.classList.add('landed');
+          if (g >= 3) {
+            ov.classList.remove('flash'); void ov.offsetWidth; ov.classList.add('flash');
+            this.particles(fx, cx, cy, '#ffe08a', 24, true);
+            this.banner(ov, 'LEGENDARY', c.name, '#ffb020');
+            this.coinRain(fx, 42);
+          } else if (g >= 2) {
+            ov.classList.remove('flashp'); void ov.offsetWidth; ov.classList.add('flashp');
+            this.banner(ov, 'EPIC', c.name, '#c26bff');
+          }
+          if (c.kind === 'weapon' && isNew[idx]) UI.toastMsg('新しい武器 ' + c.name, '#ffb43c');
+          const t0 = Game.totuOf(st.n0), t1 = Game.totuOf(st.n1);
+          let wait = g >= 3 ? 1100 : g >= 2 ? 700 : 250;
+          if (t1 > t0 && !c.noRank) {
+            wait += 600;
+            setTimeout(() => this.totuUp(el, ov, fx, c, t0, t1), 250);
+            if (t0 < BAL.totuBigFrom && t1 >= BAL.totuBigFrom) wait += 1800;
+          }
+          setTimeout(() => {
+            busy = false;
+            flipped++;
+            if (flipped >= slots.length) finish();
+          }, wait);
+        }, 260);
+      }, wait0);
     };
-
+    const nextCard = () => deal();
     const finish = () => {
       phase = 'done';
       Snd.openLoop(false);
@@ -232,7 +282,7 @@ const CardFX = {
 
     ov.addEventListener('click', (e) => {
       if (phase === 'pack') { tear(); return; }
-      if (phase === 'cards' && skip) { skip(); return; }
+      if (phase === 'cards') { open1(nextIdx()); return; }
       if (phase === 'done') {
         const card = e.target.closest('.cf');
         if (card) card.classList.toggle('full');

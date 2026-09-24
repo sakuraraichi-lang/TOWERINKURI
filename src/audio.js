@@ -184,10 +184,15 @@ const Snd = {
     this.tone({ type: 'sine', f0: f, f1: f * 1.5, dur: 0.18, vol: 0.07 });
     this.tone({ type: 'triangle', f0: f * 0.5, f1: f * 0.75, dur: 0.22, vol: 0.05 });
   },
-  // スロットが回る音。進むほど高くなる
-  slotTick(p) {
-    const f = 700 + 900 * Math.min(1, p);
-    this.tone({ type: 'square', f0: f, f1: f, dur: 0.025, vol: 0.03 });
+  // カードを配る音（伏せて置く）
+  deal(i) {
+    this.noise({ dur: 0.07, vol: 0.05, f: 3000 + (i || 0) * 400 });
+    this.tone({ type: 'triangle', f0: 300 + (i || 0) * 40, f1: 200, dur: 0.06, vol: 0.04 });
+  },
+  // 捲る音。レアほど厚い
+  flip(g) {
+    this.noise({ dur: 0.12, vol: 0.06, f: 1800 });
+    if (g >= 2) this.tone({ type: 'sine', f0: 400, f1: 1200, dur: 0.25, vol: 0.05 });
   },
   // 止まった瞬間。レア度で大きさが変わる。idx 枚目ほど高く
   land(g, idx) {
