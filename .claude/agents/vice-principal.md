@@ -56,7 +56,7 @@ tools: Read, Write, Edit, Bash, PowerShell, Glob, Grep
 |---|---|
 | `src/balance.js` の調整ノブ | `docs/DESIGN-MASTER-2026-09-20.md`（**設計書が正**）、`docs/PATCHNOTES.md` |
 | 武器・カードの挙動 | その武器／カードの**説明文**（ずれていた事故が何度もある） |
-| ステージ | `tools/gen30.py`（**生成器が正**。stages.js を手で直さない） |
+| ステージ | 盤は `src/mapgen.js`（その場で生成）。章の並びと報酬は `src/stages.js` の `STAGES` |
 | パック・解放条件 | 設計書 §4（解放ロードマップ） |
 | 経済（コイン・コスト） | 設計書 §6、`docs/DESIGN-ECONOMY-2026-09-20.md` |
 | 自動化・スキップ | 設計書 §5、`docs/DESIGN-AUTOMATION-2026-09-20.md` |
@@ -65,7 +65,7 @@ tools: Read, Write, Edit, Bash, PowerShell, Glob, Grep
 ### まず機械で見つかるズレを潰す。目で読むのはその後
 
 ```
-/e/Anaconda3/python.exe tools/gen30.py            30章のマップが検証を通るか
+Stage.validateAll()（ブラウザ）             いまの種で30章の盤が壊れていないか
 # ブラウザで tools/sim.html → Stage.validateAll() が空か
 # 本番に上がっているか
 curl -s https://towerinkuri.vercel.app/src/balance.js | grep -m1 "const BUILD"
@@ -80,7 +80,7 @@ curl -s https://towerinkuri.vercel.app/src/balance.js | grep -m1 "const BUILD"
 ## どちらを直すか 【判断の規則】
 
 - **生成物と入力が食い違う → 入力を直して作り直す。**
-  `src/stages.js` を手で直さない（`tools/gen30.py` が正）。
+  盤の形は `BAL` のノブと `src/mapgen.js` で直す（手書きの盤は無い）。
 - **実装と説明文が食い違う → 実測が正。説明文を直す。**
   ただし**設計原則に反する実測は、実装の方を直す。** 原則とは：
   - **設置枠は値段の跳ね上がりで間隔を作る。**（2026-09-21 のユーザー指示で「お金で買えない」から置き換わった）

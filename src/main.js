@@ -20,9 +20,6 @@ const Main = {
     Game.load();
     Game.checkMissions();
 
-    const bad = Stage.validateAll();
-    if (bad.length) console.error('ステージ定義がおかしい:', bad);
-
     const cv = document.getElementById('cv');
     Render.init(cv);
     UI.init();

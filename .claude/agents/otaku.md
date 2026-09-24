@@ -78,8 +78,7 @@ tools/sim.html をブラウザで開く（http://localhost:5173/tools/sim.html�
   runStage(id, loadout, buys, opts)    1章だけ回す
   REAL_MS = 4000                       1出撃に許す実時間。超えると 'slow' で打ち切り
 
-/e/Anaconda3/python.exe tools/gen30.py         30章のマップを検証
-/e/Anaconda3/python.exe tools/gen30.py --write 検証を通ったら stages.js に書き戻す
+Stage.validateAll()（ブラウザ）        いまの種で30章の盤が壊れていないか（盤は MapGen がその場で作る）
 ```
 
 **Python は `E:\Anaconda3\python.exe`。** `python3` は Microsoft Store のスタブで使えません。

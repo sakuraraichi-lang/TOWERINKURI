@@ -56,8 +56,8 @@ tools: Read, Write, Edit, Bash, PowerShell, Glob, Grep
 
 ## 絶対に守ること（プロジェクト固有）
 
-1. **`src/stages.js` は生成物。手で編集しない。**
-   `tools/gen30.py` を直して `--write` で作り直す。
+1. **盤は `src/mapgen.js` がその場で作る。**手書きの盤と `tools/gen30.py` は 2026-09-24 に削除した。
+   `src/stages.js` の `STAGES` は章の並びと報酬だけで、手で直してよい。
 2. **ビルドは無い。** `<script>` を並べるだけ。**ES modules は `file://` で動かないので使わない。**
    音も画像も持たず、その場で生成する（`src/audio.js` は WebAudio、武器の絵は Canvas）。
 3. **調整ノブは `src/balance.js` に集める。** 他のファイルに数値をベタ書きしない。

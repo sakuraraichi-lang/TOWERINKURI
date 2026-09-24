@@ -80,17 +80,19 @@ const UI = {
 //     2. **スナイパーを最初から持たせていた**（2026-09-21 発覚）。
 //        ユーザー決定「初期武器はガトリングでよし」を受けて本体は
 //        STARTER_CARDS を wc_gatling だけにし、スナイパーは第2章の突破報酬
-//        （gen30.py の CH_WEAPON[2]）へ回したのに、**こちらを直し忘れていた。**
+//        （STAGES[1].reward）へ回したのに、**こちらを直し忘れていた。**
 //        第1〜2章を、実際には持っていない長射程で測っていたことになる
 //
-// 武器がいつ手に入るか。**数字は「その章を突破したときにもらえる」**。
-//   本体は `clearStage` で報酬を配るので、**使えるのは次の章から**（だから `ch > w[0]`）。
-//   出どころは tools/gen30.py の CH_WEAPON。ずれたら両方を直す
-const WEAPON_START = ['gatling'];   // STARTER_CARDS。最初から持っているのはこれだけ
-const WEAPON_AT = [
-  [2, 'sniper'], [5, 'missile'], [8, 'tesla'],
-  [11, 'flame'], [14, 'gas'], [17, 'cryo'], [20, 'mortar'],
-];
+// **どちらも本体の表から作る（写さない）。**写していた頃は上の2回のようにずれた。
+//   WEAPON_START … STARTER_CARDS の武器カード
+//   WEAPON_AT    … [章, 武器]。**数字は「その章を突破したときにもらえる」**。
+//   本体は `clearStage` で報酬を配るので、**使えるのは次の章から**（だから `ch > w[0]`）
+const WEAPON_START = Object.keys(STARTER_CARDS)
+  .filter(id => CARDS[id] && CARDS[id].kind === 'weapon').map(id => CARDS[id].weapon);
+const WEAPON_AT = [];
+STAGES.forEach((s, i) => (s.reward.cards || []).forEach(id => {
+  if (CARDS[id] && CARDS[id].kind === 'weapon') WEAPON_AT.push([i + 1, CARDS[id].weapon]);
+}));
 // **パックから出る武器（刀・手裏剣・触手・泡）を編成に入れるか。**
 //   これまで入れていなかった。`openAllPacks()` で手には入っているのに、
 //   `loadoutFor` がステージ報酬の武器しか並べていなかったため、

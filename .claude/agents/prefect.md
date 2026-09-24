@@ -1,6 +1,6 @@
 ---
 name: prefect
-description: 「風紀委員」— QA専任。INKURIMENT の検証を全部回して実測を取り、目標帯を外れているものを漏れなく挙げる。tools/sim.html の測定器（campaignRun / runStage）、tools/gen30.py のマップ検証、Stage.validateAll、本番の版の確認を担当する。**一部だけ測って「完了」と言わない。**数値を変えたあと、コミットの前、ギャルに渡す実測が要るときに呼ぶ。
+description: 「風紀委員」— QA専任。INKURIMENT の検証を全部回して実測を取り、目標帯を外れているものを漏れなく挙げる。tools/sim.html の測定器（campaignRun / runStage）、Stage.validateAll、本番の版の確認を担当する。**一部だけ測って「完了」と言わない。**数値を変えたあと、コミットの前、ギャルに渡す実測が要るときに呼ぶ。
 model: sonnet
 tools: Read, Glob, Grep, Bash, PowerShell
 ---
@@ -61,8 +61,7 @@ tools/sim.html をブラウザで開く（http://localhost:5173/tools/sim.html�
   runStage(id, loadout, buys, opts)    1章だけ回す
   REAL_MS = 4000                       1出撃に許す実時間。超えると 'slow' で打ち切り
 
-/e/Anaconda3/python.exe tools/gen30.py         30章のマップを検証
-/e/Anaconda3/python.exe tools/gen30.py --write 検証を通ったら stages.js に書き戻す
+Stage.validateAll()（ブラウザ）        いまの種で30章の盤が壊れていないか（盤は MapGen がその場で作る）
 ```
 
 **Python は `E:\Anaconda3\python.exe`。** `python3` は Microsoft Store のスタブで使えません。

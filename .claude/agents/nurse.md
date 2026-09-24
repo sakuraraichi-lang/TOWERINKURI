@@ -84,7 +84,7 @@ tools: Read, Glob, Grep, Bash, PowerShell
 
 ```
 
-/e/Anaconda3/python.exe tools/gen30.py        30章のマップが検証を通るか
+Stage.validateAll()（ブラウザ）          いまの種で30章の盤が壊れていないか
 curl -s https://towerinkuri.vercel.app/src/balance.js | grep -m1 "const BUILD"
 ```
 
