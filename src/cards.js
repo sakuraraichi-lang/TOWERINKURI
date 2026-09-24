@@ -144,6 +144,13 @@ const CARDS = {
     name: 'ナパーム', desc: '燃焼ダメージ ×1.8。さらに炎の先端に火の海を残す',
     apply(run) { const w = run.wp('flame'); if (w) { w.s.burn *= Game.rk(1.8); w.s.burnDur += Game.rka(1.5); w.flags.napalm = true; } } }),
 
+  flm_spread: C({ id: 'flm_spread', kind: 'mod', weapon: 'flame', rarity: 'rare', maxStack: 3,
+    name: '延焼', desc: '炎上のダメージ ×1.5、炎上の時間 +1秒',
+    apply(run) { const w = run.wp('flame'); if (w) { w.s.burn *= Game.rk(1.5); w.s.burnDur += Game.rka(1); } } }),
+  flm_inferno: C({ id: 'flm_inferno', kind: 'mod', weapon: 'flame', rarity: 'legendary', maxStack: 1,
+    name: '業火', desc: '火炎のダメージ ×2.0、発射レート ×1.3',
+    apply(run) { const w = run.wp('flame'); if (w) { w.s.dmg *= Game.rk(2.0); w.s.rate *= Game.rk(1.3); } } }),
+
   // ============ 毒ガス散布機 ============
   gas_dense: C({ id: 'gas_dense', kind: 'mod', weapon: 'gas', rarity: 'common', maxStack: 5,
     name: '濃縮ガス', desc: '毒の雲のダメージ ×1.45',
@@ -156,6 +163,13 @@ const CARDS = {
     apply(run) { const w = run.wp('gas'); if (w) { w.s.dmg *= Game.rk(1.6); w.s.slow = Math.min(0.85, Math.max(w.s.slow, Game.rka(0.5)));
       w.s.fieldVuln = Math.max(w.s.fieldVuln, Game.rka(0.45)); } } }),
 
+  gas_corrode: C({ id: 'gas_corrode', kind: 'mod', weapon: 'gas', rarity: 'rare', maxStack: 3,
+    name: '腐食', desc: '毒の雲の中の敵が受けるダメージ +10%',
+    apply(run) { const w = run.wp('gas'); if (w) w.s.fieldVuln += Game.rka(0.10); } }),
+  gas_toxic: C({ id: 'gas_toxic', kind: 'mod', weapon: 'gas', rarity: 'epic', maxStack: 2,
+    name: '猛毒', desc: '毒の雲のダメージ ×1.8',
+    apply(run) { const w = run.wp('gas'); if (w) w.s.dmg *= Game.rk(1.8); } }),
+
   // ============ 凍結装置 ============
   cry_deep: C({ id: 'cry_deep', kind: 'mod', weapon: 'cryo', rarity: 'common', maxStack: 5,
     name: '深冷', desc: '冷気のダメージ ×1.5、減速の持続 +0.6秒',
@@ -167,6 +181,13 @@ const CARDS = {
     name: '砕氷', desc: '凍っている敵が受けるダメージ +60%。凍った敵を倒すと氷片が周囲に飛ぶ',
     apply(run) { const w = run.wp('cryo'); if (w) { w.flags.shatter = true; run.chillVuln += Game.rka(0.6); } } }),
 
+  cry_rapid: C({ id: 'cry_rapid', kind: 'mod', weapon: 'cryo', rarity: 'rare', maxStack: 3,
+    name: '氷結弾', desc: '冷気の発動レート ×1.3',
+    apply(run) { const w = run.wp('cryo'); if (w) w.s.rate *= Game.rk(1.3); } }),
+  cry_permafrost: C({ id: 'cry_permafrost', kind: 'mod', weapon: 'cryo', rarity: 'legendary', maxStack: 1,
+    name: '永久凍土', desc: '減速の時間 +1秒。凍っている敵が受けるダメージ +15%',
+    apply(run) { const w = run.wp('cryo'); if (w) { w.s.slowDur += Game.rka(1.0); run.chillVuln += Game.rka(0.15); } } }),
+
   // ============ 刀 ============
   ktn_edge: C({ id: 'ktn_edge', kind: 'mod', weapon: 'katana', rarity: 'common', maxStack: 5,
     name: '研磨', desc: '刀のダメージ ×1.50',
@@ -174,6 +195,15 @@ const CARDS = {
   ktn_iai: C({ id: 'ktn_iai', kind: 'mod', weapon: 'katana', rarity: 'rare', maxStack: 3,
     name: '居合', desc: '刀の斬撃レート ×1.5、会心率 +15%',
     apply(run) { const w = run.wp('katana'); if (w) { w.s.rate *= Game.rk(1.5); w.s.crit += Game.rka(0.15); } } }),
+  ktn_twin: C({ id: 'ktn_twin', kind: 'mod', weapon: 'katana', rarity: 'rare', maxStack: 3,
+    name: '二刀', desc: '1回の斬撃で斬る回数 +1',
+    apply(run) { const w = run.wp('katana'); if (w) w.s.count += Game.rki(1); } }),
+  ktn_swallow: C({ id: 'ktn_swallow', kind: 'mod', weapon: 'katana', rarity: 'epic', maxStack: 2,
+    name: '燕返し', desc: '刀の斬撃レート ×1.6',
+    apply(run) { const w = run.wp('katana'); if (w) w.s.rate *= Game.rk(1.6); } }),
+  ktn_zantetsu: C({ id: 'ktn_zantetsu', kind: 'mod', weapon: 'katana', rarity: 'legendary', maxStack: 1,
+    name: '斬鉄', desc: '刀の会心率 +30%、会心倍率 +1.0',
+    apply(run) { const w = run.wp('katana'); if (w) { w.s.crit += Game.rka(0.30); w.s.critMul += Game.rka(1.0); } } }),
   // 無限刃（斬るたびに間合い +6%・最大2倍）は撤去した（2026-09-24）。
   //   ユーザー 2026-09-22「武器の範囲を広げるスキル、カードなどゲーム内から全て削除」の
   //   0922u の撤去一覧から漏れていた。所持していた分は読み込み時に消える（state.js）
@@ -189,6 +219,10 @@ const CARDS = {
     name: '毒手裏剣', desc: '命中で毒を付与。跳ねるたびにダメージ +12%（減衰しない）',
     apply(run) { const w = run.wp('shuriken'); if (w) { w.s.burn = Math.max(w.s.burn, Game.rka(0.35)); w.s.burnDur = Math.max(w.s.burnDur, Game.rka(3)); w.flags.ramp = true; } } }),
 
+  shu_sakura: C({ id: 'shu_sakura', kind: 'mod', weapon: 'shuriken', rarity: 'legendary', maxStack: 1,
+    name: '千本桜', desc: '手裏剣の同時投擲 +4、貫通 +1',
+    apply(run) { const w = run.wp('shuriken'); if (w) { w.s.count += Game.rki(4); w.s.pierce += Game.rki(1); w.s.spread = Math.max(w.s.spread, 0.12); } } }),
+
   // ============ 触手 ============
   tnt_grip: C({ id: 'tnt_grip', kind: 'mod', weapon: 'tentacle', rarity: 'common', maxStack: 5,
     name: '握力', desc: '触手のダメージ ×1.60',
@@ -199,6 +233,13 @@ const CARDS = {
   tnt_many: C({ id: 'tnt_many', kind: 'mod', weapon: 'tentacle', rarity: 'epic', maxStack: 2,
     name: '多腕', desc: '同時に掴める敵 +1',
     apply(run) { const w = run.wp('tentacle'); if (w) w.s.count += Game.rki(1); } }),
+
+  tnt_squeeze: C({ id: 'tnt_squeeze', kind: 'mod', weapon: 'tentacle', rarity: 'rare', maxStack: 3,
+    name: '締め上げ', desc: '掴む時間 +0.5秒',
+    apply(run) { const w = run.wp('tentacle'); if (w) w.s.knockDur += Game.rka(0.5); } }),
+  tnt_octo: C({ id: 'tnt_octo', kind: 'mod', weapon: 'tentacle', rarity: 'legendary', maxStack: 1,
+    name: '八腕', desc: '同時に掴める敵 +3',
+    apply(run) { const w = run.wp('tentacle'); if (w) w.s.count += Game.rki(3); } }),
 
   // ============ 泡 ============
   bbl_big: C({ id: 'bbl_big', kind: 'mod', weapon: 'bubble', rarity: 'common', maxStack: 5,
@@ -211,6 +252,13 @@ const CARDS = {
     name: '酸泡', desc: '割れたときのダメージ ×2.4。さらに酸だまりを残す',
     apply(run) { const w = run.wp('bubble'); if (w) { w.s.splashMul *= Game.rk(2.4); w.flags.acid = true; w.s.fieldR = Game.rka(60); w.s.fieldDur = Game.rka(3.5); } } }),
 
+  bbl_froth: C({ id: 'bbl_froth', kind: 'mod', weapon: 'bubble', rarity: 'rare', maxStack: 3,
+    name: '泡沫', desc: '同時に出す泡 +1',
+    apply(run) { const w = run.wp('bubble'); if (w) w.s.count += Game.rki(1); } }),
+  bbl_sea: C({ id: 'bbl_sea', kind: 'mod', weapon: 'bubble', rarity: 'legendary', maxStack: 1,
+    name: '泡の海', desc: '同時に出す泡 +2、発射レート ×1.3',
+    apply(run) { const w = run.wp('bubble'); if (w) { w.s.count += Game.rki(2); w.s.rate *= Game.rk(1.3); } } }),
+
   // ============ 迫撃砲 ============
   mtr_shell: C({ id: 'mtr_shell', kind: 'mod', weapon: 'mortar', rarity: 'common', maxStack: 5,
     name: '大口径榴弾', desc: '迫撃砲のダメージ ×1.45',
@@ -221,6 +269,13 @@ const CARDS = {
   mtr_carpet: C({ id: 'mtr_carpet', kind: 'mod', weapon: 'mortar', rarity: 'epic', maxStack: 2,
     name: '絨毯爆撃', desc: '迫撃砲の同時発射 +3、ダメージ ×0.8',
     apply(run) { const w = run.wp('mortar'); if (w) { w.s.count += Game.rki(3); w.s.dmg *= Game.rk(0.8); } } }),
+
+  mtr_rapid: C({ id: 'mtr_rapid', kind: 'mod', weapon: 'mortar', rarity: 'rare', maxStack: 3,
+    name: '速射砲座', desc: '迫撃砲の発射レート ×1.4',
+    apply(run) { const w = run.wp('mortar'); if (w) w.s.rate *= Game.rk(1.4); } }),
+  mtr_barrage: C({ id: 'mtr_barrage', kind: 'mod', weapon: 'mortar', rarity: 'legendary', maxStack: 1,
+    name: '弾幕射撃', desc: '迫撃砲が1回に撃つ弾 +2',
+    apply(run) { const w = run.wp('mortar'); if (w) w.s.count += Game.rki(2); } }),
 
   // ============ シナジー（2種を同時編成しているときだけ抽選に出る） ============
   syn_charged: C({ id: 'syn_charged', kind: 'synergy', requires: ['gatling', 'tesla'], rarity: 'common', maxStack: 4,
@@ -269,6 +324,28 @@ const CARDS = {
     name: '踏破の記録', desc: '一度でも完璧に凌いだ章を、次の周から戦わずに突破できる' }),
 
   // ============ 汎用（編成に関係なく出る） ============
+  // ---- 2026-09-24 に足した連携（ユーザー承認 docs/DESIGN-CARDS-2026-09-24.md）----
+  syn_frostgat: C({ id: 'syn_frostgat', noRank: true, kind: 'synergy', requires: ['gatling', 'cryo'], rarity: 'rare', maxStack: 3,
+    name: '凍て弾幕', desc: '【ガトリング＋凍結装置】凍っている敵に当たったガトリングの弾は必ず会心になる',
+    apply(run) { const g = run.wp('gatling'); if (g) g.flags.frostCrit = true; } }),
+  syn_searbind: C({ id: 'syn_searbind', kind: 'synergy', requires: ['flame', 'tentacle'], rarity: 'rare', maxStack: 3,
+    name: '焼き締め', desc: '【火炎放射器＋触手】掴まれている敵の炎上ダメージ ×2',
+    apply(run) { run.grabBurn = Math.max(run.grabBurn || 1, Game.rk(2)); } }),
+  syn_toxfoam: C({ id: 'syn_toxfoam', kind: 'synergy', requires: ['gas', 'bubble'], rarity: 'epic', maxStack: 2,
+    name: '毒泡', desc: '【毒ガス＋泡】泡が割れた所に毒の雲が残る',
+    apply(run) { const b = run.wp('bubble'); if (b) { b.flags.toxFoam = true; b.dyn.toxDur = Math.max(b.dyn.toxDur || 0, Game.rka(3)); } } }),
+  syn_iceshell: C({ id: 'syn_iceshell', kind: 'synergy', requires: ['mortar', 'cryo'], rarity: 'rare', maxStack: 3,
+    name: '氷塊弾', desc: '【迫撃砲＋凍結装置】迫撃砲の爆発が敵を凍らせる（減速40%・1.5秒）',
+    apply(run) { const m = run.wp('mortar'); if (m) { m.s.slow = Math.min(0.85, Math.max(m.s.slow, Game.rka(0.4))); m.s.slowDur = Math.max(m.s.slowDur, Game.rka(1.5)); } } }),
+  syn_thunderblade: C({ id: 'syn_thunderblade', kind: 'synergy', requires: ['shuriken', 'tesla'], rarity: 'common', maxStack: 4,
+    name: '雷刃', desc: '【手裏剣＋テスラ】手裏剣が当たった敵から2連鎖の電撃が走る',
+    apply(run) { const w = run.wp('shuriken'); if (w) { w.flags.charged = true; w.dyn.chargedChain = (w.dyn.chargedChain || 0) + Game.rki(2); } } }),
+  syn_spotblade: C({ id: 'syn_spotblade', kind: 'synergy', requires: ['sniper', 'katana'], rarity: 'epic', maxStack: 2,
+    name: '狙撃指示', desc: '【スナイパー＋刀】スナイパーが撃ち抜いた敵への斬撃 ×1.6、刀の会心率 +20%',
+    apply(run) { const s = run.wp('sniper'), k = run.wp('katana');
+      if (s) s.flags.spot = true;
+      if (k) { k.dyn.spotMul = (k.dyn.spotMul || 1) * Game.rk(1.6); k.s.crit += Game.rka(0.20); } } }),
+
   gen_armor: C({ id: 'gen_armor', kind: 'generic', rarity: 'common', maxStack: 5,
     name: '増設装甲', desc: 'ライフ +6（その場で回復もする）',
     apply(run) { const hp = Game.rki(6); run.livesMax += hp; run.lives += hp; } }),
@@ -278,6 +355,28 @@ const CARDS = {
   gen_boost: C({ id: 'gen_boost', kind: 'generic', rarity: 'rare', maxStack: 3,
     name: '過給機', desc: '全武器の発射レート ×1.15',
     apply(run) { for (const w of run.units) { w.s.rate *= Game.rk(1.15); } } }),
+  // ---- 2026-09-24 に足した汎用（ユーザー承認 docs/DESIGN-CARDS-2026-09-24.md）----
+  gen_aim: C({ id: 'gen_aim', kind: 'generic', rarity: 'common', maxStack: 5,
+    name: '照準補正', desc: '全武器の会心率 +5%',
+    apply(run) { for (const w of run.units) w.s.crit += Game.rka(0.05); } }),
+  gen_loot: C({ id: 'gen_loot', kind: 'generic', rarity: 'common', maxStack: 5,
+    name: '戦利品', desc: 'このランのコイン獲得 ×1.2',
+    apply(run) { run.coinMul *= Game.rk(1.2); } }),
+  gen_core: C({ id: 'gen_core', kind: 'generic', rarity: 'rare', maxStack: 3,
+    name: '貫通芯', desc: '全武器の貫通 +1',
+    apply(run) { const k = Game.rki(1); for (const w of run.units) w.s.pierce += k; } }),
+  gen_plate: C({ id: 'gen_plate', kind: 'generic', rarity: 'rare', maxStack: 3,
+    name: '重装甲', desc: 'ライフ +10（その場で回復もする）',
+    apply(run) { const hp = Game.rki(10); run.livesMax += hp; run.lives += hp; } }),
+  gen_cool: C({ id: 'gen_cool', kind: 'generic', rarity: 'rare', maxStack: 3,
+    name: '冷却系統', desc: '全武器の発射レート ×1.1',
+    apply(run) { for (const w of run.units) w.s.rate *= Game.rk(1.1); } }),
+  gen_ap: C({ id: 'gen_ap', kind: 'generic', rarity: 'epic', maxStack: 2,
+    name: '徹甲化', desc: '全武器のダメージ ×1.3',
+    apply(run) { for (const w of run.units) w.s.dmg *= Game.rk(1.3); } }),
+  gen_allout: C({ id: 'gen_allout', kind: 'generic', rarity: 'legendary', maxStack: 1,
+    name: '総力戦', desc: '全武器のダメージ ×1.5、発射レート ×1.2',
+    apply(run) { for (const w of run.units) { w.s.dmg *= Game.rk(1.5); w.s.rate *= Game.rk(1.2); } } }),
   // ============ 遺物（永続パッシブ）============
   //
   //   **転生で消えない唯一の数値成長。** 遺物パックからのみ出る。

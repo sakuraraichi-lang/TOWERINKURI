@@ -300,9 +300,13 @@ const WEAPONS = {
     desc: '間合いに入った敵をまとめて斬る。射程は短いが一撃が重く、会心が乗る。',
     base: baseStats({ arc: 0.80, dmg: 58, rate: 1.5, range: 100, cone: 1.5, crit: 0.2, critMul: 2.5, turn: 12 }),
     fire(w, run) {
-      Combat.coneDamage(w, run, w.angle, w.s.cone, w.s.range, w.s.dmg, {
-        color: '#ffffff', crit: w.s.crit, critMul: w.s.critMul, exec: w.s.execThr,
-      });
+      // 二刀（ktn_twin）：1回の斬撃で斬る回数（count）
+      const n = Math.max(1, w.n || 1);
+      for (let i = 0; i < n; i++) {
+        Combat.coneDamage(w, run, w.angle, w.s.cone, w.s.range, w.s.dmg, {
+          color: '#ffffff', crit: w.s.crit, critMul: w.s.critMul, exec: w.s.execThr,
+        });
+      }
       Combat.fx(run, { type: 'slash', x: w.x, y: w.y, a: w.angle, arc: w.s.cone,
         r: w.s.range, color: '#ffffff', life: 0.18 });
       Combat.shake(run, 1.6);

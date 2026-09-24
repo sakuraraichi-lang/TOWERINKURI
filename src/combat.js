@@ -586,7 +586,9 @@ const Combat = {
       if (Math.abs(da) > arc) continue;
       const o = Object.assign({}, opts);
       if (w.flags.frostCrit && e.chill > 0) o.forceCrit = true;
-      this.damage(run, e, dmg, o);
+      // 狙撃指示（syn_spotblade）：スナイパーが撃ち抜いた敵（印）への斬撃に倍率
+      const dd = (w.dyn.spotMul && e.spotT > 0) ? dmg * w.dyn.spotMul : dmg;
+      this.damage(run, e, dd, o);
       hits++;
     }
     // 爆燃（syn_backdraft）：毒の雲に炎が届くと引火する。
@@ -760,6 +762,11 @@ const Combat = {
     if (w.flags.acid) {
       this.spawnField(run, x, y, { kind: 'acid', r: w.s.fieldR, dur: w.s.fieldDur,
         dps: dmg * 0.35, vuln: 0.15, color: '#a8f0c0' });
+    }
+    // 毒泡（syn_toxfoam）：泡が割れた所に毒の雲が残る
+    if (w.flags.toxFoam) {
+      this.spawnField(run, x, y, { kind: 'gas', r: Math.max(40, R * 0.8), dur: w.dyn.toxDur || 3,
+        dps: dmg * 0.5, vuln: 0.1, color: '#8fd94a' });
     }
   },
 
@@ -1022,7 +1029,13 @@ const Combat = {
       if (e.fvulnT > 0) e.fvulnT -= dt;
       if (e.slowT > 0) { e.slowT -= dt; if (e.slowT <= 0) e.slow = 0; }
       if (e.hitFlash > 0) e.hitFlash -= dt;
-      if (e.burnT > 0) { e.burnT -= dt; this.damage(run, e, e.burn * dt, { color: '#ff8a3a', dot: true }); if (e.dead) continue; }
+      if (e.burnT > 0) {
+        e.burnT -= dt;
+        // 焼き締め（syn_searbind）：掴まれている敵は炎上ダメージに倍率
+        const gb = (run.grabBurn && e.grabT > 0) ? run.grabBurn : 1;
+        this.damage(run, e, e.burn * dt * gb, { color: '#ff8a3a', dot: true });
+        if (e.dead) continue;
+      }
       // **毒のスリップダメージ。**（ユーザー要望8・2026-09-22）
       //   雲を出たあとも続く。炎上と同じ形
       if (e.poisonT > 0) { e.poisonT -= dt; this.damage(run, e, (e.poison || 0) * dt, { color: '#c6ff7a', dot: true }); if (e.dead) continue; }
@@ -1251,6 +1264,8 @@ const Combat = {
           crit: b.crit, critMul: b.critMul, exec: b.exec, shock: b.shock,
           slow: b.slow, slowDur: b.slowDur, stun: b.stun,
           burn: b.burn, burnDur: b.burnDur, color: b.color,
+          // 凍て弾幕（syn_frostgat）：凍っている敵に当たった弾は必ず会心
+          forceCrit: !!(b.src && b.src.flags.frostCrit && e.chill > 0),
         });
 
         if (b.src && b.src.flags.resonance && b.wid === 'gatling')
@@ -1258,7 +1273,8 @@ const Combat = {
         // 曳光指示：スナイパーが撃ち抜いた敵に印が残る。
         // **ミサイルの狙いは変えない。**印の付いた敵に落ちたときだけ効く
         if (b.src && b.src.flags.spot && b.wid === 'sniper' && !e.dead) e.spotT = 3;
-        if (b.src && b.src.flags.charged && b.wid === 'gatling') {
+        // 帯電弾（ガトリング）・雷刃（手裏剣）。旗を立てるのは連携カードだけなので武器では縛らない
+        if (b.src && b.src.flags.charged) {
           this.chainLightning(b.src, run, e, b.src.dyn.chargedChain || 2, b.dmg * 0.55);
         }
         if (b.src && b.src.flags.staticFoam && b.wid === 'bubble' && !e.dead) {
