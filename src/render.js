@@ -110,8 +110,7 @@ const Render = {
     this.stage = st;
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#06070a';
-    ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.drawImage(this.bgImage(this.canvas.width, this.canvas.height), 0, 0);
 
     let sx = 0, sy = 0;
     if (run && run.shake > 0) { sx = Util.rand(-run.shake, run.shake); sy = Util.rand(-run.shake, run.shake); }
@@ -300,89 +299,195 @@ const Render = {
     return (st._wallHex = out);
   },
 
+  // ---------------------------------------------------------------
+  // 盤面（六角）。**動かない部分は下絵として作り置きし、毎フレームは貼るだけ。**
+  //   （2026-09-24・ユーザー「デザイン面を大きく変えましょう、まだ質素です」「今のSF（黒×橙）を豪華に」）
+  //   下絵：壁（面取りした金属板・継ぎ目・表示灯）／通路の縁の橙のネオン／通路（暗い床と薄い格子）／
+  //         仕掛けのマス／出現口（警告の縞）
+  //   毎フレーム：通路を出現口からコアへ流れる光・出現口の脈動
+  // ---------------------------------------------------------------
   tilesVec(ctx, st) {
-    const v = st.vec;
-
-    // 2. **通路は六角セル（ハニカム）で描く。**
-    //   （ユーザー 2026-09-21「6角形の道とかにしよう、ハニカムで道とかカーブを再現して」）
-    //   折れ線をそのまま太い帯で塗ると、曲がりが丸い管になって有機的に見えた。
-    //   同じ曲線を六角の階段で辿らせると、構造物として読める。
-    //   **焼くときに使ったセルをそのまま描く**ので、絵と当たり判定がずれない
-    const R = v.hexR || 26;
-    const hexPath = (x, y) => {
-      ctx.beginPath();
-      for (let i = 0; i < 6; i++) {
-        const a = Math.PI / 3 * i;
-        const px = x + Math.cos(a) * R, py = y + Math.sin(a) * R;
-        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
-      }
-      ctx.closePath();
-    };
-    // **盤の四角で切らない。**（2026-09-24・ユーザー指示「ハニカム形式なのに無理やり直線にする
-    //   描画も削除」）切ると外周の六角がまっすぐ断ち切られて、盤の輪郭と縁の通路が直線になる。
-    //   六角は丸ごと描き、盤の輪郭そのものを六角のギザギザにする
-    //   （どの六角を描くかは wallHexes が「中心が盤の中」で選ぶ）
-    ctx.save();
-    // 1b. **壁も同じ六角で作る。**（2026-09-22）
-    //   通路だけ六角で壁が四角の格子だと、同じ盤の上で作りが食い違って見える。
-    //   壁は「通路を彫り出した素材」なので、明るめ＋継ぎ目だけを見せる
-    ctx.fillStyle = '#353c50';
-    ctx.strokeStyle = 'rgba(12,16,26,0.55)';
-    ctx.lineWidth = 1.4;
-    for (const h of this.wallHexes(st)) { hexPath(h.x, h.y); ctx.fill(); ctx.stroke(); }
-    // 縁：一回り大きく塗って、通路の外周に枠が出るようにする
-    ctx.fillStyle = '#232838';
-    for (const h of v.hexes) { hexPath(h.x, h.y); ctx.fill(); }
-    // 本体：境目に線を残すと、六角の集まりとして読める。
-    //   **仕掛けのあるセルは色を変える**（減速＝遅くなる／加速＝速くなる）。
-    //   見て分かること自体が仕掛けの半分。分からないと置き場所を選べない
-    ctx.strokeStyle = '#151a26';
-    ctx.lineWidth = 2;
-    for (const h of v.hexes) {
-      ctx.fillStyle = h.zone === 1 ? '#0d1b14' : h.zone === 2 ? '#1c1220' : '#05060a';
-      hexPath(h.x, h.y); ctx.fill(); ctx.stroke();
-    }
-    // 仕掛けの印。**塗りの差だけだと暗い画面で読めない**ので、記号を重ねる
-    for (const h of v.hexes) {
-      if (!h.zone) continue;
-      ctx.strokeStyle = h.zone === 1 ? 'rgba(110,230,170,0.55)' : 'rgba(215,140,255,0.55)';
-      ctx.lineWidth = 1.6;
-      ctx.beginPath();
-      if (h.zone === 1) {                    // 減速：横に3本（沈む感じ）
-        for (let i = -1; i <= 1; i++) { ctx.moveTo(h.x - R * 0.45, h.y + i * 6); ctx.lineTo(h.x + R * 0.45, h.y + i * 6); }
-      } else {                               // 加速：山形（下る感じ）
-        ctx.moveTo(h.x - R * 0.42, h.y + 5); ctx.lineTo(h.x, h.y - 6); ctx.lineTo(h.x + R * 0.42, h.y + 5);
-      }
-      ctx.stroke();
-    }
-    ctx.restore();
-
-    // 3. **壁に開いた穴。** 開いている幅ぶんを1本の口として描く。
-    //   **六角で描く。**（2026-09-24）前は穴のタイルを囲む赤い四角を描いていて、
-    //   六角の盤の上で出現口だけが四角く見えていた。
-    //   穴のタイルの中心を覆う六角を集めて、その六角を赤く縁取る
-    //   **通路の六角だけを採る。**穴のタイルは盤の縁にあり、中心が壁の六角に落ちることがある
-    const mouthHex = st._mouthHex || (st._mouthHex = (() => {
-      const road = {};
-      for (const h of v.hexes) road[h.c + ',' + h.r] = 1;
-      const seen = {}, out = [];
-      for (const h of v.holes) for (const t of h.tiles) {
-        const q = MapGen.hexPick(t.c * TILE + TILE / 2, t.r * TILE + TILE / 2);
-        const k = q.c + ',' + q.r;
-        if (seen[k] || !road[k]) continue;
-        seen[k] = 1; out.push(MapGen.hexAt(q.c, q.r));
-      }
-      return out;
-    })());
-    ctx.fillStyle = 'rgba(255,60,90,0.18)';
-    ctx.strokeStyle = '#ff5566';
-    ctx.lineWidth = 3;
-    for (const p of mouthHex) { hexPath(p.x, p.y); ctx.fill(); ctx.stroke(); }
-
+    const img = this.boardImage(st);
+    ctx.drawImage(img.canvas, img.x0, img.y0, img.w, img.h);
+    this.boardAnim(ctx, st);
     // 置き場所を選んでいるときの表示（置ける六角だけ光らせる）
     this.placeOverlay(ctx, st);
   },
 
+  hexPathOn(ctx, x, y, R) {
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a = Math.PI / 3 * i;
+      const px = x + Math.cos(a) * R, py = y + Math.sin(a) * R;
+      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+    }
+    ctx.closePath();
+  },
+
+  // 下絵。盤ごと・解像度ごとに1枚
+  boardImage(st) {
+    const res = Math.min(2.5, Math.max(1, Math.round((this.scale || 1) * (this.dpr || 1) * 2) / 2));
+    if (st._board && st._board.res === res) return st._board;
+    const v = st.vec;
+    const R = v.hexR || MapGen.HEX_R;
+    const pad = R + 8;
+    const cv = document.createElement('canvas');
+    cv.width = Math.ceil((st.w + pad * 2) * res);
+    cv.height = Math.ceil((st.h + pad * 2) * res);
+    const c = cv.getContext('2d');
+    c.setTransform(res, 0, 0, res, pad * res, pad * res);
+    const hex = (x, y, r) => this.hexPathOn(c, x, y, r === undefined ? R : r);
+    // 決まった並びの乱数（下絵は作り直しても同じ模様にする）
+    let seed = 1234567;
+    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
+
+    // 1. 壁：面取りした金属板
+    for (const h of this.wallHexes(st)) {
+      const g = c.createLinearGradient(h.x - R, h.y - R, h.x + R, h.y + R);
+      g.addColorStop(0, '#2c3344'); g.addColorStop(0.5, '#1b2030'); g.addColorStop(1, '#10131c');
+      hex(h.x, h.y); c.fillStyle = g; c.fill();
+      c.strokeStyle = 'rgba(4,6,10,0.9)'; c.lineWidth = 1.6; c.stroke();
+      // 面取り：上側の縁に光、下側の縁に影
+      c.save(); hex(h.x, h.y, R - 1.6); c.clip();
+      c.strokeStyle = 'rgba(160,178,210,0.16)'; c.lineWidth = 2;
+      c.beginPath(); c.moveTo(h.x - R, h.y); c.lineTo(h.x - R / 2, h.y - R * 0.866); c.lineTo(h.x + R / 2, h.y - R * 0.866); c.stroke();
+      c.restore();
+      // 継ぎ目（一回り小さい六角）
+      hex(h.x, h.y, R * 0.58); c.strokeStyle = 'rgba(120,136,168,0.10)'; c.lineWidth = 1; c.stroke();
+      // ところどころに表示灯
+      const q = rnd();
+      if (q < 0.12) {
+        c.fillStyle = 'rgba(255,150,40,0.85)'; c.shadowColor = '#ff8a1f'; c.shadowBlur = 6;
+        c.fillRect(h.x - 5, h.y + R * 0.38, 3, 2); c.fillRect(h.x + 1, h.y + R * 0.38, 3, 2);
+        c.shadowBlur = 0;
+      } else if (q < 0.2) {                       // 排気口の溝
+        c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = 1.4;
+        for (let i = -1; i <= 1; i++) { c.beginPath(); c.moveTo(h.x - 7, h.y + i * 4); c.lineTo(h.x + 7, h.y + i * 4); c.stroke(); }
+      }
+    }
+    // 2. 通路の縁の橙のネオン：通路の六角を太い光の線で縁取ってから、上を床で塗る
+    //    → 通路どうしの境目は床に隠れ、壁との境目だけ光が残る
+    c.save();
+    c.shadowColor = '#ff7a18'; c.shadowBlur = 14;
+    c.strokeStyle = 'rgba(255,122,24,0.95)'; c.lineWidth = 4;
+    for (const h of v.hexes) { hex(h.x, h.y); c.stroke(); }
+    c.shadowBlur = 0;
+    c.strokeStyle = 'rgba(255,220,160,0.9)'; c.lineWidth = 1.2;
+    for (const h of v.hexes) { hex(h.x, h.y); c.stroke(); }
+    c.restore();
+    // 3. 通路の床
+    //    **ぴったりより少し大きく塗る。**小さいと通路どうしの境目の光が残り、六角1枚ずつが光ってしまう
+    for (const h of v.hexes) {
+      hex(h.x, h.y, R + 0.8);
+      c.fillStyle = h.zone === 1 ? '#0b1a14' : h.zone === 2 ? '#1a1024' : '#07080d';
+      c.fill();
+    }
+    //    薄い格子（床の六角の継ぎ目）
+    c.strokeStyle = 'rgba(255,140,60,0.05)'; c.lineWidth = 1;
+    for (const h of v.hexes) { hex(h.x, h.y, R * 0.9); c.stroke(); }
+    // 4. 仕掛けの印
+    for (const h of v.hexes) {
+      if (!h.zone) continue;
+      c.strokeStyle = h.zone === 1 ? 'rgba(110,230,170,0.6)' : 'rgba(215,140,255,0.6)';
+      c.lineWidth = 1.6;
+      c.beginPath();
+      if (h.zone === 1) { for (let i = -1; i <= 1; i++) { c.moveTo(h.x - R * 0.45, h.y + i * 6); c.lineTo(h.x + R * 0.45, h.y + i * 6); } }
+      else { c.moveTo(h.x - R * 0.42, h.y + 5); c.lineTo(h.x, h.y - 6); c.lineTo(h.x + R * 0.42, h.y + 5); }
+      c.stroke();
+    }
+    // 5. 出現口：警告の縞と赤いネオン
+    for (const p of this.mouthHexes(st)) {
+      c.save(); hex(p.x, p.y, R - 1); c.clip();
+      c.fillStyle = '#1a0508'; c.fillRect(p.x - R, p.y - R, R * 2, R * 2);
+      c.strokeStyle = 'rgba(255,60,80,0.55)'; c.lineWidth = 5;
+      for (let i = -4; i <= 4; i++) { c.beginPath(); c.moveTo(p.x - R + i * 11, p.y + R); c.lineTo(p.x + i * 11 + R, p.y - R); c.stroke(); }
+      c.restore();
+      c.save(); c.shadowColor = '#ff3050'; c.shadowBlur = 16;
+      hex(p.x, p.y); c.strokeStyle = '#ff4a66'; c.lineWidth = 3; c.stroke(); c.restore();
+    }
+    st._board = { canvas: cv, res, x0: -pad, y0: -pad, w: cv.width / res, h: cv.height / res };
+    return st._board;
+  },
+
+  // 出現口の六角（穴のタイルの中心を覆う通路の六角）
+  mouthHexes(st) {
+    if (st._mouthHex) return st._mouthHex;
+    const v = st.vec;
+    const road = {};
+    for (const h of v.hexes) road[h.c + ',' + h.r] = 1;
+    const seen = {}, out = [];
+    for (const h of v.holes) for (const t of h.tiles) {
+      const q = MapGen.hexPick(t.c * TILE + TILE / 2, t.r * TILE + TILE / 2);
+      const k = q.c + ',' + q.r;
+      if (seen[k] || !road[k]) continue;
+      seen[k] = 1; out.push(MapGen.hexAt(q.c, q.r));
+    }
+    return (st._mouthHex = out);
+  },
+
+  // 出現口からコアまでの道筋（口ごとに1本）。流れる光を描くのに使う
+  flowLines(st) {
+    if (st._flow) return st._flow;
+    const out = [];
+    const used = {};
+    (st.routes || []).forEach((rt, i) => {
+      const sp = st.spawns[i];
+      // 同じ口（隣り合う S）から出る道は1本にまとめる
+      const key = st.mouths ? st.mouths.findIndex(m => m.indexOf(i) >= 0) : i;
+      if (used[key]) return;
+      used[key] = 1;
+      const pts = rt.map(ix => ({ x: (ix % st.cols) * TILE + TILE / 2, y: ((ix / st.cols) | 0) * TILE + TILE / 2 }));
+      // 折れを間引いて滑らかに（3点ごと）
+      const thin = pts.filter((p, j) => j % 3 === 0 || j === pts.length - 1);
+      if (thin.length >= 2) out.push(thin);
+    });
+    return (st._flow = out);
+  },
+
+  boardAnim(ctx, st) {
+    const t = performance.now() / 1000;
+    // 通路を流れる光：出現口からコアへ、橙の点線が進む
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    ctx.setLineDash([2, 22]);
+    ctx.lineDashOffset = -t * 46;
+    ctx.strokeStyle = 'rgba(255,150,60,0.55)'; ctx.lineWidth = 3;
+    for (const line of this.flowLines(st)) {
+      ctx.beginPath(); ctx.moveTo(line[0].x, line[0].y);
+      for (let i = 1; i < line.length; i++) ctx.lineTo(line[i].x, line[i].y);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    // 出現口の脈動
+    const R = (st.vec && st.vec.hexR) || MapGen.HEX_R;
+    const pulse = 0.35 + 0.25 * Math.sin(t * 4);
+    for (const p of this.mouthHexes(st)) {
+      const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, R * 1.6);
+      g.addColorStop(0, 'rgba(255,60,80,' + pulse.toFixed(3) + ')'); g.addColorStop(1, 'rgba(255,60,80,0)');
+      ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, R * 1.6, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.restore();
+  },
+
+  // 画面の背景（盤の外）。中央が少し明るい暗色＋薄い六角の格子＋走査線。画面の大きさごとに1枚
+  bgImage(w, h) {
+    if (this._bg && this._bg.w === w && this._bg.h === h) return this._bg.cv;
+    const cv = document.createElement('canvas'); cv.width = w; cv.height = h;
+    const c = cv.getContext('2d');
+    const g = c.createRadialGradient(w / 2, h * 0.45, 0, w / 2, h * 0.45, Math.max(w, h) * 0.75);
+    g.addColorStop(0, '#141826'); g.addColorStop(0.6, '#090b12'); g.addColorStop(1, '#040508');
+    c.fillStyle = g; c.fillRect(0, 0, w, h);
+    const R = 22 * (this.dpr || 1);
+    c.strokeStyle = 'rgba(255,138,31,0.045)'; c.lineWidth = 1;
+    for (let x = 0, col = 0; x < w + R * 2; x += R * 1.5, col++) {
+      for (let y = (col % 2) * R * 0.866; y < h + R * 2; y += R * 1.732) this.hexPathOn(c, x, y, R), c.stroke();
+    }
+    c.fillStyle = 'rgba(0,0,0,0.18)';
+    for (let y = 0; y < h; y += 3 * (this.dpr || 1)) c.fillRect(0, y, w, 1);
+    this._bg = { w, h, cv };
+    return cv;
+  },
   // 炎の舌。**扇1枚ではなく、長さの違う舌を重ねて「噴いている」形にする**
   //   `f.seed` は発射ごとに固定なので、1回の噴射のあいだ形が暴れない
   flameCone(ctx, f, k, glare) {
