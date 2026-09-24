@@ -730,7 +730,11 @@ const Render = {
 
   core(ctx, run) {
     const t = run.tower;
-    const hpR = Util.clamp(t.hp / t.maxHp, 0, 1);
+    // **コアの残りは run.lives / run.livesMax。**（2026-09-24・0924s で壊した）
+    //   以前は t.hp / t.maxHp（コアには無い値）を読んでいて、結果が NaN になっていた。
+    //   古い描き方は NaN を黙って無視していたが、0924s の光のグラデーションは NaN で例外を出し、
+    //   **毎フレームそこで描画と進行が止まって、武器も敵も出ない戦闘画面になっていた**
+    const hpR = run.livesMax > 0 ? Util.clamp(run.lives / run.livesMax, 0, 1) : 1;
     // **コアは「炉」。**（2026-09-24 デザインの作り直し）回る2重の輪と、脈打つ光の芯。
     //   漏れてHPが減るほど芯の色が赤に寄り、脈が速くなる
     const tt = performance.now() / 1000;
