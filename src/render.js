@@ -176,8 +176,6 @@ const Render = {
       }
     }
 
-    // 通行量と漏れルートのヒートマップ
-    this.heat(ctx, st);
 
 
     // **進行方向の矢印は出さない。**
@@ -386,33 +384,34 @@ const Render = {
     for (const h of this.wallHexes(st)) { hexPath(h.x, h.y); ctx.stroke(); }
     ctx.restore();
 
-    // 3. **置ける場所の四角い格子は、常時は出さない。**（2026-09-22）
-    //   設置はタイルのままなので格子そのものは要るが、
-    //   出しっぱなしだと**六角の盤に四角の網がかぶって作りが食い違って見える。**
-    //   置くときだけ出す（tiles() の「置き場所を選んでいるとき」の塗り）
-
-    // 4. 障害物
-    ctx.fillStyle = '#0a0b0f';
-    for (let r = 0; r < st.rows; r++) {
-      for (let c = 0; c < st.cols; c++) {
-        if (st.grid[r][c] === ' ') ctx.fillRect(c * TILE, r * TILE, TILE, TILE);
+    // 3. **壁に開いた穴。** 開いている幅ぶんを1本の口として描く。
+    //   **六角で描く。**（2026-09-24）前は穴のタイルを囲む赤い四角を描いていて、
+    //   六角の盤の上で出現口だけが四角く見えていた。
+    //   穴のタイルの中心を覆う六角を集めて、その六角を赤く縁取る
+    //   **通路の六角だけを採る。**穴のタイルは盤の縁にあり、中心が壁の六角に落ちることがある
+    const mouthHex = st._mouthHex || (st._mouthHex = (() => {
+      const road = {};
+      for (const h of v.hexes) road[h.c + ',' + h.r] = 1;
+      const seen = {}, out = [];
+      for (const h of v.holes) for (const t of h.tiles) {
+        const q = MapGen.hexPick(t.c * TILE + TILE / 2, t.r * TILE + TILE / 2);
+        const k = q.c + ',' + q.r;
+        if (seen[k] || !road[k]) continue;
+        seen[k] = 1; out.push(MapGen.hexAt(q.c, q.r));
       }
-    }
+      return out;
+    })());
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(0, 0, st.cols * TILE, st.rows * TILE);   // 盤の縁で切る（穴は縁にある）
+    ctx.clip();
+    ctx.fillStyle = 'rgba(255,60,90,0.18)';
+    ctx.strokeStyle = '#ff5566';
+    ctx.lineWidth = 3;
+    for (const p of mouthHex) { hexPath(p.x, p.y); ctx.fill(); ctx.stroke(); }
+    ctx.restore();
 
-    // 5. **壁に開いた穴。** 1タイルの印ではなく、開いている幅ぶんを1本の口として描く
-    for (const h of v.holes) {
-      const t0 = h.tiles[0], t1 = h.tiles[h.tiles.length - 1];
-      const x = Math.min(t0.c, t1.c) * TILE, y = Math.min(t0.r, t1.r) * TILE;
-      const w = (Math.abs(t1.c - t0.c) + 1) * TILE, hh = (Math.abs(t1.r - t0.r) + 1) * TILE;
-      ctx.fillStyle = 'rgba(255,60,90,0.16)';
-      ctx.fillRect(x, y, w, hh);
-      ctx.strokeStyle = '#ff5566';
-      ctx.lineWidth = 3;
-      ctx.strokeRect(x + 2, y + 2, w - 4, hh - 4);
-    }
-
-    this.heat(ctx, st);
-    // 置き場所を選んでいるときの表示。**四角の格子はここでだけ出る**
+    // 置き場所を選んでいるときの表示（置ける六角だけ光らせる）
     this.placeOverlay(ctx, st);
   },
 
@@ -592,55 +591,6 @@ const Render = {
     ctx.strokeRect(x + this.cam.x / st.w * w, y + this.cam.y / st.h * h,
                    Math.min(1, this.viewW / st.w) * w, Math.min(1, this.viewH / st.h) * h);
     ctx.restore();
-  },
-
-  // 蓄積された通行量／漏れを盤面に塗る
-  heat(ctx, st) {
-    const run = Game.run;
-    const saved = Game.perm && Game.perm.heat ? Game.perm.heat[st.id] : null;
-    if (!saved) return;
-    // 戦闘中は「今の戦闘ぶん」を、準備中は「これまでの蓄積」を見せる
-    const live = run && Game.phase === 'battle';
-    const traf = live ? run.traffic : saved.traffic;
-    const leak = live ? run.leak : saved.leak;
-    if (!traf) return;
-
-    let mt = 0, ml = 0;
-    for (let i = 0; i < traf.length; i++) { if (traf[i] > mt) mt = traf[i]; if (leak[i] > ml) ml = leak[i]; }
-
-    if (Game.showHeat && mt > 0) {
-      for (let r = 0; r < st.rows; r++) {
-        for (let c = 0; c < st.cols; c++) {
-          const v = traf[st.idx(c, r)] / mt;
-          if (v <= 0.02) continue;
-          const k = Math.pow(v, 0.6);
-          // 琥珀 -> 赤。濃いほど敵が長く居座る場所。
-          // **盤面と同じ暖色でそろえる。** 以前は薄い青から始めていて、
-          // 黒×琥珀の床の上で1箇所だけ寒色が浮いていた
-          // **タイルいっぱいには塗らない。** 全面を塗ると敵と弾が見えなくなるので、
-          // 内側に余白を残してマス目の境界を潰さないようにする
-          const cr = Math.round(200 + 55 * k);
-          const cg = Math.round(150 - 100 * k);
-          const cb = Math.round(40 - 30 * k);
-          ctx.fillStyle = 'rgba(' + cr + ',' + cg + ',' + cb + ',' + (0.04 + k * 0.15).toFixed(3) + ')';
-          ctx.fillRect(c * TILE + 2, r * TILE + 2, TILE - 4, TILE - 4);
-        }
-      }
-    }
-    if (Game.showLeak && ml > 0) {
-      for (let r = 0; r < st.rows; r++) {
-        for (let c = 0; c < st.cols; c++) {
-          const v = leak[st.idx(c, r)] / ml;
-          if (v <= 0.35) continue;           // 薄いところまで塗ると全面が赤くなる
-          const k = (v - 0.35) / 0.65;
-          ctx.strokeStyle = 'rgba(255,70,90,' + (0.12 + k * 0.38).toFixed(3) + ')';
-          ctx.lineWidth = 1 + k * 1.5;
-          ctx.setLineDash([5, 4]);
-          ctx.strokeRect(c * TILE + 4, r * TILE + 4, TILE - 8, TILE - 8);
-          ctx.setLineDash([]);
-        }
-      }
-    }
   },
 
   // 場（毒の雲・火の海・酸だまり）。

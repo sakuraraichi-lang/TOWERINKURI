@@ -355,7 +355,9 @@ const UI = {
     // 指定攻撃は扇を持たない。**同じつまみが「着弾円の大きさ」になる**
     const spot = Game.usesAimPoint(u.def);
     const uInfoText = () => spot
-      ? '着弾範囲 ' + (Math.round(Game.spotR(u) * 2 / TILE * 10) / 10) + 'タイル'
+      // **単位は六角。**盤に見えているのは六角で、タイル（40px）はもう画面に出ない。
+      //   隣り合う六角の中心どうしは √3·R 離れているので、直径をそれで割る
+      ? '着弾範囲 六角' + (Math.round(Game.spotR(u) * 2 / (Math.sqrt(3) * MapGen.HEX_R) * 10) / 10) + '個ぶん'
       : '射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) +
         '°　集弾 ' + Math.round(Game.groupingOf(u) * 100) + '%';
 
