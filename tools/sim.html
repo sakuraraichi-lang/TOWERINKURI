@@ -924,8 +924,15 @@ function runStageInner(stageId, loadout, buys, opts) {
   if (loadout.length > Game.loadoutSlots()) {
     console.warn('[sim] 編成 ' + loadout.length + '種のうち、到達' + (Game.perm.deepest || 0) +
                  '章で使えるのは ' + Game.loadoutSlots() + '種だけ: ' + loadout.slice(0, Game.loadoutSlots()).join(','));
-  }  for (const w of loadout) if (!Game.own('wc_' + w)) Game.grant('wc_' + w, 1);
+  }
+  for (const w of loadout) if (!Game.own('wc_' + w)) Game.grant('wc_' + w, 1);
   Game.perm.currentStage = stageId;
+  // **前の測定の配置を読み戻させない。**（2026-09-24）
+  //   startPrep は保存された配置（perm.placements）を読み戻すので、前の測定が置いたものが
+  //   先に盤に乗り、そのあとの自動配置と食い合っていた。同じ条件で置けた数が
+  //   7・16・20・24・33基と割れ、1回目の測定だけ少ない、という形で出ていた。
+  //   配置は測定器の自動配置が決めるので、始める前に空にする
+  Game.perm.placements = {};
   const run0 = Game.startPrep(stageId);
 
   // 安い順に買う。買った額も数えておく（コインの出口はここだけ）
