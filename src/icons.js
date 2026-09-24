@@ -51,6 +51,27 @@ const Icons = (() => {
     grid: '<rect x="4" y="4" width="7" height="7" rx="1"/><rect x="13" y="4" width="7" height="7" rx="1"/><rect x="4" y="13" width="7" height="7" rx="1"/><rect x="13" y="13" width="7" height="7" rx="1"/>',
     cycle: P('M20 12a8 8 0 0 1-14 5.3M4 12a8 8 0 0 1 14-5.3M18 3v4h-4M6 21v-4h4'),
     spark: P('M12 3l2 7 7 2-7 2-2 7-2-7-7-2 7-2z'),
+    // ---- スキルの効き方（ツリーの節）。**効き方ごとに絵を分ける**（2026-09-25。前は ▲◈◎◤ の記号の使い回しで、
+    //      違う効果が同じ見た目だった） ----
+    sk_dmg: P('M12 2l2.2 5.6 5.8-1.8-3.2 5.2 5.2 3.2-6 .8.4 6-4.4-4-4.4 4 .4-6-6-.8 5.2-3.2L4 5.8l5.8 1.8z'),
+    sk_rate: P('M5 6l6 6-6 6M13 6l6 6-6 6'),
+    sk_dur: P('M7 3h10M7 21h10M8 3c0 5 8 5 8 9s-8 4-8 9M16 3c0 5-8 5-8 9s8 4 8 9'),
+    sk_pierce: P('M3 12h15M14 7l5 5-5 5M8 4v16'),
+    sk_crit: '<circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="1.6" fill="currentColor"/>' + P('M12 1v5M12 18v5M1 12h5M18 12h5'),
+    sk_count: P('M4 7h9M4 12h13M4 17h9') + '<circle cx="18" cy="7" r="1.6"/><circle cx="21" cy="12" r="1.2"/><circle cx="18" cy="17" r="1.6"/>',
+    sk_range: '<circle cx="5" cy="19" r="1.8"/>' + P('M5 12a7 7 0 0 1 7 7M5 7a12 12 0 0 1 12 12M5 2a17 17 0 0 1 17 17'),
+    sk_size: P('M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5') + '<circle cx="12" cy="12" r="3"/>',
+    sk_units: P('M12 3l6 3.5v7L12 17l-6-3.5v-7z') + P('M6 16.5L12 20l6-3.5'),
+    sk_coin: '<circle cx="12" cy="12" r="9"/>' + P('M12 7l4.3 2.5v5L12 17l-4.3-2.5v-5z'),
+    sk_regen: P('M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z') + P('M12 8v8M8 12h8'),
+    sk_picks: '<rect x="4" y="5" width="11" height="15" rx="2"/>' + P('M19 3v6M16 6h6'),
+    sk_choices: '<rect x="2.5" y="7" width="8" height="12" rx="1.5" transform="rotate(-12 6.5 13)"/>' +
+      '<rect x="8" y="5" width="8" height="12" rx="1.5"/><rect x="13.5" y="7" width="8" height="12" rx="1.5" transform="rotate(12 17.5 13)"/>',
+    sk_luck: P('M12 2l2 6 6 2-6 2-2 6-2-6-6-2 6-2z') + P('M19 15l.8 2.2 2.2.8-2.2.8-.8 2.2-.8-2.2L16 18l2.2-.8z'),
+    sk_pack: P('M5 5l1.4-1.5L7.8 5l1.4-1.5L10.6 5 12 3.5 13.4 5l1.4-1.5L16.2 5l1.4-1.5L19 5v16H5z') + P('M9 12l2 2 4-4'),
+    sk_lure: '<circle cx="12" cy="13" r="2"/>' + P('M8 9a6 6 0 0 0 0 8M16 9a6 6 0 0 1 0 8M5 6a10 10 0 0 0 0 14M19 6a10 10 0 0 1 0 14'),
+    root: P('M12 2l8.7 5v10L12 22l-8.7-5V7z') + '<circle cx="12" cy="12" r="3.5"/>',
+
     // パック：箔の袋。上端にギザの切り口
     pack: P('M5 5l1.4-1.5L7.8 5l1.4-1.5L10.6 5 12 3.5 13.4 5l1.4-1.5L16.2 5l1.4-1.5L19 5v16H5z') + P('M5 8h14') + '<circle cx="12" cy="14" r="3"/>',
   };
@@ -80,6 +101,11 @@ const Icons = (() => {
 
   return {
     get(name, cls) { return src[name] ? wrap(src[name], cls) : ''; },
+    // スキルの節の絵。**効き方（連なりなら gkey、節なら key）で決める**
+    skill(s) {
+      const k = s.gkey && src['sk_' + s.gkey] ? s.gkey : s.key;
+      return wrap(src['sk_' + k] || src.sk_dmg);
+    },
     coin(cls) {
       return '<svg class="ico coin' + (cls ? ' ' + cls : '') + '" viewBox="0 0 24 24" aria-hidden="true">' + coinDefs + coinBody + '</svg>';
     },

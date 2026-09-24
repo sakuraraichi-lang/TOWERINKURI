@@ -690,8 +690,6 @@ const UI = {
       const lv = Skill.lv(Game.meta, r.id);
       if (r.lv !== lv) {
         r.lv = lv;
-        const u = r.node.querySelector('u');
-        if (lv > 0 && u) u.textContent = lv;
         r.node.classList.toggle('have', lv > 0);
       }
       const can = canPhase && Skill.canBuy(Game.meta, Game.perm, r.id);
@@ -744,18 +742,17 @@ const UI = {
       const x = gi * COL + COL / 2;
       const col = b.cat ? CATEGORIES[b.cat].color : '#ff8a1f';
       const lit = b.nodes.some(s => Skill.lv(Game.meta, s.id) > 0);
-      const o = lit ? .85 : .25;
+      // 配線。**通ったところは太く光らせ、まだのところは点線**（回路の見た目・2026-09-25）
+      const wire = (d, on) => on
+        ? '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="6" opacity=".18"/>' +
+          '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="2.2" opacity=".95"/>'
+        : '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="1.4" opacity=".35" stroke-dasharray="3 4"/>';
       // 幹から枝へ。**曲げて描くと、どこから分かれたのかが目で追える**
-      svg += '<path d="M' + rootX + ' ' + (ROOT_Y + 26) +
-             ' C ' + rootX + ' ' + (TOP - 22) + ', ' + x + ' ' + (ROOT_Y + 34) + ', ' + x + ' ' + TOP +
-             '" fill="none" stroke="' + col + '" stroke-width="' + (lit ? 2 : 1.2) +
-             '" opacity="' + o + '"/>';
+      svg += wire('M' + rootX + ' ' + (ROOT_Y + 26) +
+             ' C ' + rootX + ' ' + (TOP - 22) + ', ' + x + ' ' + (ROOT_Y + 34) + ', ' + x + ' ' + TOP, lit);
       for (let i = 1; i < b.nodes.length; i++) {
-        const litSeg = Skill.lv(Game.meta, b.nodes[i - 1].id) > 0;
-        svg += '<line x1="' + x + '" y1="' + (TOP + (i - 1) * ROW) +
-               '" x2="' + x + '" y2="' + (TOP + i * ROW) +
-               '" stroke="' + col + '" stroke-width="' + (litSeg ? 2 : 1.2) +
-               '" opacity="' + (litSeg ? .85 : .25) + '"/>';
+        svg += wire('M' + x + ' ' + (TOP + (i - 1) * ROW) + ' L' + x + ' ' + (TOP + i * ROW),
+          Skill.lv(Game.meta, b.nodes[i - 1].id) > 0);
       }
       dots.push({ b, x, col });
     });
@@ -763,13 +760,17 @@ const UI = {
     box.innerHTML = svg;
 
     // 幹のてっぺん
-    const root = Util.el('div', 'tnode root have', '⬢');
+    const root = Util.el('div', 'tnode root have');
+    root.innerHTML = '<i class="tplate">' + Icons.get('root') + '</i>';
+    root.style.setProperty('--bc', '#ff8a1f');
     root.style.left = rootX + 'px';
     root.style.top = ROOT_Y + 'px';
     box.appendChild(root);
 
     for (const d of dots) {
-      const g = Util.el('div', 'tgroup', d.b.group);
+      const g = Util.el('div', 'tgroup');
+      g.innerHTML = (d.b.cat ? CATEGORIES[d.b.cat].icon : '') + d.b.group;
+      g.style.setProperty('--bc', d.col);
       g.style.left = d.x + 'px';
       g.style.top = (TOP - 34) + 'px';
       g.style.color = d.col;
@@ -785,10 +786,11 @@ const UI = {
           (!unlocked ? ' locked' : lv > 0 ? ' have' : '') +
           (can ? ' can' : '') +
           (this.treeSel === s.id ? ' sel' : ''));
-        btn.innerHTML = (unlocked ? n.icon : Icons.get('lock')) + (lv > 0 ? '<u>' + lv + '</u>' : '');
+        // 六角の板。**取った節は枝の色で満たし、取れる節は金で脈打つ**
+        btn.innerHTML = '<i class="tplate">' + (unlocked ? Icons.skill(n) : Icons.get('lock')) + '</i>';
         btn.style.left = d.x + 'px';
         btn.style.top = y + 'px';
-        if (unlocked) btn.style.borderColor = lv > 0 ? d.col : '';
+        btn.style.setProperty('--bc', d.col);
         btn.addEventListener('click', () => {
           this.treeSel = s.id;
           this.refreshTree();
@@ -832,48 +834,46 @@ const UI = {
     if (!id || !SKILL_BY_ID[id]) {
       return Util.el('div', 'tdetail none', '節をタップすると、効果と値段が出ます');
     }
-    const s = SKILL_BY_ID[id];
     const perm = Game.perm, meta = Game.meta;
-    const n = Skill.node(id, perm);
+    const n = Skill.node(id);
+    const col = n.cat ? CATEGORIES[n.cat].color : '#ff8a1f';
     const unlocked = Skill.isUnlocked(perm, id);
     const lv = Skill.lv(meta, id);
-    const cap = Skill.maxOf(perm, id);
-    const maxed = lv >= cap;
+    const maxed = lv >= Skill.maxOf(perm, id);
     const can = Game.canBuySkills() && Skill.canBuy(meta, perm, id);
+    const cost = Skill.cost(meta, id);
 
-    const d = Util.el('div', 'tdetail');
-    if (!unlocked) {
-      d.innerHTML = '<div class="tdhead"><div class="sic">' + Icons.get('lock') + '</div>' +
-        '<div class="sbody"><div class="sname">？？？</div></div></div>' +
-        '<div class="tdesc">' + Skill.lockReason(perm, id) + '</div>';
-      return d;
-    }
-    // **アイコン＋題名＋一行＋ボタン。** これ以上は詰めない
+    const d = Util.el('div', 'tdetail' + (maxed ? ' have' : ''));
+    d.style.setProperty('--bc', col);
+    // **板・題名・一行・ボタン。**これ以上は詰めない
     d.innerHTML =
-      '<div class="tdhead"><div class="sic">' + n.icon + '</div><div class="sbody">' +
-        '<div class="sname">' + n.name + '</div>' +
-        '<div class="tdesc">' + Skill.shortDesc(n) + '</div></div>' +
-        // **節は取り切り（1回で終わり）。**Lv 0/1 の表示は段積みの頃の名残なので出さない
-        // （取ったかどうかはボタンの「取得済」で分かる）
-        '</div>' +
-      '<div class="tdbuy"><button class="sbuy"' + (can ? '' : ' disabled') + '>' +
-        (maxed ? '取得済' : Icons.coin() + ' ' + Util.fmt(Skill.cost(meta, id))) + '</button></div>';
+      '<div class="tdplate"><i class="tplate">' + (unlocked ? Icons.skill(n) : Icons.get('lock')) + '</i></div>' +
+      '<div class="tdbody"><div class="tdgroup">' + n.group + '</div>' +
+        '<div class="tdname">' + (unlocked ? n.name : '？？？') + '</div>' +
+        '<div class="tdesc">' + (unlocked ? Skill.shortDesc(n) : Skill.lockReason(perm, id)) + '</div></div>';
+    if (!unlocked) return d;
 
-    const btn = d.querySelector('.sbuy');
-    // 買ったら描き直さずその場で書き換える
-    const doBuy = () => {
+    // 取り切り（1回で終わり）。取ったかどうかはボタンで分かる
+    const btn = Util.el('button', 'tdgo');
+    const paint = (lvNow) => {
+      const done = lvNow >= Skill.maxOf(Game.perm, id);
+      const ok = Game.canBuySkills() && Skill.canBuy(meta, Game.perm, id);
+      btn.className = 'tdgo' + (done ? ' done' : ok ? '' : ' short');
+      btn.innerHTML = done ? Icons.get('check') + '<b>取得済</b>'
+        : '<span>' + (ok ? '取得する' : !Game.canBuySkills() ? '戦闘中は買えない' : 'コインが足りない') + '</span>' +
+          '<b>' + Icons.coin() + Util.fmt(Skill.cost(meta, id)) + '</b>';
+      btn.disabled = done || !ok;
+    };
+    paint(lv);
+    btn.addEventListener('click', () => {
       if (!Game.canBuySkills()) return;
       if (!Skill.buy(Game.meta, Game.perm, id)) return;
       Game.applyMods();
-      const lv2 = Skill.lv(meta, id);
-      const cap2 = Skill.maxOf(Game.perm, id);
-      btn.innerHTML = lv2 >= cap2 ? '取得済' : Icons.coin() + ' ' + Util.fmt(Skill.cost(meta, id));
-      this.refreshSkills();
-      btn.disabled = !(Game.canBuySkills() && Skill.canBuy(meta, Game.perm, id));
-    };
-    btn.addEventListener('click', doBuy);
-    // 押しっぱなしの連打は撤去した（取り切りなので2回目は買えない）
-    btn.addEventListener('pointercancel', stop);
+      Snd.ui();
+      // 次の節が開き、配線も光るので描き直す（スクロール位置は保つ）
+      this.refreshTree();
+    });
+    d.appendChild(btn);
     this.treeBuyBtn = btn;
     return d;
   },
@@ -918,124 +918,116 @@ const UI = {
     if (sc2) put();
     setTimeout(put, 0);
   },
-
-  // ================= 編成 =================
+  // ================= 装備（編成） =================
+  //   **武器はカードで見せる。**（2026-09-25・ユーザー「装備画面のリデザイン」）
+  //   前は「GAT ガトリング／中射程 最大N基」の文字の枠と、15種の連携を全部並べた表だった。
+  //   枠には武器カードそのもの（絵・凸の星）を置き、連携は「成立している」「あと1種」だけ出す
   panelLoadout(p) {
-    const head = Util.el('div', 'phead');
     const nOpen = Game.loadoutSlots();
-    head.innerHTML = '<b>編成（' + nOpen + '種類）</b><span class="sub">' +
-      '使える武器の<b>種類</b>を' + nOpen + 'つ選ぶ。同じ武器は上限まで何基でも置ける</span>';
-    p.appendChild(head);
+    const battle = Game.phase === 'battle';
+    const hero = Util.el('div', 'lo-hero');
+    hero.innerHTML =
+      '<div><b>編成</b><span>使う武器の<em>種類</em>を選ぶ。同じ武器は上限まで何基でも置ける</span></div>' +
+      '<div class="lo-num"><i>種類</i><b>' + Game.loadoutWeapons().length + '<small>/' + nOpen + '</small></b></div>' +
+      '<div class="lo-num"><i>盤に置ける</i><b>' + Game.slotsTotal() + '<small>基</small></b></div>';
+    p.appendChild(hero);
 
-    const slots = Util.el('div', 'slots');
+    const slots = Util.el('div', 'lo-slots');
     Game.perm.loadout.forEach((cid, i) => {
-      // **まだ開いていない枠。**到達した章で開く（BAL.loadoutByDeep）
       if (i >= nOpen) {
+        // **まだ開いていない枠。**到達した章で開く（BAL.loadoutByDeep）
         const need = Game.loadoutNeed(i);
         if (need === null) return;
-        const s = Util.el('button', 'slot locked');
-        s.innerHTML = '<div class="sw dim">' + Icons.get('lock') + '</div><div class="sn dim">' + (i + 1) + '種目</div>' +
-          '<div class="sx">第' + need + '章に到達すると開く</div>';
-        s.disabled = true;
+        const s = Util.el('div', 'lo-slot locked');
+        s.innerHTML = '<div class="lo-ph">' + Icons.get('lock') + '<b>' + (i + 1) + '種目</b><span>第' + need + '章に到達すると開く</span></div>';
         slots.appendChild(s);
         return;
       }
       const c = cid ? CARDS[cid] : null;
-      const s = Util.el('button', 'slot' + (c ? ' filled' : ''));
+      const s = Util.el('button', 'lo-slot' + (c ? ' filled' : ' empty'));
       if (c) {
-        const w = WEAPONS[c.weapon];
-        const cat = CATEGORIES[w.cat];
-        s.style.borderColor = w.color;
-        s.innerHTML = '<div class="sw" style="color:' + w.color + '">' + w.icon + ' ' + w.short + '</div>' +
-          '<div class="sn">' + w.name + '</div>' +
-          '<div class="sx" style="color:' + cat.color + '">' + cat.icon + ' ' + cat.name +
-          '　最大' + Game.unitCap(w.id) + '基</div>';
+        const w = WEAPONS[c.weapon], cat = CATEGORIES[w.cat];
+        s.style.setProperty('--wc', w.color);
+        s.appendChild(CardFX.face(c, { count: Game.own(cid) }));
+        s.insertAdjacentHTML('beforeend', '<div class="lo-cap"><span style="color:' + cat.color + '">' + cat.icon + cat.name + '</span>' +
+          '<b>最大 ' + Game.unitCap(w.id) + '基</b></div>');
       } else {
-        s.innerHTML = '<div class="sw dim">＋</div><div class="sn dim">空き枠</div><div class="sx">タップで装備</div>';
+        s.innerHTML = '<div class="lo-ph"><i class="lo-plus">＋</i><b>武器を選ぶ</b><span>' + (i + 1) + '種目</span></div>';
       }
-      s.disabled = Game.phase === 'battle';
+      s.disabled = battle;
       s.addEventListener('click', () => this.pickWeapon(i));
       slots.appendChild(s);
     });
     p.appendChild(slots);
-    if (Game.phase === 'battle') p.appendChild(Util.el('div', 'warn', '戦闘中は編成を変えられません'));
+    if (battle) p.appendChild(Util.el('div', 'warn', '戦闘中は編成を変えられません'));
 
+    // 連携：成立している／あと1種で成立
     const ids = Game.loadoutWeapons();
-    const syn = Util.el('div', 'synbox');
-    syn.appendChild(Util.el('div', 'sgroup', 'この編成で狙えるシナジー'));
-    // **3列 × 縦スクロール。** 縦に並べると、増えたぶんだけ画面が伸び続けていた
-    const grid = Util.el('div', 'syngrid');
+    const on = [], near = [];
     for (const id of CARD_IDS) {
       const c = CARDS[id];
       if (c.kind !== 'synergy') continue;
-      const ok = c.requires.every(w => ids.includes(w));
-      const owned = Game.own(id) > 0;
-      const cell = Util.el('div', 'syncell' + (ok ? (owned ? ' on' : ' noown') : ' off'));
-      const icons = c.requires.map(w => (WEAPONS[w] && WEAPONS[w].icon) || '◆').join(' ');
-      const pair = c.requires.map(w => (WEAPONS[w] && WEAPONS[w].short) || '??').join(' × ');
-      cell.innerHTML = '<span class="si">' + icons + '</span>' +
-        '<span class="sn">' + c.name + '</span>' +
-        '<span class="sc">' + pair + '</span>' +
-        '<span class="se">' + this.shortDesc(c) + '</span>';
-      // 長い全文は、読もうとしてタップしたときだけ
-      cell.addEventListener('click', () => this.openModal(
-        CardFX.face(c, { count: Game.own(id), tap: true }), true));
-      grid.appendChild(cell);
+      const k = c.requires.filter(w => ids.includes(w)).length;
+      if (k === c.requires.length) on.push(id);
+      else if (k === c.requires.length - 1) near.push(id);
     }
-    syn.appendChild(grid);
+    const row = (id, st) => {
+      const c = CARDS[id];
+      const d = Util.el('button', 'lo-syn ' + st + (Game.own(id) > 0 ? '' : ' noown'));
+      d.innerHTML = '<span class="lo-si">' + c.requires.map(w => '<i style="color:' + WEAPONS[w].color + '">' + WEAPONS[w].icon + '</i>').join('') + '</span>' +
+        '<b>' + c.name + '</b><span class="lo-sd">' + this.shortDesc(c) + '</span>' +
+        '<em>' + (st === 'on' ? (Game.own(id) > 0 ? '成立' : '成立・未所持') :
+          'あと ' + c.requires.filter(w => !ids.includes(w)).map(w => WEAPONS[w].name).join('') + '</em>');
+      d.addEventListener('click', () => this.openModal(CardFX.face(c, { count: Game.own(id), tap: true }), true));
+      return d;
+    };
+    const syn = Util.el('div', 'lo-synbox');
+    syn.innerHTML = '<div class="csec"><b>連携</b><span>2つの武器がそろうと、3択に出る</span><em>' + on.length + ' 成立</em></div>';
+    if (!on.length && !near.length) syn.appendChild(Util.el('div', 'lo-none', 'この編成で狙える連携はありません'));
+    for (const id of on) syn.appendChild(row(id, 'on'));
+    for (const id of near) syn.appendChild(row(id, 'near'));
     p.appendChild(syn);
   },
 
+  // 枠に入れる武器を選ぶ。**武器カードの格子で見せる**（持っていない武器は伏せ気味に、入手先を添える）
   pickWeapon(slot) {
     if (Game.phase === 'battle') return;
-    const body = Util.el('div');
-    body.appendChild(Util.el('h3', null, '枠 ' + (slot + 1) + ' に装備'));
-    const list = Util.el('div', 'wlist');
-    const mk = (cid) => {
-      const b = Util.el('button', 'wpick');
-      if (cid === null) b.innerHTML = '<b>外す</b>';
-      else {
-        const w = WEAPONS[CARDS[cid].weapon];
-        const cat = CATEGORIES[w.cat];
-        const used = Game.perm.loadout.includes(cid) && Game.perm.loadout[slot] !== cid;
-        b.innerHTML = '<b style="color:' + w.color + '">' + w.name +
-          ' <i style="color:' + cat.color + '">' + cat.icon + ' ' + cat.name + '</i></b>' +
-          '<span>' + w.desc + '</span>' + (used ? '<em>他の枠で使用中</em>' : '');
-        if (used) b.disabled = true;
-        b.style.borderColor = w.color + '66';
-      }
-      b.addEventListener('click', () => {
-        Game.perm.loadout[slot] = cid;
-        Game.save(); this.closeModal();
-        // ホームで装備を変えただけなら盤面を作り直す必要は無い
-        if (document.body.classList.contains('on-battle')) Main.toPrep();
-        else this.renderPanel();
-      });
-      return b;
+    const body = Util.el('div', 'wp');
+    body.appendChild(this.choiceHead('武器を選ぶ', (slot + 1) + '種目の枠に入れる武器'));
+    const pick = (cid) => {
+      Game.perm.loadout[slot] = cid;
+      Game.save(); this.closeModal();
+      // ホームで装備を変えただけなら盤面を作り直す必要は無い
+      if (document.body.classList.contains('on-battle')) Main.toPrep();
+      else this.renderPanel();
     };
-    // カテゴリごとに並べる
     for (const cat of CATEGORY_IDS) {
-      const owned = WEAPON_IDS.filter(wid => WEAPONS[wid].cat === cat && Game.own('wc_' + wid) > 0);
-      if (!owned.length) continue;
-      const h = Util.el('div', 'sgroup');
-      h.innerHTML = '<span style="color:' + CATEGORIES[cat].color + '">' +
-        CATEGORIES[cat].icon + ' ' + CATEGORIES[cat].name + '</span>';
-      list.appendChild(h);
-      for (const wid of owned) list.appendChild(mk('wc_' + wid));
-    }
-    list.appendChild(mk(null));
-    body.appendChild(list);
-
-    const miss = WEAPON_IDS.filter(wid => Game.own('wc_' + wid) === 0);
-    if (miss.length) {
-      body.appendChild(Util.el('div', 'sgroup', '未所持の武器'));
-      for (const wid of miss) {
-        const w = WEAPONS[wid];
-        body.appendChild(Util.el('div', 'note',
-          '・' + w.name + '（' + CATEGORIES[w.cat].name + '）… ' +
-          (w.src === 'stage' ? 'ステージ突破報酬' : 'カードパック')));
+      const wids = WEAPON_IDS.filter(wid => WEAPONS[wid].cat === cat);
+      if (!wids.length) continue;
+      const C = CATEGORIES[cat];
+      const h = Util.el('div', 'wp-cat');
+      h.innerHTML = '<b style="color:' + C.color + '">' + C.icon + ' ' + C.name + '</b><span>' + C.desc + '</span>';
+      body.appendChild(h);
+      const grid = Util.el('div', 'wp-grid');
+      for (const wid of wids) {
+        const cid = 'wc_' + wid, w = WEAPONS[wid];
+        const have = Game.own(cid) > 0;
+        const cur = Game.perm.loadout[slot] === cid;
+        const used = !cur && Game.perm.loadout.includes(cid);
+        const b = Util.el('button', 'wp-card' + (cur ? ' cur' : '') + (used ? ' used' : '') + (have ? '' : ' miss'));
+        b.appendChild(CardFX.face(CARDS[cid], { count: Game.own(cid), dim: !have }));
+        b.insertAdjacentHTML('beforeend', '<div class="wp-tag">' + (cur ? '装備中' : used ? '他の枠' :
+          !have ? (w.src === 'stage' ? '章の突破で入手' : 'パックで入手') : '最大 ' + Game.unitCap(wid) + '基') + '</div>');
+        b.disabled = !have || used;
+        if (have && !used) b.addEventListener('click', () => pick(cid));
+        grid.appendChild(b);
       }
+      body.appendChild(grid);
     }
+    const off = Util.el('button', 'rs-sub wp-off');
+    off.innerHTML = Icons.get('close') + 'この枠を空ける';
+    off.addEventListener('click', () => pick(null));
+    body.appendChild(off);
     this.openModal(body);
   },
 
@@ -1465,21 +1457,6 @@ const UI = {
     const cut = s.indexOf('。');
     if (cut > 0) s = s.slice(0, cut);
     return s;
-  },
-
-  choiceCard(o) {
-    const el = Util.el('button', 'chcard pick' + (o.hot ? ' hot' : ''));
-    el.style.setProperty('--ac', o.color || 'var(--acc)');
-    el.innerHTML =
-      (o.isNew ? '<span class="chnew">NEW</span>' : '') +
-      this.rankBadge(o.rank, o.rankMul, o.owned, o.totuNext) +
-      '<div class="chname">' + o.name + '</div>' +
-      '<div class="chart">' + o.icon + '</div>' +
-      '<div class="chdesc">' + o.desc + '</div>' +
-      (o.pips ? this.stackPips(o.pips) : '') +
-      (o.foot ? '<div class="chval">' + o.foot + '</div>' : '') +
-      '<div class="chtype">' + o.type + '</div>';
-    return el;
   },
 
   // ---- ダブり・所持・選択を **絵で** 示す部品（文は増やさない） ----
