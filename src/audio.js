@@ -178,6 +178,12 @@ const Snd = {
       if (++i % seq.length === 0) lift = Math.min(12, lift + 2);
     }, 115);
   },
+  // 昇格（光やカードの枠のレア度が1段上がる）。段が上がるほど高く明るい
+  promote(lv) {
+    const f = [660, 880, 1175, 1568][Math.min(3, lv)];
+    this.tone({ type: 'sine', f0: f, f1: f * 1.5, dur: 0.18, vol: 0.07 });
+    this.tone({ type: 'triangle', f0: f * 0.5, f1: f * 0.75, dur: 0.22, vol: 0.05 });
+  },
   // スロットが回る音。進むほど高くなる
   slotTick(p) {
     const f = 700 + 900 * Math.min(1, p);

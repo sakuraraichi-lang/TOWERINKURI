@@ -121,6 +121,20 @@ const CardFX = {
       hint.textContent = '';
       ov.classList.add('shake');
       Snd.packShake(best);
+      // **昇格演出。**光の色が コモン→レア→エピック→レジェンド と、中身の最高レア度まで段階的に上がる。
+      //   1段ごとに音が上がり、粒が弾ける。レジェンドまで上がると画面が揺れる
+      const steps0 = BAL.rarityOrder.slice(0, best + 1);
+      const stepMs = best >= 3 ? 330 : 300;
+      steps0.forEach((r, i) => setTimeout(() => {
+        ov.style.setProperty('--best', BAL.rarity[r].color);
+        ov.classList.remove('lv0', 'lv1', 'lv2', 'lv3'); ov.classList.add('lv' + i);
+        if (i > 0) {
+          Snd.promote(i);
+          const c = center();
+          this.particles(fx, c.x, c.y, BAL.rarity[r].color, 10 + i * 6, false);
+          if (i >= 3) { document.body.classList.remove('bigshake'); void document.body.offsetWidth; document.body.classList.add('bigshake'); }
+        }
+      }, i * stepMs));
       setTimeout(() => {
         ov.classList.remove('shake');
         ov.classList.add('torn');
@@ -130,7 +144,7 @@ const CardFX = {
         if (best >= 3) this.particles(fx, c.x, c.y, '#ffe08a', 16, true);
         Snd.openLoop(true);
         setTimeout(() => { phase = 'cards'; nextCard(); }, 650);
-      }, best >= 3 ? 1300 : best >= 2 ? 1000 : 700);
+      }, steps0.length * stepMs + 250);
     };
 
     // ② 1枚ずつ。スロットのように絵柄が回り、減速して止まる
@@ -146,11 +160,18 @@ const CardFX = {
       // 回る時間：コモン0.6秒〜レジェンド2.2秒
       const total = [600, 900, 1400, 2200][g];
       let el = null, t = 0, gap = 45, done = false;
+      let lvl = 0;
       const spin = () => {
         if (done) return;
         const f = CARDS[Util.pick(pool.length ? pool : CARD_IDS)];
         const face = this.face(f, {});
         face.classList.add('spinning');
+        // 回転中の昇格：減速するほど枠が 銀→青→紫→金 と上がる（そのカードのレア度まで）
+        const lv = Math.min(g, Math.floor((t / total) * (g + 1)));
+        const rr = BAL.rarityOrder[lv];
+        face.classList.remove('r-' + f.rarity); face.classList.add('r-' + rr);
+        face.style.setProperty('--rc', BAL.rarity[rr].color);
+        if (lv > lvl) { lvl = lv; Snd.promote(lv); slot.classList.remove('promote'); void slot.offsetWidth; slot.classList.add('promote'); }
         slot.innerHTML = ''; slot.appendChild(face);
         Snd.slotTick(t / total);
         t += gap;
@@ -170,16 +191,19 @@ const CardFX = {
         const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
         this.particles(fx, cx, cy, BAL.rarity[c.rarity].color, 8 + g * 8, false);
         Snd.land(g, idx);
-        if (g >= 3) {                       // レジェンド：画面が金色に弾ける
+        if (g >= 3) {                       // レジェンド：画面が金色に弾け、帯が横切り、コインが降る
           ov.classList.remove('flash'); void ov.offsetWidth; ov.classList.add('flash');
           this.particles(fx, cx, cy, '#ffe08a', 24, true);
+          this.banner(ov, 'LEGENDARY', c.name, '#ffb020');
+          this.coinRain(fx, 42);
         } else if (g >= 2) {
           ov.classList.remove('flashp'); void ov.offsetWidth; ov.classList.add('flashp');
+          this.banner(ov, 'EPIC', c.name, '#c26bff');
         }
         if (c.kind === 'weapon' && isNew[idx]) UI.toastMsg('新しい武器 ' + c.name, '#ffb43c');
         // 凸が上がった
         const t0 = Game.totuOf(st.n0), t1 = Game.totuOf(st.n1);
-        let wait = g >= 3 ? 900 : g >= 2 ? 650 : 420;
+        let wait = g >= 3 ? 1700 : g >= 2 ? 1100 : 420;
         if (t1 > t0 && !c.noRank) {
           wait += 700;
           setTimeout(() => this.totuUp(el, ov, fx, c, t0, t1), 250);
@@ -214,6 +238,41 @@ const CardFX = {
         if (card) card.classList.toggle('full');
       }
     });
+  },
+
+  // 画面を横切る帯（エピック・レジェンド）
+  banner(ov, word, name, color) {
+    const b = Util.el('div', 'pfx-banner');
+    b.style.setProperty('--bc', color);
+    b.innerHTML = '<b>' + word + '</b><span>' + name + '</span>';
+    ov.appendChild(b);
+    setTimeout(() => b.remove(), 1500);
+  },
+
+  // 上からコインが降る
+  coinRain(host, n) {
+    for (let i = 0; i < n; i++) {
+      const p = Util.el('i', 'pfx-rain');
+      p.textContent = '◈';
+      p.style.left = (Math.random() * 100).toFixed(1) + 'vw';
+      p.style.animationDelay = (Math.random() * 0.7).toFixed(2) + 's';
+      p.style.animationDuration = (1.1 + Math.random() * 0.8).toFixed(2) + 's';
+      p.style.fontSize = (12 + Math.random() * 14).toFixed(0) + 'px';
+      host.appendChild(p);
+      setTimeout(() => p.remove(), 2800);
+    }
+  },
+
+  // **見本のパック。**セーブには触らない（URL の ?packdemo=legendary など）。
+  //   レア度の高い演出はめったに出ないので、いつでも確かめられるようにしておく
+  demo(rar) {
+    rar = BAL.rarity[rar] ? rar : 'legendary';
+    const g = BAL.rarity[rar].glow;
+    const pick = (r) => CARD_IDS.find(id => CARDS[id].kind === 'mod' && CARDS[id].rarity === r) || CARD_IDS[0];
+    const ids = [pick('common'), pick(g >= 2 ? 'epic' : 'rare'), pick(rar)];
+    // 3枚目は 31→32枚＝4凸（覚醒）、1枚目は 3→4枚＝1凸 を見せる
+    const steps = [{ n0: 3, n1: 4 }, { n0: 0, n1: 1 }, { n0: 31, n1: 32 }];
+    this.open(PACKS.arms || PACKS.basic, ids, steps, [false, true, false], null);
   },
 
   // 凸が上がった瞬間：星が1つずつ灯り、倍率がカウントアップする

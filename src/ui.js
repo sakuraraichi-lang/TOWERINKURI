@@ -1486,6 +1486,19 @@ const UI = {
     body.appendChild(this.choiceHead('レベルアップ',
       'ウェーブ ' + run.wave + ' 突破　1枚選ぶ' +
       (run.pendingPicks > 1 ? '（あと ' + run.pendingPicks + ' 枚）' : '')));
+    // **なぜ4択・5択なのか／なぜ何枚も取れるのかを出す。**（ユーザー 2026-09-24
+    //   「5択、複数回選択出来るのは一体何の効果なのかわからない」）
+    {
+      const R = Relic.mods(Game.perm);
+      const why = [];
+      const sc = Skill.gsum(Game.meta, 'choices'), rc = R.choices || 0;
+      const sp = Skill.gsum(Game.meta, 'picks'), rp = R.picks || 0;
+      if (sc) why.push('選択肢 +' + sc + '（スキル「選択肢拡張」）');
+      if (rc) why.push('選択肢 +' + rc + '（遺物）');
+      if (sp) why.push('1ウェーブに +' + sp + '枚（スキル「増設スロット」）');
+      if (rp) why.push('1ウェーブに +' + rp + '枚（遺物）');
+      if (why.length) body.appendChild(Util.el('div', 'draftwhy', why.join('　')));
+    }
     body.appendChild(this.runSlots());
 
     const row = Util.el('div', 'chrow');
