@@ -28,17 +28,18 @@
 
 const PACKS = {
   basic: {
-    id: 'basic', name: '基本パック', size: 4, unlock: 2, unlockP: 0, color: '#7f93a8',
+    id: 'basic', name: '基本パック', size: 3, unlock: 2, unlockP: 0, color: '#7f93a8',
     swapChance: 0.20,
     desc: '汎用カードと、初期装備まわりの強化',
     weights: { common: 78, rare: 19, epic: 2.7, legendary: 0.3 }, guarantee: null,
     // 汎用カード＋初期装備（src:'start' ＝ いまはガトリングだけ）の強化。
     //   スナイパーは第2章の突破報酬（src:'stage'）になったので、その強化は兵装パックから出る
+    //   **初期装備の武器カードそのもの（ガトリング）も入る。**被ると武器が凸る（2026-09-24）
     accepts: (c) => c.kind === 'generic' ||
-      (c.kind === 'mod' && WEAPONS[c.weapon] && WEAPONS[c.weapon].src === 'start'),
+      ((c.kind === 'mod' || c.kind === 'weapon') && WEAPONS[c.weapon] && WEAPONS[c.weapon].src === 'start'),
   },
   arms: {
-    id: 'arms', name: '兵装パック', size: 5, unlock: 0, unlockP: 2, color: '#ffd24a',
+    id: 'arms', name: '兵装パック', size: 3, unlock: 0, unlockP: 2, color: '#ffd24a',
     swapChance: 0.40,
     desc: '短射程・中射程・長射程。刀と手裏剣もここから',
     weights: { common: 48, rare: 39, epic: 11, legendary: 2 }, guarantee: 'rare',
@@ -46,11 +47,11 @@ const PACKS = {
       const w = c.weapon && WEAPONS[c.weapon];
       if (!w) return false;
       if (['short', 'mid', 'long'].indexOf(w.cat) < 0) return false;
-      return c.kind === 'mod' || (c.kind === 'weapon' && w.src === 'pack');
+      return c.kind === 'mod' || c.kind === 'weapon';     // 武器カードも（被ると凸る）
     },
   },
   chem: {
-    id: 'chem', name: '化学パック', size: 5, unlock: 0, unlockP: 3, color: '#8fd94a',
+    id: 'chem', name: '化学パック', size: 3, unlock: 0, unlockP: 3, color: '#8fd94a',
     swapChance: 0.40,
     desc: '範囲攻撃・指定攻撃・支援。触手と泡もここから',
     weights: { common: 42, rare: 41, epic: 14, legendary: 3 }, guarantee: 'rare',
@@ -58,7 +59,7 @@ const PACKS = {
       const w = c.weapon && WEAPONS[c.weapon];
       if (!w) return false;
       if (['area', 'target', 'support'].indexOf(w.cat) < 0) return false;
-      return c.kind === 'mod' || (c.kind === 'weapon' && w.src === 'pack');
+      return c.kind === 'mod' || c.kind === 'weapon';     // 武器カードも（被ると凸る）
     },
   },
   // **転生でしか手に入らない。** 中身は遺物（転生で消えない永続パッシブ）
@@ -74,7 +75,7 @@ const PACKS = {
     accepts: (c) => c.kind === 'perm',
   },
   syn: {
-    id: 'syn', name: '連携パック', size: 4, unlock: 0, unlockP: 4, color: '#c26bff',
+    id: 'syn', name: '連携パック', size: 3, unlock: 0, unlockP: 4, color: '#c26bff',
     swapChance: 0.25,
     desc: 'シナジー専用。2種を組み合わせたときだけ効くカード',
     // シナジーの内訳に合わせる（コモン2 / レア5 / エピック2 / レジェンド0）。
@@ -160,8 +161,11 @@ const Pack = {
       const c = CARDS[id];
       if (c.rarity !== r) return false;
       if (!pack.accepts(c)) return false;
-      // 所持済みの武器カードは重複しても意味が無い
-      if (c.kind === 'weapon' && Game.own(id) > 0) return false;
+      // **武器カードも被らせる。被ると武器そのものが凸る。**（ユーザー 2026-09-24
+      //   「武器パックからガトリングが出てガトリングを凸るような」）
+      //   ただし**ステージ報酬の武器は、持っているときだけ**出す。
+      //   持っていない迫撃砲（第20章の報酬）がパックから先に出ると、解放の順番が崩れる
+      if (c.kind === 'weapon' && WEAPONS[c.weapon].src !== 'pack' && Game.own(id) <= 0) return false;
       return true;
     });
     if (pool.length) return pool;

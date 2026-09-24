@@ -883,6 +883,9 @@ const Game = {
       const keepArc = u.arc;
       u.s = Object.assign({}, u.def.base);
       u.s.arc = keepArc;
+      // **武器カードの凸。**（ユーザー 2026-09-24「入手出来るカード全てに」）
+      //   同じ武器カードが被るほど、その武器の基本ダメージが上がる。倍率は他のカードと同じ rankMul
+      u.s.dmg *= this.rankMul('wc_' + u.id);
       Skill.applyTo(u, mods);
       // 組み直したので、カードの足し算の基準も取り直す（Game.addPct）
       u.sBase = null; u.sAdd = null;

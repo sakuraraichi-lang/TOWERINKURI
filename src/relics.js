@@ -133,13 +133,23 @@ const Relic = {
       //   同じ扱いにはできない
       const capMul = 1 + 0.6 * (perm.prestiges || 0);
       const capOf = (grow) => (c.cap !== undefined ? c.cap : Infinity) * (grow ? capMul : 1);
-      if (c.mode === 'add') add[c.key] += Math.min(capOf(!c.fixed), c.eff * n);
-      else if (c.key === 'lives') lives += Math.min(capOf(false), c.eff * n);
-      else if (c.key === 'seed') seed += Math.min(capOf(false), c.eff * n);
-      else if (c.key === 'startLv') startLv += Math.min(capOf(false), c.eff * n);
-      else if (c.key === 'picks') picks += Math.min(capOf(false), c.eff * n);
-      else if (c.key === 'choices') choices += Math.min(capOf(false), c.eff * n);
-      else if (c.key === 'regen') regen += Math.min(capOf(false), c.eff * n);
+      // **遺物も凸で伸びる。**（ユーザー 2026-09-24「入手出来るカード全てに」「遺物にも入れる」）
+      //   前は「1枚ごとに効果を足し、遺物ごとの上限で止める」だった。
+      //   ・割合で効く遺物（add）… 1枚で BAL.relicBaseMul 枚ぶん（前のクリア時点の中央値が3枚）、
+      //     そこに凸の倍率（Game.rankMul と同じ式）を掛ける
+      //   ・数で効く遺物（ライフ・カード枠・選択肢・再生・初動資金・初期投資）… 1枚で1枚ぶん、
+      //     1凸ごとに1枚ぶん足す（1枚で上限まで埋まらないように）
+      //   上限（cap・転生で開く分）はそのまま
+      const t = n < BAL.totuBase ? 0 : Math.floor(Math.log2(n / BAL.totuBase)) + 1;
+      const pct = BAL.relicBaseMul * (1 + BAL.totuStep * t);
+      const cnt = 1 + t;
+      if (c.mode === 'add') add[c.key] += Math.min(capOf(!c.fixed), c.eff * pct);
+      else if (c.key === 'lives') lives += Math.min(capOf(false), c.eff * cnt);
+      else if (c.key === 'seed') seed += Math.min(capOf(false), c.eff * cnt);
+      else if (c.key === 'startLv') startLv += Math.min(capOf(false), c.eff * cnt);
+      else if (c.key === 'picks') picks += Math.min(capOf(false), c.eff * cnt);
+      else if (c.key === 'choices') choices += Math.min(capOf(false), c.eff * cnt);
+      else if (c.key === 'regen') regen += Math.min(capOf(false), c.eff * cnt);
     }
 
     // **土台 × 遺物。** 土台が桁を作り、遺物が色を付ける

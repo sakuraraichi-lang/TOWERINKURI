@@ -18,9 +18,11 @@ function C(o) { return o; }
 //   {e} … 効果量そのまま   {p} … 百分率（加算のとき見やすい）
 function P(o) {
   o.kind = 'perm';
+  // 割合で効く遺物は、1枚で BAL.relicBaseMul 枚ぶん効く（relics.js）。説明も1枚の効き目で出す
+  const e = o.mode === 'add' ? +(o.eff * BAL.relicBaseMul).toFixed(3) : o.eff;
   o.desc = o.tmpl
-    .split('{p}').join(Math.round(o.eff * 100) + '%')
-    .split('{e}').join(String(o.eff));
+    .split('{p}').join(Math.round(e * 100) + '%')
+    .split('{e}').join(String(e));
   return o;
 }
 
