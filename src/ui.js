@@ -998,7 +998,7 @@ const UI = {
         '<span class="se">' + this.shortDesc(c) + '</span>';
       // 長い全文は、読もうとしてタップしたときだけ
       cell.addEventListener('click', () => this.openModal(
-        this.cardEl(c, { count: Game.own(id) }), true));
+        CardFX.face(c, { count: Game.own(id), tap: true }), true));
       grid.appendChild(cell);
     }
     syn.appendChild(grid);
@@ -1074,7 +1074,7 @@ const UI = {
         (BAL.rarityOrder.indexOf(cb.rarity) - BAL.rarityOrder.indexOf(ca.rarity)) || a.localeCompare(b);
     });
     const grid = Util.el('div', 'cgrid');
-    for (const id of ids) grid.appendChild(this.cardEl(CARDS[id], { count: Game.own(id), dim: Game.own(id) === 0, small: true }));
+    for (const id of ids) grid.appendChild(CardFX.face(CARDS[id], { count: Game.own(id), dim: Game.own(id) === 0, tap: true }));
     p.appendChild(grid);
   },
 
@@ -1166,13 +1166,13 @@ const UI = {
     const grid = Util.el('div', 'bulkgrid');
     let awoke = null;
     for (const id of ids) {
-      const el = this.cardEl(CARDS[id], { small: true, count: Game.own(id), gain: got[id], isNew: !!fresh[id] });
+      const el = CardFX.face(CARDS[id], { count: Game.own(id), gain: got[id], isNew: !!fresh[id], tap: true });
       grid.appendChild(el);
       const t0 = Game.totuOf(before[id]), t1 = Game.totuOf(Game.own(id));
       if (t1 > t0 && !CARDS[id].noRank) {
         const big = t1 >= BAL.totuBigFrom;
-        const tag = Util.el('div', 'totuup' + (big ? ' big' : ''));
-        tag.innerHTML = '<b>' + (t0 > 0 ? t0 + '凸 → ' : '') + t1 + '凸</b><small>×' +
+        const tag = Util.el('div', 'cf-up' + (big ? ' big' : ''));
+        tag.innerHTML = '<b>' + t1 + '凸</b><small>×'
           (1 + totuBonus(t0)).toFixed(2) + ' → ×' + (1 + totuBonus(t1)).toFixed(2) + '</small>';
         el.appendChild(tag);
         if (!awoke && t0 < BAL.totuBigFrom && big) awoke = { c: CARDS[id], t0, t1 };
@@ -1504,29 +1504,17 @@ const UI = {
     const row = Util.el('div', 'chrow');
     for (const id of ids) {
       const c = CARDS[id];
-      const el = this.choiceCard({
-        name: c.name,
-        desc: this.shortDesc(c),
-        icon: this.cardIcon(c),
-        color: BAL.rarity[c.rarity].color,
-        // NEW は出さない。**下の丸が「この出撃でまだ0枚」を示しているので重複する**
-        type: c.kind === 'weapon' ? '武器を編成に追加'
-            : c.kind === 'synergy' ? 'シナジー'
-            : (c.weapon ? WEAPONS[c.weapon].name + ' 強化' : '全体強化'),
-        // **3択に「あと◯枚で1凸」は出さない。**（ユーザー 2026-09-23）
-        //   > 「**カードパックで被ったものだけ**枚数的にそう処理していただきたく、
-        //   >   **3択チョイスでは被せて取る意味は残したい**です」
-        //   凸（4枚/8枚/16枚）は**パックで増える所持枚数**の話。
-        //   ここへ進捗を出すと、**3択で被せると凸が進む**ように読めてしまう。
-        //   実際には3択の重ねは別の仕組みで、**1枚ごとにその場で効く**
-        //   （`applyCard` が積むたびに走る。下の丸がその枚数）。
-        //   **いまの倍率（×1.24 など）は出す。**その出撃での強さは知りたいので
-        rank: Game.cardRank(id), rankMul: c.noRank ? 1 : Game.rankMul(id),
-        owned: Game.own(id), totuNext: null,
-        pips: { have: run.cards[id] || 0, limit: Game.stackLimit(id) },
-        hot: BAL.rarity[c.rarity].glow >= 2,
-      });
-      el.addEventListener('click', () => {
+      // **新しいカードの見た目で出す。**（ユーザー 2026-09-24「カードをちゃんとデザインして」）
+      //   ★はいまの凸（パックで被った枚数から）。**枚数と「あと何枚」は出さない**
+      //   （ユーザー 2026-09-23「3択チョイスでは被せて取る意味は残したい」。ここで枚数を出すと
+      //    3択で被せると凸が進むように読めてしまう）。下の丸は「この出撃で何枚積んだか」
+      const el = Util.el('button', 'chcard pick cfpick' + (BAL.rarity[c.rarity].glow >= 2 ? ' hot' : ''));
+      el.appendChild(CardFX.face(c, { count: Game.own(id), noCount: true }));
+      el.insertAdjacentHTML('beforeend',
+        this.stackPips({ have: run.cards[id] || 0, limit: Game.stackLimit(id) }) +
+        '<div class="chtype">' + (c.kind === 'weapon' ? '武器を編成に追加'
+          : c.kind === 'synergy' ? 'シナジー'
+          : (c.weapon ? WEAPONS[c.weapon].name + ' 強化' : '全体強化')) + '</div>');      el.addEventListener('click', () => {
         if (row.classList.contains('done')) return;   // 二度押しで2枚取らせない
         // **選んだ瞬間を目で分からせる。** 選んだ1枚が残り、他が退く
         row.classList.add('done');
@@ -1779,7 +1767,7 @@ const UI = {
       if (res.stageGot && res.stageGot.first && res.stageGot.cards.length) {
         body.appendChild(Util.el('div', 'sgroup', '新しい武器カードを獲得'));
         const row = Util.el('div', 'popenrow');
-        for (const cid of res.stageGot.cards) row.appendChild(this.cardEl(CARDS[cid], { reveal: true, isNew: true }));
+        for (const cid of res.stageGot.cards) { const f = CardFX.face(CARDS[cid], { count: Game.own(cid), isNew: true, tap: true }); f.classList.add('landed'); row.appendChild(f); }
         body.appendChild(row);
         this.burst('#ff8a1f');
       }

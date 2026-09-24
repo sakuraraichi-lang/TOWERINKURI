@@ -38,12 +38,15 @@ const CardFX = {
   },
 
   // ---- カードの表 ----
-  //   o.count … その時点の枚数（凸を出す） ／ o.isNew … 初めて
+  //   o.count … その時点の枚数（凸を出す） ／ o.isNew … 初めて ／ o.dim … 未所持
+  //   o.gain  … まとめて開けたときに増えた枚数 ／ o.tap … タップで説明の全文
   face(c, o) {
     o = o || {};
     const R = BAL.rarity[c.rarity];
     const t = (o.count && !c.noRank) ? Game.totuOf(o.count) : 0;
-    const el = Util.el('div', 'cf r-' + c.rarity + ' k-' + c.kind + (t >= BAL.totuBigFrom ? ' awake' : ''));
+    const el = Util.el('div', 'cf r-' + c.rarity + ' k-' + c.kind + (t >= BAL.totuBigFrom ? ' awake' : '') +
+      (o.dim ? ' dim' : ''));
+    if (o.tap) el.addEventListener('click', () => el.classList.toggle('full'));
     el.style.setProperty('--rc', R.color);
     el.style.setProperty('--ac', this.artColor(c));
     el.innerHTML =
@@ -54,7 +57,8 @@ const CardFX = {
           (o.isNew ? '<div class="cf-new">NEW</div>' : '') + '</div>' +
         '<div class="cf-text">' + UI.shortDesc(c) + '</div>' +
         '<div class="cf-bottom"><span class="cf-stars">' + (c.noRank ? '' : this.starsHtml(t)) + '</span>' +
-          (o.count ? '<span class="cf-count">×' + o.count + '</span>' : '') + '</div>' +
+          (o.noCount ? '' : o.gain ? '<span class="cf-count gain">+' + o.gain + '</span>'
+            : o.count ? '<span class="cf-count">×' + o.count + '</span>' : o.dim ? '<span class="cf-count">未所持</span>' : '') + '</div>' +
       '</div>' +
       '<div class="cf-holo"></div>' +
       '<div class="cf-rar">' + this.RAR_EN[c.rarity] + '</div>';
