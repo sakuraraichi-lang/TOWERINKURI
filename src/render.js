@@ -259,15 +259,12 @@ const Render = {
     };
     if (def) {
       for (const h of st.hexCells()) {
-        if (!Game.canPlaceAt(def, h.c, h.r, UI.moving || null)) continue;
+        if (!Game.canPlaceAt(h.c, h.r, UI.moving || null)) continue;
         const ok = !sees || sees[h.c + ',' + h.r];
         ctx.fillStyle = ok ? 'rgba(255,170,50,' + pulse.toFixed(3) + ')'
                            : 'rgba(120,132,152,0.10)';
-        // その武器が埋めるセルをまとめて光らせる＝**置く前に広さが分かる**
-        for (const t of Game.footTiles(def, h.c, h.r)) {
-          const p = st.hexCenter(t.c, t.r);
-          hexPath(p.x, p.y); ctx.fill();
-        }
+        const p = st.hexCenter(h.c, h.r);
+        hexPath(p.x, p.y); ctx.fill();
       }
     }
   }

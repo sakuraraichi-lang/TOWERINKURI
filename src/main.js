@@ -171,14 +171,7 @@ const Main = {
   //   置いたものをタップ → 選択（向き・射界はバーで決める）
   //   「配置を変える」 → また光る → タップで移動
   bindPlacement(cv) {
-    // **六角セルの上にいるユニット。**（ユーザー 2026-09-23 で設置がハニカムになった）
-    //   2セル使う武器は、**どちらの側を押しても選べる**ようにする
-    //   （前は基準セルだけ見ていたので、半分は押しても反応しなかった）
-    const unitAt = (c, r) => {
-      const run = Game.run;
-      if (!run) return null;
-      return run.units.find(u => Game.tilesOf(u).some(t => t.c === c && t.r === r)) || null;
-    };
+    const unitAt = (c, r) => Game.unitAt(c, r);
     const no = (msg) => { Snd.deny(); UI.toastMsg(msg, '#ff8080'); };
 
     // なぞった量。**9px以上動いたらタップではなく「見る場所を動かした」と見なす**

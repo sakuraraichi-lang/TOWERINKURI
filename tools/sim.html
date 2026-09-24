@@ -705,22 +705,18 @@ function replaceUnits(run) {
   for (const wid of want) {
     const s0 = statOf(wid);
     const field = heatField(st, s0.range, s0.arc, run.traffic);
-    // **武器ごとに要るマスが違う**（weapons.js の foot）ので、
-    //   1か所だけ見て諦めると置けない。**置けるまで候補を順に試す。**
-    //   ここを1か所で打ち切っていたせいで、2×2の武器がほぼ置けず、
-    //   通しが 2→5→9→4→4→4 と崩れた（実測 2026-09-22）
-    const def = WEAPONS[wid];
+    // **置けるまで候補を順に試す。**（`placeUnit` は枠や上限でも断るので）
     let u = null, pick = null;
     // まず「離れていて良い場所」、無ければ順に
     const order = field.filter(f => !taken[f.c + ',' + f.r]);
     const spaced = order.filter(f => far(f.c, f.r, 5));
     for (const f of spaced.concat(order)) {
-      if (!Game.canPlaceAt(def, f.c, f.r)) continue;
+      if (!Game.canPlaceAt(f.c, f.r)) continue;
       u = Game.placeUnit(wid, f.c, f.r);
       if (u) { pick = f; break; }
     }
     if (!u) continue;
-    for (const t of Game.tilesOf(u)) taken[t.c + ',' + t.r] = 1;
+    taken[u.c + ',' + u.r] = 1;
     Game.aimUnit(u, pick.a);
     applyArc(u, st);
   }
@@ -770,10 +766,10 @@ function autoPlaceHug(run) {
     for (let k = 0; k < cand.length; k++) {
       const t = cand[(idx + k) % cand.length];
       if (taken[t.c + ',' + t.r]) continue;
-      if (!Game.canPlaceAt(WEAPONS[wid], t.c, t.r)) continue;
+      if (!Game.canPlaceAt(t.c, t.r)) continue;
       const u = Game.placeUnit(wid, t.c, t.r);
       if (!u) continue;
-      for (const q of Game.tilesOf(u)) taken[q.c + ',' + q.r] = 1;
+      taken[u.c + ',' + u.r] = 1;
       break;
     }
   });
@@ -820,20 +816,16 @@ function autoPlaceRange(run) {
     const s0 = statOf(wid);
     const field = aimField(st, s0.range, s0.arc, s0.thru);
     // まず「味方と離れた良い点」、無ければ空いている最良点。
-    // **置けるまで次の候補へ進む。**（2026-09-22）
-    //   武器ごとに要るマス数が違うので、最良点1つを試して駄目なら諦める、だと
-    //   縦2・横2の武器がほとんど置けず、通しが `2→5→9→4→4→4` に崩れた。
-    //   プレイヤーは「入らなかったら隣に置く」ので、測定器もそうする
-    const def = WEAPONS[wid];
+    // **置けるまで次の候補へ進む。** プレイヤーは「入らなかったら隣に置く」ので、測定器もそうする
     const open = field.filter(f => !taken[f.c + ',' + f.r]);
     let u = null, pick = null;
     for (const f of open.filter(f => far(f.c, f.r, 5)).concat(open)) {
-      if (!Game.canPlaceAt(def, f.c, f.r)) continue;
+      if (!Game.canPlaceAt(f.c, f.r)) continue;
       u = Game.placeUnit(wid, f.c, f.r);
       if (u) { pick = f; break; }
     }
     if (!u) continue;
-    for (const t of Game.tilesOf(u)) taken[t.c + ',' + t.r] = 1;
+    taken[u.c + ',' + u.r] = 1;
     Game.aimUnit(u, pick.a);
     applyArc(u, st);
   }
@@ -1192,56 +1184,6 @@ function digest(waves) {
 
 // **マップ構造の差。**
 //
-// ステージが進むと敵HPが上がるのは当たり前として、
-// 「マップが変わることでプレイヤーの配置判断が変わっているか」を数字にする。
-// タワーディフェンスなので、ここが同じなら「HP倍率違いの同じステージ」になってしまう
-function mapShape(stageId) {
-  const st = Stage.build(stageId);
-  let ground = 0, path = 0;
-  const gs = [];
-  for (let r = 0; r < st.rows; r++) for (let c = 0; c < st.cols; c++) {
-    if (st.buildable(c, r)) { ground++; gs.push({ c, r }); }
-    else if (st.walkable(c, r)) path++;
-  }
-  // 十字砲火が組めるか：その地面から、60度以上ひらいた2方向に通路が見えるか
-  const R = 6, A = Math.PI / 3;
-  let cross = 0;
-  const paths = [];
-  for (let r = 0; r < st.rows; r++) for (let c = 0; c < st.cols; c++)
-    if (st.walkable(c, r)) paths.push({ c, r });
-  for (const g of gs) {
-    const as = [];
-    for (const q of paths) {
-      const dc = q.c - g.c, dr = q.r - g.r;
-      if (dc * dc + dr * dr <= R * R) as.push(Math.atan2(dr, dc));
-    }
-    let ok = false;
-    for (let i = 0; i < as.length && !ok; i++)
-      for (let j = i + 1; j < as.length; j++) {
-        let d = Math.abs(as[i] - as[j]) % (2 * Math.PI);
-        if (d > Math.PI) d = 2 * Math.PI - d;
-        if (d >= A) { ok = true; break; }
-      }
-    if (ok) cross++;
-  }
-  // 経路が1本にまとまっているか、複数に分かれたままか。
-  // 合流が遅いほど「1箇所を固める」が効かず、配置を分散させられる
-  const shared = {};
-  for (const route of st.routes) for (const idx of route) shared[idx] = (shared[idx] || 0) + 1;
-  const overlap = Object.keys(shared).filter(k => shared[k] > 1).length;
-  const routeTiles = Object.keys(shared).length;
-  return {
-    stage: STAGE_BY_ID[stageId].name,
-    出現口: st.spawns.length,
-    経路長: st.routeLens.slice().sort((a, b) => a - b),
-    通路: path, 地面: ground,
-    十字砲火が組める地面: cross,
-    '十字砲火率%': Math.round(100 * cross / ground),
-    経路タイル: routeTiles,
-    '合流している割合%': routeTiles ? Math.round(100 * overlap / routeTiles) : 0,
-  };
-}
-
 // **転生の評価。** 「何分で転生するのが正解」を先に決めず、
 // 「今回のランで得た成長 ÷ かかった時間」を実測する。
 //   stopAfter ステージ突破したら転生する、を2周やって比べる
