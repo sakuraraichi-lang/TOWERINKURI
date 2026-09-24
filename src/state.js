@@ -111,6 +111,9 @@ const Game = {
       mute: false,
       // カードを選んだあと、自動で次のウェーブへ進むか。ホームの ⚙ で切り替える
       autoWave: true,
+      autoPlace: true,              // 自動設置（BAL.autoUnlock.autoPlace から効く）
+      autoBuy: true,                // 自動購入（BAL.autoUnlock.autoBuy から効く）
+      lastPlace: {},                // 自動設置の元：章ごとの最後の配置。**転生でも消さない**
       // スキップの解放と、スキップで配るものの根拠。**転生でも消えない**
       clears: {},      // stageId -> 通算の突破回数
       bestCoins: {},   // stageId -> 手で突破したときの最高コイン
@@ -177,6 +180,9 @@ const Game = {
     if (!this.perm.bestCoins) this.perm.bestCoins = {};
     if (!this.perm.bestPerfect) this.perm.bestPerfect = {};
     if (typeof this.perm.autoWave !== 'boolean') this.perm.autoWave = true;
+    if (typeof this.perm.autoPlace !== 'boolean') this.perm.autoPlace = true;
+    if (typeof this.perm.autoBuy !== 'boolean') this.perm.autoBuy = true;
+    if (!this.perm.lastPlace) this.perm.lastPlace = {};
     // 定義から消えた換装は落とす（古いセーブが未知のidを持ち続けないように）
     for (const k of Object.keys(this.perm.swaps)) if (!SWAP_BY_ID[this.perm.swaps[k]]) delete this.perm.swaps[k];
     if (typeof this.perm.deepest !== 'number') this.perm.deepest = this.progressCount();
@@ -260,6 +266,41 @@ const Game = {
 
   // **飛ばしても1コインももらえない。** チェックマークが付くだけ
   skipCoins() { return 0; },
+
+  // 自動化が開いているか（BAL.autoUnlock・転生回数）
+  autoOpen(key) { return (this.perm.prestiges || 0) >= (BAL.autoUnlock[key] || Infinity); },
+
+  // 一括突破で、id から続けて何章飛ばせるか（スキップと同じ条件を順に見る）
+  skipRun(id) {
+    const out = [];
+    let i = STAGES.findIndex(s => s.id === id);
+    while (i >= 0 && i < STAGES.length) {
+      const sid = STAGES[i].id;
+      // 前の章を飛ばしたことにして次を見る。canSkip は「前の章を通過済み」を要るので、仮に数える
+      if (out.length === 0 ? !this.canSkip(sid) : !this.canSkipAfter(sid)) break;
+      out.push(sid); i++;
+    }
+    return out;
+  },
+  // 前の章を今まさに飛ばした前提での canSkip（stageUnlocked だけ飛ばして見る）
+  canSkipAfter(id) {
+    if (!this.hasSkipKey()) return false;
+    const rec = this.stageRec(id);
+    if (rec.cleared || rec.skipped) return false;
+    const i = STAGES.findIndex(s => s.id === id);
+    return i >= 0 && (i + 1) <= (this.perm.deepest || 0);
+  },
+  // **一括突破。**1章ずつのスキップを続けて呼ぶだけ（中身も報酬0も同じ）
+  skipAll(id) {
+    if (!this.autoOpen('skipAll')) return null;
+    let last = null, n = 0;
+    for (const sid of this.skipRun(id)) {
+      const r = this.skipStage(sid);
+      if (!r) break;
+      last = r; n++;
+    }
+    return last ? Object.assign({}, last, { count: n }) : null;
+  },
 
   // 戦わずに通過する。**突破にはならない**ので、初回報酬はあとから取りに行ける
   skipStage(id) {
@@ -733,6 +774,8 @@ const Game = {
       ax: (u.ax === undefined || u.ax === null) ? null : Math.round(u.ax),
       ay: (u.ay === undefined || u.ay === null) ? null : Math.round(u.ay),
     }));
+    // 自動設置の元。**転生でも消さない**（空にしたときは覚え直さない＝前の配置を残す）
+    if (run.units.length) this.perm.lastPlace[run.stageId] = this.perm.placements[run.stageId];
   },
 
   // ---------- 着弾点（指定攻撃・ミサイル） ----------
@@ -775,7 +818,12 @@ const Game = {
   // 保存された配置を読み戻す。編成から外れた武器や、置けない場所のものは捨てる
   restoreUnits(run) {
     const allowed = this.loadoutWeapons();
-    const saved = this.placementsFor(run.stageId);
+    // **自動設置：**この周でまだ一度も触っていない章なら、前の周の配置を置き直す
+    //   （触ったことがあれば、空にしたのも本人の意思なのでそのまま）
+    const touched = Array.isArray(this.perm.placements[run.stageId]);
+    const last = this.perm.lastPlace && this.perm.lastPlace[run.stageId];
+    const saved = (!touched && this.autoOpen('autoPlace') && this.perm.autoPlace && last && last.length)
+      ? last : this.placementsFor(run.stageId);
     const used = {};
     for (const p of saved) {
       if (!WEAPONS[p.w] || allowed.indexOf(p.w) < 0) continue;

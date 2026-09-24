@@ -936,6 +936,7 @@ function runStageInner(stageId, loadout, buys, opts) {
   //   7・16・20・24・33基と割れ、1回目の測定だけ少ない、という形で出ていた。
   //   配置は測定器の自動配置が決めるので、始める前に空にする
   Game.perm.placements = {};
+  Game.perm.lastPlace = {};           // 自動設置の元も（前の測定の配置を持ち込まない）
   const run0 = Game.startPrep(stageId);
 
   // 安い順に買う。買った額も数えておく（コインの出口はここだけ）

@@ -31,7 +31,7 @@ const UI = {
       homeCoin: q('homeCoin'), homeProg: q('homeProg'), homeLabel: q('homeLabel'),
       homeName: q('homeName'), homeMini: q('homeMini'),
       homeStat: q('homeStat'), homeStart: q('homeStart'),
-      homeRank: q('homeRank'), homeXp: q('homeXp'), homeSkip: q('homeSkip'),
+      homeRank: q('homeRank'), homeXp: q('homeXp'), homeSkip: q('homeSkip'), homeSkipAll: q('homeSkipAll'),
       homePrev: q('homePrev'), homeNext: q('homeNext'),
     };
 
@@ -59,6 +59,7 @@ const UI = {
     if (this.el.hudWaveTxt) this.el.hudWaveTxt.addEventListener('click', () => this.togglePerf());
 
     if (this.el.homeSkip) this.el.homeSkip.addEventListener('click', () => Main.doSkip());
+    if (this.el.homeSkipAll) this.el.homeSkipAll.addEventListener('click', () => Main.doSkipAll());
 
     // 左上の「ホームへ戻る」。タブを閉じて、章と出撃を戻す
     const back = document.getElementById('btnPanelBack');
@@ -169,6 +170,16 @@ const UI = {
         ? 'スキップ<u>報酬なし・転生の評価にも入りません</u>'
         : '<u>' + Game.skipWhy(st.id) + '</u>';
     }
+    // 一括突破。**2章以上まとめて飛ばせるときだけ出す**（1章なら上のスキップと同じ）
+    if (e.homeSkipAll) {
+      const run = (open && Game.autoOpen('skipAll')) ? Game.skipRun(st.id) : [];
+      e.homeSkipAll.style.display = run.length >= 2 ? '' : 'none';
+      if (run.length >= 2) {
+        e.homeSkipAll.innerHTML = 'まとめてスキップ ' + run.length + '章<u>第' + (STAGE_BY_ID[run[run.length - 1]].idx + 1) + '章まで・報酬なし</u>';
+      }
+      // スキップが2つ並ぶと出撃ボタンが潰れるので、出撃を1段上に分ける
+      e.homeSkipAll.parentNode.classList.toggle('two', run.length >= 2 && e.homeSkip && e.homeSkip.style.display !== 'none');
+    }
   },
 
   // 「実験場・広大」→「実験場・<em>広大</em>」。区切りが無ければ後ろ半分を色付け
@@ -215,6 +226,11 @@ const UI = {
     };
     b.appendChild(row('autoWave', '次のウェーブへ自動で進む',
       '切ると、カードを選んだあと配置を直す時間が入ります'));
+    // 自動化は開いてから出す（BAL.autoUnlock）
+    if (Game.autoOpen('autoPlace')) b.appendChild(row('autoPlace', '自動設置',
+      'この周でまだ触っていない章に、前の周の配置を置き直します'));
+    if (Game.autoOpen('autoBuy')) b.appendChild(row('autoBuy', '自動購入',
+      '出撃するとき、「まとめて購入」と同じ順で買えるだけ買います'));
     b.appendChild(row('perf', '処理の重さを表示', 'fps と1フレームの時間'));
   },
 

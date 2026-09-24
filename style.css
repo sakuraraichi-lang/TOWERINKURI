@@ -1212,3 +1212,8 @@ body:not(.on-home) #homeFx{display:none;}
 
 /* 武器トレイ：アイコン＋略称 */
 #tray .chip.unit .uico{display:block;font-size:20px;line-height:1;margin-bottom:1px;}
+
+/* スキップと一括突破が並ぶとき：出撃は上の段いっぱい、スキップ2つは下の段で半分ずつ */
+.startrow.two{flex-wrap:wrap;}
+.startrow.two .bigstart{flex:1 1 100%;}
+.startrow.two .skipbtn{flex:1 1 0;min-width:0;}

@@ -101,6 +101,14 @@ const Main = {
 
   // ---------- 戦場（準備フェーズ）へ ----------
   toBattle() {
+    // **自動購入**（転生6回から・設定で切れる）：「まとめて購入」と同じ順で買えるだけ買う
+    if (Game.autoOpen('autoBuy') && Game.perm.autoBuy && Game.canBuySkills()) {
+      const r = Skill.buyAll(Game.meta, Game.perm);
+      if (r.n) {
+        Game.applyMods();
+        UI.toastMsg('自動購入 ' + r.n + '件　コイン ' + Util.fmt(r.spent), '#ff8a1f');
+      }
+    }
     UI.setScreen('battle');
     this.toPrep();
     setTimeout(() => Render.resize(), 0);
@@ -151,6 +159,20 @@ const Main = {
     UI.renderHome();
     UI.renderPanel();
     UI.showSkipResult(res);
+  },
+
+  // **一括突破**（転生3回から）：飛ばせる章をまとめて通過する。中身は1章ずつのスキップと同じ（報酬0）
+  doSkipAll() {
+    const st = STAGES[UI.pick];
+    if (!st) return;
+    const res = Game.skipAll(st.id);
+    if (!res) return;
+    const nx = res.next;
+    if (nx) UI.pick = STAGES.findIndex(s => s.id === nx.id);
+    Game.save();
+    UI.renderHome();
+    UI.renderPanel();
+    UI.toastMsg(res.count + '章をまとめて通過（報酬なし）', '#ffb43c');
   },
 
   finish(ok) {
