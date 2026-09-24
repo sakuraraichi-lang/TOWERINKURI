@@ -172,10 +172,9 @@ const CARDS = {
   ktn_iai: C({ id: 'ktn_iai', kind: 'mod', weapon: 'katana', rarity: 'rare', maxStack: 3,
     name: '居合', desc: '刀の斬撃レート ×1.5、会心率 +15%',
     apply(run) { const w = run.wp('katana'); if (w) { w.s.rate *= Game.rk(1.5); w.s.crit += Game.rka(0.15); } } }),
-  ktn_mugen: C({ id: 'ktn_mugen', kind: 'mod', weapon: 'katana', rarity: 'legendary', maxStack: 1,
-    name: '無限刃', desc: '斬るたびに間合いが +6%（最大2倍まで）。斬り続けるほど手が付けられない',
-    apply(run) { const w = run.wp('katana'); if (w) { w.flags.mugen = true; w.dyn.mugenBase = w.s.range;
-      w.dyn.mugenStep = 1 + 0.06 * Game.rka(1); w.dyn.mugenMax = 2 * Game.rka(1); } } }),
+  // 無限刃（斬るたびに間合い +6%・最大2倍）は撤去した（2026-09-24）。
+  //   ユーザー 2026-09-22「武器の範囲を広げるスキル、カードなどゲーム内から全て削除」の
+  //   0922u の撤去一覧から漏れていた。所持していた分は読み込み時に消える（state.js）
 
   // ============ 手裏剣 ============
   shu_multi: C({ id: 'shu_multi', kind: 'mod', weapon: 'shuriken', rarity: 'common', maxStack: 5,

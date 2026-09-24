@@ -375,11 +375,11 @@ for (const s of SKILLS) SKILL_BY_ID[s.id] = s;
 //   【何と何を入れ替えるのか】
 //     スキルツリーの**特定の1ノードだけ**を、別の効き方に差し替える。
 //     どのノードに刺さるかは `base` が持っている（1つの部品は1つのノード専用）。
-//     例：`sw_short_rate 速振り` は `short_rng 突破力` にしか刺さらない。
+//     例：`sw_short_rate 速振り` は `short_util`（短射程の持続）にしか刺さらない。
 //
 //   【何が変わって、何が変わらないか】
 //     変わる   … 名前・アイコン・効き方（key / eff / mode）
-//     変わらない … 値段・上限・解放条件・カテゴリ・**買ったレベル**
+//     変わらない … 値段・解放条件・カテゴリ・取ったかどうか
 //     つまり強くなるのではなく、**伸ばす方向が変わる**だけ。
 //
 //   【どこで手に入り、どこで付け替えるのか】
@@ -391,12 +391,14 @@ for (const s of SKILLS) SKILL_BY_ID[s.id] = s;
 //     → だからパックで「今は換えない」を選んでも、**あとから直せる**。
 //        ただし部品そのものは、選ばなければ手に入らない。
 //
-//   eff は、同じ key を持つ既存ノードから写している（新しい数字を作らない）。
-//     rate 1.07 = mid_rate / rate 1.08 = target_rate
-//     crit 0.04 = long_crit / range 1.09 = short_rng / size 1.10 = area_size
+//   eff は、同じ key を持つ**いまの取り切りの節**から写している（新しい数字を作らない）。
+//     rate ×2.2 = mid_rate ほか / crit +0.25 = long_util / dmg ×3.5 = mid_dmg ほか
+//   **【2026-09-24】段積み時代の値（rate 1.07・crit 0.04・dmg 1.12）のまま残っていた。**
+//   取り切りで節が ×2.2 や ×3.5 になったのに部品だけ据え置きで、差すと大きく弱くなるだけだった
+//   （例：速振り＝持続×1.8 の節をレート×1.07 に替える）
 const SWAPS = [
   { id: 'sw_mid_crit', base: 'mid_rate', name: '収束照準', icon: '◈', key: 'crit',
-    eff: 0.04, mode: 'add', tmpl: '中射程カテゴリの会心率 +{e}（会心倍率も上がる）' },
+    eff: 0.25, mode: 'add', tmpl: '中射程カテゴリの会心率 +{e}（会心倍率も上がる）' },
   //   **【2026-09-22】base が存在しない節を指していた部品が3つあった。**
   //     sw_long_rate → 'long_crit' ／ sw_area_crit → 'area_size'
   //     ／ sw_sup_dmg → 'sup_pow'
@@ -404,14 +406,14 @@ const SWAPS = [
   //   （範囲の節を外したときに、刺さらない部品を落とす処理を入れて発覚した）
   //   生きている節に繋ぎ直す。刺さる先は同じカテゴリの節
   { id: 'sw_short_rate', base: 'short_util', name: '速振り', icon: '◤', key: 'rate',
-    eff: 1.07, mode: 'mul', tmpl: '短射程カテゴリの発射レート ×{e}' },
+    eff: 2.2, mode: 'mul', tmpl: '短射程カテゴリの発射レート ×{e}' },
   { id: 'sw_long_rate', base: 'long_util', name: '速射砲身', icon: '◎', key: 'rate',
-    eff: 1.08, mode: 'mul', tmpl: '長射程カテゴリの発射レート ×{e}' },
+    eff: 2.2, mode: 'mul', tmpl: '長射程カテゴリの発射レート ×{e}' },
   { id: 'sw_area_crit', base: 'area_dmg2', name: '起爆同調', icon: '▲', key: 'crit',
-    eff: 0.04, mode: 'add', tmpl: '範囲攻撃カテゴリの会心率 +{e}（会心倍率も上がる）' },
+    eff: 0.25, mode: 'add', tmpl: '範囲攻撃カテゴリの会心率 +{e}（会心倍率も上がる）' },
   //   sw_target_rng（射程を伸ばす部品）は、範囲の節と一緒に落とした
   { id: 'sw_sup_dmg', base: 'support_rate', name: '過負荷回路', icon: '❉', key: 'dmg',
-    eff: 1.12, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}' },
+    eff: 3.5, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}' },
 ];
 
 // **換装部品も同じ扱い。**（2026-09-22）
@@ -532,31 +534,11 @@ const Skill = {
     return 'ステージを ' + s.unlock + ' 個突破すると解放';
   },
 
-  // そのノードの今の上限。
-  //
-  //   **設置枠だけは「お金では前借りできない」。**
-  //   コインは終盤に余るので、値段をいくら上げても止まらない。
-  //   実測：1面終了時に既に残高が次の1段の70倍、5面で78万倍あった。
-  //   設置枠は火力・カバー範囲・漏れにくさが同時に増えて他の全強化と掛け算になるので、
-  //   ここだけは**踏破したステージ数**という、お金で買えないもので止める
-  maxOf(perm, id) {
-    const s = SKILL_BY_ID[id];
-    if (!s.maxPerClear) return s.max;
-    const p = perm || ((typeof Game !== 'undefined' && Game.perm) ? Game.perm : null);
-    const cleared = p ? stageProgressCount(p) : 0;   // 突破＋スキップ
-    // **切り捨てる。** maxPerClear が 1/6 のような分数だと、
-    //   6章突破で 1.0、7章で 1.166… になり、切り捨てないと1段多く買えてしまう
-    return Math.min(s.max, Math.floor(cleared * s.maxPerClear));
-  },
-
-  // 上限に届いていて、その理由が進行なら、そう言う（値段のせいだと誤解させない）
-  capReason(perm, id) {
-    const s = SKILL_BY_ID[id];
-    if (!s.maxPerClear) return '';
-    if (Skill.maxOf(perm, id) >= s.max) return '';
-    return 'ステージを突破すると、あと ' + Math.round(s.max - Skill.maxOf(perm, id)) + ' 段まで伸ばせます';
-  },
-
+  // そのノードの上限。**どの節も取り切り（max 1）。**
+  //   以前は設置枠だけ `maxPerClear`（踏破した章の数で上限を開ける）で縛っていたが、
+  //   2026-09-21 のユーザー指示で「値段の跳ね上がりで間隔を作る」に置き換えた。
+  //   進行で上限が変わる節はもう無いので、上限はそのまま `s.max`
+  maxOf(perm, id) { return SKILL_BY_ID[id].max; },
   canBuy(meta, perm, id) {
     if (!Skill.isUnlocked(perm, id)) return false;
     if (Skill.lv(meta, id) >= Skill.maxOf(perm, id)) return false;
@@ -583,20 +565,13 @@ const Skill = {
   //   測定器が1周を回すときと同じ買い方（安い順）なので、
   //   実測の数字と、プレイヤーが押したときの結果がずれない。
   //   **敵誘引だけは買わない。** 敵の数が増えるノードなので、勝手に押されると事故になる
-  // **取り切りの節を先に買う。**（2026-09-21）
-  //   ツリーを取り切り型にしたら、「安い順」だと
-  //   **安い繰り返し節（幸運・パック運・首振り）に使い切って、
-  //   主力のダメージ節（5万コイン）を買わないまま詰む**ようになった。
-  //   実測：コイン105万を持ちながら 53,084 の節を取っていなかった。
-  //   取り切り（max 1）＝枝を進める節なので、こちらを優先する
+  //   （以前は「取り切りの節を先に」の並べ替えがあったが、いまは全節が取り切りなので安い順だけ）
   buyOrder(meta, perm) {
     return SKILLS.map(s => s.id)
       .filter(id => (SKILL_BY_ID[id].gkey !== 'lure') && Skill.canBuy(meta, perm, id))
       .sort((a, b) => {
-        const sa = SKILL_BY_ID[a], sb = SKILL_BY_ID[b];
-        const oa = sa.max === 1 ? 0 : 1, ob = sb.max === 1 ? 0 : 1;
-        if (oa !== ob) return oa - ob;
         return Skill.cost(meta, a) - Skill.cost(meta, b);
+
       });
   },
 

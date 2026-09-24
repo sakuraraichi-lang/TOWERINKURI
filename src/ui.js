@@ -827,7 +827,6 @@ const UI = {
     const lv = Skill.lv(meta, id);
     const cap = Skill.maxOf(perm, id);
     const maxed = lv >= cap;
-    const capWhy = Skill.capReason(perm, id);
     const can = Game.canBuySkills() && Skill.canBuy(meta, perm, id);
 
     const d = Util.el('div', 'tdetail');
@@ -842,33 +841,26 @@ const UI = {
       '<div class="tdhead"><div class="sic">' + n.icon + '</div><div class="sbody">' +
         '<div class="sname">' + n.name + (n.swapId ? ' <u>換装</u>' : '') + '</div>' +
         '<div class="tdesc">' + Skill.shortDesc(n) + '</div></div>' +
-        '<div class="tdlv">Lv ' + lv + (cap !== Infinity ? '<i>/' + cap + '</i>' : '') + '</div></div>' +
+        // **節は取り切り（1回で終わり）。**Lv 0/1 の表示は段積みの頃の名残なので出さない
+        // （取ったかどうかはボタンの「取得済」で分かる）
+        '</div>' +
       '<div class="tdbuy"><button class="sbuy"' + (can ? '' : ' disabled') + '>' +
-        // 進行で止まっているときに「MAX」と出すと、もう伸びないと誤解される
-        (maxed ? (capWhy ? 'まだ伸ばせない' : 'MAX') : '◈ ' + Util.fmt(Skill.cost(meta, id))) + '</button></div>' +
-      // **お金で買えない上限は、その理由を出す。** 値段のせいだと誤解させない
-      (capWhy ? '<div class="tdcap">' + capWhy + '</div>' : '');
+        (maxed ? '取得済' : '◈ ' + Util.fmt(Skill.cost(meta, id))) + '</button></div>';
 
     const btn = d.querySelector('.sbuy');
-    let hold = null;
-    // **押しっぱなしで連打できるので、描き直さずその場で書き換える。**
-    // 描き直すと押している要素が消えて、連打が途切れる
+    // 買ったら描き直さずその場で書き換える
     const doBuy = () => {
       if (!Game.canBuySkills()) return;
       if (!Skill.buy(Game.meta, Game.perm, id)) return;
       Game.applyMods();
       const lv2 = Skill.lv(meta, id);
       const cap2 = Skill.maxOf(Game.perm, id);
-      d.querySelector('.tdlv').textContent = 'Lv ' + lv2 + (cap2 !== Infinity ? ' / ' + cap2 : '');
-      btn.textContent = lv2 >= cap2 ? 'MAX' : '◈ ' + Util.fmt(Skill.cost(meta, id)) + ' で強化';
+      btn.textContent = lv2 >= cap2 ? '取得済' : '◈ ' + Util.fmt(Skill.cost(meta, id));
       this.refreshSkills();
       btn.disabled = !(Game.canBuySkills() && Skill.canBuy(meta, Game.perm, id));
     };
     btn.addEventListener('click', doBuy);
-    btn.addEventListener('pointerdown', () => { hold = setTimeout(function rep() { doBuy(); hold = setTimeout(rep, 90); }, 420); });
-    const stop = () => clearTimeout(hold);
-    btn.addEventListener('pointerup', stop);
-    btn.addEventListener('pointerleave', stop);
+    // 押しっぱなしの連打は撤去した（取り切りなので2回目は買えない）
     btn.addEventListener('pointercancel', stop);
     this.treeBuyBtn = btn;
 
@@ -880,7 +872,7 @@ const UI = {
         sw.innerHTML = '<div class="tdswhead">換装</div>' +
           '<div class="tdswnone">この節に差せる部品があります。<b>パックから出ます。</b></div>';
       } else {
-        sw.innerHTML = '<div class="tdswhead">換装　<i>レベルと値段はそのまま</i></div>';
+        sw.innerHTML = '<div class="tdswhead">換装　<i>取ったかどうかと値段はそのまま</i></div>';
         const line = Util.el('div', 'tdswrow');
         const mk = (label, icon, desc, on, onclick) => {
           const b = Util.el('button', 'swopt' + (on ? ' on' : ''));
@@ -1175,7 +1167,7 @@ const UI = {
       const set = swaps[si++];
       stage.innerHTML = '';
       stage.appendChild(this.choiceHead('換装 ' + si + ' / ' + swaps.length,
-        'スキルツリーの節を1つ、別の効き方に差し替える部品　レベルと値段はそのまま'));
+        'スキルツリーの節を1つ、別の効き方に差し替える部品　取ったかどうかと値段はそのまま'));
       const row = Util.el('div', 'chrow');
       for (const sw of set) {
         const base = SKILL_BY_ID[sw.base];
@@ -1187,7 +1179,7 @@ const UI = {
                 '<span class="swto">' + sw.icon + ' ' + sw.name + '：' + Skill.shortDesc(sw) + '</span>',
           icon: sw.icon, color: 'var(--acc2)', isNew: true,
           type: base.group + 'の節「' + base.name + '」用',
-          foot: 'Lv <b>' + Skill.lv(Game.meta, sw.base) + '</b> はそのまま引き継ぐ',
+          foot: Skill.lv(Game.meta, sw.base) > 0 ? '取得済みのまま差し替わる' : 'まだ取っていない節',
         });
         el.addEventListener('click', () => {
           Skill.applySwap(Game.perm, sw.id); Game.applyMods(); Game.save();
@@ -1262,7 +1254,7 @@ const UI = {
     const showSwaps = () => {
       stage.innerHTML = '';
       stage.appendChild(this.choiceHead('換装',
-        'スキルツリーの節を1つ、別の効き方に差し替える部品　レベルと値段はそのまま'));
+        'スキルツリーの節を1つ、別の効き方に差し替える部品　取ったかどうかと値段はそのまま'));
       const row = Util.el('div', 'chrow');
       for (const sw of swaps) {
         const base = SKILL_BY_ID[sw.base];
@@ -1279,7 +1271,7 @@ const UI = {
           color: 'var(--acc2)',
           isNew: true,
           type: base.group + 'の節「' + base.name + '」用',
-          foot: 'Lv <b>' + lv + '</b> はそのまま引き継ぐ',
+          foot: lv > 0 ? '取得済みのまま差し替わる' : 'まだ取っていない節',
         });
         el.addEventListener('click', () => {
           Skill.applySwap(Game.perm, sw.id);

@@ -589,8 +589,6 @@ const Combat = {
       this.damage(run, e, dmg, o);
       hits++;
     }
-    if (w.flags.mugen && hits > 0)
-      w.s.range = Math.min(w.dyn.mugenBase * (w.dyn.mugenMax || 2), w.s.range * (w.dyn.mugenStep || 1.06));
     // 爆燃（syn_backdraft）：毒の雲に炎が届くと引火する。
     //
     //   **以前は引火した雲を消していた（run.fields.splice）。**
