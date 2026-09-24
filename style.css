@@ -289,19 +289,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .chcard.pick{cursor:pointer;transition:transform .1s;}
 .chcard.pick:active{transform:scale(.975);}
 .chcard.hot{border-color:var(--acc);box-shadow:0 0 18px rgba(255,138,31,.2);}
-.chcard .chnew{position:absolute;left:0;top:0;padding:2px 7px 3px 5px;
-  font-size:9px;font-weight:900;letter-spacing:.06em;color:#2a1200;background:var(--gold);}
-.chcard .chname{font-size:12px;font-weight:900;line-height:1.3;text-align:center;
-  min-height:2.6em;display:flex;align-items:center;justify-content:center;
-  padding:9px 2px;border-bottom:1px solid var(--line);}
 /* 絵の代わりの記号。**素材が無いので大きな記号で代用している** */
-.chcard .chart{display:grid;place-items:center;height:68px;margin:8px 0;font-size:34px;
-  color:var(--ac,var(--acc));
-  background:radial-gradient(circle at 50% 55%, rgba(255,138,31,.14), transparent 68%);
-  text-shadow:0 0 18px rgba(255,138,31,.35);}
-.chcard .chdesc{font-size:10px;color:var(--txt2);line-height:1.55;flex:1;}
-.chcard .chval{margin-top:6px;font-size:10px;color:var(--dim);}
-.chcard .chval b{color:var(--gold);font-size:13px;margin-left:3px;}
 .chcard .chtype{margin-top:8px;padding-top:6px;border-top:1px solid var(--line);
   font-size:9.5px;color:var(--acc);letter-spacing:.04em;}
 .chcard .chtype::before{content:'▲ ';font-size:8px;}
