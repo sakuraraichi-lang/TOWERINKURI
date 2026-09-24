@@ -124,7 +124,7 @@ const UI = {
     const st = STAGES[this.pick];
     const rec = Game.stageRec(st.id);
     const open = Game.stageUnlocked(st.id);
-    const done = Game.clearedCount(), all = MAIN_STAGES.length;
+    const done = Game.clearedCount(), all = STAGES.length;
 
     e.homeCoin.textContent = Util.fmt(Game.meta.coins);
     // 階級＝転生回数。伸び方が一番ゆっくりで、外から見た「格」に近い
@@ -133,10 +133,8 @@ const UI = {
     e.homeProg.textContent = '突破 ' + done + ' / ' + all +
       '　撃破 ' + Util.fmt(Game.perm.totalKills);
 
-    const mi = MAIN_STAGES.findIndex(x => x.id === st.id);
-    e.homeLabel.innerHTML = st.experimental
-      ? '実験ステージ <b>' + (EXP_STAGES.findIndex(x => x.id === st.id) + 1) + '</b>'
-      : 'ステージ <b>' + (mi + 1) + '</b>';
+    const mi = STAGES.findIndex(x => x.id === st.id);
+    e.homeLabel.innerHTML = 'ステージ <b>' + (mi + 1) + '</b>';
     // 名前は最後の1語だけ琥珀にして、参考画像の二色見出しに寄せる
     e.homeName.innerHTML = open ? this.splitTitle(st.name) : '？？？';
     // miniMap は SVG の文字列を返す（Node ではない）
@@ -151,7 +149,7 @@ const UI = {
     else if (rec.skipped) line = '<span class="ck">✓</span>通過（未突破）　<em>報酬は未取得</em>';
     else if (rec.attempts) line = '<span class="ck">…</span>最高 <em>ウェーブ ' + rec.bestWave + '</em>' +
       '　挑戦 ' + rec.attempts + '回';
-    else line = '<span class="ck">＊</span>未挑戦　' + (st.experimental ? '報酬なし' : '全' + BAL.wavesPerStage + 'ウェーブ');
+    else line = '<span class="ck">＊</span>未挑戦　' + '全' + BAL.wavesPerStage + 'ウェーブ';
     e.homeStat.innerHTML = line;
 
     e.homeStart.disabled = !open;
@@ -162,7 +160,7 @@ const UI = {
     if (e.homeSkip) {
       const can = Game.canSkip(st.id);
       // **鍵を持っていないうちは、ボタンの存在ごと出さない**
-      const near = Game.hasSkipKey() && open && !st.experimental &&
+      const near = Game.hasSkipKey() && open &&
                    !rec.cleared && !rec.skipped && !can;
       e.homeSkip.style.display = (can || near) ? '' : 'none';
       e.homeSkip.disabled = !can;
@@ -308,7 +306,8 @@ const UI = {
       const full = have >= cap || slotsLeft <= 0;
       const b = Util.el('button', 'chip unit' + (this.placingType === wid ? ' on' : '') + (full ? ' full' : ''));
       b.style.borderColor = def.color;
-      b.innerHTML = '<b style="color:' + def.color + '">' + def.short + '</b>' +
+      b.innerHTML = '<i class="uico" style="color:' + def.color + '">' + def.icon + '</i>' +
+        '<b style="color:' + def.color + '">' + def.short + '</b>' +
         '<u>' + have + '/' + cap + '</u>';
       b.disabled = !build;
       b.addEventListener('click', () => {
@@ -965,7 +964,7 @@ const UI = {
         const w = WEAPONS[c.weapon];
         const cat = CATEGORIES[w.cat];
         s.style.borderColor = w.color;
-        s.innerHTML = '<div class="sw" style="color:' + w.color + '">' + w.short + '</div>' +
+        s.innerHTML = '<div class="sw" style="color:' + w.color + '">' + w.icon + ' ' + w.short + '</div>' +
           '<div class="sn">' + w.name + '</div>' +
           '<div class="sx" style="color:' + cat.color + '">' + cat.icon + ' ' + cat.name +
           '　最大' + Game.unitCap(w.id) + '基</div>';
@@ -1368,7 +1367,7 @@ const UI = {
       '<div><span>遺物の枚数</span><b>' + R.count + '</b></div>' +
       '<div><span>遺物：ダメージ</span><b>×' + Util.fmt(R.dmg) + '</b></div>' +
       '<div><span>遺物：コイン</span><b>×' + Util.fmt(R.coin) + '</b></div>' +
-      '<div><span>突破ステージ</span><b>' + Game.clearedCount() + ' / ' + MAIN_STAGES.length + '</b></div>' +
+      '<div><span>突破ステージ</span><b>' + Game.clearedCount() + ' / ' + STAGES.length + '</b></div>' +
       '<div><span>累計撃破</span><b>' + Util.fmt(perm.totalKills) + '</b></div>';
     p.appendChild(st);
 
@@ -1674,21 +1673,15 @@ const UI = {
   // 「完璧クリアすると何がもらえるか」を名指しで出す。
   // パックは分野で分かれているので、分野名まで言わないと狙う理由にならない
   perfectHint(stage, leaked) {
-    // **実験用のステージは報酬が出ない。** 出ると書くと嘘になる
-    if (stage.experimental) {
-      const el = Util.el('div', 'note');
-      el.innerHTML = '<b>実験用のステージ</b>です。比べるために置いてあるだけなので、' +
-        '<b>報酬もパックも出ません</b>し、進行にも影響しません。' +
-        (leaked > 0 ? '<br>今回は <b>' + Util.fmt(leaked) + '</b> 体通した。' : '');
-      return el;
-    }
     const rec = Game.stageRec(stage.id);
     const pk = PACKS[Pack.forStage(stage.id)];
-    const n = rec.perfect ? 1 : 2;
     const el = Util.el('div', 'note');
-    el.innerHTML = '1体も通さずに凌ぐと<b>完璧クリア</b>。<b style="color:' + pk.color + '">' +
-      pk.name + ' ×' + n + '</b> が手に入る' +
-      (rec.perfect ? '' : '（このステージ初の完璧クリアなので2個）') + '。<br>' +
+    // **完璧クリアのパックは転生ごとに1回・2個。**（0924a）この周でもう取っていたら、そう書く。
+    //   前は取ったあとも「×1 が手に入る」と出ていた（実際には何も出ない）
+    el.innerHTML = (rec.perfect
+      ? '<b>完璧クリア</b>のパックは、この周ではもう受け取り済み（転生すると、また受け取れる）。<br>'
+      : '1体も通さずに凌ぐと<b>完璧クリア</b>。<b style="color:' + pk.color + '">' +
+        pk.name + ' ×2</b> が手に入る（転生ごとに1回）。<br>') +
       '<span class="dim">' + pk.desc + '</span>' +
       (leaked > 0 ? '<br>今回は <b>' + Util.fmt(leaked) + '</b> 体通した。' +
         '盤面の赤い枠が抜けられたルート。' : '');
@@ -1716,13 +1709,13 @@ const UI = {
     if (res.ok) {
       body.appendChild(Util.el('h3', null,
         res.perfect ? '★★ ' + res.stage.name + ' 完璧クリア！' : '★ ' + res.stage.name + ' 突破！'));
-      if (res.perfect && !res.stage.experimental) {
-        body.appendChild(UI.iconLine('reward', 'trophy', '1体も通さなかった。' +
-          PACKS[Pack.forStage(res.stage.id)].name + 'を獲得' +
-          (res.stageGot && res.stageGot.firstPerfect ? '（初回なので2個）' : '')));
-        this.burst('#ff8a1f');
-      } else if (res.perfect) {
-        body.appendChild(UI.iconLine('reward', 'trophy', '1体も通さなかった（実験用なので報酬は無し）'));
+      if (res.perfect) {
+        // パックが出るのは、その周で初めての完璧クリアだけ
+        const fp = res.stageGot && res.stageGot.firstPerfect;
+        body.appendChild(UI.iconLine('reward', 'trophy', '1体も通さなかった。' + (fp
+          ? PACKS[Pack.forStage(res.stage.id)].name + ' ×2 を獲得'
+          : 'この周の完璧クリアのパックは受け取り済み')));
+        if (fp) this.burst('#ff8a1f');
       } else {
         body.appendChild(this.perfectHint(res.stage, res.leaked));
       }

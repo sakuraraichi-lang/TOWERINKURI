@@ -835,11 +835,7 @@ const STAGES = [
   },
 ];
 
-// 実験用のステージ（ex1 / ex2）は削除した。**遊ぶ人を迷わせるだけだったため。**
-// 比較のために置いていたもので、進行にも報酬にも関わっていなかった。
-// experimental の仕組み自体は残してある（将来また比較用を足すときのため）
-const MAIN_STAGES = STAGES.filter(s => !s.experimental);
-const EXP_STAGES = STAGES.filter(s => s.experimental);
+
 
 const STAGE_BY_ID = {};
 STAGES.forEach((s, i) => { s.idx = i; STAGE_BY_ID[s.id] = s; });
@@ -868,7 +864,7 @@ function globalWave(stageIdx, wave) { return stageIdx * BAL.wavesPerStage + wave
 function stagePassedRec(rec) { return !!(rec && (rec.cleared || rec.skipped)); }
 function stageProgressCount(perm) {
   if (!perm || !perm.stages) return 0;
-  return MAIN_STAGES.filter(s => stagePassedRec(perm.stages[s.id])).length;
+  return STAGES.filter(s => stagePassedRec(perm.stages[s.id])).length;
 }
 
 const Stage = {

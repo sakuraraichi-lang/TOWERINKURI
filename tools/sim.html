@@ -108,7 +108,7 @@ const WEAPON_RANK = ['katana', 'sniper', 'shuriken', 'cryo', 'bubble', 'tesla',
                      'mortar', 'flame', 'gatling', 'missile', 'gas', 'tentacle'];
 
 function loadoutFor(stageId) {
-  const i = MAIN_STAGES.findIndex(s => s.id === stageId);
+  const i = STAGES.findIndex(s => s.id === stageId);
   const ch = i < 0 ? 1 : i + 1;
   const have = WEAPON_START.concat(WEAPON_AT.filter(w => ch > w[0]).map(w => w[1]));
   if (USE_PACK_WEAPONS) {
@@ -349,7 +349,7 @@ async function reachDistAsync(seeds, opts) {
   //   **測る章の上限。** 深い章は1回の挑戦に実時間で分単位かかるので、
   //   30章まで通すと1周に何時間もかかる。知りたいのは壁の位置なので、
   //   そこを含む範囲だけ測って「ここまでで止まった／ここまで全部抜けた」を出す
-  const maxCh = opts.maxCh || MAIN_STAGES.length;
+  const maxCh = opts.maxCh || STAGES.length;
   const yieldNow = () => new Promise(r => setTimeout(r, 0));
   const st = window.DIST = { rows: [], done: false, now: '', t0: performance.now() };
 
@@ -357,7 +357,7 @@ async function reachDistAsync(seeds, opts) {
     if (reset) Game.newSave();
     let cleared = 0, sec = 0, note = '', lastName = '';
     const tryLog = [], resLog = [];
-    for (const stg of MAIN_STAGES.slice(0, maxCh)) {
+    for (const stg of STAGES.slice(0, maxCh)) {
       st.now = label + ' ' + stg.name;
       await yieldNow();
       // **スキップできる章はスキップする。**
@@ -526,7 +526,7 @@ async function progressAsync(seeds, opts) {
         .concat([{ seed: sd, laps: got.slice(), mins: mins.slice(), slots: slots.slice(),
                    tries: tries.slice(), notes: notes.slice(), line: got.join(' → ') }]);
       await yieldNow();
-      if (r.cleared >= MAIN_STAGES.length) break;
+      if (r.cleared >= STAGES.length) break;
       if (!Game.canPrestige()) break;
       Game.prestige();
     }
@@ -893,8 +893,8 @@ function runStage(stageId, loadout, buys, opts) {
 //   比べたいものが比べられなくなる）。
 //   progressAsync は章を順番に本当に突破していくので、こちらの影響は受けない
 function unlockTo(stageId) {
-  const i = MAIN_STAGES.findIndex(s => s.id === stageId);
-  for (let k = 0; k < i; k++) Game.stageRec(MAIN_STAGES[k].id).cleared = true;
+  const i = STAGES.findIndex(s => s.id === stageId);
+  for (let k = 0; k < i; k++) Game.stageRec(STAGES[k].id).cleared = true;
 }
 
 function runStageInner(stageId, loadout, buys, opts) {
@@ -989,14 +989,11 @@ function runStageInner(stageId, loadout, buys, opts) {
     const dealt = run.dealt - wDealt;
     const coins = Game.meta.coins - wCoins;
     const kills = run.kills - wKills;
-    // **参考値。挙動には効いていない**（本体の e.dmg はどこからも読まれていない）。
-    //   これを「敵の強さ」として読むと誤る
-    const enemyDps = BAL.enemyDpsBase * Math.pow(BAL.enemyDpsGrowth, g - 1);
     waves.push({
       build: opts.buildId || '', stage: STAGE_BY_ID[run.stageId].name, wave: run.wave, g,
       elapsed: +(t / 60).toFixed(1),
       enemyHp: hp1, count: n, countRaw: nRaw, capped: nRaw > n,
-      totalHp: hp1 * n, enemyDps,
+      totalHp: hp1 * n,
       spawnSec, sec,
       killSec: dealt > 0 ? (hp1 * n) / (dealt / Math.max(0.001, sec)) : 0,
       dps: sec > 0 ? dealt / sec : 0,
@@ -1137,7 +1134,7 @@ function campaignRun(pick, opts) {
   if (opts.reset !== false) Game.newSave();
   const stages = [], allWaves = [], deaths = [];
   let total = 0, cleared = 0, attempts = 0, packsOpened = 0;
-  for (const stg of MAIN_STAGES) {
+  for (const stg of STAGES) {
     // **スキップできる章はスキップする**（本体のボタンと同じ条件・同じ報酬）
     if (opts.useSkip !== false && Game.canSkip(stg.id)) {
       Game.skipStage(stg.id);
@@ -1228,7 +1225,7 @@ const HARD_CAP = 15;           // 安全弁。これを超えたら「未突破�
 function campaign() {
   Game.newSave();              // localStorage は触らない
   const rows = [];
-  for (const st of MAIN_STAGES) {
+  for (const st of STAGES) {
     const lo = LOADOUTS[st.id];
     let cleared = null;
     const log = [];
@@ -1323,7 +1320,7 @@ document.getElementById('run').addEventListener('click', () => {
 function curveRun(builds) {
   Game.newSave();
   const all = [];
-  for (const st of MAIN_STAGES) {
+  for (const st of STAGES) {
     const lo = builds[st.id] || LOADOUTS[st.id];
     let r = null;
     for (let i = 1; i <= HARD_CAP; i++) {
@@ -1406,7 +1403,7 @@ document.getElementById('runBuilds').addEventListener('click', () => {
       Game.newSave();
       const tries = [];
       let reached = 0;
-      for (const stg of MAIN_STAGES) {
+      for (const stg of STAGES) {
         let ok = false;
         let why = '未突破';
         for (let i = 1; i <= HARD_CAP; i++) {
@@ -1419,7 +1416,7 @@ document.getElementById('runBuilds').addEventListener('click', () => {
       const m = Skill.mods(Game.meta, Game.perm);
       const lv = SKILLS.reduce((a, x) => a + Skill.lv(Game.meta, x.id), 0);
       html += '<tr><td>' + name + '</td>' +
-        '<td class="' + (reached === MAIN_STAGES.length ? 'ok' : 'ng') + '">' + reached + ' / ' + MAIN_STAGES.length + '</td>' +
+        '<td class="' + (reached === STAGES.length ? 'ok' : 'ng') + '">' + reached + ' / ' + STAGES.length + '</td>' +
         '<td>' + tries.join(' , ') + '</td>' +
         '<td>' + lv + ' / ×' + m.cat.mid.dmg.toFixed(1) + ' / ×' + m.cat.long.dmg.toFixed(1) + '</td></tr>';
     }

@@ -1209,3 +1209,6 @@ body:not(.on-home) #homeFx{display:none;}
 .mpack-gear .ico{width:100%;height:100%;}
 .mpack-haz{position:absolute;left:0;right:0;bottom:0;height:4px;background:repeating-linear-gradient(135deg,var(--pc) 0 3px,#111 3px 6px);}
 .prow.can .mpack-gear .ico{animation:gearspin 6s linear infinite;}
+
+/* 武器トレイ：アイコン＋略称 */
+#tray .chip.unit .uico{display:block;font-size:20px;line-height:1;margin-bottom:1px;}

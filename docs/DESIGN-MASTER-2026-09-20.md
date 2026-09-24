@@ -934,9 +934,9 @@ HPと同率で増やしません。**数は章ごとに ×1.15 程度**にとど
 
 #### DPS は、そもそも存在しない
 
-`BAL.enemyDpsBase` 7 / `enemyDpsGrowth` 1.26 は生きているように見えるが、
-`Combat.makeEnemy` が `e.dmg` を計算したあと、**src 全体のどこからも読まれていない**
-（`src/*.js` を検索して参照ゼロ。`balance.js:157-164` に注記済み）。
+`BAL.enemyDpsBase` 7 / `enemyDpsGrowth` 1.26 というノブがあったが、
+`Combat.makeEnemy` が `e.dmg` を計算したあと、**src 全体のどこからも読まれていなかった**。
+**2026-09-24 に削除した**（ノブ・`e.dmg`・測定器の `enemyDps` 列）。
 
 **漏れの重さは `BAL.leakLives` の固定値1。** 1体抜けるとライフが1減る。**章によらない。**
 つまり「漏れた瞬間に即死」は構造的に起こらない。ユーザーの決定

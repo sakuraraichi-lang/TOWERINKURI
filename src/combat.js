@@ -313,9 +313,6 @@ const Combat = {
       x, y, hp, maxHp: hp, si,
       spd: Math.min(BAL.enemySpdCap, BAL.enemySpdBase * Math.pow(BAL.enemySpdGrowth, g)) * t.spd,
       r: t.r,
-      // **この値は誰も読んでいない**（2026-09-21 に src 全体を検索して確認）。
-      //   漏れの重さは BAL.leakLives。消さずに残しているのは balance.js の注記のとおり
-      dmg: BAL.enemyDpsBase * Math.pow(BAL.enemyDpsGrowth, g - 1),
       coin: BAL.enemyCoinBase * Math.pow(BAL.enemyCoinGrowth, g - 1) * t.coin,
       color: t.color,
       tname: t.name,                   // 死因の内訳に使う

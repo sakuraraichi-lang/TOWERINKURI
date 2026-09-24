@@ -665,7 +665,7 @@ runStage('ch15', [武器], 60, { coins: 1e9, deep: {prestiges:2, deepest:17}, li
 | `docs/DESIGN-MASTER-2026-09-20.md` | 製品版の全体設計（30章・解放順・成長曲線・実装計画） |
 | `docs/DESIGN-ECONOMY-2026-09-20.md` | 経済とデッキの設計 |
 | `docs/DESIGN-AUTOMATION-2026-09-20.md` | 自動化と進行の設計 |
-| `docs/REPORT-*.md` | 回ごとの作業報告 |
+| `docs/archive/` | 09-19〜09-20 の古い計画・作業報告（`REPORT-*` / `PLAN-*` / `DESIGN-V2` など）。いまの設計とは食い違うところがあるので、根拠にしない |
 
 ---
 

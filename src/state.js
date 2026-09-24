@@ -206,7 +206,7 @@ const Game = {
   },
 
   // **実際に突破した数。** 報酬と表示はこちら
-  clearedCount() { return MAIN_STAGES.filter(s => this.stageRec(s.id).cleared).length; },
+  clearedCount() { return STAGES.filter(s => this.stageRec(s.id).cleared).length; },
   // **そこまで進んだ数（突破＋スキップ）。** 進行・値段・転生・深さはこちら
   progressCount() { return stageProgressCount(this.perm); },
   stagePassed(id) { return stagePassedRec(this.stageRec(id)); },
@@ -242,19 +242,18 @@ const Game = {
   //   初回クリア報酬はあとから自分で取りに行ける。
   //   飛ばせるのは**前回到達した地点まで**（perm.deepest）
   canSkip(id) {
-    if (STAGE_BY_ID[id] && STAGE_BY_ID[id].experimental) return false;
     if (!this.hasSkipKey()) return false;                 // 鍵が無ければ何も飛ばせない
     const rec = this.stageRec(id);
     if (rec.cleared || rec.skipped) return false;         // 今周でもう通っている
     if (!this.stageUnlocked(id)) return false;
     // **前回到達地点まで。** そこから先は自分で戦う
-    const i = MAIN_STAGES.findIndex(s => s.id === id);
+    const i = STAGES.findIndex(s => s.id === id);
     return i >= 0 && (i + 1) <= (this.perm.deepest || 0);
   },
 
   skipWhy(id) {
     if (!this.hasSkipKey()) return '';                    // 鍵が無いうちは何も言わない
-    const i = MAIN_STAGES.findIndex(s => s.id === id);
+    const i = STAGES.findIndex(s => s.id === id);
     if (i >= 0 && (i + 1) > (this.perm.deepest || 0)) return '前回到達したところまで飛ばせます';
     return '';
   },
@@ -269,20 +268,17 @@ const Game = {
     rec.skipped = true;
     this.perm.deepest = Math.max(this.perm.deepest || 0, this.progressCount());
     // 通過したら次の章へ進める（突破したときと同じ扱い）
-    const mi = MAIN_STAGES.findIndex(s => s.id === id);
-    const next = (mi >= 0) ? (MAIN_STAGES[mi + 1] || null) : null;
+    const mi = STAGES.findIndex(s => s.id === id);
+    const next = (mi >= 0) ? (STAGES[mi + 1] || null) : null;
     if (next && this.perm.currentStage === id) this.perm.currentStage = next.id;
     this.save();
     return { coins: 0, skipped: true, next, stage: STAGE_BY_ID[id] };
   },
 
   stageUnlocked(id) {
-    const def = STAGE_BY_ID[id];
-    // 実験用はいつでも遊べる。**本編の鎖には入れない**
-    if (def.experimental) return true;
-    const i = MAIN_STAGES.findIndex(s => s.id === id);
+    const i = STAGES.findIndex(s => s.id === id);
     if (i <= 0) return true;
-    return this.stagePassed(MAIN_STAGES[i - 1].id);   // スキップでも次へ行ける
+    return this.stagePassed(STAGES[i - 1].id);   // スキップでも次へ行ける
   },
 
   // perfect = 1体も抜けさせずに5ウェーブ凌いだ（完璧クリア）
@@ -301,8 +297,8 @@ const Game = {
     this.perm.deepest = Math.max(this.perm.deepest || 0, this.progressCount());
     const def = STAGE_BY_ID[id];
     // 次のステージも本編の並びで探す（実験用へは送らない）
-    const mi = MAIN_STAGES.findIndex(s => s.id === id);
-    const nextStage = (mi >= 0) ? (MAIN_STAGES[mi + 1] || null) : null;
+    const mi = STAGES.findIndex(s => s.id === id);
+    const nextStage = (mi >= 0) ? (STAGES[mi + 1] || null) : null;
     // **突破したら、その場で次の章へ進める。**（ユーザー報告 2026-09-22・最優先）
     //   > 「章を突破したとき、次のステージへを押さないと
     //   >   クリアしたはずの突破してない事になる」
@@ -317,9 +313,7 @@ const Game = {
     const got = { first, perfect: !!perfect, firstPerfect,
                   cards: [], packs: {}, stage: def, next: nextStage };
     const addPack = (k, n) => this.addPack(k, n, got);
-    // **実験用のステージは報酬を出さない。** 比較のために置いてあるだけで、
-    // ここで稼げてしまうと本編の経済がぶれる
-    if (first && !def.experimental) {
+    if (first) {
       for (const cid of (def.reward.cards || [])) { this.grant(cid, 1); got.cards.push(cid); }
       for (const k in (def.reward.packs || {})) addPack(k, def.reward.packs[k]);
     }
@@ -329,7 +323,7 @@ const Game = {
     //   前は完璧に凌ぐたびに1個出ていて、第1章を周回すると約1分1個を戦わずに稼げた
     //   （ユーザーの前提「同じ章の周回で稼げると言ってもパックは稼げない」と食い違っていた）。
     //   章の記録（perm.stages）は転生で戻るので、firstPerfect は「その周で初めて」になる
-    if (perfect && firstPerfect && !def.experimental) {
+    if (perfect && firstPerfect) {
       addPack(Pack.forStage(id), 2);
     }
     this.save();
