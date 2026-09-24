@@ -588,7 +588,7 @@ const UI = {
       const rw = (s.reward.cards || []).map(c => CARDS[c].name).concat(
         Object.entries(s.reward.packs || {}).map(([k, v]) => PACKS[k].name + '×' + v)).join(' / ');
       row.innerHTML =
-        '<div class="stmini">' + this.miniMap(s) + '</div>' +
+        '<div class="stmini" data-sid="' + (unlocked ? s.id : '') + '">' + (unlocked ? '' : '<span class="lk">🔒</span>') + '</div>' +
         '<div class="sbody">' +
           '<div class="sname">' + (unlocked ? s.name : '？？？') +
             (rec.perfect ? ' <em class="ok">★完璧</em>' : rec.cleared ? ' <em class="ok">突破済</em>' : ' <em>未突破</em>') + '</div>' +
@@ -611,21 +611,50 @@ const UI = {
       p.appendChild(row);
     }
     if (Game.phase === 'battle') p.appendChild(Util.el('div', 'note', '※ 戦闘中はステージを変えられません'));
+    // **ミニマップは1枚ずつ後から描く。**盤を作るのに大きい盤で1枚0.2秒かかるので、
+    //   開いている章を全部その場で作ると一覧が数秒固まる
+    const todo = Array.from(p.querySelectorAll('.stmini[data-sid]')).filter(el => el.dataset.sid);
+    const step = () => {
+      const el = todo.shift();
+      if (!el) return;
+      if (el.isConnected) el.innerHTML = this.miniMap(STAGE_BY_ID[el.dataset.sid]);
+      setTimeout(step, 0);
+    };
+    setTimeout(step, 0);
   },
 
+  // **実際に遊ぶ盤から描く。**（2026-09-24）
+  //   前は `s.map`（手書きの四角い盤）を描いていた。生成マップに移ってからは
+  //   手書きの盤はほぼ使われていないので、**ミニマップだけが別の地形を見せていた。**
+  //   しかも四角いタイルのまま。盤と同じく、通路の六角を壁の上に抜いて描く
   miniMap(s) {
-    let out = '<svg viewBox="0 0 ' + s.map[0].length + ' ' + s.map.length + '" class="mm">';
-    for (let r = 0; r < s.map.length; r++) {
-      for (let c = 0; c < s.map[r].length; c++) {
-        const ch = s.map[r][c];
-        let col = null;
-        if (ch === '#') col = '#3b3527';        // 置ける地面（壁）
-        else if (ch === 'S') col = '#ff5566';   // 出現口
-        else if (ch === 'C') col = '#ffa32e';   // コア
-        else if (ch === '.') col = '#0c0e13';   // 通路
-        if (col) out += '<rect x="' + c + '" y="' + r + '" width="1" height="1" fill="' + col + '"/>';
+    const st = Stage.build(s.id);
+    const R = MapGen.HEX_R;
+    let out = '<svg viewBox="0 0 ' + st.w + ' ' + st.h + '" class="mm">' +
+              '<rect width="' + st.w + '" height="' + st.h + '" fill="#3b3527"/>';   // 置ける壁
+    const hex = (x, y) => {
+      let d = '';
+      for (let i = 0; i < 6; i++) {
+        const a = i * Math.PI / 3;
+        d += (i ? ' ' : '') + (x + Math.cos(a) * R).toFixed(0) + ',' + (y + Math.sin(a) * R).toFixed(0);
+      }
+      return '<polygon points="' + d + '"/>';
+    };
+    out += '<g fill="#0c0e13">';                                                   // 通路
+    if (st.vec) for (const h of st.vec.hexes) out += hex(h.x, h.y);
+    else {
+      // 生成が通らず手書きの盤に落ちたとき（六角の情報が無い）
+      for (let r = 0; r < st.rows; r++) for (let c = 0; c < st.cols; c++) {
+        if (st.grid[r][c] === '.') out += '<rect x="' + c * TILE + '" y="' + r * TILE + '" width="' + TILE + '" height="' + TILE + '"/>';
       }
     }
+    out += '</g>';
+    const dot = (t, col) => {
+      const p = st.center(t.c, t.r);
+      return '<circle cx="' + p.x + '" cy="' + p.y + '" r="' + (TILE * 0.7) + '" fill="' + col + '"/>';
+    };
+    for (const t of st.spawns) out += dot(t, '#ff5566');                           // 出現口
+    out += dot(st.core, '#ffa32e');                                                // コア
     return out + '</svg>';
   },
 
