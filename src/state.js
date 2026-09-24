@@ -392,16 +392,16 @@ const Game = {
   //     4〜7枚 … 1凸   ／ 8〜15枚 … 2凸   ／ 16〜31枚 … 3凸 …
   //   前は「1枚増えるごとに1ランク」だったので、
   //   浅い章を周回して枚数を稼ぐのがそのまま最強手になっていた
-  cardTotu(cardId) {
-    const n = this.own(cardId);
+  cardTotu(cardId) { return this.totuOf(this.own(cardId)); },
+  // 枚数 n のときの凸（パックの途中の1枚ごとの凸を出すのにも使う）
+  totuOf(n) {
     if (n < BAL.totuBase) return 0;
     return Math.floor(Math.log2(n / BAL.totuBase)) + 1;
   },
-  // 次の凸に要る枚数（画面用）。これ以上無いときは null
-  cardTotuNext(cardId) {
-    const t = this.cardTotu(cardId);
-    return BAL.totuBase * Math.pow(2, t);
-  },
+  // その凸に届くのに要る枚数（0凸は0枚）
+  totuNeed(t) { return t <= 0 ? 0 : BAL.totuBase * Math.pow(2, t - 1); },
+  // 次の凸に要る枚数（画面用）
+  cardTotuNext(cardId) { return this.totuNeed(this.cardTotu(cardId) + 1); },
   cardRank(cardId) { return this.cardTotu(cardId) + 1; },
 
   // ランクごとの効果倍率。**0凸（1〜3枚）は等倍。** 1〜3凸は小さく、4凸から大きく（balance.js の totuBonus）

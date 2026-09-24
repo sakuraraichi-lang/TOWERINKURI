@@ -152,6 +152,25 @@ const Snd = {
     [784, 988, 1175].forEach((f, i) =>
       setTimeout(() => this.tone({ type: 'sine', f0: f, f1: f, dur: 0.2, vol: 0.08 }), i * 70));
   },
+  // めくる前の溜め。レア度が高いほど長く、高くせり上がる（glow 2=エピック 3=レジェンド）
+  charge(glow) {
+    const dur = glow >= 3 ? 1.2 : 0.65;
+    this.tone({ type: 'triangle', f0: glow >= 3 ? 220 : 330, f1: glow >= 3 ? 880 : 660, dur, vol: 0.07 });
+    if (glow >= 3) this.tone({ type: 'sine', f0: 110, f1: 440, dur, vol: 0.05 });
+  },
+  // 凸が上がった。段が上がるほど音程も上がる
+  totu(t) {
+    const base = 523 * Math.pow(1.12, Math.min(8, t));
+    [0, 4, 7].forEach((st, i) =>
+      setTimeout(() => this.tone({ type: 'square', f0: base * Math.pow(2, st / 12), f1: base * Math.pow(2, st / 12),
+        dur: 0.12, vol: 0.05 }), i * 60));
+  },
+  // 覚醒（4凸に届いた瞬間）。低い唸りから一気に開く和音
+  awaken() {
+    this.tone({ type: 'sawtooth', f0: 80, f1: 320, dur: 0.5, vol: 0.06 });
+    [523, 659, 784, 1047, 1319].forEach((f, i) =>
+      setTimeout(() => this.tone({ type: 'sine', f0: f, f1: f * 1.01, dur: 0.9, vol: 0.07 }), 420 + i * 55));
+  },
 
   // ---- BGM ----
   // 8つの音をゆっくり回すだけ。**曲というより、部屋の空気**

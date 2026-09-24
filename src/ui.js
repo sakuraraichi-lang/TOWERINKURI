@@ -1131,9 +1131,11 @@ const UI = {
     const luck = Skill.mods(Game.meta, Game.perm).packLuck;
     const got = {};            // cardId -> 枚数
     const fresh = {};          // 初めて手に入れたか
+    const before = {};         // 開ける前の枚数（凸が上がったかを見る）
     const swaps = [];
     for (let k = 0; k < n; k++) {
       for (const id of Pack.open(pid, luck)) {
+        if (before[id] === undefined) before[id] = Game.own(id);
         if (Game.own(id) === 0 && !got[id]) fresh[id] = true;
         got[id] = (got[id] || 0) + 1;
         Game.grant(id, 1);
@@ -1148,7 +1150,9 @@ const UI = {
     Snd.pack();
 
     const pk = PACKS[pid];
-    const ids = Object.keys(got).sort((a, b) =>
+    // **凸が上がったカードを先に並べる。**そのあとレア度の高い順
+    const upOf = (id) => CARDS[id].noRank ? 0 : Game.totuOf(Game.own(id)) - Game.totuOf(before[id]);
+    const ids = Object.keys(got).sort((a, b) => (upOf(b) > 0) - (upOf(a) > 0) ||
       BAL.rarityOrder.indexOf(CARDS[b].rarity) - BAL.rarityOrder.indexOf(CARDS[a].rarity));
     const newCount = Object.keys(fresh).length;
 
@@ -1160,10 +1164,24 @@ const UI = {
       '<div class="gbody"></div><div class="ghint"></div>';
     const stage = body.querySelector('.gbody');
     const grid = Util.el('div', 'bulkgrid');
-    for (const id of ids) grid.appendChild(this.cardEl(CARDS[id], { small: true, count: got[id], isNew: !!fresh[id] }));
+    let awoke = null;
+    for (const id of ids) {
+      const el = this.cardEl(CARDS[id], { small: true, count: Game.own(id), gain: got[id], isNew: !!fresh[id] });
+      grid.appendChild(el);
+      const t0 = Game.totuOf(before[id]), t1 = Game.totuOf(Game.own(id));
+      if (t1 > t0 && !CARDS[id].noRank) {
+        const big = t1 >= BAL.totuBigFrom;
+        const tag = Util.el('div', 'totuup' + (big ? ' big' : ''));
+        tag.innerHTML = '<b>' + (t0 > 0 ? t0 + '凸 → ' : '') + t1 + '凸</b><small>×' +
+          (1 + totuBonus(t0)).toFixed(2) + ' → ×' + (1 + totuBonus(t1)).toFixed(2) + '</small>';
+        el.appendChild(tag);
+        if (!awoke && t0 < BAL.totuBigFrom && big) awoke = { c: CARDS[id], t0, t1 };
+      }
+    }
     stage.appendChild(grid);
     this.openModal(body, true);
     if (newCount) this.burst('#ffb43c');
+    if (awoke) this.awaken(awoke.c, 1 + totuBonus(awoke.t0), 1 + totuBonus(awoke.t1));
 
     // 換装は選ばせる。出た回数ぶん、順番に
     let si = 0;
@@ -1231,6 +1249,14 @@ const UI = {
     const luck = Skill.mods(Game.meta, Game.perm).packLuck;
     const ids = Pack.open(pid, luck);
     const isNew = ids.map(id => Game.own(id) === 0);
+    // **1枚ごとに「めくる前／めくった後」の枚数を持つ。**同じパックで同じカードが2枚出ても、
+    //   1枚目と2枚目で凸が上がる瞬間を別々に見せられるように
+    const seen = {};
+    const steps = ids.map(id => {
+      const n0 = seen[id] !== undefined ? seen[id] : Game.own(id);
+      seen[id] = n0 + 1;
+      return { n0, n1: n0 + 1 };
+    });
     for (const id of ids) Game.grant(id, 1);
 
     // 換装が出るかどうか。**買っていないノードは候補にならない**ので、
@@ -1307,22 +1333,54 @@ const UI = {
     };
 
     // ---- ② カードを1枚ずつ ----
+    //   **演出はレア度と凸で変える。**（ユーザー 2026-09-24「レアリティが高いのを引いた時、
+    //   凸れた時の喜びを与えたいです」「はいはい作業ね、と流されたくない」）
+    //   ・エピック／レジェンドは、裏向きのまま色で脈打つ「溜め」を挟んでからめくる
+    //   ・凸が上がったら、カードの上に「1凸 → 2凸」と倍率を跳ねさせる
+    //   ・4凸（×1.50）に届いた瞬間は「覚醒」として画面全体で見せる
     const row = Util.el('div', 'popenrow');
-    let i = 0;
-    const flipNext = () => {
-      if (i >= ids.length) return;
-      const c = CARDS[ids[i]];
-      row.appendChild(this.cardEl(c, { reveal: true, isNew: isNew[i] }));
+    let i = 0, charging = null;
+    const reveal = (k) => {
+      const c = CARDS[ids[k]];
+      const st = steps[k];
+      const el = this.cardEl(c, { reveal: true, isNew: isNew[k], count: st.n1 });
+      row.appendChild(el);
       // **武器本体は別格。** 派手に光らせて、出たことが分かるようにする
-      if (c.kind === 'weapon' && isNew[i]) {
+      if (c.kind === 'weapon' && isNew[k]) {
         this.burst(WEAPONS[c.weapon] ? WEAPONS[c.weapon].color : '#ffb43c');
         this.toastMsg('新しい武器 ' + c.name, '#ffb43c');
       } else if (BAL.rarity[c.rarity].glow >= 2) {
         this.burst(BAL.rarity[c.rarity].color);
       }
-      i++;
-      hint.textContent = i < ids.length ? 'タップでめくる（' + i + ' / ' + ids.length + '）' : '';
-      if (i >= ids.length) { if (swaps.length) showSwaps(); else finish(); }
+      const t0 = Game.totuOf(st.n0), t1 = Game.totuOf(st.n1);
+      if (t1 > t0 && !c.noRank) this.totuUp(el, c, t0, t1);
+    };
+    const flipNext = () => {
+      if (charging) { charging(); return; }          // 溜めの途中のタップは、溜めを飛ばす
+      if (i >= ids.length) return;
+      const k = i++;
+      const c = CARDS[ids[k]];
+      const glow = BAL.rarity[c.rarity].glow;
+      const after = () => {
+        hint.textContent = i < ids.length ? 'タップでめくる（' + i + ' / ' + ids.length + '）' : '';
+        if (i >= ids.length) { if (swaps.length) showSwaps(); else finish(); }
+      };
+      if (glow < 2) { reveal(k); after(); return; }
+      // 溜め：裏向きのカードがレア度の色で脈打つ。レジェンドは長く、光の柱が立つ
+      const back = Util.el('div', 'gcharge r-' + c.rarity);
+      back.style.setProperty('--rc', BAL.rarity[c.rarity].color);
+      back.innerHTML = '<div class="gcq">？</div>' + (glow >= 3 ? '<div class="gpillar"></div>' : '');
+      row.appendChild(back);
+      Snd.charge(glow);
+      hint.textContent = glow >= 3 ? '……！' : '…';
+      let done = false;
+      const go = () => {
+        if (done) return;
+        done = true; charging = null; clearTimeout(tm);
+        back.remove(); reveal(k); after();
+      };
+      charging = go;
+      const tm = setTimeout(go, glow >= 3 ? 1300 : 700);
     };
 
     // ---- ① 封を切る ----
@@ -1338,6 +1396,31 @@ const UI = {
       if (e.target.closest('.chcard') || e.target.closest('.gskip')) return;
       flipNext();
     });
+  },
+
+  // 凸が上がった瞬間。カードの上に「1凸 → 2凸」と倍率を跳ねさせる
+  totuUp(el, c, t0, t1) {
+    const m0 = 1 + totuBonus(t0), m1 = 1 + totuBonus(t1);
+    const big = t1 >= BAL.totuBigFrom;
+    const tag = Util.el('div', 'totuup' + (big ? ' big' : ''));
+    tag.innerHTML = '<b>' + (t0 > 0 ? t0 + '凸 → ' : '') + t1 + '凸</b>' +
+      '<small>×' + m0.toFixed(2) + ' → ×' + m1.toFixed(2) + '</small>';
+    el.appendChild(tag);
+    Snd.totu(t1);
+    // **4凸に届いた瞬間は「覚醒」。**ここから1凸ごとに +50% になる段なので、見た目でも跳ねさせる
+    if (t0 < BAL.totuBigFrom && t1 >= BAL.totuBigFrom) this.awaken(c, m0, m1);
+  },
+
+  awaken(c, m0, m1) {
+    const ov = Util.el('div', 'awaken');
+    ov.style.setProperty('--rc', BAL.rarity[c.rarity].color);
+    ov.innerHTML = '<div class="awk-ring"></div><div class="awk-txt">覚醒</div>' +
+      '<div class="awk-name">' + c.name + '</div>' +
+      '<div class="awk-mul">×' + m0.toFixed(2) + ' → <b>×' + m1.toFixed(2) + '</b></div>';
+    document.body.appendChild(ov);
+    Snd.awaken();
+    ov.addEventListener('click', () => ov.remove());
+    setTimeout(() => ov.remove(), 2400);
   },
 
   burst(color) {
@@ -1640,12 +1723,17 @@ const UI = {
       //   凸は**パックで増える所持枚数**の話なので、枚数が並ぶこの画面が置き場所。
       //   以前は3択の側だけに「あと◯枚で1凸」が出ていて、
       //   **3択で被せると凸が進む**ように読めてしまっていた
-      sub = o.count > 0 ? '×' + o.count : '未所持';
+      sub = o.count > 0 ? (o.gain ? '+' + o.gain + '（計' + o.count + '）' : '×' + o.count) : '未所持';
       if (o.count > 0 && !c.noRank) {
-        const totu = Game.cardTotu(c.id);
-        const next = Game.cardTotuNext(c.id);
+        // **渡された枚数から出す。**パックを開けている途中の1枚ごとの凸を出すため（2026-09-24）
+        const totu = Game.totuOf(o.count);
+        const lo = Game.totuNeed(totu), next = Game.totuNeed(totu + 1);
         if (totu > 0) sub += ' <b class="totu">' + totu + '凸</b>';
-        if (next) sub += ' <u class="totunx">あと' + (next - o.count) + '枚</u>';
+        sub += ' <u class="totunx">あと' + (next - o.count) + '枚</u>';
+        // 次の凸までの進み。**あと少しで凸、を目で見せる**
+        const pct = Math.max(0, Math.min(100, 100 * (o.count - lo) / Math.max(1, next - lo)));
+        sub += '<i class="tbar"><i style="width:' + pct.toFixed(0) + '%"></i></i>';
+        if (totu >= BAL.totuBigFrom) el.classList.add('awake');   // 4凸から枠を変える（覚醒）
       }
     } else if (o.stacks) sub = o.stacks + ' / ' + o.limit + ' 枚目';
     // **アイコン＋題名＋一行。** 長い説明は、読もうとしてタップしたときだけ出す
