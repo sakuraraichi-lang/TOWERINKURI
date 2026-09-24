@@ -567,41 +567,14 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 /* ============ スキルツリー（節と枝） ============ */
 /* 一覧だと「どこから伸びているのか」が見えないので、枝で結ぶ。
    位置は定義から自動で決めるので、ノードを足しても座標を書かなくていい */
-#tree{position:relative;margin:6px -10px 0;overflow-x:auto;overflow-y:hidden;
-  -webkit-overflow-scrolling:touch;scrollbar-width:none;}
-#tree::-webkit-scrollbar{display:none;}
-.treecanvas{position:relative;}
-.treecanvas svg{position:absolute;left:0;top:0;pointer-events:none;}
 /* 節は六角の板（2026-09-25 作り直し）。枝の色 --bc。
    光は板の外側に出したいので、切り抜き（clip-path）は内側の .tplate にだけ掛け、外の .tnode に drop-shadow を掛ける */
-.tnode{--bc:#ff8a1f;position:absolute;transform:translate(-50%,-50%);width:46px;height:40px;padding:0;border:0;background:none;
-  cursor:pointer;transition:transform .12s;filter:drop-shadow(0 2px 3px rgba(0,0,0,.6));}
-.tnode:active{transform:translate(-50%,-50%) scale(.92);}
 .tplate{position:absolute;inset:0;display:grid;place-items:center;
   clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);
   background:color-mix(in srgb,var(--bc) 55%,#1a1d25);color:var(--bc);}
 .tplate::before{content:'';position:absolute;inset:2px;clip-path:inherit;
   background:linear-gradient(160deg,#20242e,#0d0f15);}
 .tplate .ico{position:relative;width:20px;height:20px;}
-.tnode.have{filter:drop-shadow(0 0 8px color-mix(in srgb,var(--bc) 70%,transparent));}
-.tnode.have .tplate{background:var(--bc);color:#fff;}
-.tnode.have .tplate::before{background:linear-gradient(160deg,color-mix(in srgb,var(--bc) 70%,#fff 10%),color-mix(in srgb,var(--bc) 45%,#000));}
-.tnode.have .tplate .ico{filter:drop-shadow(0 0 3px rgba(255,255,255,.6));}
-.tnode.can{animation:tpulse 1.5s ease-in-out infinite;}
-.tnode.can .tplate{background:#ffd24a;color:#ffe08a;}
-@keyframes tpulse{0%,100%{filter:drop-shadow(0 0 2px rgba(255,210,74,.4));}50%{filter:drop-shadow(0 0 12px rgba(255,210,74,.95));}}
-.tnode.locked{cursor:default;opacity:.45;}
-.tnode.locked .tplate{background:#2a2e38;color:var(--dim);}
-.tnode.sel{transform:translate(-50%,-50%) scale(1.14);z-index:2;}
-.tnode.sel .tplate{background:#fff;}
-.tnode.root{width:58px;height:50px;cursor:default;filter:drop-shadow(0 0 12px rgba(255,138,31,.6));}
-.tnode.root .tplate .ico{width:26px;height:26px;}
-.tlabel{position:absolute;transform:translate(-50%,0);width:80px;text-align:center;
-  font-size:8.5px;color:var(--txt2);line-height:1.25;pointer-events:none;}
-.tgroup{--bc:#ff8a1f;position:absolute;transform:translate(-50%,-50%);display:flex;align-items:center;gap:3px;padding:2px 7px;
-  font-size:9px;font-weight:800;letter-spacing:.06em;white-space:nowrap;pointer-events:none;color:var(--bc);
-  background:color-mix(in srgb,var(--bc) 12%,#0b0d12);border:1px solid color-mix(in srgb,var(--bc) 45%,transparent);}
-.tgroup .ico{width:11px;height:11px;}
 
 /* 選んだノードの詳細。ツリーの下に出す */
 
@@ -1341,27 +1314,70 @@ body:not(.on-home) #homeFx{display:none;}
 .wp-tag{font-size:9.5px;text-align:center;color:var(--txt2);}
 .wp-card.cur .wp-tag{color:var(--acc);font-weight:800;}
 .wp-card.miss .wp-tag{color:var(--dim);}
-.wp-off{width:100%;margin-top:14px;}
+.wp{position:relative;}
+.wp-x{position:sticky;top:0;float:right;z-index:3;width:36px;height:36px;margin:-4px -4px 0 0;display:grid;place-items:center;cursor:pointer;
+  color:var(--txt);background:#12151c;border:1px solid var(--line2);}
+.wp-x .ico{width:18px;height:18px;}
+.wp-foot{margin:14px 0 0;position:sticky;bottom:-1px;padding:8px 0 2px;background:linear-gradient(0deg,var(--panel) 70%,transparent);}
+.wp .rs-tip{margin:8px 0 0;}
 /* 選んだ節の詳細と買うボタン（2026-09-25 作り直し） */
-.tdetail{--bc:#ff8a1f;display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center;margin:10px 0 0;padding:11px 12px;
-  background:linear-gradient(90deg,color-mix(in srgb,var(--bc) 12%,#10131a),#10131a 55%);border:1px solid color-mix(in srgb,var(--bc) 40%,transparent);
-  clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));}
-.tdetail.none{display:block;text-align:center;color:var(--dim);font-size:11px;padding:16px 11px;background:#10131a;border-color:var(--line2);}
-.tdplate{position:relative;width:54px;height:47px;filter:drop-shadow(0 0 8px color-mix(in srgb,var(--bc) 50%,transparent));}
-.tdplate .tplate{background:var(--bc);color:var(--bc);}
-.tdplate .tplate .ico{width:24px;height:24px;}
-.tdetail.have .tdplate .tplate{color:#fff;}
-.tdetail.have .tdplate .tplate::before{background:linear-gradient(160deg,color-mix(in srgb,var(--bc) 70%,#fff 10%),color-mix(in srgb,var(--bc) 45%,#000));}
-.tdgroup{font-size:9px;font-weight:800;letter-spacing:.14em;color:var(--bc);}
-.tdname{font-size:15px;font-weight:900;color:var(--txt);}
-.tdesc{font-size:11px;color:var(--txt2);line-height:1.5;margin-top:1px;}
-.tdgo{grid-column:1 / -1;min-height:46px;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 14px;
-  border:0;cursor:pointer;font:inherit;color:#1a1200;background:linear-gradient(90deg,#ffd24a,#ff8a1f);box-shadow:0 0 18px rgba(255,138,31,.3);
-  clip-path:polygon(0 0,calc(100% - 10px) 0,100% 10px,100% 100%,10px 100%,0 calc(100% - 10px));}
-.tdgo span{font-size:13px;font-weight:900;letter-spacing:.1em;}
-.tdgo b{display:flex;align-items:center;gap:4px;font-size:16px;font-weight:900;}
-.tdgo.short,.tdgo:disabled{background:#1a1d25;color:var(--dim);box-shadow:none;cursor:default;}
-.tdgo.short b{color:#ffcf70;}
-.tdgo.done{justify-content:center;color:var(--bc);background:#10131a;border:1px solid color-mix(in srgb,var(--bc) 50%,transparent);}
-.tdgo .ico{width:18px;height:18px;}
 .rs.rs-skip{--rk:#7fb2ff;}
+
+/* タイトル（ロゴと題字）はホームだけ。タブを開いているあいだは畳んで、その分パネルを広く（ユーザー 2026-09-25） */
+body:not(.tabsoff) .hlogo{display:none;}
+
+/* =====================================================================
+   スキルツリー（2026-09-25・2回目の作り直し。ユーザー「武器は武器、パッシブはパッシブなどで広がるブランチを分けて、目的に応じて見やすく」）
+   目的タブ → （武器なら分類の切り替え）→ 連なりごとの札。横スクロールは無い
+   ===================================================================== */
+.tpoints{position:sticky;top:0;z-index:4;margin:0 0 8px;}
+.tpoints span .ico.coin{width:20px;height:20px;}
+.sk-tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:4px;}
+.sk-tab{position:relative;padding:9px 4px;cursor:pointer;font:inherit;color:var(--txt2);background:#10131a;border:1px solid var(--line2);}
+.sk-tab b{font-size:13px;font-weight:900;letter-spacing:.1em;}
+.sk-tab.on{color:#1a1200;background:linear-gradient(180deg,#ffd24a,#ff8a1f);border-color:transparent;}
+.sk-tab i,.sk-cat i{position:absolute;top:-6px;right:-4px;min-width:17px;height:17px;padding:0 4px;display:grid;place-items:center;
+  font-style:normal;font-size:10px;font-weight:900;color:#1a1200;background:#ffd24a;border-radius:9px;box-shadow:0 0 8px rgba(255,210,74,.6);}
+.sk-sub{font-size:10px;color:var(--dim);margin:6px 2px 8px;}
+.sk-cats{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-bottom:10px;}
+.sk-cat{--bc:#ff8a1f;position:relative;display:flex;align-items:center;justify-content:center;gap:5px;padding:8px 4px;cursor:pointer;font:inherit;
+  font-size:11px;font-weight:800;color:var(--bc);background:#10131a;border:1px solid color-mix(in srgb,var(--bc) 35%,transparent);}
+.sk-cat .ico{width:14px;height:14px;}
+.sk-cat.on{background:color-mix(in srgb,var(--bc) 22%,#10131a);border-color:var(--bc);color:#fff;box-shadow:0 0 12px color-mix(in srgb,var(--bc) 35%,transparent);}
+.sk-cat.locked{opacity:.4;}
+/* 連なりの札 */
+.tk{--bc:#ff8a1f;margin-bottom:10px;padding:10px 12px 12px;background:linear-gradient(180deg,color-mix(in srgb,var(--bc) 9%,#10131a),#0d0f15);
+  border:1px solid color-mix(in srgb,var(--bc) 32%,transparent);
+  clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));}
+.tk.full{border-color:color-mix(in srgb,var(--bc) 60%,transparent);}
+.tk-head{display:flex;align-items:center;gap:8px;}
+.tk-ic{color:var(--bc);display:grid;place-items:center;}
+.tk-ic .ico{width:18px;height:18px;}
+.tk-head b{font-size:14px;font-weight:900;color:var(--txt);letter-spacing:.06em;}
+.tk-head span{margin-left:auto;font-size:12px;font-weight:800;color:var(--bc);font-variant-numeric:tabular-nums;}
+.tk-pips{display:flex;flex-wrap:wrap;gap:5px;margin:9px 0 10px;}
+.tk-pip{width:22px;height:19px;padding:0;border:0;cursor:pointer;background:#2a2e38;
+  clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);}
+.tk-pip.have{background:var(--bc);box-shadow:inset 0 0 6px rgba(255,255,255,.4);}
+.tk-pip.next{background:color-mix(in srgb,var(--bc) 35%,#2a2e38);}
+.tk-pip.can{background:#ffd24a;animation:pippulse 1.4s ease-in-out infinite;}
+.tk-pip.sel{outline:none;transform:scale(1.25);}
+.tk-pip.sel:not(.have):not(.can){background:#8a93a6;}
+@keyframes pippulse{0%,100%{opacity:1;}50%{opacity:.45;}}
+.tk-node{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:center;}
+.tk-plate{position:relative;width:44px;height:38px;filter:drop-shadow(0 0 6px color-mix(in srgb,var(--bc) 40%,transparent));}
+.tk-plate .tplate{background:var(--bc);color:var(--bc);}
+.tk-plate .tplate .ico{width:20px;height:20px;}
+.tk-plate.have .tplate{color:#fff;}
+.tk-plate.have .tplate::before{background:linear-gradient(160deg,color-mix(in srgb,var(--bc) 70%,#fff 10%),color-mix(in srgb,var(--bc) 45%,#000));}
+.tk-body b{display:block;font-size:13px;font-weight:900;color:var(--txt);}
+.tk-body span{display:block;font-size:10.5px;color:var(--txt2);line-height:1.45;}
+.tk-buy{min-width:86px;min-height:42px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:4px 8px;
+  border:0;cursor:pointer;font:inherit;color:#1a1200;background:linear-gradient(180deg,#ffd24a,#ff8a1f);box-shadow:0 0 14px rgba(255,138,31,.3);
+  clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px));}
+.tk-buy span{font-size:10px;font-weight:900;letter-spacing:.1em;}
+.tk-buy b{display:flex;align-items:center;gap:3px;font-size:13px;font-weight:900;}
+.tk-buy .ico{width:15px;height:15px;}
+.tk-buy.short,.tk-buy:disabled{background:#1a1d25;color:var(--dim);box-shadow:none;cursor:default;}
+.tk-buy.short b{color:#ffcf70;}
+.tk-buy.done{flex-direction:row;gap:4px;font-size:11px;font-weight:900;color:var(--bc);background:#10131a;border:1px solid color-mix(in srgb,var(--bc) 50%,transparent);}

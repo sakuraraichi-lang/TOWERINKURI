@@ -680,207 +680,170 @@ const UI = {
   },
 
   // ================= スキルツリー =================
-  // ツリーの節を、コインの増減に合わせて光らせ直す。
-  // **描き直しはしない。** 触っている最中に節が動くと押せない
+  //   **目的ごとに分けた「連なり」の札で見せる。**（ユーザー 2026-09-25「スキルツリーについて、ここは完全にリデザインするようにしましょう、
+  //   現状横にずらっと伸びてて下にずらっと伸びてて、移動範囲が多く不便です、武器は武器、パッシブはパッシブなどで
+  //   広がるブランチを分けて、目的に応じて見やすくしましょう」）
+  //   前は 10本の枝を横に並べた1枚の大きな木（幅780px・縦は最長17節）で、縦横にスクロールが要った。
+  //   ツリーの中身は「短い連なり」の集まり（取り切りで順に開く）なので、形もそれに合わせる：
+  //     上の目的タブ（武器／拠点／カード／危険） → 武器なら分類の切り替え → 連なりごとの札
+  //     札 … 名前と進み（3/5）、節の粒（取った／次／まだ）、選んだ節（ふつうは次の1つ）の中身と取るボタン
+  SKILL_TABS: [
+    { id: 'weapon', name: '武器',   sub: '分類ごとの火力と置ける数',       groups: ['短射程', '中射程', '長射程', '範囲攻撃', '指定攻撃', '支援'] },
+    { id: 'base',   name: '拠点',   sub: 'コイン・修理・盤に置ける数',     groups: ['資源', '拠点'] },
+    { id: 'card',   name: 'カード', sub: '3択の枚数・選択肢・運・パック',  groups: ['カード'] },
+    { id: 'risk',   name: '危険',   sub: '敵を増やしてコインを稼ぐ',       groups: ['危険'] },
+  ],
+  // 連なりの名前（gkey ごと。分類の節は「火力」「設置」）
+  CHAIN_NAME: { coin: '資源', regen: '修理', units: '盤に置ける数', picks: '取れる枚数', choices: '選択肢',
+    luck: '運', pack: '解析', lure: '誘引' },
+
+  // 目的タブ → 連なりの一覧。連なり＝needs でつながった節の列
+  skillChains(groups) {
+    const out = [];
+    for (const g of groups) {
+      const map = {};
+      for (const s of SKILLS) {
+        if (s.group !== g) continue;
+        // 分類の節は gkey を持たない（火力の列）。設置の列は short_unit などの gkey
+        const k = s.gkey || (s.cat + '_main');
+        if (!map[k]) { map[k] = { key: k, group: g, cat: s.cat || null, nodes: [] }; out.push(map[k]); }
+        map[k].nodes.push(s);
+      }
+    }
+    for (const ch of out) {
+      ch.name = this.CHAIN_NAME[ch.key] || (/_unit$/.test(ch.key) ? '設置' : /_main$/.test(ch.key) ? '火力' : ch.group);
+    }
+    return out;
+  },
+
+  // 目的タブに「いま取れる節」がいくつあるか
+  skillTabCan(tab) {
+    if (!Game.canBuySkills()) return 0;
+    return SKILLS.filter(s => tab.groups.indexOf(s.group) >= 0 && Skill.canBuy(Game.meta, Game.perm, s.id)).length;
+  },
+
+  // コインが増減したときの光らせ直し（ui.js の毎フレームの見回りから呼ばれる）。**描き直しはしない**
   refreshSkills() {
     if (!this.skillRows || !this.skillRows.length) return;
-    const canPhase = Game.canBuySkills();
-    for (const r of this.skillRows) {
-      if (!r.node || !r.node.isConnected) continue;
-      const lv = Skill.lv(Game.meta, r.id);
-      if (r.lv !== lv) {
-        r.lv = lv;
-        r.node.classList.toggle('have', lv > 0);
-      }
-      const can = canPhase && Skill.canBuy(Game.meta, Game.perm, r.id);
-      if (r.can !== can) { r.can = can; r.node.classList.toggle('can', can); }
-    }
     const c = document.getElementById('treeCoin');
     if (c) c.textContent = Util.fmt(Game.meta.coins);
-    if (this.treeBuyBtn && this.treeBuyBtn.isConnected && this.treeSel) {
-      const can = canPhase && Skill.canBuy(Game.meta, Game.perm, this.treeSel);
-      this.treeBuyBtn.disabled = !can;
+    let changed = false;
+    for (const r of this.skillRows) {
+      if (!r.el.isConnected) continue;
+      const can = Game.canBuySkills() && Skill.canBuy(Game.meta, Game.perm, r.id);
+      if (r.can !== can) { r.can = can; changed = true; }
     }
+    // 取れるかどうかが変わったら、そのときだけ描き直す（ボタンの文言と粒の光が変わるため）
+    if (changed) this.refreshTree();
   },
 
-  // ================= アップグレード（枝で結んだツリー） =================
-  // 一覧だと「どこから伸びているのか」が見えないので、節と枝で描く。
-  // **座標は定義から自動で決める。** ノードを足しても、ここを直さなくていい
   panelSkill(p) {
-    const perm = Game.perm;
+    const perm = Game.perm, meta = Game.meta;
     this.skillRows = [];
-    const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>スキルツリー</b><span class="sub">コインで数字を大きくする。' +
-      '火力は<b>武器カテゴリ単位</b>で伸ばす。節をタップすると中身が出る</span>';
-    p.appendChild(head);
+    if (!this.skillTab) this.skillTab = 'weapon';
+    const tab = this.SKILL_TABS.find(t => t.id === this.skillTab) || this.SKILL_TABS[0];
 
-    if (!Game.canBuySkills()) {
-      p.appendChild(Util.el('div', 'warn', '戦闘中は購入できません。撤退するか、ステージを終えてから。'));
+    // コインとまとめ買い（上に貼り付く）
+    p.appendChild(this.treePoints());
+    if (!Game.canBuySkills()) p.appendChild(Util.el('div', 'warn', '戦闘中は購入できません。撤退するか、ステージを終えてから。'));
+
+    // 目的タブ
+    const tabs = Util.el('div', 'sk-tabs');
+    for (const t of this.SKILL_TABS) {
+      const n = this.skillTabCan(t);
+      const b = Util.el('button', 'sk-tab' + (t.id === tab.id ? ' on' : ''));
+      b.innerHTML = '<b>' + t.name + '</b>' + (n ? '<i>' + n + '</i>' : '');
+      b.addEventListener('click', () => { this.skillTab = t.id; Snd.ui(); this.renderPanel(); });
+      tabs.appendChild(b);
     }
+    p.appendChild(tabs);
+    p.appendChild(Util.el('div', 'sk-sub', tab.sub));
 
-    // 枝＝group。定義に出てくる順に左から並べる
-    const branches = [];
-    for (const s of SKILLS) {
-      let b = branches.find(x => x.group === s.group);
-      if (!b) { b = { group: s.group, cat: s.cat || null, nodes: [] }; branches.push(b); }
-      b.nodes.push(s);
-    }
-
-    const COL = 78, ROW = 82, ROOT_Y = 34, TOP = 104;
-    const W = branches.length * COL;
-    const rows = Math.max.apply(null, branches.map(b => b.nodes.length));
-    const H = TOP + (rows - 1) * ROW + 54;
-    const rootX = W / 2;
-
-    const box = Util.el('div', 'treecanvas');
-    box.style.width = W + 'px';
-    box.style.height = H + 'px';
-
-    let svg = '<svg width="' + W + '" height="' + H + '" viewBox="0 0 ' + W + ' ' + H + '">';
-    const dots = [];
-    branches.forEach((b, gi) => {
-      const x = gi * COL + COL / 2;
-      const col = b.cat ? CATEGORIES[b.cat].color : '#ff8a1f';
-      const lit = b.nodes.some(s => Skill.lv(Game.meta, s.id) > 0);
-      // 配線。**通ったところは太く光らせ、まだのところは点線**（回路の見た目・2026-09-25）
-      const wire = (d, on) => on
-        ? '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="6" opacity=".18"/>' +
-          '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="2.2" opacity=".95"/>'
-        : '<path d="' + d + '" fill="none" stroke="' + col + '" stroke-width="1.4" opacity=".35" stroke-dasharray="3 4"/>';
-      // 幹から枝へ。**曲げて描くと、どこから分かれたのかが目で追える**
-      svg += wire('M' + rootX + ' ' + (ROOT_Y + 26) +
-             ' C ' + rootX + ' ' + (TOP - 22) + ', ' + x + ' ' + (ROOT_Y + 34) + ', ' + x + ' ' + TOP, lit);
-      for (let i = 1; i < b.nodes.length; i++) {
-        svg += wire('M' + x + ' ' + (TOP + (i - 1) * ROW) + ' L' + x + ' ' + (TOP + i * ROW),
-          Skill.lv(Game.meta, b.nodes[i - 1].id) > 0);
+    let groups = tab.groups;
+    // 武器は分類を1つずつ見せる。**武器を持っていない分類は鍵**（その分類の節は開かない）
+    if (tab.id === 'weapon') {
+      const chips = Util.el('div', 'sk-cats');
+      const catOf = (g) => SKILLS.find(s => s.group === g).cat;
+      const owns = (g) => Skill.isUnlocked(perm, SKILLS.find(s => s.group === g && !s.needs).id);
+      if (!this.skillCat || groups.indexOf(this.skillCat) < 0) {
+        this.skillCat = groups.find(g => owns(g) && SKILLS.some(s => s.group === g && Skill.canBuy(meta, perm, s.id))) ||
+          groups.find(owns) || groups[0];
       }
-      dots.push({ b, x, col });
-    });
-    svg += '</svg>';
-    box.innerHTML = svg;
-
-    // 幹のてっぺん
-    const root = Util.el('div', 'tnode root have');
-    root.innerHTML = '<i class="tplate">' + Icons.get('root') + '</i>';
-    root.style.setProperty('--bc', '#ff8a1f');
-    root.style.left = rootX + 'px';
-    root.style.top = ROOT_Y + 'px';
-    box.appendChild(root);
-
-    for (const d of dots) {
-      const g = Util.el('div', 'tgroup');
-      g.innerHTML = (d.b.cat ? CATEGORIES[d.b.cat].icon : '') + d.b.group;
-      g.style.setProperty('--bc', d.col);
-      g.style.left = d.x + 'px';
-      g.style.top = (TOP - 34) + 'px';
-      g.style.color = d.col;
-      box.appendChild(g);
-
-      d.b.nodes.forEach((s, i) => {
-        const y = TOP + i * ROW;
-        const unlocked = Skill.isUnlocked(perm, s.id);
-        const lv = Skill.lv(Game.meta, s.id);
-        const n = Skill.node(s.id, perm);
-        const can = Game.canBuySkills() && Skill.canBuy(Game.meta, perm, s.id);
-        const btn = Util.el('button', 'tnode' +
-          (!unlocked ? ' locked' : lv > 0 ? ' have' : '') +
-          (can ? ' can' : '') +
-          (this.treeSel === s.id ? ' sel' : ''));
-        // 六角の板。**取った節は枝の色で満たし、取れる節は金で脈打つ**
-        btn.innerHTML = '<i class="tplate">' + (unlocked ? Icons.skill(n) : Icons.get('lock')) + '</i>';
-        btn.style.left = d.x + 'px';
-        btn.style.top = y + 'px';
-        btn.style.setProperty('--bc', d.col);
-        btn.addEventListener('click', () => {
-          this.treeSel = s.id;
-          this.refreshTree();
-        });
-        box.appendChild(btn);
-
-        const lb = Util.el('div', 'tlabel', unlocked ? n.name : '？？？');
-        lb.style.left = d.x + 'px';
-        lb.style.top = (y + 26) + 'px';
-        box.appendChild(lb);
-
-        this.skillRows.push({ id: s.id, row: btn, btn: null, can, lv, node: btn });
-      });
+      for (const g of groups) {
+        const C = CATEGORIES[catOf(g)];
+        const n = Game.canBuySkills() ? SKILLS.filter(s => s.group === g && Skill.canBuy(meta, perm, s.id)).length : 0;
+        const b = Util.el('button', 'sk-cat' + (g === this.skillCat ? ' on' : '') + (owns(g) ? '' : ' locked'));
+        b.style.setProperty('--bc', C.color);
+        b.innerHTML = C.icon + '<span>' + g + '</span>' + (n ? '<i>' + n + '</i>' : '');
+        b.addEventListener('click', () => { this.skillCat = g; Snd.ui(); this.renderPanel(); });
+        chips.appendChild(b);
+      }
+      p.appendChild(chips);
+      groups = [this.skillCat];
+      if (!owns(this.skillCat)) {
+        p.appendChild(Util.el('div', 'rs-tip', CATEGORIES[catOf(this.skillCat)].name + 'の武器を手に入れると開きます'));
+      }
     }
 
-    const scroller = Util.el('div');
-    scroller.id = 'tree';
-    scroller.appendChild(box);
-    p.appendChild(scroller);
-    // 横の見ている位置。開き直しても同じところを見せる
-    requestAnimationFrame(() => {
-      if (this._treeX != null) { scroller.scrollLeft = this._treeX; this._treeX = null; return; }
-      const sel = box.querySelector('.tnode.sel');
-      scroller.scrollLeft = sel
-        ? parseFloat(sel.style.left) - scroller.clientWidth / 2
-        : (W - scroller.clientWidth) / 2;
-    });
-
-    // **詳細と購入ボタンはパネルの下に貼り付ける。**
-    // 前はツリーの後ろに流していたので、スマホだと節をタップしても
-    // 強化ボタンが画面の外にいて、いちいちスクロールが要った
-    const foot = Util.el('div', 'tfoot');
-    foot.appendChild(this.treeDetail());
-    foot.appendChild(this.treePoints());
-    p.appendChild(foot);
+    for (const ch of this.skillChains(groups)) p.appendChild(this.skillTrack(ch));
   },
 
-  // 選んだ節の中身と、買うボタン
-  treeDetail() {
-    const id = this.treeSel;
-    if (!id || !SKILL_BY_ID[id]) {
-      return Util.el('div', 'tdetail none', '節をタップすると、効果と値段が出ます');
-    }
+  // 連なり1本の札
+  skillTrack(ch) {
     const perm = Game.perm, meta = Game.meta;
-    const n = Skill.node(id);
-    const col = n.cat ? CATEGORIES[n.cat].color : '#ff8a1f';
-    const unlocked = Skill.isUnlocked(perm, id);
-    const lv = Skill.lv(meta, id);
-    const maxed = lv >= Skill.maxOf(perm, id);
-    const can = Game.canBuySkills() && Skill.canBuy(meta, perm, id);
-    const cost = Skill.cost(meta, id);
+    const col = ch.cat ? CATEGORIES[ch.cat].color : ({ '資源': '#ffd24a', '拠点': '#9fe0c0', 'カード': '#c9a0ff', '危険': '#ff6a7e' })[ch.group] || '#ff8a1f';
+    const got = ch.nodes.filter(s => Skill.lv(meta, s.id) > 0).length;
+    const next = ch.nodes.find(s => Skill.lv(meta, s.id) <= 0);
+    this.skillSel = this.skillSel || {};
+    const selId = (this.skillSel[ch.key] && ch.nodes.some(s => s.id === this.skillSel[ch.key])) ? this.skillSel[ch.key] : (next || ch.nodes[ch.nodes.length - 1]).id;
 
-    const d = Util.el('div', 'tdetail' + (maxed ? ' have' : ''));
-    d.style.setProperty('--bc', col);
-    // **板・題名・一行・ボタン。**これ以上は詰めない
-    d.innerHTML =
-      '<div class="tdplate"><i class="tplate">' + (unlocked ? Icons.skill(n) : Icons.get('lock')) + '</i></div>' +
-      '<div class="tdbody"><div class="tdgroup">' + n.group + '</div>' +
-        '<div class="tdname">' + (unlocked ? n.name : '？？？') + '</div>' +
-        '<div class="tdesc">' + (unlocked ? Skill.shortDesc(n) : Skill.lockReason(perm, id)) + '</div></div>';
-    if (!unlocked) return d;
+    const tk = Util.el('div', 'tk' + (got === ch.nodes.length ? ' full' : ''));
+    tk.style.setProperty('--bc', col);
+    tk.innerHTML = '<div class="tk-head"><i class="tk-ic">' + Icons.skill(ch.nodes[0]) + '</i><b>' + ch.name + '</b>' +
+      '<span>' + got + ' / ' + ch.nodes.length + '</span></div>';
 
-    // 取り切り（1回で終わり）。取ったかどうかはボタンで分かる
-    const btn = Util.el('button', 'tdgo');
-    const paint = (lvNow) => {
-      const done = lvNow >= Skill.maxOf(Game.perm, id);
-      const ok = Game.canBuySkills() && Skill.canBuy(meta, Game.perm, id);
-      btn.className = 'tdgo' + (done ? ' done' : ok ? '' : ' short');
-      btn.innerHTML = done ? Icons.get('check') + '<b>取得済</b>'
-        : '<span>' + (ok ? '取得する' : !Game.canBuySkills() ? '戦闘中は買えない' : 'コインが足りない') + '</span>' +
-          '<b>' + Icons.coin() + Util.fmt(Skill.cost(meta, id)) + '</b>';
-      btn.disabled = done || !ok;
-    };
-    paint(lv);
+    // 節の粒（取った／次／まだ）。タップでその節の中身を見る
+    const pips = Util.el('div', 'tk-pips');
+    for (const s of ch.nodes) {
+      const lv = Skill.lv(meta, s.id);
+      const can = Game.canBuySkills() && Skill.canBuy(meta, perm, s.id);
+      const b = Util.el('button', 'tk-pip' + (lv > 0 ? ' have' : s === next ? ' next' : '') + (can ? ' can' : '') + (s.id === selId ? ' sel' : ''));
+      b.addEventListener('click', () => { this.skillSel[ch.key] = s.id; this.refreshTree(); });
+      pips.appendChild(b);
+      this.skillRows.push({ id: s.id, el: b, can });
+    }
+    tk.appendChild(pips);
+
+    // 選んだ節の中身と、取るボタン
+    const s = SKILL_BY_ID[selId];
+    const lv = Skill.lv(meta, s.id);
+    const unlocked = Skill.isUnlocked(perm, s.id);
+    const can = Game.canBuySkills() && Skill.canBuy(meta, perm, s.id);
+    const node = Util.el('div', 'tk-node');
+    node.innerHTML =
+      '<div class="tk-plate' + (lv > 0 ? ' have' : '') + '"><i class="tplate">' + (unlocked || lv > 0 ? Icons.skill(s) : Icons.get('lock')) + '</i></div>' +
+      '<div class="tk-body"><b>' + (unlocked || lv > 0 ? s.name : '？？？') + '</b>' +
+        '<span>' + (unlocked || lv > 0 ? Skill.shortDesc(s) : Skill.lockReason(perm, s.id)) + '</span></div>';
+    const btn = Util.el('button', 'tk-buy' + (lv > 0 ? ' done' : can ? '' : ' short'));
+    if (lv > 0) btn.innerHTML = Icons.get('check') + '取得済';
+    else if (!unlocked) btn.innerHTML = Icons.get('lock');
+    else btn.innerHTML = '<span>' + (can ? '取得' : !Game.canBuySkills() ? '戦闘中' : '不足') + '</span><b>' + Icons.coin() + Util.fmt(Skill.cost(meta, s.id)) + '</b>';
+    btn.disabled = lv > 0 || !can;
     btn.addEventListener('click', () => {
-      if (!Game.canBuySkills()) return;
-      if (!Skill.buy(Game.meta, Game.perm, id)) return;
+      if (!Game.canBuySkills() || !Skill.buy(Game.meta, Game.perm, s.id)) return;
       Game.applyMods();
       Snd.ui();
-      // 次の節が開き、配線も光るので描き直す（スクロール位置は保つ）
+      delete this.skillSel[ch.key];       // 取ったら次の節へ
       this.refreshTree();
     });
-    d.appendChild(btn);
-    this.treeBuyBtn = btn;
-    return d;
+    node.appendChild(btn);
+    tk.appendChild(node);
+    return tk;
   },
 
   treePoints() {
     const t = Util.el('div', 'tpoints');
-    t.innerHTML = '<span>使用可能なコイン</span><b id="treeCoin">' + Util.fmt(Game.meta.coins) + '</b>';
+    t.innerHTML = '<span>' + Icons.coin() + '</span><b id="treeCoin">' + Util.fmt(Game.meta.coins) + '</b>';
 
     // **周回のたびに同じ買い物を手で繰り返させない。**
     // 安い順に買えるだけ買う（測定器が1周を回すときと同じ買い方）
@@ -899,24 +862,11 @@ const UI = {
     return t;
   },
 
-  // 買った直後の描き直し。**横スクロールの位置を保つ**
-  // 買った直後の描き直し。**縦横のスクロール位置をそのまま保つ**
+  // 描き直し。**パネルの縦位置をそのまま保つ**
   refreshTree() {
-    const sc = document.getElementById('tree');
-    const x = sc ? sc.scrollLeft : 0;
-    const ty = sc ? sc.scrollTop : 0;
     const y = this.el.panel.scrollTop;
     this.renderPanel();
-    const sc2 = document.getElementById('tree');
-    // **2回戻す。** 描き直した直後はまだ中身の幅が確定しておらず、
-    // 横位置が途中までしか戻らない（406 まで出せる場所で 203 に丸められていた）
-    const put = () => {
-      const e = document.getElementById('tree');
-      if (e) { e.scrollLeft = x; e.scrollTop = ty; }
-      this.el.panel.scrollTop = y;
-    };
-    if (sc2) put();
-    setTimeout(put, 0);
+    this.el.panel.scrollTop = y;
   },
   // ================= 装備（編成） =================
   //   **武器はカードで見せる。**（2026-09-25・ユーザー「装備画面のリデザイン」）
@@ -993,7 +943,17 @@ const UI = {
   pickWeapon(slot) {
     if (Game.phase === 'battle') return;
     const body = Util.el('div', 'wp');
+    // **いつでも閉じられるように。**（ユーザー 2026-09-25「武器を所有してない状態で武器を選ぶを押すと戻れなくなります」）
+    //   持っている武器がほかの枠で使用中だと全部押せず、外側もほとんど見えないので、閉じる手段が画面の下の
+    //   「この枠を空ける」しか無かった。上に貼り付く ✕ と、下の「閉じる」を置く
+    const x = Util.el('button', 'wp-x');
+    x.innerHTML = Icons.get('close');
+    x.addEventListener('click', () => this.closeModal());
+    body.appendChild(x);
     body.appendChild(this.choiceHead('武器を選ぶ', (slot + 1) + '種目の枠に入れる武器'));
+    const free = WEAPON_IDS.filter(wid => Game.own('wc_' + wid) > 0 && !Game.perm.loadout.includes('wc_' + wid));
+    if (!free.length) body.appendChild(Util.el('div', 'rs-tip',
+      '入れられる武器がありません。武器は章の突破とパックで手に入ります'));
     const pick = (cid) => {
       Game.perm.loadout[slot] = cid;
       Game.save(); this.closeModal();
@@ -1024,10 +984,18 @@ const UI = {
       }
       body.appendChild(grid);
     }
-    const off = Util.el('button', 'rs-sub wp-off');
-    off.innerHTML = Icons.get('close') + 'この枠を空ける';
-    off.addEventListener('click', () => pick(null));
-    body.appendChild(off);
+    const subs = Util.el('div', 'rs-subs wp-foot');
+    if (Game.perm.loadout[slot]) {
+      const off = Util.el('button', 'rs-sub');
+      off.innerHTML = Icons.get('close') + 'この枠を空ける';
+      off.addEventListener('click', () => pick(null));
+      subs.appendChild(off);
+    }
+    const close = Util.el('button', 'rs-sub');
+    close.textContent = '閉じる';
+    close.addEventListener('click', () => this.closeModal());
+    subs.appendChild(close);
+    body.appendChild(subs);
     this.openModal(body);
   },
 
