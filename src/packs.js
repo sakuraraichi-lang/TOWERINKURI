@@ -130,8 +130,10 @@ const Pack = {
   //   配れないときは null を返す。呼び出し側がコインに振り替える
   grantable(perm, id) {
     if (this.isUnlocked(perm, id)) return id;
-    // 同じ役どころで、すでに開いているものへ落とす
-    for (const k of ['syn', 'chem', 'arms', 'basic']) {
+    // すでに開いているものへ落とす。**手前の分野から順に**（2026-09-24）
+    //   前は ['syn', 'chem', 'arms', 'basic'] の奥から順で、第1章の報酬が兵装や連携のパックになることがあった。
+    //   「奥の分野は奥まで行かないと掘れない」（stagePackOf）と逆だった
+    for (const k of ['basic', 'arms', 'chem', 'syn']) {
       if (k !== id && this.isUnlocked(perm, k)) return k;
     }
     return null;
