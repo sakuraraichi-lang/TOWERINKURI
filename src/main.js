@@ -320,6 +320,9 @@ const Main = {
 
 window.addEventListener('load', () => {
   Main.init();
+  // ホームのロゴ（cardfx.js の描き起こしを使う）
+  const hl = document.getElementById('homeLogo');
+  if (hl && typeof CardFX !== 'undefined') hl.innerHTML = CardFX.logoSvg();
   // 演出の見本：?packdemo=legendary / epic / rare / common（セーブには触らない）
   const demo = new URLSearchParams(location.search).get('packdemo');
   if (demo && typeof CardFX !== 'undefined') setTimeout(() => CardFX.demo(demo), 700);

@@ -1079,3 +1079,74 @@ body.bigshake{animation:bigshake .5s linear;}
 @keyframes backshake{0%{transform:rotate(-2deg) translateX(-1px);}50%{transform:rotate(2deg) translateX(1px);}100%{transform:rotate(-1deg);}}
 .pfx-logo{width:70%;}
 .pfx-logo .gamelogo{filter:drop-shadow(0 0 10px rgba(255,255,255,.6));}
+/* =====================================================================
+   ホーム画面（2026-09-24・ユーザー「デザイン面を大きく変えましょう、まだ質素です」「今のSF（黒×橙）を豪華に」）
+   ===================================================================== */
+#home{position:relative;}
+#home > *{position:relative;z-index:1;}
+#homeFx{position:fixed !important;inset:0;z-index:0 !important;pointer-events:none;overflow:hidden;}
+body:not(.on-home) #homeFx{display:none;}
+.hfx-grid{position:absolute;inset:-60px;opacity:.5;
+  background:
+    repeating-linear-gradient(60deg,rgba(255,138,31,.05) 0 1px,transparent 1px 26px),
+    repeating-linear-gradient(-60deg,rgba(255,138,31,.05) 0 1px,transparent 1px 26px),
+    repeating-linear-gradient(0deg,rgba(255,138,31,.03) 0 1px,transparent 1px 45px);
+  animation:gridflow 26s linear infinite;}
+@keyframes gridflow{0%{transform:translate(0,0);}100%{transform:translate(-52px,-90px);}}
+.hfx-glow{position:absolute;left:50%;top:38%;width:130vmin;height:130vmin;transform:translate(-50%,-50%);
+  background:radial-gradient(circle,rgba(255,120,30,.22) 0%,rgba(255,90,10,.08) 35%,transparent 65%);animation:glowbreath 6s ease-in-out infinite;}
+@keyframes glowbreath{0%,100%{opacity:.75;transform:translate(-50%,-50%) scale(1);}50%{opacity:1;transform:translate(-50%,-50%) scale(1.06);}}
+.hfx-scan{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.22) 0 1px,transparent 1px 3px);}
+.hfx-scan::after{content:'';position:absolute;left:0;right:0;height:22%;top:-22%;
+  background:linear-gradient(180deg,transparent,rgba(255,150,60,.06),transparent);animation:scanmove 7s linear infinite;}
+@keyframes scanmove{0%{top:-22%;}100%{top:100%;}}
+.hfx-dust{position:absolute;inset:0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 80%,rgba(255,180,90,.8),transparent),
+    radial-gradient(1.2px 1.2px at 30% 60%,rgba(255,160,70,.7),transparent),
+    radial-gradient(1.8px 1.8px at 55% 90%,rgba(255,200,120,.8),transparent),
+    radial-gradient(1.2px 1.2px at 72% 70%,rgba(255,150,60,.7),transparent),
+    radial-gradient(1.5px 1.5px at 88% 85%,rgba(255,190,100,.8),transparent),
+    radial-gradient(1px 1px at 45% 75%,rgba(255,170,80,.7),transparent);
+  background-size:100% 100%;animation:dustup 14s linear infinite;}
+@keyframes dustup{0%{transform:translateY(20%);opacity:0;}15%{opacity:1;}85%{opacity:1;}100%{transform:translateY(-60%);opacity:0;}}
+/* ロゴ */
+.hlogo{display:flex;align-items:center;justify-content:center;gap:10px;margin:4px 0 2px;}
+.hlogo-mark{width:38px;height:38px;display:block;animation:logospin 30s linear infinite;filter:drop-shadow(0 0 8px rgba(255,170,60,.6));}
+.hlogo-mark .gamelogo{width:100%;height:100%;}
+@keyframes logospin{100%{transform:rotate(360deg);}}
+.hlogo-word{font-size:clamp(18px,5.4vw,26px);font-weight:900;letter-spacing:.28em;color:#fff;
+  text-shadow:0 0 6px #ff8a1f,0 0 18px #ff6a00,0 0 36px rgba(255,90,0,.6);
+  background:linear-gradient(90deg,#fff 0%,#ffd8a8 40%,#fff 50%,#ffd8a8 60%,#fff 100%);background-size:200% 100%;
+  -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:wordsheen 4s linear infinite;}
+@keyframes wordsheen{0%{background-position:100% 0;}100%{background-position:-100% 0;}}
+/* 章の地図：レーダーの走査線と目盛りの輪 */
+.heroart{isolation:isolate;}
+.heroart::before{border:1px solid rgba(255,138,31,.55) !important;box-shadow:0 0 18px rgba(255,138,31,.25),inset 0 0 18px rgba(255,138,31,.18);}
+.heroart::after{border:2px dashed rgba(255,170,80,.45) !important;animation:ringspin 40s linear infinite;}
+@keyframes ringspin{100%{transform:rotate(360deg);}}
+.heroart .mm{position:relative;z-index:1;}
+#homeMini::marker{content:none;}
+.heroart > .mm + i{display:none;}
+#homeMain .scard{position:relative;padding:14px 10px 12px;border-radius:14px;
+  background:linear-gradient(180deg,rgba(20,24,34,.55),rgba(8,10,14,.35));
+  box-shadow:inset 0 0 0 1px rgba(255,138,31,.14);}
+#homeMain .scard::before,#homeMain .scard::after{content:'';position:absolute;width:22px;height:22px;pointer-events:none;
+  border:2px solid #ff8a1f;filter:drop-shadow(0 0 6px #ff8a1f);}
+#homeMain .scard::before{left:-2px;top:-2px;border-right:0;border-bottom:0;border-radius:6px 0 0 0;}
+#homeMain .scard::after{right:-2px;bottom:-2px;border-left:0;border-top:0;border-radius:0 0 6px 0;}
+.heroart{background:radial-gradient(circle,rgba(255,138,31,.10) 0%,transparent 70%);}
+.heroart .radar{position:absolute;inset:-4%;border-radius:50%;z-index:2;pointer-events:none;
+  background:conic-gradient(from 0deg,rgba(255,160,60,.28),transparent 22%,transparent);animation:ringspin 4.5s linear infinite;
+  -webkit-mask:radial-gradient(circle,#000 62%,transparent 63%);mask:radial-gradient(circle,#000 62%,transparent 63%);}
+.htitle{text-shadow:0 0 14px rgba(255,138,31,.45);}
+/* 出撃ボタン：光が横切り、脈打つ */
+.bigstart{overflow:hidden;animation:startpulse 2.4s ease-in-out infinite;}
+.bigstart::after{content:'';position:absolute;top:0;bottom:0;width:30%;left:-40%;pointer-events:none;
+  background:linear-gradient(100deg,transparent,rgba(255,255,255,.45),transparent);transform:skewX(-20deg);animation:startsheen 3s ease-in-out infinite;}
+@keyframes startsheen{0%{left:-40%;}60%,100%{left:130%;}}
+@keyframes startpulse{0%,100%{box-shadow:0 0 18px rgba(255,120,20,.45);}50%{box-shadow:0 0 34px rgba(255,140,40,.8);}}
+.bigstart:disabled{animation:none;}
+.bigstart:disabled::after{display:none;}
+.snav{background:linear-gradient(180deg,rgba(28,32,44,.9),rgba(10,12,18,.9)) !important;box-shadow:0 0 0 1px rgba(255,138,31,.3),0 0 12px rgba(255,138,31,.15);}
+#home .hbar{background:linear-gradient(180deg,rgba(14,17,24,.85),rgba(14,17,24,.4));box-shadow:0 1px 0 rgba(255,138,31,.25);padding-bottom:4px;}

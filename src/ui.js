@@ -140,7 +140,7 @@ const UI = {
     // 名前は最後の1語だけ琥珀にして、参考画像の二色見出しに寄せる
     e.homeName.innerHTML = open ? this.splitTitle(st.name) : '？？？';
     // miniMap は SVG の文字列を返す（Node ではない）
-    e.homeMini.innerHTML = open ? this.miniMap(st) : '<span class="lk">🔒</span>';
+    e.homeMini.innerHTML = open ? this.miniMap(st) + '<i class="radar"></i>' : '<span class="lk">🔒</span>';
     e.homeMini.classList.toggle('locked', !open);
 
     let line;
