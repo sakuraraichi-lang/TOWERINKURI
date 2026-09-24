@@ -1376,3 +1376,4 @@ body:not(.on-home) #homeFx{display:none;}
 .tdgo.short b{color:#ffcf70;}
 .tdgo.done{justify-content:center;color:var(--bc);background:#10131a;border:1px solid color-mix(in srgb,var(--bc) 50%,transparent);}
 .tdgo .ico{width:18px;height:18px;}
+.rs.rs-skip{--rk:#7fb2ff;}

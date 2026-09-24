@@ -1295,10 +1295,16 @@ const UI = {
   },
 
   confirmPrestige() {
-    const body = Util.el('div');
-    body.appendChild(Util.el('h3', null, '転生しますか？'));
-    body.appendChild(Util.el('p', 'note', 'コインとアップグレードは全て失われ、ステージの突破状況も戻ります。カードとパックは残ります。'));
-    const ok = Util.el('button', 'bigbtn danger', '転生する');
+    const pv = Pack.prestigePreview(Game.clearedCount(), Game.perm.prestiges);
+    const body = Util.el('div', 'rs rs-lose');
+    body.innerHTML =
+      '<div class="rs-ban"><b>転生</b><span>本当に転生しますか？</span></div>' +
+      '<div class="rs-tip">コイン・スキルツリー・章の突破・盤の配置を失います。カード・パック・遺物は残ります</div>' +
+      '<div class="rs-rew">' +
+        '<div class="rs-pack">' + CardFX.miniPack(PACKS.relic) + '<b>遺物パック</b><em>×' + pv.relic + '</em></div>' +
+        '<div class="rs-pack">' + CardFX.miniPack(PACKS.basic) + '<b>カードパック</b><em>×' + pv.cards + '</em></div></div>';
+    const ok = Util.el('button', 'rs-go');
+    ok.innerHTML = '<span>失って得る</span><b>転生する</b>' + Icons.get('cycle');
     ok.addEventListener('click', () => {
       const res = Game.prestige();
       this.closeModal();
@@ -1306,10 +1312,13 @@ const UI = {
       Main.toHome();
       if (res) this.showPrestigeResult(res);
     });
-    const no = Util.el('button', 'linkbtn', 'やめる');
+    const no = Util.el('button', 'rs-sub');
+    no.innerHTML = Icons.get('close') + 'やめる';
     no.addEventListener('click', () => this.closeModal());
-    body.appendChild(ok); body.appendChild(no);
+    const subs = Util.el('div', 'rs-subs'); subs.appendChild(no);
+    body.appendChild(ok); body.appendChild(subs);
     this.openModal(body);
+    this.el.modal.classList.add('rsmodal');
   },
 
   showPrestigeResult(res) {
@@ -1524,18 +1533,18 @@ const UI = {
 
   // スキップの結果。**手で突破したときと同じものが出た**ことを、そのまま並べる
   showSkipResult(res) {
-    const body = Util.el('div');
-    body.appendChild(this.choiceHead('スキップ',
-      res.stage.name + ' を通過しました（突破ではありません）'));
-    body.appendChild(Util.el('div', 'note',
-      'チェックマークが付いて次の章へ進めます。'
-      + 'コインもカードも手に入らず、**転生でもらえる量にも数えません。**'
-      + 'この章の初回突破報酬は残っているので、あとから自分で突破すれば受け取れます。'
-      + '先へ急ぐための機能で、強くなるための機能ではありません。'));
-    const ok = Util.el('button', 'bigbtn', '次へ');
-    ok.addEventListener('click', () => { this.closeModal(); this.renderHome(); });
-    body.appendChild(ok);
+    // リザルトと同じ形。**何も得ていない**ことを短く言う
+    //   （前の説明文は、太字のつもりの ** がそのまま画面に出ていた）
+    const body = Util.el('div', 'rs rs-skip');
+    body.innerHTML =
+      '<div class="rs-ban"><i class="rs-sweep"></i><b>SKIP</b><span>' + res.stage.name + '　通過（突破ではない）</span></div>' +
+      '<div class="rs-tip">コイン・カード・転生の評価は増えません。初回突破の報酬は残っているので、あとで自分で突破すれば受け取れます</div>';
+    const go = Util.el('button', 'rs-go');
+    go.innerHTML = '<span>次へ</span><b>' + (res.next ? res.next.name : 'ホーム') + '</b>' + Icons.get('play');
+    go.addEventListener('click', () => { this.closeModal(); this.renderHome(); });
+    body.appendChild(go);
     this.openModal(body, true);
+    this.el.modal.classList.add('rsmodal');
   },
 
   // ================= リザルト =================
