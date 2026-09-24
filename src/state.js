@@ -325,10 +325,12 @@ const Game = {
     }
     // 完璧クリアはパックの入手経路。1体も通さない配置を組めた報酬。
     // 出るのは「そのステージの分野」なので、浅いところを完璧にしても奥の分野は掘れない
-    if (perfect && !def.experimental) {
-      const kind = Pack.forStage(id);
-      addPack(kind, 1);
-      if (firstPerfect) addPack(kind, 1);
+    //   **転生ごとに1回。**（ユーザー 2026-09-24「転生ごとに1回」）
+    //   前は完璧に凌ぐたびに1個出ていて、第1章を周回すると約1分1個を戦わずに稼げた
+    //   （ユーザーの前提「同じ章の周回で稼げると言ってもパックは稼げない」と食い違っていた）。
+    //   章の記録（perm.stages）は転生で戻るので、firstPerfect は「その周で初めて」になる
+    if (perfect && firstPerfect && !def.experimental) {
+      addPack(Pack.forStage(id), 2);
     }
     this.save();
     return got;
