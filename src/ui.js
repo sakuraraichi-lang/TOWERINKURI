@@ -140,11 +140,11 @@ const UI = {
     // 名前は最後の1語だけ琥珀にして、参考画像の二色見出しに寄せる
     e.homeName.innerHTML = open ? this.splitTitle(st.name) : '？？？';
     // miniMap は SVG の文字列を返す（Node ではない）
-    e.homeMini.innerHTML = open ? this.miniMap(st) + '<i class="radar"></i>' : '<span class="lk">🔒</span>';
+    e.homeMini.innerHTML = open ? this.miniMap(st) + '<i class="radar"></i>' : '<span class="lk">' + Icons.get('lock') + '</span>';
     e.homeMini.classList.toggle('locked', !open);
 
     let line;
-    if (!open) line = '<span class="ck">🔒</span>前のステージを突破すると開きます';
+    if (!open) line = '<span class="ck">' + Icons.get('lock') + '</span>前のステージを突破すると開きます';
     else if (rec.perfect) line = '<span class="ck">✓</span>完璧クリア済み　<em>★★</em>';
     else if (rec.cleared) line = '<span class="ck">✓</span>突破済み　<em>W' + rec.bestWave + '</em>';
     // **飛ばして通っただけ。**突破ではないので、初回報酬はまだ残っている
@@ -207,7 +207,7 @@ const UI = {
     const row = (key, name, desc) => {
       const on = !!Game.perm[key];
       const el = Util.el('label', 'cfgrow' + (on ? ' on' : ''));
-      el.innerHTML = '<span class="box">' + (on ? '✔' : '') + '</span>' +
+      el.innerHTML = '<span class="box">' + (on ? Icons.get('check') : '') + '</span>' +
         '<span><b>' + name + '</b><span>' + desc + '</span></span>';
       el.addEventListener('click', () => {
         Game.perm[key] = !Game.perm[key];
@@ -490,7 +490,7 @@ const UI = {
     { t: '光っている地面をタップして置く', s: '置けるのは地面（壁）の上だけ' },
     { t: '調整パネルのバーで、向きを敵のほうへ', s: 'パネルは上をつまんで好きな場所へ動かせる' },
     { t: '右下の「準備完了」で始まる',    s: '置き直しはウェーブの合間にできる' },
-    { t: 'あとは眺めるだけ',            s: '倒すと ◈ が増える。負けても持ち帰れる' },
+    { t: 'あとは眺めるだけ',            s: '倒すとコインが増える。負けても持ち帰れる' },
   ],
 
   // 今のステップが済んだかを、盤面の状態から見る（押させるボタンは作らない）
@@ -588,7 +588,7 @@ const UI = {
       const rw = (s.reward.cards || []).map(c => CARDS[c].name).concat(
         Object.entries(s.reward.packs || {}).map(([k, v]) => PACKS[k].name + '×' + v)).join(' / ');
       row.innerHTML =
-        '<div class="stmini" data-sid="' + (unlocked ? s.id : '') + '">' + (unlocked ? '' : '<span class="lk">🔒</span>') + '</div>' +
+        '<div class="stmini" data-sid="' + (unlocked ? s.id : '') + '">' + (unlocked ? '' : '<span class="lk">' + Icons.get('lock') + '</span>') + '</div>' +
         '<div class="sbody">' +
           '<div class="sname">' + (unlocked ? s.name : '？？？') +
             (rec.perfect ? ' <em class="ok">★完璧</em>' : rec.cleared ? ' <em class="ok">突破済</em>' : ' <em>未突破</em>') + '</div>' +
@@ -771,7 +771,7 @@ const UI = {
           (!unlocked ? ' locked' : lv > 0 ? ' have' : '') +
           (can ? ' can' : '') + (n.swapId ? ' swapped' : '') +
           (this.treeSel === s.id ? ' sel' : ''));
-        btn.innerHTML = (unlocked ? n.icon : '🔒') + (lv > 0 ? '<u>' + lv + '</u>' : '');
+        btn.innerHTML = (unlocked ? n.icon : Icons.get('lock')) + (lv > 0 ? '<u>' + lv + '</u>' : '');
         btn.style.left = d.x + 'px';
         btn.style.top = y + 'px';
         if (unlocked) btn.style.borderColor = lv > 0 ? d.col : '';
@@ -829,7 +829,7 @@ const UI = {
 
     const d = Util.el('div', 'tdetail');
     if (!unlocked) {
-      d.innerHTML = '<div class="tdhead"><div class="sic">🔒</div>' +
+      d.innerHTML = '<div class="tdhead"><div class="sic">' + Icons.get('lock') + '</div>' +
         '<div class="sbody"><div class="sname">？？？</div></div></div>' +
         '<div class="tdesc">' + Skill.lockReason(perm, id) + '</div>';
       return d;
@@ -843,7 +843,7 @@ const UI = {
         // （取ったかどうかはボタンの「取得済」で分かる）
         '</div>' +
       '<div class="tdbuy"><button class="sbuy"' + (can ? '' : ' disabled') + '>' +
-        (maxed ? '取得済' : '◈ ' + Util.fmt(Skill.cost(meta, id))) + '</button></div>';
+        (maxed ? '取得済' : Icons.coin() + ' ' + Util.fmt(Skill.cost(meta, id))) + '</button></div>';
 
     const btn = d.querySelector('.sbuy');
     // 買ったら描き直さずその場で書き換える
@@ -853,7 +853,7 @@ const UI = {
       Game.applyMods();
       const lv2 = Skill.lv(meta, id);
       const cap2 = Skill.maxOf(Game.perm, id);
-      btn.textContent = lv2 >= cap2 ? '取得済' : '◈ ' + Util.fmt(Skill.cost(meta, id));
+      btn.innerHTML = lv2 >= cap2 ? '取得済' : Icons.coin() + ' ' + Util.fmt(Skill.cost(meta, id));
       this.refreshSkills();
       btn.disabled = !(Game.canBuySkills() && Skill.canBuy(meta, Game.perm, id));
     };
@@ -911,7 +911,7 @@ const UI = {
       if (!r.n) return;
       Game.applyMods();
       Game.save();
-      this.toastMsg(r.n + '件 購入　◈ ' + Util.fmt(r.spent), '#ff8a1f');
+      this.toastMsg(r.n + '件 購入　コイン ' + Util.fmt(r.spent), '#ff8a1f');
       this.refreshTree();
     });
     t.appendChild(b);
@@ -953,7 +953,7 @@ const UI = {
         const need = Game.loadoutNeed(i);
         if (need === null) return;
         const s = Util.el('button', 'slot locked');
-        s.innerHTML = '<div class="sw dim">🔒</div><div class="sn dim">' + (i + 1) + '種目</div>' +
+        s.innerHTML = '<div class="sw dim">' + Icons.get('lock') + '</div><div class="sn dim">' + (i + 1) + '種目</div>' +
           '<div class="sx">第' + need + '章に到達すると開く</div>';
         s.disabled = true;
         slots.appendChild(s);
@@ -1091,7 +1091,7 @@ const UI = {
       if (pid === 'relic' && !Pack.isUnlocked(Game.perm, pid)) continue;
       const unlocked = Pack.isUnlocked(Game.perm, pid);
       const row = Util.el('div', 'prow' + (n > 0 && unlocked ? ' can' : ''));
-      row.innerHTML = '<div class="pico" style="background:' + pk.color + '22;border-color:' + pk.color + '">⬢</div>' +
+      row.innerHTML = CardFX.miniPack(pk) +
         '<div class="sbody"><div class="sname">' + pk.name + ' <em>×' + n + '</em></div>' +
         '<div class="sdesc">' + (unlocked
           ? pk.desc + '<br>' + pk.size + '枚入り' + (pk.guarantee ? ' / ' + BAL.rarity[pk.guarantee].name + '以上1枚確定' : '')
@@ -1110,7 +1110,7 @@ const UI = {
       const done = !!Game.perm.missions[m.id];
       const row = Util.el('div', 'mrow' + (done ? ' done' : ''));
       const rw = Object.entries(m.reward).map(([k, v]) => PACKS[k].name + '×' + v).join(' / ');
-      row.innerHTML = '<span>' + (done ? '✔' : '□') + '</span><b>' + m.name + '</b><em>' + rw + '</em>';
+      row.innerHTML = '<span>' + (done ? Icons.get('check') : '□') + '</span><b>' + m.name + '</b><em>' + rw + '</em>';
       p.appendChild(row);
     }
   },
@@ -1561,16 +1561,24 @@ const UI = {
     return wrap;
   },
 
+  // アイコン＋文の1行（結果画面の「1体も通さなかった」など）。文は textContent で入れる
+  iconLine(cls, icon, text) {
+    const d = Util.el('div', cls);
+    d.innerHTML = Icons.get(icon) + ' ';
+    d.appendChild(document.createTextNode(text));
+    return d;
+  },
+
   // カードのアイコン。**どの武器のものかは絵で示し、文からは省く**
   cardIcon(c) {
-    if (c.kind === 'perm') return '◈';
-    if (c.kind === 'key') return '⚿';
+    if (c.kind === 'perm') return Icons.get('perm');
+    if (c.kind === 'key') return Icons.get('key');
     if (c.kind === 'synergy') {
       // シナジーは「関わる武器のアイコン2つ」。これだけで条件が分かる
       return (c.requires || []).map(w => (WEAPONS[w] && WEAPONS[w].icon) || '◆').join('');
     }
-    if (c.weapon && WEAPONS[c.weapon]) return WEAPONS[c.weapon].icon || '◈';
-    return '✦';
+    if (c.weapon && WEAPONS[c.weapon]) return WEAPONS[c.weapon].icon;
+    return Icons.get('spark');
   },
 
   // 短い説明。**武器名は横のアイコンが示すので、文からは落とす。**
@@ -1709,12 +1717,12 @@ const UI = {
       body.appendChild(Util.el('h3', null,
         res.perfect ? '★★ ' + res.stage.name + ' 完璧クリア！' : '★ ' + res.stage.name + ' 突破！'));
       if (res.perfect && !res.stage.experimental) {
-        body.appendChild(Util.el('div', 'reward', '🏆 1体も通さなかった。' +
+        body.appendChild(UI.iconLine('reward', 'trophy', '1体も通さなかった。' +
           PACKS[Pack.forStage(res.stage.id)].name + 'を獲得' +
           (res.stageGot && res.stageGot.firstPerfect ? '（初回なので2個）' : '')));
         this.burst('#ff8a1f');
       } else if (res.perfect) {
-        body.appendChild(Util.el('div', 'reward', '🏆 1体も通さなかった（実験用なので報酬は無し）'));
+        body.appendChild(UI.iconLine('reward', 'trophy', '1体も通さなかった（実験用なので報酬は無し）'));
       } else {
         body.appendChild(this.perfectHint(res.stage, res.leaked));
       }
@@ -1726,7 +1734,7 @@ const UI = {
         this.burst('#ff8a1f');
       }
       const pk = res.stageGot ? Object.entries(res.stageGot.packs).map(([k, v]) => PACKS[k].name + ' ×' + v).join(' / ') : '';
-      if (pk) body.appendChild(Util.el('div', 'reward', '🎁 ' + pk));
+      if (pk) body.appendChild(UI.iconLine('reward', 'pack', pk));
     } else {
       body.appendChild(Util.el('h3', null, '防衛線が抜かれた'));
       body.appendChild(this.perfectHint(res.stage, res.leaked));
@@ -1737,14 +1745,14 @@ const UI = {
       '<div><span>ステージ</span><b>' + res.stage.name + '</b></div>' +
       '<div><span>到達ウェーブ</span><b>' + res.wave + ' / ' + BAL.wavesPerStage + '</b></div>' +
       '<div><span>撃破数</span><b>' + Util.fmt(res.kills) + '</b></div>' +
-      '<div><span>獲得コイン</span><b>◈ ' + Util.fmt(res.coins) + '</b></div>' +
+      '<div><span>獲得コイン</span><b>' + Icons.coin() + ' ' + Util.fmt(res.coins) + '</b></div>' +
       '<div><span>残りライフ</span><b>' + res.lives + ' / ' + res.livesMax + '</b></div>' +
       '<div><span>通した敵</span><b>' + Util.fmt(res.leaked) + '</b></div>';
     body.appendChild(st);
 
     if (res.missions && res.missions.length) {
       body.appendChild(Util.el('div', 'sgroup', 'ミッション達成'));
-      for (const m of res.missions) body.appendChild(Util.el('div', 'note', '✔ ' + m.name));
+      for (const m of res.missions) body.appendChild(UI.iconLine('note', 'check', m.name));
     }
 
     const next = res.ok && res.stageGot && res.stageGot.next;

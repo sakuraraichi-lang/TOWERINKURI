@@ -316,6 +316,10 @@ const Render = {
 
   hexPathOn(ctx, x, y, R) {
     ctx.beginPath();
+    this.hexAddOn(ctx, x, y, R);
+  },
+  // 今のパスに六角を足す（まとめて1回で塗るとき）
+  hexAddOn(ctx, x, y, R) {
     for (let i = 0; i < 6; i++) {
       const a = Math.PI / 3 * i;
       const px = x + Math.cos(a) * R, py = y + Math.sin(a) * R;
@@ -337,34 +341,24 @@ const Render = {
     const c = cv.getContext('2d');
     c.setTransform(res, 0, 0, res, pad * res, pad * res);
     const hex = (x, y, r) => this.hexPathOn(c, x, y, r === undefined ? R : r);
-    // 決まった並びの乱数（下絵は作り直しても同じ模様にする）
-    let seed = 1234567;
-    const rnd = () => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed / 0x7fffffff; };
-
-    // 1. 壁：面取りした金属板
-    for (const h of this.wallHexes(st)) {
-      const g = c.createLinearGradient(h.x - R, h.y - R, h.x + R, h.y + R);
-      g.addColorStop(0, '#2c3344'); g.addColorStop(0.5, '#1b2030'); g.addColorStop(1, '#10131c');
-      hex(h.x, h.y); c.fillStyle = g; c.fill();
-      c.strokeStyle = 'rgba(4,6,10,0.9)'; c.lineWidth = 1.6; c.stroke();
-      // 面取り：上側の縁に光、下側の縁に影
-      c.save(); hex(h.x, h.y, R - 1.6); c.clip();
-      c.strokeStyle = 'rgba(160,178,210,0.16)'; c.lineWidth = 2;
-      c.beginPath(); c.moveTo(h.x - R, h.y); c.lineTo(h.x - R / 2, h.y - R * 0.866); c.lineTo(h.x + R / 2, h.y - R * 0.866); c.stroke();
-      c.restore();
-      // 継ぎ目（一回り小さい六角）
-      hex(h.x, h.y, R * 0.58); c.strokeStyle = 'rgba(120,136,168,0.10)'; c.lineWidth = 1; c.stroke();
-      // ところどころに表示灯
-      const q = rnd();
-      if (q < 0.12) {
-        c.fillStyle = 'rgba(255,150,40,0.85)'; c.shadowColor = '#ff8a1f'; c.shadowBlur = 6;
-        c.fillRect(h.x - 5, h.y + R * 0.38, 3, 2); c.fillRect(h.x + 1, h.y + R * 0.38, 3, 2);
-        c.shadowBlur = 0;
-      } else if (q < 0.2) {                       // 排気口の溝
-        c.strokeStyle = 'rgba(0,0,0,0.55)'; c.lineWidth = 1.4;
-        for (let i = -1; i <= 1; i++) { c.beginPath(); c.moveTo(h.x - 7, h.y + i * 4); c.lineTo(h.x + 7, h.y + i * 4); c.stroke(); }
-      }
-    }
+    // 1. 壁：**隣り合う壁の六角を1つの塊として塗る。**
+    //    前は六角1つずつに縁・継ぎ目・表示灯・排気口を描いていて、細かい穴の並びに見えた
+    //    （ユーザー 2026-09-24「壁の見た目が細かすぎて重合体恐怖症を刺激します、くっ付いたらどうか」）。
+    //    塊の形は、通路の縁の光（2.）で見せる
+    const wallPath = () => {
+      c.beginPath();
+      for (const h of this.wallHexes(st)) this.hexAddOn(c, h.x, h.y, R + 0.8);
+    };
+    const wg = c.createLinearGradient(0, 0, st.w, st.h);
+    wg.addColorStop(0, '#262c3b'); wg.addColorStop(0.55, '#171b26'); wg.addColorStop(1, '#0e1118');
+    wallPath(); c.fillStyle = wg; c.fill();
+    //    塊の縁の厚み：通路に面したところだけ、内側に明るい帯と暗い筋（塊の中に切り込まない）
+    c.save(); wallPath(); c.clip();
+    c.strokeStyle = 'rgba(150,170,205,0.10)'; c.lineWidth = 16;
+    for (const h of v.hexes) { hex(h.x, h.y); c.stroke(); }
+    c.strokeStyle = 'rgba(150,170,205,0.16)'; c.lineWidth = 7;
+    for (const h of v.hexes) { hex(h.x, h.y); c.stroke(); }
+    c.restore();
     // 2. 通路の縁の橙のネオン：通路の六角を太い光の線で縁取ってから、上を床で塗る
     //    → 通路どうしの境目は床に隠れ、壁との境目だけ光が残る
     c.save();
@@ -931,6 +925,30 @@ const Render = {
 
   // 作り置きの絵の解像度（画面の拡大率に合わせる）
   spriteRes() { return Math.min(3, Math.max(1.5, Math.round((this.scale || 1) * (this.dpr || 1) * 3) / 2)); },
+
+  // **コイン：歯車の縁の硬貨。**（ユーザー 2026-09-24「ギアのようなコイン」）画面の Icons.coin と同じ形
+  coinSprite() {
+    const res = this.spriteRes();
+    this._coin = this._coin || {};
+    if (this._coin[res]) return this._coin[res];
+    const h = 8;
+    const cv = document.createElement('canvas'); cv.width = cv.height = Math.ceil(h * 2 * res);
+    const c = cv.getContext('2d'); c.setTransform(res, 0, 0, res, h * res, h * res);
+    const n = 10, ro = 7.4, ri = 6, w = (Math.PI / n) * 0.42;
+    c.beginPath();
+    for (let i = 0; i < n * 2; i++) {
+      const a = (i / (n * 2)) * Math.PI * 2;
+      if (i % 2 === 0) { c.lineTo(Math.cos(a - w) * ro, Math.sin(a - w) * ro); c.lineTo(Math.cos(a + w) * ro, Math.sin(a + w) * ro); }
+      else c.lineTo(Math.cos(a) * ri, Math.sin(a) * ri);
+    }
+    c.closePath(); c.fillStyle = '#8a5a12'; c.fill();
+    const g = c.createRadialGradient(-2, -2, 0.5, 0, 0, 6);
+    g.addColorStop(0, '#fff2b8'); g.addColorStop(0.5, '#ffc234'); g.addColorStop(1, '#b87412');
+    c.fillStyle = g; c.beginPath(); c.arc(0, 0, 5.6, 0, 7); c.fill();
+    c.strokeStyle = '#7a4c0c'; c.lineWidth = 0.8; c.beginPath(); c.arc(0, 0, 3.6, 0, 7); c.stroke();
+    c.fillStyle = '#7a4c0c'; c.beginPath(); c.arc(0, 0, 1, 0, 7); c.fill();
+    return (this._coin[res] = cv);
+  },
 
   // 武器の台座：面取りした金属の六角＋武器の色のネオンの輪
   pedestalSprite(color) {
@@ -1670,8 +1688,11 @@ const Render = {
         }
         const r = f.big ? 5 : 3.2;
         ctx.globalAlpha = 1 - k * 0.45;
-        ctx.fillStyle = '#ffb43c';
-        ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+        // 歯車のコインを、回しながら飛ばす
+        const cs = r * 2.4;
+        ctx.save(); ctx.translate(x, y); ctx.rotate(k * 9 + sd);
+        ctx.drawImage(this.coinSprite(), -cs / 2, -cs / 2, cs, cs);
+        ctx.restore();
         // **キラキラ。** 十字の光を、回しながら明滅させる
         const tw = 0.5 + 0.5 * Math.sin(k * 26 + sd);
         ctx.globalAlpha = (1 - k * 0.45) * tw;

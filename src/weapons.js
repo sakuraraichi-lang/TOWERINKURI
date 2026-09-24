@@ -11,19 +11,19 @@
 
 // 武器カテゴリ。スキルツリーはこのカテゴリ単位でバフを入れる
 const CATEGORIES = {
-  short:   { id: 'short',   name: '短射程',   icon: '◤', color: '#ff8f6a',
+  short:   { id: 'short',   name: '短射程',   icon: Icons.get('short'), color: '#ff8f6a',
              desc: '間合いは狭いが、入った敵をまとめて溶かす' },
-  mid:     { id: 'mid',     name: '中射程',   icon: '◈', color: '#ffd24a',
+  mid:     { id: 'mid',     name: '中射程',   icon: Icons.get('mid'), color: '#ffd24a',
              desc: '扱いやすい距離と手数。通路の脇に置く定番' },
   // ミサイルを指定攻撃へ移したので、いまここはスナイパー1本。
   // 「広い範囲を1基で見る」のは指定攻撃の仕事になったため、説明もそれに合わせた
-  long:    { id: 'long',    name: '長射程',   icon: '◎', color: '#6fe3ff',
+  long:    { id: 'long',    name: '長射程',   icon: Icons.get('long'), color: '#6fe3ff',
              desc: '遠くの一線を撃ち抜く。狙いを絞るほど報われる' },
-  area:    { id: 'area',    name: '範囲攻撃', icon: '▲', color: '#ff6a2a',
+  area:    { id: 'area',    name: '範囲攻撃', icon: Icons.get('area'), color: '#ff6a2a',
              desc: '一度に広い面を焼く。密集しているほど強い' },
-  target:  { id: 'target',  name: '指定攻撃', icon: '✛', color: '#c9a0ff',
+  target:  { id: 'target',  name: '指定攻撃', icon: Icons.get('target'), color: '#c9a0ff',
              desc: '盤面に円を置き、その中へ降らせる。射線を持たない' },
-  support: { id: 'support', name: '支援',     icon: '❉', color: '#7fe6ff',
+  support: { id: 'support', name: '支援',     icon: Icons.get('support'), color: '#7fe6ff',
              desc: '直接は倒さない。足を止め、他の武器の時間を作る' },
 };
 const CATEGORY_IDS = ['short', 'mid', 'long', 'area', 'target', 'support'];
@@ -103,7 +103,7 @@ function baseStats(o) {
 const WEAPONS = {
   // ============ 初期装備 ============
   gatling: {
-    id: 'gatling', stock: 5, cat: 'mid', name: 'ガトリング', short: 'GAT', icon: '🔫', color: '#ffd24a', src: 'start', arcMin: 0.1, arcMax: 0.8,
+    id: 'gatling', stock: 5, cat: 'mid', name: 'ガトリング', short: 'GAT', icon: Icons.get('gatling'), color: '#ffd24a', src: 'start', arcMin: 0.1, arcMax: 0.8,
     desc: '毎秒大量の小口径弾。単発は弱いが手数で押す。',
     //   **唯一の初期武器なので、これ1種で第1〜2章を持たせる必要がある。**（2026-09-21）
     //   ユーザー決定「初期武器はガトリングでよし」で初期所持を1種に絞ったが、
@@ -151,7 +151,7 @@ const WEAPONS = {
   },
 
   sniper: {
-    id: 'sniper', stock: 8, cat: 'long', name: 'スナイパー', short: 'SNP', icon: '🎯', color: '#6fe3ff', src: 'stage', arcMin: 0.03, arcMax: 0.3,
+    id: 'sniper', stock: 8, cat: 'long', name: 'スナイパー', short: 'SNP', icon: Icons.get('sniper'), color: '#6fe3ff', src: 'stage', arcMin: 0.03, arcMax: 0.3,
     // **貫通役。** 並んだ敵を撃ち抜くのが仕事なので、狙うのは「敵が濃いほう」。
     // 以前は最も硬い敵（＝たいてい後方のタンク）を狙っていて、
     // 1.28秒に1発しかないのに目の前の群れを素通りしていた
@@ -188,7 +188,7 @@ const WEAPONS = {
 
   // ============ ステージ報酬（王道TD＋化学兵器） ============
   missile: {
-    id: 'missile', stock: 4, cat: 'target', name: 'ミサイル', short: 'MSL', icon: '🚀', color: '#ff7a3c', src: 'stage',
+    id: 'missile', stock: 4, cat: 'target', name: 'ミサイル', short: 'MSL', icon: Icons.get('missile'), color: '#ff7a3c', src: 'stage',
     arcMin: 0.08, arcMax: 0.42, aimPoint: true, spot: [72, 150],
     desc: '置いた円の中へ爆撃を降らせ続ける。円を絞るほど一点に集まる。',
     // **【2026-09-21】12種を同じ条件で測って、床を上げた。**
@@ -204,7 +204,7 @@ const WEAPONS = {
   },
 
   tesla: {
-    id: 'tesla', stock: 6, cat: 'short', name: 'テスラコイル', short: 'TSL', icon: '⚡', color: '#b58bff', src: 'stage', arcMin: 0.3, arcMax: 1.1,
+    id: 'tesla', stock: 6, cat: 'short', name: 'テスラコイル', short: 'TSL', icon: Icons.get('tesla'), color: '#b58bff', src: 'stage', arcMin: 0.3, arcMax: 1.1,
     desc: '砲身の先へ即着の電撃。当たると次々に連鎖して、群れをまとめて焼く。',
     // **【2026-09-22】下から2番目だった**（第15章・単独・12シード・漏れの中央値 264）。
     //   振って確かめた（6シード・中央値）：
@@ -230,7 +230,7 @@ const WEAPONS = {
   },
 
   flame: {
-    id: 'flame', wallThrough: true, /* 壁を抜ける：範囲もの */ stock: 1, cat: 'area', name: '火炎放射器', short: 'FLM', icon: '🔥', color: '#ff6a2a', src: 'stage', arcMin: 0.45, arcMax: 1.4,
+    id: 'flame', wallThrough: true, /* 壁を抜ける：範囲もの */ stock: 1, cat: 'area', name: '火炎放射器', short: 'FLM', icon: Icons.get('flame'), color: '#ff6a2a', src: 'stage', arcMin: 0.45, arcMax: 1.4,
     desc: '短射程の扇状に炎を吹き続ける。当たった敵は燃え続ける。',
     // 火炎は 17（12種中9位）。ダメージ3.4→5・レート9→12 で 25。実測 17 → 25
     base: baseStats({ arc: 0.50, dmg: 5, rate: 12, range: 130, cone: 0.42, burn: 0.55, burnDur: 3, turn: 5 }),
@@ -256,7 +256,7 @@ const WEAPONS = {
     //   雲を撒く武器なので、効いているのは雲の重なりと持続であって1発の威力ではない。
     //   凍結装置（35で単独突破する）・触手（16→26でも17止まり）と同じで、
     //   **この3種は「1秒あたりのダメージ」では測りきれない。**上げても無駄になる
-    id: 'gas', wallThrough: true, /* 壁を抜ける：範囲もの */ stock: 8, cat: 'area', name: '毒ガス散布機', short: 'GAS', icon: '☣', color: '#8fd94a', src: 'stage', arcMin: 0.38, arcMax: 1.25,
+    id: 'gas', wallThrough: true, /* 壁を抜ける：範囲もの */ stock: 8, cat: 'area', name: '毒ガス散布機', short: 'GAS', icon: Icons.get('gas'), color: '#8fd94a', src: 'stage', arcMin: 0.38, arcMax: 1.25,
     desc: '砲身の先へ毒の雲を撒き続ける。雲の中の敵は毒を受け続け、防御が落ちる。',
     // **【2026-09-22】狙撃たちを上げたら、今度はここが最下位になった**（第15章・12シード・中央値71）。
     //   ここでも威力は効かない（ダメージ 7→21 で 56 → **64**。上の2026-09-21 の観察どおり）。
@@ -281,7 +281,7 @@ const WEAPONS = {
   },
 
   cryo: {
-    id: 'cryo', stock: 1, cat: 'support', name: '凍結装置', short: 'CRY', icon: '❄', color: '#7fe6ff', src: 'stage', arcMin: 0.4, arcMax: 1.2,
+    id: 'cryo', stock: 1, cat: 'support', name: '凍結装置', short: 'CRY', icon: Icons.get('cryo'), color: '#7fe6ff', src: 'stage', arcMin: 0.4, arcMax: 1.2,
     desc: '周囲へ冷気を放つ。敵は大きく減速し、凍った敵は受けるダメージが増える。',
     base: baseStats({ arc: 0.75, dmg: 6, rate: 0.9, range: 165, slow: 0.55, slowDur: 2.4 }),
     fire(w, run) {
@@ -296,7 +296,7 @@ const WEAPONS = {
 
   // ============ パック限定（なんでもあり枠） ============
   katana: {
-    id: 'katana', wallThrough: true, /* 壁を抜ける：間合いの中をまとめて斬る */ stock: 5, cat: 'short', name: '刀', short: 'KTN', icon: '🗡', color: '#f4f6fb', src: 'pack', arcMin: 0.35, arcMax: 1.25,
+    id: 'katana', wallThrough: true, /* 壁を抜ける：間合いの中をまとめて斬る */ stock: 5, cat: 'short', name: '刀', short: 'KTN', icon: Icons.get('katana'), color: '#f4f6fb', src: 'pack', arcMin: 0.35, arcMax: 1.25,
     desc: '間合いに入った敵をまとめて斬る。射程は短いが一撃が重く、会心が乗る。',
     base: baseStats({ arc: 0.80, dmg: 58, rate: 1.5, range: 100, cone: 1.5, crit: 0.2, critMul: 2.5, turn: 12 }),
     fire(w, run) {
@@ -314,7 +314,7 @@ const WEAPONS = {
   },
 
   shuriken: {
-    id: 'shuriken', stock: 4, cat: 'mid', name: '手裏剣', short: 'SHU', icon: '✳', color: '#cdd9e8', src: 'pack', arcMin: 0.15, arcMax: 0.7,
+    id: 'shuriken', stock: 4, cat: 'mid', name: '手裏剣', short: 'SHU', icon: Icons.get('shuriken'), color: '#cdd9e8', src: 'pack', arcMin: 0.15, arcMax: 0.7,
     desc: '敵から敵へ跳ね回る投擲。密集しているほど手が付けられなくなる。',
     base: baseStats({ arc: 0.38, dmg: 13, rate: 2.2, range: 230, speed: 520, bulletR: 5, bounce: 3, turn: 10 }),
     fire(w, run) {
@@ -326,7 +326,7 @@ const WEAPONS = {
   },
 
   tentacle: {
-    id: 'tentacle', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ stock: 8, cat: 'support', name: '触手', short: 'TNT', icon: '🐙', color: '#c85ab0', src: 'pack', arcMin: 0.2, arcMax: 0.8,
+    id: 'tentacle', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ stock: 8, cat: 'support', name: '触手', short: 'TNT', icon: Icons.get('tentacle'), color: '#c85ab0', src: 'pack', arcMin: 0.2, arcMax: 0.8,
     desc: '砲身の先にいる敵を掴んで来た道へ引き戻す。掴まれている間は削られ続ける。',
     // **【2026-09-22】同時に2体まで掴めなかったのが、そのまま弱さだった。**
     //   前は「1体ずつ掴む武器だから数字を上げても頭打ち」と書いて諦めていたが、
@@ -353,7 +353,7 @@ const WEAPONS = {
   },
 
   bubble: {
-    id: 'bubble', stock: 1, cat: 'target', name: '泡', short: 'BBL', icon: '🫧', color: '#8ad8ff', src: 'pack',
+    id: 'bubble', stock: 1, cat: 'target', name: '泡', short: 'BBL', icon: Icons.get('bubble'), color: '#8ad8ff', src: 'pack',
     arcMin: 0.12, arcMax: 0.55, aimPoint: true, spot: [58, 120],
     desc: '置いた円の中へ泡を降らせ、割れた場所の敵を閉じ込める。',
     // 泡は 15（12種中10位）。ダメージ10→16・レート1.1→1.5 で 26。実測 15 → 26
@@ -363,7 +363,7 @@ const WEAPONS = {
   },
 
   mortar: {
-    id: 'mortar', stock: 7, cat: 'target', name: '迫撃砲', short: 'MTR', icon: '💥', color: '#e0b060', src: 'stage',
+    id: 'mortar', stock: 7, cat: 'target', name: '迫撃砲', short: 'MTR', icon: Icons.get('mortar'), color: '#e0b060', src: 'stage',
     arcMin: 0.08, arcMax: 0.45, aimPoint: true, spot: [96, 170],
     desc: '置いた円の中へ重い砲弾を降らせ続ける。射程は長いが発射は遅い。',
     base: baseStats({ arc: 0.26, dmg: 42, rate: 0.55, range: 420, speed: 240, bulletR: 6,

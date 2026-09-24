@@ -34,16 +34,16 @@ const Main = {
     });
     const bm = document.getElementById('btnMute');
     if (bm) {
-      bm.textContent = Game.perm.mute ? '🔇' : '🔊';
+      bm.innerHTML = Icons.get(Game.perm.mute ? 'mute' : 'sound');
       bm.addEventListener('click', (e) => {
         Snd.resume();
         Snd.setMute(!Game.perm.mute);
-        e.currentTarget.textContent = Game.perm.mute ? '🔇' : '🔊';
+        e.currentTarget.innerHTML = Icons.get(Game.perm.mute ? 'mute' : 'sound');
       });
     }
     document.getElementById('btnPause').addEventListener('click', (e) => {
       Game.paused = !Game.paused;
-      e.currentTarget.textContent = Game.paused ? '▶' : '❙❙';
+      e.currentTarget.innerHTML = Icons.get(Game.paused ? 'play' : 'pause');
     });
     document.getElementById('btnSpeed').addEventListener('click', (e) => {
       // ×4 は転生してから。再攻略のテンポを上げる報酬のひとつ
@@ -319,6 +319,11 @@ const Main = {
 };
 
 window.addEventListener('load', () => {
+  // 絵文字をやめて SVG のアイコンに（2026-09-24）。HTML に直書きしている分をここで入れる
+  document.querySelectorAll('[data-ic]').forEach(e => { e.innerHTML = Icons.get(e.dataset.ic); });
+  const ic = (id, html) => { const e = document.getElementById(id); if (e) e.innerHTML = html; };
+  ic('btnCfg', Icons.get('gear')); ic('btnHome', Icons.get('close'));
+  ic('btnPause', Icons.get('pause')); ic('homeCoinIc', Icons.coin());
   Main.init();
   // ホームのロゴ（cardfx.js の描き起こしを使う）
   const hl = document.getElementById('homeLogo');

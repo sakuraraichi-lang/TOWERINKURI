@@ -104,6 +104,12 @@ const CardFX = {
     return el;
   },
 
+  // 一覧に並べる小さなパック（開封画面の金属の箱の縮小版）
+  miniPack(pk) {
+    return '<div class="mpack" style="--pc:' + pk.color + '"><i class="mpack-strip"></i>' +
+      '<i class="mpack-gear">' + Icons.get('gear') + '</i><i class="mpack-haz"></i></div>';
+  },
+
   // 粒子。**数は抑える**（スマホで重くしない）
   particles(host, x, y, color, n, coin) {
     for (let i = 0; i < n; i++) {
@@ -114,7 +120,7 @@ const CardFX = {
       p.style.setProperty('--dy', (Math.sin(a) * d - 40).toFixed(0) + 'px');
       p.style.setProperty('--pc', color);
       p.style.animationDelay = (Math.random() * 0.08).toFixed(2) + 's';
-      if (coin) p.textContent = '◈';
+      if (coin) p.innerHTML = Icons.coin();
       host.appendChild(p);
       setTimeout(() => p.remove(), 1300);
     }
@@ -131,9 +137,12 @@ const CardFX = {
     ov.style.setProperty('--best', BAL.rarity[bestRar].color);
     ov.innerHTML =
       '<div class="pfx-rays"></div>' +
-      '<div class="pfx-pack"><div class="pfx-flap"></div>' +
-        '<div class="pfx-body"><div class="pfx-logo">' + this.logoSvg() + '</div><div class="pfx-name">' + pk.name + '</div>' +
-        '<div class="pfx-sub">' + ids.length + ' CARDS</div></div></div>' +
+      // 金属の箱。上の帯（つまみ付き）を剥くと、口から光があふれてカードが飛び出す
+      '<div class="pfx-pack"><div class="pfx-mouth"></div><div class="pfx-strip"></div><div class="pfx-seam"></div>' +
+        '<div class="pfx-body"><i class="pfx-rv a"></i><i class="pfx-rv b"></i><i class="pfx-rv c"></i><i class="pfx-rv d"></i>' +
+        '<div class="pfx-emb"><div class="pfx-gear">' + Icons.get('gear') + '</div><div class="pfx-logo">' + this.logoSvg() + '</div></div>' +
+        '<div class="pfx-name">' + pk.name + '</div>' +
+        '<div class="pfx-sub">' + ids.length + ' CARDS</div><i class="pfx-haz"></i></div></div>' +
       '<div class="pfx-cards"></div>' +
       '<div class="pfx-hint">タップして開ける</div>' +
       '<div class="pfx-fx"></div>';
@@ -147,11 +156,12 @@ const CardFX = {
     let phase = 'pack';
     const center = () => ({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
 
-    // ① 揺れてから裂ける。**中身が良いほど光が強い**
+    // ① 光を溜めてから、上の帯を剥く。**中身が良いほど光が強い**
+    //   前は「揺れて、膨らみながら消える」だった。ユーザー「震えてフェードアウトしていくのに違和感」
     const tear = () => {
       phase = 'tearing';
       hint.textContent = '';
-      ov.classList.add('shake');
+      ov.classList.add('charge');
       Snd.packShake(best);
       // **昇格演出。**光の色が コモン→レア→エピック→レジェンド と、中身の最高レア度まで段階的に上がる。
       //   1段ごとに音が上がり、粒が弾ける。レジェンドまで上がると画面が揺れる
@@ -168,14 +178,19 @@ const CardFX = {
         }
       }, i * stepMs));
       setTimeout(() => {
-        ov.classList.remove('shake');
-        ov.classList.add('torn');
+        ov.classList.remove('charge');
+        ov.classList.add('peel');
         Snd.packTear(best);
-        const c = center();
-        this.particles(fx, c.x, c.y, BAL.rarity[bestRar].color, 18 + best * 10, false);
-        if (best >= 3) this.particles(fx, c.x, c.y, '#ffe08a', 16, true);
+        // 裂け目に沿って火花：帯の下端を左から右へ
+        const pr = pack.getBoundingClientRect();
+        const sy = pr.top + pr.height * 0.12;
+        for (let i = 0; i < 5; i++) setTimeout(() =>
+          this.particles(fx, pr.left + pr.width * (i + 0.5) / 5, sy, BAL.rarity[bestRar].color, 4 + best * 2, false), i * 55);
+        if (best >= 3) setTimeout(() => this.particles(fx, pr.left + pr.width / 2, sy, '#ffe08a', 16, true), 300);
         Snd.openLoop(true);
-        setTimeout(() => { phase = 'cards'; nextCard(); }, 650);
+        // 口を下へずらしてから、カードを飛び出させる
+        setTimeout(() => ov.classList.add('lower'), 520);
+        setTimeout(() => { phase = 'cards'; deal(); }, 900);
       }, steps0.length * stepMs + 250);
     };
 
@@ -189,7 +204,7 @@ const CardFX = {
         const c = CARDS[id];
         const slot = Util.el('div', 'pfx-slot r-' + c.rarity);
         slot.style.setProperty('--rc', BAL.rarity[c.rarity].color);
-        slot.style.animationDelay = (idx * 0.14).toFixed(2) + 's';
+        slot.classList.add('pre');
         const flip = Util.el('div', 'pfx-flip');
         const inner = Util.el('div', 'pfx-inner');
         const backF = Util.el('div', 'pfx-side pfx-backside');
@@ -199,9 +214,26 @@ const CardFX = {
         flip.appendChild(inner); slot.appendChild(flip);
         row.appendChild(slot);
         slots.push({ slot, inner, front, done: false });
-        setTimeout(() => Snd.deal(idx), idx * 140);
         slot.addEventListener('click', (e) => { e.stopPropagation(); open1(idx); });
       });
+      // **口から飛び出して、並びの位置へ。**並べ終えた位置から口までの差を出して、そこから飛ばす
+      const pr = pack.getBoundingClientRect();
+      const mx = pr.left + pr.width / 2, my = pr.top + pr.height * 0.14;
+      slots.forEach((s, idx) => {
+        const r = s.slot.getBoundingClientRect();
+        s.slot.style.setProperty('--fx', (mx - (r.left + r.width / 2)).toFixed(0) + 'px');
+        s.slot.style.setProperty('--fy', (my - (r.top + r.height / 2)).toFixed(0) + 'px');
+        s.slot.style.setProperty('--fr', ((idx - (slots.length - 1) / 2) * -14).toFixed(0) + 'deg');
+        s.slot.style.animationDelay = (idx * 0.16).toFixed(2) + 's';
+        s.slot.classList.remove('pre');
+        s.slot.classList.add('fly');
+        setTimeout(() => {
+          Snd.deal(idx);
+          this.particles(fx, mx, my, BAL.rarity[CARDS[ids[idx]].rarity].color, 6, false);
+        }, idx * 160);
+      });
+      // 出し切ったら、空の箱は下へ落ちる（消さない）
+      setTimeout(() => ov.classList.add('away'), slots.length * 160 + 450);
       hint.textContent = 'タップして捲る';
     };
     // 次に捲るのは、まだ伏せてある一番左
@@ -265,7 +297,6 @@ const CardFX = {
         }, 260);
       }, wait0);
     };
-    const nextCard = () => deal();
     const finish = () => {
       phase = 'done';
       Snd.openLoop(false);
@@ -303,7 +334,7 @@ const CardFX = {
   coinRain(host, n) {
     for (let i = 0; i < n; i++) {
       const p = Util.el('i', 'pfx-rain');
-      p.textContent = '◈';
+      p.innerHTML = Icons.coin();
       p.style.left = (Math.random() * 100).toFixed(1) + 'vw';
       p.style.animationDelay = (Math.random() * 0.7).toFixed(2) + 's';
       p.style.animationDuration = (1.1 + Math.random() * 0.8).toFixed(2) + 's';

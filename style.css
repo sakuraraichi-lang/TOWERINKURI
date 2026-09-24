@@ -104,13 +104,15 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       display:flex;flex-direction:column;align-items:center;gap:3px;
       font-size:10px;font-weight:700;color:var(--dim);letter-spacing:.02em;
       border:1px solid transparent;}
-#tabs button .ti{font-size:18px;line-height:1;filter:grayscale(1);opacity:.5;}
+#tabs button .ti{font-size:20px;line-height:1;opacity:.5;display:block;}
 #tabs button.on{color:var(--acc);border-color:rgba(255,138,31,.5);
       background:linear-gradient(180deg,rgba(255,138,31,.14),rgba(255,138,31,.03));
       clip-path:polygon(0 0, calc(100% - 8px) 0, 100% 8px, 100% 100%, 8px 100%, 0 calc(100% - 8px));}
 #tabs button.on .ti{filter:none;opacity:1;}
 #tabs button.lock{opacity:.3;}
-#tabs button.lock::after{content:'🔒';position:absolute;right:6px;top:4px;font-size:9px;}
+#tabs button.lock::after{content:'';position:absolute;right:6px;top:4px;width:9px;height:9px;background:currentColor;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 10V7a5 5 0 0 1 10 0v3h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zm2 0h6V7a3 3 0 0 0-6 0z'/%3E%3C/svg%3E") center/contain no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 10V7a5 5 0 0 1 10 0v3h1a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2zm2 0h6V7a3 3 0 0 0-6 0z'/%3E%3C/svg%3E") center/contain no-repeat;}
 .badge{position:absolute;right:5px;top:2px;background:var(--acc2);color:#200a00;
        border-radius:8px;font-size:9px;font-weight:900;padding:1px 5px;
        box-shadow:0 0 8px rgba(255,90,10,.6);}
@@ -191,8 +193,6 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
       background:var(--panel2);border:1px solid var(--line);
       clip-path:polygon(0 0,calc(100% - 9px) 0,100% 9px,100% 100%,9px 100%,0 calc(100% - 9px));}
 .prow.can{border-color:var(--acc);box-shadow:0 0 14px rgba(255,138,31,.12);}
-.pico{width:34px;height:34px;flex:0 0 34px;border:1px solid;
-      display:flex;align-items:center;justify-content:center;font-size:17px;}
 .mrow{display:flex;align-items:center;gap:8px;font-size:11px;padding:6px 8px;
       border-bottom:1px solid rgba(39,44,56,.7);}
 .mrow.done{color:var(--ok);}
@@ -938,30 +938,79 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
   animation:raysspin 14s linear infinite;transition:opacity .5s;}
 .pfx.best-legendary .pfx-rays{background:repeating-conic-gradient(from 0deg,rgba(255,90,90,.5) 0deg 6deg,transparent 6deg 12deg,
   rgba(255,220,90,.55) 12deg 18deg,transparent 18deg 24deg,rgba(90,220,255,.5) 24deg 30deg,transparent 30deg 36deg,rgba(200,110,255,.5) 36deg 42deg,transparent 42deg 48deg);}
-.pfx.shake .pfx-rays{opacity:.6;}
-.pfx.torn .pfx-rays{opacity:1;}
+/* ---- パック本体：金属の箱（2026-09-24・ユーザー「パックの見た目のメカメカしく」）----
+   上の帯を剥いて、口からカードが飛び出す。**揺れて消える形はやめた**
+   （ユーザー「震えてフェードアウトしていくのに違和感があるので、パックを剥いてカードが飛び出てくるように」） */
 .pfx-pack{position:absolute;left:50%;top:45%;width:clamp(150px,44vw,220px);aspect-ratio:3/4.3;transform:translate(-50%,-50%);
-  animation:packfloat 2.2s ease-in-out infinite;}
-.pfx-body{position:absolute;inset:0;border-radius:14px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+  animation:packfloat 2.2s ease-in-out infinite;transition:top .45s cubic-bezier(.3,.8,.3,1);}
+.pfx-body{position:absolute;left:0;right:0;bottom:0;top:12%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 16px),calc(100% - 16px) 100%,16px 100%,0 calc(100% - 16px));
   background:
-    linear-gradient(115deg,transparent 30%,rgba(255,255,255,.45) 45%,transparent 60%),
-    repeating-linear-gradient(60deg,rgba(255,255,255,.07) 0 2px,transparent 2px 16px),
-    linear-gradient(160deg,color-mix(in srgb,var(--pc) 90%,#fff),color-mix(in srgb,var(--pc) 55%,#000));
+    linear-gradient(115deg,transparent 30%,rgba(255,255,255,.22) 45%,transparent 60%),
+    repeating-linear-gradient(90deg,rgba(255,255,255,.035) 0 1px,transparent 1px 3px),
+    linear-gradient(170deg,#3a3f4b 0%,#1a1d25 55%,#0e1015 100%);
   background-size:300% 100%,auto,auto;animation:foil 2.6s linear infinite;
-  box-shadow:0 0 0 3px rgba(255,255,255,.25),0 20px 50px rgba(0,0,0,.6),0 0 40px color-mix(in srgb,var(--pc) 60%,transparent);}
-.pfx-logo{font-size:56px;color:#fff;text-shadow:0 0 18px #fff;}
-.pfx-name{font-size:18px;font-weight:900;color:#fff;letter-spacing:.08em;text-shadow:0 2px 0 rgba(0,0,0,.4);}
-.pfx-sub{font-size:10px;font-weight:800;letter-spacing:.3em;color:rgba(255,255,255,.8);}
-.pfx-flap{position:absolute;left:0;right:0;top:0;height:14%;z-index:2;border-radius:14px 14px 0 0;
-  background:linear-gradient(180deg,color-mix(in srgb,var(--pc) 70%,#fff),color-mix(in srgb,var(--pc) 80%,#000));
-  border-bottom:2px dashed rgba(255,255,255,.6);}
-.pfx.shake .pfx-pack{animation:packshake .09s linear infinite;}
-.pfx.shake .pfx-body{box-shadow:0 0 0 3px #fff,0 0 70px var(--best),0 0 140px var(--best);}
-.pfx.torn .pfx-pack{animation:none;}
-.pfx.torn .pfx-flap{animation:flapoff .6s cubic-bezier(.3,.6,.3,1) forwards;}
-.pfx.torn .pfx-body{animation:packgone .55s ease-in .15s forwards;}
-.pfx.torn::after{content:'';position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 50% 45%,#fff 0%,var(--best) 25%,transparent 60%);
-  animation:tornflash .7s ease-out forwards;}
+  box-shadow:inset 0 0 0 2px color-mix(in srgb,var(--pc) 70%,transparent),inset 0 0 30px rgba(0,0,0,.6);
+  filter:drop-shadow(0 20px 30px rgba(0,0,0,.7)) drop-shadow(0 0 22px color-mix(in srgb,var(--pc) 45%,transparent));}
+.pfx-rv{position:absolute;width:9px;height:9px;border-radius:50%;z-index:1;
+  background:radial-gradient(circle at 35% 35%,#f4f6fb 0,#9aa3b2 40%,#3b404c 75%);box-shadow:0 1px 2px rgba(0,0,0,.8);}
+.pfx-rv.a{left:9px;top:9px;}.pfx-rv.b{right:9px;top:9px;}.pfx-rv.c{left:12px;bottom:22px;}.pfx-rv.d{right:12px;bottom:22px;}
+.pfx-emb{position:relative;width:62%;aspect-ratio:1;display:grid;place-items:center;}
+.pfx-gear{position:absolute;inset:0;color:var(--pc);opacity:.85;animation:gearspin 9s linear infinite;
+  filter:drop-shadow(0 0 6px color-mix(in srgb,var(--pc) 80%,transparent));}
+.pfx-gear .ico{width:100%;height:100%;stroke-width:1.1;}
+.pfx-logo{width:58%;position:relative;}
+.pfx-logo .gamelogo{filter:drop-shadow(0 0 10px rgba(255,255,255,.6));}
+.pfx-name{font-size:16px;font-weight:900;color:#fff;letter-spacing:.1em;padding:3px 12px;
+  background:linear-gradient(180deg,rgba(0,0,0,.55),rgba(0,0,0,.25));border:1px solid color-mix(in srgb,var(--pc) 60%,transparent);
+  clip-path:polygon(8px 0,calc(100% - 8px) 0,100% 50%,calc(100% - 8px) 100%,8px 100%,0 50%);}
+.pfx-sub{font-size:9px;font-weight:800;letter-spacing:.32em;color:color-mix(in srgb,var(--pc) 70%,#fff);}
+.pfx-haz{position:absolute;left:0;right:0;bottom:0;height:13px;opacity:.9;
+  background:repeating-linear-gradient(135deg,var(--pc) 0 7px,#111 7px 14px);}
+/* 剥く帯。右端のつまみを引いて、左から裂ける */
+.pfx-strip{position:absolute;left:0;right:0;top:0;height:13%;z-index:2;transform-origin:100% 100%;
+  clip-path:polygon(0 18%,4% 0,8% 18%,12% 0,16% 18%,20% 0,24% 18%,28% 0,32% 18%,36% 0,40% 18%,44% 0,48% 18%,52% 0,56% 18%,60% 0,64% 18%,68% 0,72% 18%,76% 0,80% 18%,84% 0,88% 18%,92% 0,96% 18%,100% 0,100% 100%,0 100%);
+  background:linear-gradient(180deg,color-mix(in srgb,var(--pc) 75%,#fff) 0%,color-mix(in srgb,var(--pc) 70%,#000) 100%);
+  border-bottom:2px dashed rgba(0,0,0,.55);}
+.pfx-strip::after{content:'PULL';position:absolute;right:6px;top:50%;transform:translateY(-35%);font-size:8px;font-weight:900;letter-spacing:.2em;color:rgba(0,0,0,.65);}
+/* 口からあふれる光 */
+.pfx-mouth{position:absolute;left:6%;right:6%;top:9%;height:8%;z-index:1;opacity:0;border-radius:50%;
+  background:radial-gradient(ellipse at 50% 60%,#fff 0%,var(--best) 40%,transparent 72%);}
+.pfx-mouth::before{content:'';position:absolute;left:10%;right:10%;bottom:40%;height:420%;
+  background:linear-gradient(0deg,color-mix(in srgb,var(--best) 70%,transparent),transparent);
+  -webkit-mask:linear-gradient(90deg,transparent,#000 30%,#000 70%,transparent);mask:linear-gradient(90deg,transparent,#000 30%,#000 70%,transparent);}
+/* 溜め：光が段階的に上がる。**震えは小さく**（中身の良さは光で伝える） */
+.pfx.charge .pfx-pack{animation:packhum .12s linear infinite;}
+.pfx.charge .pfx-body{filter:drop-shadow(0 20px 30px rgba(0,0,0,.7)) drop-shadow(0 0 30px var(--best)) drop-shadow(0 0 60px var(--best));}
+.pfx.charge .pfx-rays{opacity:.6;}
+/* 剥く */
+.pfx.peel .pfx-pack{animation:none;}
+.pfx.peel .pfx-strip{animation:strippeel .7s cubic-bezier(.4,.1,.3,1) forwards;}
+.pfx.peel .pfx-mouth{animation:mouthon .5s ease-out .25s forwards;}
+.pfx.peel .pfx-rays{opacity:1;}
+.pfx.peel .pfx-seam{animation:seamrun .3s linear forwards;}
+.pfx-seam{position:absolute;left:0;top:12%;height:3px;width:0;z-index:3;margin-top:-1px;border-radius:2px;
+  background:#fff;box-shadow:0 0 8px #fff,0 0 16px var(--best);}
+/* 口から出したら下がる → 出し切ったら下へ落ちる（消えない） */
+.pfx.lower .pfx-pack{top:80%;}
+.pfx.away .pfx-pack{animation:packdrop .7s cubic-bezier(.5,0,.8,.4) forwards;}
+.pfx.lv2 .pfx-body{filter:drop-shadow(0 20px 30px rgba(0,0,0,.7)) drop-shadow(0 0 40px var(--best)) drop-shadow(0 0 90px var(--best));}
+.pfx.lv3 .pfx-body{filter:drop-shadow(0 20px 30px rgba(0,0,0,.7)) drop-shadow(0 0 50px #ffb020) drop-shadow(0 0 120px #ffe08a);}
+.pfx.lv3.charge .pfx-pack{animation:packhum .06s linear infinite;}
+@keyframes packhum{0%{transform:translate(-50%,-50%) rotate(-.8deg);}50%{transform:translate(-50.6%,-49.6%) rotate(.8deg);}100%{transform:translate(-49.4%,-50.4%) rotate(-.4deg);}}
+@keyframes gearspin{100%{transform:rotate(360deg);}}
+@keyframes seamrun{0%{width:0;opacity:1;}90%{width:100%;opacity:1;}100%{width:100%;opacity:0;}}
+@keyframes strippeel{0%{transform:none;}35%{transform:translate(4%,-10%) rotate(-10deg);}100%{transform:translate(90%,-420%) rotate(-38deg);opacity:0;}}
+@keyframes mouthon{0%{opacity:0;transform:scaleX(.3);}100%{opacity:1;transform:none;}}
+@keyframes packdrop{0%{transform:translate(-50%,-50%);}25%{transform:translate(-50%,-56%) rotate(-3deg);}100%{transform:translate(-50%,120vh) rotate(14deg);}}
+/* カードが口から飛び出して、並びの位置へ */
+.pfx-slot.pre{visibility:hidden;animation:none;}
+.pfx-slot.fly{animation:flyout .62s cubic-bezier(.2,.9,.3,1) both;}
+@keyframes flyout{
+  0%{transform:translate(var(--fx),var(--fy)) scale(.45) rotate(0);opacity:0;}
+  12%{opacity:1;}
+  55%{transform:translate(calc(var(--fx) * .25),calc(var(--fy) * .25 - 90px)) scale(1.05) rotate(var(--fr));}
+  100%{transform:none;opacity:1;}}
 .pfx-cards{position:absolute;left:0;right:0;top:45%;transform:translateY(-50%);display:flex;justify-content:center;align-items:center;
   gap:clamp(6px,2vw,16px);padding:0 10px;flex-wrap:wrap;}
 .pfx-slot{position:relative;animation:slotin .35s cubic-bezier(.2,1.4,.3,1);}
@@ -995,10 +1044,7 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 @keyframes pfxout{100%{opacity:0;transform:scale(1.04);}}
 @keyframes raysspin{0%{transform:translate(-50%,-50%) rotate(0);}100%{transform:translate(-50%,-50%) rotate(360deg);}}
 @keyframes packfloat{0%,100%{transform:translate(-50%,-52%) rotate(-1.5deg);}50%{transform:translate(-50%,-48%) rotate(1.5deg);}}
-@keyframes packshake{0%{transform:translate(-50%,-50%) rotate(-3deg);}50%{transform:translate(-51%,-49%) rotate(3deg);}100%{transform:translate(-49%,-51%) rotate(-3deg);}}
 @keyframes foil{0%{background-position:150% 0,0 0,0 0;}100%{background-position:-150% 0,0 0,0 0;}}
-@keyframes flapoff{0%{transform:none;}100%{transform:translate(60%,-260%) rotate(40deg);opacity:0;}}
-@keyframes packgone{0%{transform:scale(1);opacity:1;}100%{transform:scale(1.35);opacity:0;}}
 @keyframes tornflash{0%{opacity:1;}100%{opacity:0;}}
 @keyframes slotin{0%{transform:translateY(40px) scale(.6);opacity:0;}100%{transform:none;opacity:1;}}
 @keyframes landbounce{0%{transform:scale(1.35);}100%{transform:scale(1);}}
@@ -1022,9 +1068,6 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 /* ---- ガチャ演出の作り込み（2026-09-24・ユーザー「パックはもっとガチャ演出凝りまくって良い」）---- */
 /* 昇格：揺れているあいだに光の色が段階的に上がる */
 .pfx.lv1 .pfx-rays,.pfx.lv2 .pfx-rays,.pfx.lv3 .pfx-rays{opacity:.9;}
-.pfx.lv2 .pfx-body{box-shadow:0 0 0 4px #fff,0 0 90px var(--best),0 0 180px var(--best);}
-.pfx.lv3 .pfx-body{box-shadow:0 0 0 5px #fff,0 0 120px #ffb020,0 0 240px #ffe08a;}
-.pfx.lv3 .pfx-pack{animation:packshake .06s linear infinite;}
 body.bigshake{animation:bigshake .5s linear;}
 @keyframes bigshake{0%,100%{transform:none;}20%{transform:translate(-8px,4px);}40%{transform:translate(7px,-5px);}60%{transform:translate(-5px,-3px);}80%{transform:translate(4px,5px);}}
 /* 画面を横切る帯 */
@@ -1077,8 +1120,6 @@ body.bigshake{animation:bigshake .5s linear;}
 .pfx-slot.gl3 .cf-backglow{opacity:1;}
 .pfx-slot.charging.gl2 .cf-back,.pfx-slot.charging.gl3 .cf-back{box-shadow:0 0 30px var(--glowc),0 0 60px var(--glowc);}
 @keyframes backshake{0%{transform:rotate(-2deg) translateX(-1px);}50%{transform:rotate(2deg) translateX(1px);}100%{transform:rotate(-1deg);}}
-.pfx-logo{width:70%;}
-.pfx-logo .gamelogo{filter:drop-shadow(0 0 10px rgba(255,255,255,.6));}
 /* =====================================================================
    ホーム画面（2026-09-24・ユーザー「デザイン面を大きく変えましょう、まだ質素です」「今のSF（黒×橙）を豪華に」）
    ===================================================================== */
@@ -1150,3 +1191,21 @@ body:not(.on-home) #homeFx{display:none;}
 .bigstart:disabled::after{display:none;}
 .snav{background:linear-gradient(180deg,rgba(28,32,44,.9),rgba(10,12,18,.9)) !important;box-shadow:0 0 0 1px rgba(255,138,31,.3),0 0 12px rgba(255,138,31,.15);}
 #home .hbar{background:linear-gradient(180deg,rgba(14,17,24,.85),rgba(14,17,24,.4));box-shadow:0 1px 0 rgba(255,138,31,.25);padding-bottom:4px;}
+/* ---- SVG アイコン（2026-09-24・絵文字の置き換え） ---- */
+.ico{width:1em;height:1em;display:inline-block;vertical-align:-0.14em;flex:0 0 auto;}
+.ico.coin{width:1.15em;height:1.15em;vertical-align:-0.2em;filter:drop-shadow(0 0 3px rgba(255,180,60,.45));}
+.ctl.sq .ico{width:18px;height:18px;vertical-align:middle;}
+.cfgbtn .ico{width:18px;height:18px;}
+.hpill s .ico.coin{width:18px;height:18px;}
+.pfx-p.coin .ico,.pfx-rain .ico{width:1em;height:1em;}
+/* パック一覧の小さな箱 */
+.mpack{--pc:#ffd24a;position:relative;width:32px;height:44px;flex:0 0 32px;
+  clip-path:polygon(0 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,6px 100%,0 calc(100% - 6px));
+  background:linear-gradient(170deg,#3a3f4b,#12141a);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--pc) 70%,transparent);}
+.mpack-strip{position:absolute;left:0;right:0;top:0;height:8px;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--pc) 75%,#fff),color-mix(in srgb,var(--pc) 70%,#000));border-bottom:1px dashed rgba(0,0,0,.6);}
+.mpack-gear{position:absolute;left:50%;top:55%;width:20px;height:20px;transform:translate(-50%,-50%);color:var(--pc);
+  filter:drop-shadow(0 0 3px color-mix(in srgb,var(--pc) 80%,transparent));}
+.mpack-gear .ico{width:100%;height:100%;}
+.mpack-haz{position:absolute;left:0;right:0;bottom:0;height:4px;background:repeating-linear-gradient(135deg,var(--pc) 0 3px,#111 3px 6px);}
+.prow.can .mpack-gear .ico{animation:gearspin 6s linear infinite;}
