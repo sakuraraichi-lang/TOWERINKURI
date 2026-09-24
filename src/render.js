@@ -291,7 +291,8 @@ const Render = {
       for (let r = g.r0; r <= g.r1; r++) {
         if (used[c + ',' + r]) continue;
         const hx = MapGen.hexAt(c, r);
-        if (hx.x < -R || hx.y < -R || hx.x > st.w + R || hx.y > st.h + R) continue;
+        // **中心が盤の中にある六角だけ。**丸ごと描くので、これが盤の輪郭（六角のギザギザ）になる
+        if (hx.x < 0 || hx.y < 0 || hx.x > st.w || hx.y > st.h) continue;
         out.push(hx);
       }
     }
@@ -300,9 +301,6 @@ const Render = {
 
   tilesVec(ctx, st) {
     const v = st.vec;
-    // 1. 盤ぜんぶを地面で塗る
-    ctx.fillStyle = '#31384a';
-    ctx.fillRect(0, 0, st.w, st.h);
 
     // 2. **通路は六角セル（ハニカム）で描く。**
     //   （ユーザー 2026-09-21「6角形の道とかにしよう、ハニカムで道とかカーブを再現して」）
@@ -319,11 +317,11 @@ const Render = {
       }
       ctx.closePath();
     };
-    // **盤の外へはみ出した六角を描かない。** 盤の縁に半端なセルが見えていた
+    // **盤の四角で切らない。**（2026-09-24・ユーザー指示「ハニカム形式なのに無理やり直線にする
+    //   描画も削除」）切ると外周の六角がまっすぐ断ち切られて、盤の輪郭と縁の通路が直線になる。
+    //   六角は丸ごと描き、盤の輪郭そのものを六角のギザギザにする
+    //   （どの六角を描くかは wallHexes が「中心が盤の中」で選ぶ）
     ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, st.cols * TILE, st.rows * TILE);
-    ctx.clip();
     // 1b. **壁も同じ六角で作る。**（2026-09-22）
     //   通路だけ六角で壁が四角の格子だと、同じ盤の上で作りが食い違って見える。
     //   壁は「通路を彫り出した素材」なので、明るめ＋継ぎ目だけを見せる
@@ -358,32 +356,6 @@ const Render = {
     }
     ctx.restore();
 
-    // 2b. **盤の縁は六角を描いたあとで塗り直す。**
-    //   edge() が縁の通路を壁に戻しているので、そこだけ「絵は道／規則は壁」になる。
-    //   内側は食い違わない（実測：40枚で内側のずれ0・縁だけ783）
-    //
-    //   **四角で塗ると、六角の盤に四角い額縁が付く。**（2026-09-22）
-    //   縁のタイルに切り抜いてから、**六角の続きとして**塗り直す
-    ctx.save();
-    ctx.beginPath();
-    for (let c = 0; c < st.cols; c++) {
-      if (st.grid[0][c] === '#') ctx.rect(c * TILE, 0, TILE, TILE);
-      if (st.grid[st.rows - 1][c] === '#') ctx.rect(c * TILE, (st.rows - 1) * TILE, TILE, TILE);
-    }
-    for (let r = 0; r < st.rows; r++) {
-      if (st.grid[r][0] === '#') ctx.rect(0, r * TILE, TILE, TILE);
-      if (st.grid[r][st.cols - 1] === '#') ctx.rect((st.cols - 1) * TILE, r * TILE, TILE, TILE);
-    }
-    ctx.clip();
-    ctx.fillStyle = '#353c50';
-    ctx.fillRect(0, 0, st.w, st.h);
-    // 継ぎ目は、通路ぶんの六角も含めて引き直す（縁で六角が途切れて見えないように）
-    ctx.strokeStyle = 'rgba(12,16,26,0.55)';
-    ctx.lineWidth = 1.4;
-    for (const h of v.hexes) { hexPath(h.x, h.y); ctx.stroke(); }
-    for (const h of this.wallHexes(st)) { hexPath(h.x, h.y); ctx.stroke(); }
-    ctx.restore();
-
     // 3. **壁に開いた穴。** 開いている幅ぶんを1本の口として描く。
     //   **六角で描く。**（2026-09-24）前は穴のタイルを囲む赤い四角を描いていて、
     //   六角の盤の上で出現口だけが四角く見えていた。
@@ -401,15 +373,10 @@ const Render = {
       }
       return out;
     })());
-    ctx.save();
-    ctx.beginPath();
-    ctx.rect(0, 0, st.cols * TILE, st.rows * TILE);   // 盤の縁で切る（穴は縁にある）
-    ctx.clip();
     ctx.fillStyle = 'rgba(255,60,90,0.18)';
     ctx.strokeStyle = '#ff5566';
     ctx.lineWidth = 3;
     for (const p of mouthHex) { hexPath(p.x, p.y); ctx.fill(); ctx.stroke(); }
-    ctx.restore();
 
     // 置き場所を選んでいるときの表示（置ける六角だけ光らせる）
     this.placeOverlay(ctx, st);

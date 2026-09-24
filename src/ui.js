@@ -632,8 +632,8 @@ const UI = {
   miniMap(s) {
     const st = Stage.build(s.id);
     const R = MapGen.HEX_R;
-    let out = '<svg viewBox="0 0 ' + st.w + ' ' + st.h + '" class="mm">' +
-              '<rect width="' + st.w + '" height="' + st.h + '" fill="#3b3527"/>';   // 置ける壁
+    // 盤と同じく、**四角で切らずに六角の輪郭のまま**描く（外周の六角がはみ出すぶん余白を取る）
+    let out = '<svg viewBox="' + (-R) + ' ' + (-R) + ' ' + (st.w + 2 * R) + ' ' + (st.h + 2 * R) + '" class="mm">';
     const hex = (x, y) => {
       let d = '';
       for (let i = 0; i < 6; i++) {
@@ -642,6 +642,13 @@ const UI = {
       }
       return '<polygon points="' + d + '"/>';
     };
+    if (st.vec) {
+      out += '<g fill="#3b3527">';                                                 // 置ける壁
+      for (const h of Render.wallHexes(st)) out += hex(h.x, h.y);
+      out += '</g>';
+    } else {
+      out += '<rect width="' + st.w + '" height="' + st.h + '" fill="#3b3527"/>';
+    }
     out += '<g fill="#0c0e13">';                                                   // 通路
     if (st.vec) for (const h of st.vec.hexes) out += hex(h.x, h.y);
     else {

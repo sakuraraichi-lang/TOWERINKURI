@@ -402,18 +402,14 @@ const MapGen = {
     return g;
   },
 
-  // 盤の縁を障害物にして、通路が画面外に触れないようにする。
-  // ただし**出現口のある縁は残す**（そこが穴なので）
-  edge(g) {
-    const rows = g.length, cols = g[0].length;
-    for (let r = 0; r < rows; r++) {
-      for (let c = 0; c < cols; c++) {
-        if (r !== 0 && r !== rows - 1 && c !== 0 && c !== cols - 1) continue;
-        if (g[r][c] === '.') g[r][c] = '#';
-      }
-    }
-    return g;
-  },
+  // **盤の縁のタイルを壁に戻す `edge()` は撤去した。**（2026-09-24・ユーザー指示）
+  //   > 「ハニカム形式なのに無理やり直線にする描画もリファクタリングで削除してください」
+  //   縁に掛かった通路の六角のうち、縁のタイルの部分だけが「絵は通路・規則は壁」になり、
+  //   描画側がそこを四角く塗り直していた。これが通路を**まっすぐ切る線**になっていた。
+  //   **規則を絵に合わせる。** 六角が覆うタイルは縁でも通路のまま。
+  //   実測（mapSeed 4種×30章）：第4〜30章は生成の失敗0のまま、最短経路の中央値 23→24・最短20で不変。
+  //   第1〜3章は手書きへの落ちが増えた（6種で 11→15/18）。第1〜3章はもともと
+  //   生成がほぼ通らない問題を抱えていて、直し方はユーザー判断待ち
 
   // 深さから湧き口の数を決める。表は BAL.holesByDepth（[深さの上限, 口の数] の並び）
   //   ゆらぎは ±0 か +1 だけ。**深いほど必ず増える**形は崩さない
@@ -820,7 +816,7 @@ const MapGen = {
     for (const k in open) hexes.push(cells[k]);
     if (!hexes.length) return null;
     hexes = this.tagZones(hexes, rnd, d);
-    const g = this.edge(this.bake([], { x: core.x, y: core.y }, holes, W, H, hexes));
+    const g = this.bake([], { x: core.x, y: core.y }, holes, W, H, hexes);
 
     return {
       rows: g.map(function (r) { return r.join(''); }),
@@ -1079,7 +1075,7 @@ const MapGen = {
 
     const hexes = this.tagZones(
       this.fillHexGaps(this.hexesFor(lanes, W, H), W, H, spokes ? 6 : 4), rnd, d);
-    const g = this.edge(this.bake(lanes, core, holes, W, H, hexes));
+    const g = this.bake(lanes, core, holes, W, H, hexes);
 
     return {
       rows: g.map(r => r.join('')),
