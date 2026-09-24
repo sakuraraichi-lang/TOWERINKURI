@@ -141,7 +141,7 @@ const Relic = {
       //     1凸ごとに1枚ぶん足す（1枚で上限まで埋まらないように）
       //   上限（cap・転生で開く分）はそのまま
       const t = n < BAL.totuBase ? 0 : Math.floor(Math.log2(n / BAL.totuBase)) + 1;
-      const pct = BAL.relicBaseMul * (1 + BAL.totuStep * t);
+      const pct = BAL.relicBaseMul * (1 + totuBonus(t));
       const cnt = 1 + t;
       if (c.mode === 'add') add[c.key] += Math.min(capOf(!c.fixed), c.eff * pct);
       else if (c.key === 'lives') lives += Math.min(capOf(false), c.eff * cnt);

@@ -404,13 +404,13 @@ const Game = {
   },
   cardRank(cardId) { return this.cardTotu(cardId) + 1; },
 
-  // ランクごとの効果倍率。**0凸（1〜3枚）は等倍。** 1凸ごとに +12%（BAL.totuStep）
+  // ランクごとの効果倍率。**0凸（1〜3枚）は等倍。** 1〜3凸は小さく、4凸から大きく（balance.js の totuBonus）
   //   （2026-09-22 までは「1枚増えるごとに +12%」だった。上の cardTotu を参照）
   //   累乗にしないのは、上限なしの累乗が必ず壊れるから（集金効率の事故）
   rankMul(cardId) {
     // 伸ばす数字を持たないカード（noRank）は、何枚あっても等倍
     if (CARDS[cardId] && CARDS[cardId].noRank) return 1;
-    return 1 + BAL.totuStep * this.cardTotu(cardId);
+    return 1 + totuBonus(this.cardTotu(cardId));
   },
 
   // ---------- カードの効果量に、ランクを通す ----------
