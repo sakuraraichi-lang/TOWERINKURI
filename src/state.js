@@ -91,15 +91,9 @@ const Game = {
       mapSeed: (Math.random() * 0x7fffffff) >>> 0,
       heat: {},          // stageId -> { traffic: [], leak: [] }
       // **タブは最初から全部出さない。** 遊んで意味が分かった順に開く
-      tabs: { skill: false, load: false, pack: false, deck: false },
+      tabs: { skill: false, load: false, pack: false },
       // チュートリアルで今どこまで進んだか。**一度に1操作しか教えない**
       tut: 0,
-      // 換装。**持ち物と、今どこに付いているかを分けて持つ**
-      //   swapsOwned … パックで手に入れた部品（swapId -> 1）。転生で消えない
-      //   swaps      … 今その部品がどのノードに付いているか（baseId -> swapId）
-      // 分けてあるので、**一度手に入れた部品はツリーでいつでも付け外しできる**
-      swapsOwned: {},
-      swaps: {},
       // 武器の調整ポップアップを置いた場所（プレイヤーが動かせる）
       upop: null,
       // 処理の重さを出すか（実機で敵数の上限を測るため）
@@ -171,11 +165,8 @@ const Game = {
       this.perm.hexPlace = 1;
     }
     if (!this.perm.heat) this.perm.heat = {};
-    if (!this.perm.swaps) this.perm.swaps = {};
-    if (!this.perm.swapsOwned) this.perm.swapsOwned = {};
-    // 古いセーブ（持ち物の概念が無かった頃）は、付いている部品を持ち物にも入れる
-    for (const k of Object.keys(this.perm.swaps)) this.perm.swapsOwned[this.perm.swaps[k]] = 1;
-    for (const k of Object.keys(this.perm.swapsOwned)) if (!SWAP_BY_ID[k]) delete this.perm.swapsOwned[k];
+    // 換装は撤去した（2026-09-25）。古いセーブの持ち物は捨てる
+    delete this.perm.swaps; delete this.perm.swapsOwned;
     if (!this.perm.clears) this.perm.clears = {};
     if (!this.perm.bestCoins) this.perm.bestCoins = {};
     if (!this.perm.bestPerfect) this.perm.bestPerfect = {};
@@ -183,8 +174,6 @@ const Game = {
     if (typeof this.perm.autoPlace !== 'boolean') this.perm.autoPlace = true;
     if (typeof this.perm.autoBuy !== 'boolean') this.perm.autoBuy = true;
     if (!this.perm.lastPlace) this.perm.lastPlace = {};
-    // 定義から消えた換装は落とす（古いセーブが未知のidを持ち続けないように）
-    for (const k of Object.keys(this.perm.swaps)) if (!SWAP_BY_ID[this.perm.swaps[k]]) delete this.perm.swaps[k];
     if (typeof this.perm.deepest !== 'number') this.perm.deepest = this.progressCount();
     // 編成の枠は最大ぶん持っておく（開いていない枠は loadoutSlots で切る）
     if (!Array.isArray(this.perm.loadout)) this.perm.loadout = ['wc_gatling'];
@@ -1019,13 +1008,13 @@ const Game = {
 
   // タブの解禁。**一度開いたら閉じない**
   //   スキル・装備 … 一度でも出撃を終えたら（負けても開く）
-  //   パック・デッキ … パックを手にしたら
+  //   パック … パックを手にしたら（デッキのタブは 2026-09-25 に撤去）
   openTabs() {
-    const t = this.perm.tabs || (this.perm.tabs = { skill: false, load: false, pack: false, deck: false });
+    const t = this.perm.tabs || (this.perm.tabs = { skill: false, load: false, pack: false });
     const opened = [];
     if (!t.skill && this.perm.totalRuns > 0) { t.skill = true; t.load = true; opened.push('skill', 'load'); }
     // **最初から持っている1個では開かない。** 遊んで手に入れてから
-    if (!t.pack && (this.perm.packsEarned || 0) > 0) { t.pack = true; t.deck = true; opened.push('pack', 'deck'); }
+    if (!t.pack && (this.perm.packsEarned || 0) > 0) { t.pack = true; opened.push('pack'); }
     return opened;
   },
   tabOpen(id) {

@@ -126,114 +126,166 @@ const CardFX = {
     }
   },
 
-  // ---- パックを開ける ----
-  //   pk … PACKS の1つ ／ ids … 中身 ／ steps … 1枚ごとの {n0, n1}（めくる前後の枚数）
-  open(pk, ids, steps, isNew, onDone) {
-    const glows = ids.map(id => BAL.rarity[CARDS[id].rarity].glow);
+  // ---- パックの画面（1個でもまとめてでも同じ） ----
+  //   金属の箱。上の帯（つまみ付き）を剥くと、口から光があふれてカードが飛び出す。
+  //   glows … 中身のレア度の光（中身が良いほど溜めの光が強い） ／ sub … 箱の下の小さな字
+  _packOverlay(pk, glows, sub, cls) {
     const best = Math.max.apply(null, glows);
     const bestRar = BAL.rarityOrder[best] || 'common';
-    const ov = Util.el('div', 'pfx best-' + bestRar);
+    const ov = Util.el('div', 'pfx best-' + bestRar + (cls ? ' ' + cls : ''));
     ov.style.setProperty('--pc', pk.color);
     ov.style.setProperty('--best', BAL.rarity[bestRar].color);
     ov.innerHTML =
       '<div class="pfx-rays"></div>' +
-      // 金属の箱。上の帯（つまみ付き）を剥くと、口から光があふれてカードが飛び出す
       '<div class="pfx-pack"><div class="pfx-mouth"></div><div class="pfx-strip"></div><div class="pfx-seam"></div>' +
         '<div class="pfx-body"><i class="pfx-rv a"></i><i class="pfx-rv b"></i><i class="pfx-rv c"></i><i class="pfx-rv d"></i>' +
         '<div class="pfx-emb"><div class="pfx-gear">' + Icons.get('gear') + '</div><div class="pfx-logo">' + this.logoSvg() + '</div></div>' +
         '<div class="pfx-name">' + pk.name + '</div>' +
-        '<div class="pfx-sub">' + ids.length + ' CARDS</div><i class="pfx-haz"></i></div></div>' +
+        '<div class="pfx-sub">' + sub + '</div><i class="pfx-haz"></i></div></div>' +
       '<div class="pfx-cards"></div>' +
       '<div class="pfx-hint">タップして開ける</div>' +
       '<div class="pfx-fx"></div>';
     document.body.appendChild(ov);
-    const pack = ov.querySelector('.pfx-pack');
-    const hint = ov.querySelector('.pfx-hint');
-    const row = ov.querySelector('.pfx-cards');
-    const fx = ov.querySelector('.pfx-fx');
     Snd.resume && Snd.resume();
-
-    let phase = 'pack';
-    const center = () => ({ x: window.innerWidth / 2, y: window.innerHeight / 2 });
-
-    // ① 光を溜めてから、上の帯を剥く。**中身が良いほど光が強い**
-    //   前は「揺れて、膨らみながら消える」だった。ユーザー「震えてフェードアウトしていくのに違和感」
-    const tear = () => {
-      phase = 'tearing';
-      hint.textContent = '';
-      ov.classList.add('charge');
-      Snd.packShake(best);
-      // **昇格演出。**光の色が コモン→レア→エピック→レジェンド と、中身の最高レア度まで段階的に上がる。
-      //   1段ごとに音が上がり、粒が弾ける。レジェンドまで上がると画面が揺れる
-      const steps0 = BAL.rarityOrder.slice(0, best + 1);
-      const stepMs = best >= 3 ? 330 : 300;
-      steps0.forEach((r, i) => setTimeout(() => {
-        ov.style.setProperty('--best', BAL.rarity[r].color);
-        ov.classList.remove('lv0', 'lv1', 'lv2', 'lv3'); ov.classList.add('lv' + i);
-        if (i > 0) {
-          Snd.promote(i);
-          const c = center();
-          this.particles(fx, c.x, c.y, BAL.rarity[r].color, 10 + i * 6, false);
-          if (i >= 3) { document.body.classList.remove('bigshake'); void document.body.offsetWidth; document.body.classList.add('bigshake'); }
-        }
-      }, i * stepMs));
-      setTimeout(() => {
-        ov.classList.remove('charge');
-        ov.classList.add('peel');
-        Snd.packTear(best);
-        // 裂け目に沿って火花：帯の下端を左から右へ
-        const pr = pack.getBoundingClientRect();
-        const sy = pr.top + pr.height * 0.12;
-        for (let i = 0; i < 5; i++) setTimeout(() =>
-          this.particles(fx, pr.left + pr.width * (i + 0.5) / 5, sy, BAL.rarity[bestRar].color, 4 + best * 2, false), i * 55);
-        if (best >= 3) setTimeout(() => this.particles(fx, pr.left + pr.width / 2, sy, '#ffe08a', 16, true), 300);
-        Snd.openLoop(true);
-        // 口を下へずらしてから、カードを飛び出させる
-        setTimeout(() => ov.classList.add('lower'), 520);
-        setTimeout(() => { phase = 'cards'; deal(); }, 900);
-      }, steps0.length * stepMs + 250);
+    return {
+      ov, best, bestRar,
+      pack: ov.querySelector('.pfx-pack'),
+      hint: ov.querySelector('.pfx-hint'),
+      row: ov.querySelector('.pfx-cards'),
+      fx: ov.querySelector('.pfx-fx'),
     };
+  },
+
+  // ① 光を溜めてから、上の帯を剥く。剥き終わってカードを出す番になったら onOut を呼ぶ。
+  //   前は「揺れて、膨らみながら消える」だった。ユーザー「震えてフェードアウトしていくのに違和感」
+  _tear(P, onOut) {
+    const { ov, fx, pack, best, bestRar } = P;
+    P.hint.textContent = '';
+    ov.classList.add('charge');
+    Snd.packShake(best);
+    // **昇格演出。**光の色が コモン→レア→エピック→レジェンド と、中身の最高レア度まで段階的に上がる。
+    //   1段ごとに音が上がり、粒が弾ける。レジェンドまで上がると画面が揺れる
+    const steps0 = BAL.rarityOrder.slice(0, best + 1);
+    const stepMs = best >= 3 ? 330 : 300;
+    steps0.forEach((r, i) => setTimeout(() => {
+      ov.style.setProperty('--best', BAL.rarity[r].color);
+      ov.classList.remove('lv0', 'lv1', 'lv2', 'lv3'); ov.classList.add('lv' + i);
+      if (i > 0) {
+        Snd.promote(i);
+        this.particles(fx, window.innerWidth / 2, window.innerHeight / 2, BAL.rarity[r].color, 10 + i * 6, false);
+        if (i >= 3) this.bigShake();
+      }
+    }, i * stepMs));
+    setTimeout(() => {
+      ov.classList.remove('charge');
+      ov.classList.add('peel');
+      Snd.packTear(best);
+      // 裂け目に沿って火花：帯の下端を左から右へ
+      const pr = pack.getBoundingClientRect();
+      const sy = pr.top + pr.height * 0.12;
+      for (let i = 0; i < 5; i++) setTimeout(() =>
+        this.particles(fx, pr.left + pr.width * (i + 0.5) / 5, sy, BAL.rarity[bestRar].color, 4 + best * 2, false), i * 55);
+      if (best >= 3) setTimeout(() => this.particles(fx, pr.left + pr.width / 2, sy, '#ffe08a', 16, true), 300);
+      Snd.openLoop(true);
+      // 口を下へずらしてから、カードを飛び出させる
+      setTimeout(() => ov.classList.add('lower'), 520);
+      setTimeout(onOut, 900);
+    }, steps0.length * stepMs + 250);
+  },
+
+  bigShake() {
+    document.body.classList.remove('bigshake'); void document.body.offsetWidth; document.body.classList.add('bigshake');
+  },
+
+  // 伏せたカード1枚（裏と表の2面）。**裏面はロゴで、レア度の色が裏から透ける**
+  _slot(c) {
+    const slot = Util.el('div', 'pfx-slot pre r-' + c.rarity);
+    slot.style.setProperty('--rc', BAL.rarity[c.rarity].color);
+    const flip = Util.el('div', 'pfx-flip');
+    const inner = Util.el('div', 'pfx-inner');
+    const backF = Util.el('div', 'pfx-side pfx-backside');
+    backF.appendChild(this.back(c.rarity));
+    const front = Util.el('div', 'pfx-side pfx-frontside');
+    inner.appendChild(backF); inner.appendChild(front);
+    flip.appendChild(inner); slot.appendChild(flip);
+    return { slot, inner, front, done: false };
+  },
+
+  // **口から飛び出して、並びの位置へ。**並べ終えた位置から口までの差を出して、そこから飛ばす。
+  //   出し切ったら、空の箱は下へ落ちる（消さない）。gap … 1枚ごとの間隔（ミリ秒）
+  _flyOut(P, slots, rars, gap) {
+    const pr = P.pack.getBoundingClientRect();
+    const mx = pr.left + pr.width / 2, my = pr.top + pr.height * 0.14;
+    slots.forEach((s, idx) => {
+      const r = s.slot.getBoundingClientRect();
+      s.slot.style.setProperty('--fx', (mx - (r.left + r.width / 2)).toFixed(0) + 'px');
+      s.slot.style.setProperty('--fy', (my - (r.top + r.height / 2)).toFixed(0) + 'px');
+      s.slot.style.setProperty('--fr', ((idx - (slots.length - 1) / 2) * -14 / Math.max(1, slots.length / 3)).toFixed(0) + 'deg');
+      s.slot.style.animationDelay = (idx * gap / 1000).toFixed(2) + 's';
+      s.slot.classList.remove('pre');
+      s.slot.classList.add('fly');
+      // 音と粒は間引く（まとめて開けたとき何十枚も鳴らさない）
+      if (idx < 8 || idx % 4 === 0) setTimeout(() => {
+        Snd.deal(idx % 8);
+        this.particles(P.fx, mx, my, BAL.rarity[rars[idx]].color, 6, false);
+      }, idx * gap);
+    });
+    setTimeout(() => P.ov.classList.add('away'), slots.length * gap + 450);
+  },
+
+  // 受け取るボタン
+  _finish(P, onDone) {
+    Snd.openLoop(false);
+    Snd.fanfare(P.best);
+    const btn = Util.el('button', 'pfx-done', '受け取る');
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      P.ov.classList.add('out');
+      setTimeout(() => { P.ov.remove(); onDone && onDone(); }, 260);
+    });
+    P.ov.appendChild(btn);
+    P.hint.textContent = 'カードをタップすると全文';
+  },
+
+  // 表が見えた瞬間の光（レジェンドは金色に弾けて帯とコインの雨、エピックは紫の帯）
+  _land(P, slot, c, g, i) {
+    const r = slot.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
+    this.particles(P.fx, cx, cy, BAL.rarity[c.rarity].color, 8 + g * 8, false);
+    Snd.land(g, i);
+    slot.classList.add('landed');
+    if (g >= 3) {
+      P.ov.classList.remove('flash'); void P.ov.offsetWidth; P.ov.classList.add('flash');
+      this.particles(P.fx, cx, cy, '#ffe08a', 24, true);
+      this.banner(P.ov, 'LEGENDARY', c.name, '#ffb020');
+      this.coinRain(P.fx, 42);
+    } else if (g >= 2) {
+      P.ov.classList.remove('flashp'); void P.ov.offsetWidth; P.ov.classList.add('flashp');
+      this.banner(P.ov, 'EPIC', c.name, '#c26bff');
+    }
+  },
+
+  // ---- パックを1個開ける ----
+  //   pk … PACKS の1つ ／ ids … 中身 ／ steps … 1枚ごとの {n0, n1}（めくる前後の枚数）
+  open(pk, ids, steps, isNew, onDone) {
+    const glows = ids.map(id => BAL.rarity[CARDS[id].rarity].glow);
+    const P = this._packOverlay(pk, glows, ids.length + ' CARDS');
+    const { ov, fx, row, hint } = P;
+    let phase = 'pack';
 
     // ② 伏せて配り、1枚ずつ捲る。**ルーレットはやめた**（ユーザー 2026-09-24「カードなので
-    //   ルーレットでガチャガチャはせず、裏側から捲るようにしましょう」）。
-    //   裏面はロゴ。**レア度の色が裏から透ける**ので、捲る前から期待できる
+    //   ルーレットでガチャガチャはせず、裏側から捲るようにしましょう」）
     const slots = [];
     let flipped = 0, busy = false;
     const deal = () => {
+      phase = 'cards';
       ids.forEach((id, idx) => {
-        const c = CARDS[id];
-        const slot = Util.el('div', 'pfx-slot r-' + c.rarity);
-        slot.style.setProperty('--rc', BAL.rarity[c.rarity].color);
-        slot.classList.add('pre');
-        const flip = Util.el('div', 'pfx-flip');
-        const inner = Util.el('div', 'pfx-inner');
-        const backF = Util.el('div', 'pfx-side pfx-backside');
-        backF.appendChild(this.back(c.rarity));
-        const front = Util.el('div', 'pfx-side pfx-frontside');
-        inner.appendChild(backF); inner.appendChild(front);
-        flip.appendChild(inner); slot.appendChild(flip);
-        row.appendChild(slot);
-        slots.push({ slot, inner, front, done: false });
-        slot.addEventListener('click', (e) => { e.stopPropagation(); open1(idx); });
+        const s = this._slot(CARDS[id]);
+        row.appendChild(s.slot);
+        slots.push(s);
+        s.slot.addEventListener('click', (e) => { e.stopPropagation(); open1(idx); });
       });
-      // **口から飛び出して、並びの位置へ。**並べ終えた位置から口までの差を出して、そこから飛ばす
-      const pr = pack.getBoundingClientRect();
-      const mx = pr.left + pr.width / 2, my = pr.top + pr.height * 0.14;
-      slots.forEach((s, idx) => {
-        const r = s.slot.getBoundingClientRect();
-        s.slot.style.setProperty('--fx', (mx - (r.left + r.width / 2)).toFixed(0) + 'px');
-        s.slot.style.setProperty('--fy', (my - (r.top + r.height / 2)).toFixed(0) + 'px');
-        s.slot.style.setProperty('--fr', ((idx - (slots.length - 1) / 2) * -14).toFixed(0) + 'deg');
-        s.slot.style.animationDelay = (idx * 0.16).toFixed(2) + 's';
-        s.slot.classList.remove('pre');
-        s.slot.classList.add('fly');
-        setTimeout(() => {
-          Snd.deal(idx);
-          this.particles(fx, mx, my, BAL.rarity[CARDS[ids[idx]].rarity].color, 6, false);
-        }, idx * 160);
-      });
-      // 出し切ったら、空の箱は下へ落ちる（消さない）
-      setTimeout(() => ov.classList.add('away'), slots.length * 160 + 450);
+      this._flyOut(P, slots, ids.map(id => CARDS[id].rarity), 160);
       hint.textContent = 'タップして捲る';
     };
     // 次に捲るのは、まだ伏せてある一番左
@@ -254,7 +306,7 @@ const CardFX = {
           s.slot.style.setProperty('--glowc', BAL.rarity[r].color);
           s.slot.classList.remove('gl0', 'gl1', 'gl2', 'gl3'); s.slot.classList.add('gl' + i);
           if (i > 0) Snd.promote(i);
-          if (i >= 3) { document.body.classList.remove('bigshake'); void document.body.offsetWidth; document.body.classList.add('bigshake'); }
+          if (i >= 3) this.bigShake();
         }, i * stepMs));
       }
       const wait0 = g >= 1 ? lv.length * stepMs + 120 : 0;
@@ -267,20 +319,7 @@ const CardFX = {
         Snd.flip(g);
         // 表が見えた瞬間（回転の半ばを過ぎたところ）
         setTimeout(() => {
-          const r = s.slot.getBoundingClientRect();
-          const cx = r.left + r.width / 2, cy = r.top + r.height / 2;
-          this.particles(fx, cx, cy, BAL.rarity[c.rarity].color, 8 + g * 8, false);
-          Snd.land(g, idx);
-          s.slot.classList.add('landed');
-          if (g >= 3) {
-            ov.classList.remove('flash'); void ov.offsetWidth; ov.classList.add('flash');
-            this.particles(fx, cx, cy, '#ffe08a', 24, true);
-            this.banner(ov, 'LEGENDARY', c.name, '#ffb020');
-            this.coinRain(fx, 42);
-          } else if (g >= 2) {
-            ov.classList.remove('flashp'); void ov.offsetWidth; ov.classList.add('flashp');
-            this.banner(ov, 'EPIC', c.name, '#c26bff');
-          }
+          this._land(P, s.slot, c, g, idx);
           if (c.kind === 'weapon' && isNew[idx]) UI.toastMsg('新しい武器 ' + c.name, '#ffb43c');
           const t0 = Game.totuOf(st.n0), t1 = Game.totuOf(st.n1);
           let wait = g >= 3 ? 1100 : g >= 2 ? 700 : 250;
@@ -292,28 +331,106 @@ const CardFX = {
           setTimeout(() => {
             busy = false;
             flipped++;
-            if (flipped >= slots.length) finish();
+            if (flipped >= slots.length) { phase = 'done'; this._finish(P, onDone); }
           }, wait);
         }, 260);
       }, wait0);
     };
-    const finish = () => {
+
+    ov.addEventListener('click', (e) => {
+      if (phase === 'pack') { phase = 'tearing'; this._tear(P, deal); return; }
+      if (phase === 'cards') { open1(nextIdx()); return; }
+      if (phase === 'done') {
+        const card = e.target.closest('.cf');
+        if (card) card.classList.toggle('full');
+      }
+    });
+  },
+
+  // ---- まとめて開ける ----
+  //   **前は演出が無く、しかも凸が上がると例外で止まり、パックだけ消えていた。**
+  //   （ユーザー 2026-09-25「まとめて開封を押したら演出を挟まずになくなりました。これはよくないですね」）
+  //   1個のときと同じ箱を剥き、カードを種類ごとに1枚ずつ伏せて並べ、**低いレア度から順に波のように捲る。**
+  //   一番良いものが最後に開く。タップで残りを一気に捲れる。
+  //   list … [{ id, gain, isNew, t0, t1 }]（並べる順） ／ packN … 開けた個数
+  openBulk(pk, packN, list, onDone) {
+    const total = list.reduce((a, e) => a + e.gain, 0);
+    const glows = list.map(e => BAL.rarity[CARDS[e.id].rarity].glow);
+    const P = this._packOverlay(pk, glows, packN + ' PACKS · ' + total + ' CARDS', 'bulk');
+    const { ov, fx, hint } = P;
+    let phase = 'pack';
+    const grid = Util.el('div', 'pfx-bulk');
+    ov.insertBefore(grid, P.row);
+    const slots = [];
+
+    // 捲る順：レア度の低い順（同じなら並びの後ろから）。一番良いものを最後に
+    const order = list.map((e, i) => i).sort((a, b) => glows[a] - glows[b] || b - a);
+    let next = 0, timer = null;
+    const flipOne = (i, quiet) => {
+      const s = slots[i];
+      if (s.done) return;
+      s.done = true;
+      const e = list[i], c = CARDS[e.id], g = glows[i];
+      const el = this.face(c, { count: Game.own(e.id), gain: e.gain, isNew: e.isNew });
+      s.front.appendChild(el);
+      s.slot.classList.add('flipped');
+      if (!quiet || g >= 2) Snd.flip(g);
+      setTimeout(() => {
+        if (quiet && g < 2) s.slot.classList.add('landed');
+        else this._land(P, s.slot, c, g, i % 8);
+        if (e.t1 > e.t0 && !c.noRank) {
+          const tag = Util.el('div', 'cf-up' + (e.t1 >= BAL.totuBigFrom ? ' big' : ''));
+          tag.innerHTML = '<b>' + e.t1 + '凸</b><small>×' + (1 + totuBonus(e.t0)).toFixed(2) +
+            ' → ×' + (1 + totuBonus(e.t1)).toFixed(2) + '</small>';
+          el.appendChild(tag);
+        }
+      }, 260);
+    };
+    const done = () => {
+      if (phase === 'done') return;
       phase = 'done';
-      Snd.openLoop(false);
-      Snd.fanfare(best);
-      const btn = Util.el('button', 'pfx-done', '受け取る');
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        ov.classList.add('out');
-        setTimeout(() => { ov.remove(); onDone && onDone(); }, 260);
+      clearTimeout(timer);
+      // 覚醒（4凸に届いた）が出ていたら、1枚だけ大きく見せる
+      const aw = list.findIndex(e => !CARDS[e.id].noRank && e.t0 < BAL.totuBigFrom && e.t1 >= BAL.totuBigFrom);
+      const wait = aw >= 0 ? 700 : 300;
+      if (aw >= 0) setTimeout(() => {
+        const el = slots[aw].front.querySelector('.cf');
+        if (el) this.totuUp(el, ov, fx, CARDS[list[aw].id], list[aw].t0, list[aw].t1);
+      }, 400);
+      setTimeout(() => this._finish(P, onDone), wait + (aw >= 0 ? 1800 : 0));
+    };
+    // 波：1枚ずつ間を空けて捲る。**全部で2.5秒前後に収める**（何十種類でも待たせすぎない）
+    const wave = () => {
+      if (phase !== 'cards') return;
+      if (next >= order.length) { done(); return; }
+      const i = order[next++];
+      const g = glows[i];
+      flipOne(i, order.length > 12);
+      const gap = Math.max(60, Math.min(260, 2500 / order.length));
+      timer = setTimeout(wave, g >= 2 ? 900 : gap);
+    };
+    const deal = () => {
+      phase = 'cards';
+      list.forEach(e => {
+        const s = this._slot(CARDS[e.id]);
+        grid.appendChild(s.slot);
+        slots.push(s);
       });
-      ov.appendChild(btn);
-      hint.textContent = 'カードをタップすると全文';
+      const gap = Math.max(25, Math.min(120, 1200 / list.length));
+      this._flyOut(P, slots, list.map(e => CARDS[e.id].rarity), gap);
+      hint.textContent = 'タップで全部めくる';
+      timer = setTimeout(wave, list.length * gap + 500);
     };
 
     ov.addEventListener('click', (e) => {
-      if (phase === 'pack') { tear(); return; }
-      if (phase === 'cards') { open1(nextIdx()); return; }
+      if (phase === 'pack') { phase = 'tearing'; this._tear(P, deal); return; }
+      if (phase === 'cards') {
+        // 残りを一気に捲る
+        clearTimeout(timer);
+        while (next < order.length) flipOne(order[next++], true);
+        done();
+        return;
+      }
       if (phase === 'done') {
         const card = e.target.closest('.cf');
         if (card) card.classList.toggle('full');

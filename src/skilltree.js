@@ -312,17 +312,20 @@ const SKILLS = [
   //   **後ろへずらした。**（ユーザー 2026-09-24「3択のスキル選出が…5択、複数回選択出来るのは一体何の効果か
   //   わからない、4章ほどでテストプレイしてる段階だけど、4章にしては早い」）
   //   前は 500〜8,100 コイン・2章突破で開いていて、第3〜4章で5択・1ウェーブ3枚になっていた。
-  //   値段は他の節と同じ物差し（収入は1章で×4.8。100コイン≒第1章）で置いた：
-  //     選択肢 … 1段目 600万（第8章ごろ）・2段目 ×12,000（第14章ごろ）
-  //     取れる枚数 … 1段目 2,500万（第10章ごろ）・2段目 ×12,000（第16章ごろ）
+  //   **【2026-09-25】さらに後ろへ。**（ユーザー「10章くらいから選択肢が増えたり、15章くらいから枚数が増えたりしていくといい」）
+  //   **開く章は解放条件（unlock＝突破した章の数）で決め、値段はそこで買える額に置く。**
+  //   物差し（100コイン≒第1章・1章で×4.8）どおりの 1.4億／3,400億では、通し2本で
+  //   選択肢が第12章・枚数が第19〜20章でやっと買えた（周4は第15〜16章で終わり、そこで足りなかった）。
+  //   1/10・1/100 にした：選択肢 1,500万（9章突破で開く＝第10章）・取れる枚数 30億（14章突破で開く＝第15章）。
+  //   2段目はどちらも ×12,000（≒6章あと）
   ...chain({ id: 'picks', gkey: 'picks', icon: '★', group: 'カード',
     names: ['増設スロット', '二重スロット'],
     steps: 2, eff: 1, mode: 'add', tmpl: 'ウェーブ突破ごとに取れるカードが +{e} 枚',
-    cost0: 25000000, g: 12000, unlock: 8 }),
+    cost0: 3e9, g: 12000, unlock: 14 }),
   ...chain({ id: 'choices', gkey: 'choices', icon: '✧', group: 'カード',
     names: ['選択肢拡張', '広域走査'],
     steps: 2, eff: 1, mode: 'add', tmpl: 'カード選択の提示枚数 +{e}（3択 → 4択 …）',
-    cost0: 6000000, g: 12000, unlock: 6 }),
+    cost0: 1.5e7, g: 12000, unlock: 9 }),
   //   **上限なしの1節をやめた。**（2026-09-22）Lv20 まで積むと3択からコモンが消えていた
   //   （draft.js 側にも下限を入れてある）。取り切り3段で、効き幅も設計で決まる
   ...chain({ id: 'luck', gkey: 'luck', icon: '✧', group: 'カード',
@@ -379,69 +382,7 @@ const SKILLS_OFF = SKILLS.filter(s => OFF_KEYS.indexOf(s.key) >= 0);
 const SKILL_BY_ID = {};
 for (const s of SKILLS) SKILL_BY_ID[s.id] = s;
 
-// ============ 換装 ============
-//
-//   【何と何を入れ替えるのか】
-//     スキルツリーの**特定の1ノードだけ**を、別の効き方に差し替える。
-//     どのノードに刺さるかは `base` が持っている（1つの部品は1つのノード専用）。
-//     例：`sw_short_rate 速振り` は `short_util`（短射程の持続）にしか刺さらない。
-//
-//   【何が変わって、何が変わらないか】
-//     変わる   … 名前・アイコン・効き方（key / eff / mode）
-//     変わらない … 値段・解放条件・カテゴリ・取ったかどうか
-//     つまり強くなるのではなく、**伸ばす方向が変わる**だけ。
-//
-//   【どこで手に入り、どこで付け替えるのか】
-//     手に入る … パック開封の3択（`Pack.swapChance` の確率で出る）。
-//                **選んだ1つだけが手持ちになる。選ばなかった2つは手に入らない。**
-//     付け替え … 一度手に入れた部品は `perm.swapsOwned` に残り、
-//                **スキルツリーで、そのノードをタップすればいつでも付け替えられる。**
-//                元の効き方にも、いつでも戻せる（`Skill.setSwap(perm, base, null)`）。
-//     → だからパックで「今は換えない」を選んでも、**あとから直せる**。
-//        ただし部品そのものは、選ばなければ手に入らない。
-//
-//   eff は、同じ key を持つ**いまの取り切りの節**から写している（新しい数字を作らない）。
-//     rate ×2.2 = mid_rate ほか / crit +0.25 = long_util / dmg ×3.5 = mid_dmg ほか
-//   **【2026-09-24】段積み時代の値（rate 1.07・crit 0.04・dmg 1.12）のまま残っていた。**
-//   取り切りで節が ×2.2 や ×3.5 になったのに部品だけ据え置きで、差すと大きく弱くなるだけだった
-//   （例：速振り＝持続×1.8 の節をレート×1.07 に替える）
-const SWAPS = [
-  { id: 'sw_mid_crit', base: 'mid_rate', name: '収束照準', icon: '◈', key: 'crit',
-    eff: 0.25, mode: 'add', tmpl: '中射程カテゴリの会心率 +{e}（会心倍率も上がる）' },
-  //   **【2026-09-22】base が存在しない節を指していた部品が3つあった。**
-  //     sw_long_rate → 'long_crit' ／ sw_area_crit → 'area_size'
-  //     ／ sw_sup_dmg → 'sup_pow'
-  //   どれも節の一覧に無い id で、**この3つはどのノードにも刺さらなかった。**
-  //   （範囲の節を外したときに、刺さらない部品を落とす処理を入れて発覚した）
-  //   生きている節に繋ぎ直す。刺さる先は同じカテゴリの節
-  { id: 'sw_short_rate', base: 'short_util', name: '速振り', icon: '◤', key: 'rate',
-    eff: 2.2, mode: 'mul', tmpl: '短射程カテゴリの発射レート ×{e}' },
-  { id: 'sw_long_rate', base: 'long_util', name: '速射砲身', icon: '◎', key: 'rate',
-    eff: 2.2, mode: 'mul', tmpl: '長射程カテゴリの発射レート ×{e}' },
-  { id: 'sw_area_crit', base: 'area_dmg2', name: '起爆同調', icon: '▲', key: 'crit',
-    eff: 0.25, mode: 'add', tmpl: '範囲攻撃カテゴリの会心率 +{e}（会心倍率も上がる）' },
-  //   sw_target_rng（射程を伸ばす部品）は、範囲の節と一緒に落とした
-  { id: 'sw_sup_dmg', base: 'support_rate', name: '過負荷回路', icon: '❉', key: 'dmg',
-    eff: 3.5, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}' },
-];
-
-// **換装部品も同じ扱い。**（2026-09-22）
-//   ・射程／効果範囲に変える部品そのもの（sw_target_rng）
-//   ・外した節にしか刺さらない部品（base が消えたもの）
-//   の両方を落とす。落とさないと、刺さらない部品がパックから出る
-{
-  for (let i = SWAPS.length - 1; i >= 0; i--) {
-    const w = SWAPS[i];
-    if (OFF_KEYS.indexOf(w.key) >= 0 || !SKILL_BY_ID[w.base]) SWAPS.splice(i, 1);
-  }
-}
-
-const SWAP_BY_ID = {};
-const SWAPS_FOR = {};
-for (const s of SWAPS) {
-  SWAP_BY_ID[s.id] = s;
-  (SWAPS_FOR[s.base] || (SWAPS_FOR[s.base] = [])).push(s);
-}
+// 換装（パックの部品で節の効き方を付け替える仕組み）は 2026-09-25 に撤去した（ユーザー判断。遊んでいて死んでいた）
 
 const Skill = {
   // 買ったレベル ＋ 遺物「初期投資」がくれる下駄。
@@ -469,19 +410,8 @@ const Skill = {
     return s ? Math.min(lv, Skill.maxOf(p, id)) : lv;
   },
 
-  // 換装を当てはめたあとのノード定義。**ここ以外で SKILL_BY_ID を直に見ない**
-  node(id, perm) {
-    const base = SKILL_BY_ID[id];
-    const p = perm || ((typeof Game !== 'undefined' && Game.perm) ? Game.perm : null);
-    const sw = p && p.swaps && SWAP_BY_ID[p.swaps[id]];
-    if (!sw) return base;
-    return {
-      id: base.id, cat: base.cat, group: base.group,
-      cost0: base.cost0, costG: base.costG, max: base.max, unlock: base.unlock,
-      name: sw.name, icon: sw.icon, tmpl: sw.tmpl, eff: sw.eff, mode: sw.mode, key: sw.key,
-      swappedFrom: base.name, swapId: sw.id,
-    };
-  },
+  // ノードの定義（換装を撤去したので、ただの引き当て）
+  node(id) { return SKILL_BY_ID[id]; },
 
   // 表示文は eff から作る。計算式と同じ値を見ているので、ズレようがない
   desc(s) { return s.tmpl.split('{e}').join(String(s.eff)); },
@@ -605,45 +535,6 @@ const Skill = {
   // まとめ買いで1つでも買えるか
   canBuyAny(meta, perm) {
     return SKILLS.some(s => s.gkey !== 'lure' && Skill.canBuy(meta, perm, s.id));
-  },
-
-  // パックで出す換装の候補。**買っていないノードは換えられない**（換える意味が無い）。
-  // すでに持っている部品は出さない（持っているものはツリーで付け替えられるため）
-  swapChoices(meta, perm, n) {
-    const pool = SWAPS.filter(sw =>
-      Skill.isUnlocked(perm, sw.base) &&
-      Skill.lv(meta, sw.base) > 0 &&
-      !(perm.swapsOwned && perm.swapsOwned[sw.id]));
-    Util.shuffle(pool);
-    return pool.slice(0, n || 3);
-  },
-
-  // 部品を持っているか／そのノード用に持っている部品は何か
-  ownsSwap(perm, swapId) { return !!(perm.swapsOwned && perm.swapsOwned[swapId]); },
-  ownedSwapsFor(perm, baseId) {
-    return (SWAPS_FOR[baseId] || []).filter(sw => Skill.ownsSwap(perm, sw.id));
-  },
-  // そのノードに刺さりうる部品が、そもそも世の中に在るか（説明に使う）
-  hasSwapFor(baseId) { return !!(SWAPS_FOR[baseId] || []).length; },
-
-  // パックで選んだ＝**手に入れて、そのまま付ける**
-  applySwap(perm, swapId) {
-    const sw = SWAP_BY_ID[swapId];
-    if (!sw) return false;
-    if (!perm.swapsOwned) perm.swapsOwned = {};
-    perm.swapsOwned[sw.id] = 1;
-    return Skill.setSwap(perm, sw.base, sw.id);
-  },
-
-  // ツリーから付け替える。swapId に null を渡すと元の効き方へ戻る。
-  // **持っていない部品は付けられない**
-  setSwap(perm, baseId, swapId) {
-    if (!perm.swaps) perm.swaps = {};
-    if (!swapId) { delete perm.swaps[baseId]; return true; }
-    const sw = SWAP_BY_ID[swapId];
-    if (!sw || sw.base !== baseId || !Skill.ownsSwap(perm, swapId)) return false;
-    perm.swaps[baseId] = swapId;
-    return true;
   },
 
   // アップグレード＋転生ボーナスを、出撃時の倍率一式にまとめる

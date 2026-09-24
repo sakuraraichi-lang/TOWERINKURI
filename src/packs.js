@@ -29,7 +29,6 @@
 const PACKS = {
   basic: {
     id: 'basic', name: '基本パック', size: 3, unlock: 2, unlockP: 0, color: '#7f93a8',
-    swapChance: 0.20,
     desc: '汎用カードと、初期装備まわりの強化',
     weights: { common: 78, rare: 19, epic: 2.7, legendary: 0.3 }, guarantee: null,
     // 汎用カード＋初期装備（src:'start' ＝ いまはガトリングだけ）の強化。
@@ -40,7 +39,6 @@ const PACKS = {
   },
   arms: {
     id: 'arms', name: '兵装パック', size: 3, unlock: 0, unlockP: 2, color: '#ffd24a',
-    swapChance: 0.40,
     desc: '短射程・中射程・長射程。刀と手裏剣もここから',
     weights: { common: 48, rare: 39, epic: 11, legendary: 2 }, guarantee: 'rare',
     accepts: (c) => {
@@ -52,7 +50,6 @@ const PACKS = {
   },
   chem: {
     id: 'chem', name: '化学パック', size: 3, unlock: 0, unlockP: 3, color: '#8fd94a',
-    swapChance: 0.40,
     desc: '範囲攻撃・指定攻撃・支援。触手と泡もここから',
     weights: { common: 42, rare: 41, epic: 14, legendary: 3 }, guarantee: 'rare',
     accepts: (c) => {
@@ -65,7 +62,6 @@ const PACKS = {
   // **転生でしか手に入らない。** 中身は遺物（転生で消えない永続パッシブ）
   relic: {
     id: 'relic', name: '遺物パック', size: 3, unlock: 0, unlockP: 1, color: '#ffb43c',
-    swapChance: 0,
     desc: '転生でしか出ない。中身は転生で消えない永続強化',
     //   **レジェンドを半分に。**（2026-09-21・ユーザー指摘「レジェンドも出やすすぎ」）
     //   当時はレジェンドの遺物が2種類しかなく、出やすいと同じものばかりになった
@@ -76,7 +72,6 @@ const PACKS = {
   },
   syn: {
     id: 'syn', name: '連携パック', size: 3, unlock: 0, unlockP: 4, color: '#c26bff',
-    swapChance: 0.25,
     desc: 'シナジー専用。2種を組み合わせたときだけ効くカード',
     // シナジーの内訳に合わせる（コモン2 / レア5 / エピック2 / レジェンド0）。
     // コモンを0にしていると、コモンのシナジー2枚が永久に出ない
@@ -202,9 +197,19 @@ const Pack = {
   // ステージに紐づく分野のパックid
   forStage(stageId) { return stagePackOf(stageId); },
 
-  // 開封で「換装の3択」が出る確率。
-  // **武器の分野を掘るパックほど出やすい。** 換装はカテゴリの伸ばし方を変えるものなので
-  swapChance(packId) { return PACKS[packId].swapChance || 0; },
+  // 転生で貰えるパックの個数（分野に振り分ける前）。**画面の案内もこれを見る**
+  //   （2026-09-25：転生タブの案内が古い式「遺物 3+突破×0.8／カード 突破^1.7」のままで、
+  //    20章突破なら「遺物19個・カード約163個」と出ていた。実際は 4個・16個）
+  prestigePreview(clearedStages, prestiges) {
+    if (clearedStages <= 0) return { relic: 0, cards: 0 };
+    return {
+      // 遺物：8回転生で累計 約70枚（下の経緯）
+      relic: Math.round(2 + clearedStages * 0.12),
+      // カード：深さで増える形（^1.7）。**係数 BAL.packPrestigeMul で絞る**（ユーザー 2026-09-24「パックの配布を絞ってみましょう」）
+      cards: Util.clamp(Math.round(Math.pow(clearedStages, 1.7) * BAL.packPrestigeMul) + Math.floor(prestiges / 4),
+                        1, BAL.packPerPrestigeMax),
+    };
+  },
 
   // 転生で貰えるパック。
   // **深く行くほど割に合うようにする。** 浅いところで転生を繰り返しても伸びない
@@ -239,12 +244,9 @@ const Pack = {
     //   **さらに絞る。**（2026-09-21・ユーザー指摘「パックそのものを渡しすぎ」）
     //     round(4 + 突破*0.35) … 8回転生で累計234枚。遺物は13種類なので1種18枚
     //     round(2 + 突破*0.12) … 8回転生で累計 約70枚。1種あたり5枚前後
-    out.relic = Math.round(2 + clearedStages * 0.12);
-    // 1ステージ=1個、5ステージ=約15個。奥へ行くほど1回の転生が重くなる
-    //   **係数 BAL.packPrestigeMul で絞る。**（ユーザー 2026-09-24「パックの配布を絞ってみましょう」）
-    //   深さで増える形（^1.7）はそのまま、全体の量だけを下げる
-    const n = Util.clamp(Math.round(Math.pow(clearedStages, 1.7) * BAL.packPrestigeMul) + Math.floor(prestiges / 4),
-                         1, BAL.packPerPrestigeMax);
+    const pv = Pack.prestigePreview(clearedStages, prestiges);
+    out.relic = pv.relic;
+    const n = pv.cards;
     // 出る分野は「そこまでに突破したステージ」の分野に限られる
     const pool = STAGES.slice(0, clearedStages).map(s => Pack.forStage(s.id));
     for (let i = 0; i < n; i++) {

@@ -108,7 +108,7 @@ const UI = {
   },
 
   lockWhy(id) {
-    if (id === 'pack' || id === 'deck') return 'パックを手に入れると開きます';
+    if (id === 'pack') return 'パックを手に入れると開きます';
     return '一度出撃すると開きます';
   },
 
@@ -585,7 +585,6 @@ const UI = {
     else if (this.tab === 'coll') this.panelCollection(p);
     else if (this.tab === 'pack') this.panelPacks(p);
     else if (this.tab === 'pres') this.panelPrestige(p);
-    else if (this.tab === 'deck') this.panelDeck(p);
   },
 
   // ================= ステージ =================
@@ -784,7 +783,7 @@ const UI = {
         const can = Game.canBuySkills() && Skill.canBuy(Game.meta, perm, s.id);
         const btn = Util.el('button', 'tnode' +
           (!unlocked ? ' locked' : lv > 0 ? ' have' : '') +
-          (can ? ' can' : '') + (n.swapId ? ' swapped' : '') +
+          (can ? ' can' : '') +
           (this.treeSel === s.id ? ' sel' : ''));
         btn.innerHTML = (unlocked ? n.icon : Icons.get('lock')) + (lv > 0 ? '<u>' + lv + '</u>' : '');
         btn.style.left = d.x + 'px';
@@ -852,7 +851,7 @@ const UI = {
     // **アイコン＋題名＋一行＋ボタン。** これ以上は詰めない
     d.innerHTML =
       '<div class="tdhead"><div class="sic">' + n.icon + '</div><div class="sbody">' +
-        '<div class="sname">' + n.name + (n.swapId ? ' <u>換装</u>' : '') + '</div>' +
+        '<div class="sname">' + n.name + '</div>' +
         '<div class="tdesc">' + Skill.shortDesc(n) + '</div></div>' +
         // **節は取り切り（1回で終わり）。**Lv 0/1 の表示は段積みの頃の名残なので出さない
         // （取ったかどうかはボタンの「取得済」で分かる）
@@ -876,39 +875,6 @@ const UI = {
     // 押しっぱなしの連打は撤去した（取り切りなので2回目は買えない）
     btn.addEventListener('pointercancel', stop);
     this.treeBuyBtn = btn;
-
-    // ---- 換装：**付け替えはここでやる。** パックで受け取った部品の置き場 ----
-    if (Skill.hasSwapFor(id)) {
-      const owned = Skill.ownedSwapsFor(perm, id);
-      const sw = Util.el('div', 'tdswap');
-      if (!owned.length) {
-        sw.innerHTML = '<div class="tdswhead">換装</div>' +
-          '<div class="tdswnone">この節に差せる部品があります。<b>パックから出ます。</b></div>';
-      } else {
-        sw.innerHTML = '<div class="tdswhead">換装　<i>取ったかどうかと値段はそのまま</i></div>';
-        const line = Util.el('div', 'tdswrow');
-        const mk = (label, icon, desc, on, onclick) => {
-          const b = Util.el('button', 'swopt' + (on ? ' on' : ''));
-          b.innerHTML = '<span class="swi">' + icon + '</span>' +
-            '<span class="swn">' + label + '</span>' +
-            '<span class="swd">' + desc + '</span>';
-          b.addEventListener('click', () => { if (!on) onclick(); });
-          return b;
-        };
-        line.appendChild(mk('元のまま', s.icon, Skill.shortDesc(s), !n.swapId, () => {
-          Skill.setSwap(Game.perm, id, null);
-          Game.applyMods(); Game.save(); Snd.ui(); this.refreshTree();
-        }));
-        for (const o of owned) {
-          line.appendChild(mk(o.name, o.icon, Skill.shortDesc(o), n.swapId === o.id, () => {
-            Skill.setSwap(Game.perm, id, o.id);
-            Game.applyMods(); Game.save(); Snd.ui(); this.refreshTree();
-          }));
-        }
-        sw.appendChild(line);
-      }
-      d.appendChild(sw);
-    }
     return d;
   },
 
@@ -1079,75 +1045,131 @@ const UI = {
     const have = CARD_IDS.filter(id => Game.own(id) > 0).length;
     const head = Util.el('div', 'phead');
     head.innerHTML = '<b>カードコレクション</b><span class="sub">' + have + ' / ' + total +
-      ' 種類　永久資源。同じカードを重ねて持つほど、カード選択に顔を出しやすくなる</span>';
+      ' 種類　永久資源。同じカードを重ねるほど凸が上がって強くなる</span>';
     p.appendChild(head);
 
-    const order = { weapon: 0, synergy: 1, mod: 2, generic: 3 };
-    const ids = CARD_IDS.slice().sort((a, b) => {
-      const ca = CARDS[a], cb = CARDS[b];
-      return (order[ca.kind] - order[cb.kind]) ||
-        (BAL.rarityOrder.indexOf(cb.rarity) - BAL.rarityOrder.indexOf(ca.rarity)) || a.localeCompare(b);
-    });
-    const grid = Util.el('div', 'cgrid');
-    for (const id of ids) grid.appendChild(CardFX.face(CARDS[id], { count: Game.own(id), dim: Game.own(id) === 0, tap: true }));
-    p.appendChild(grid);
+    // **種類ごとに分けて並べる。**（2026-09-25）
+    //   前は1つの格子に全部入れていて、並べ替えの表に遺物と鍵が無く（比較が NaN）、
+    //   **遺物がほかのカードの間にばらばらに混ざっていた。**
+    //   遺物は「持っているだけで効くカード」（ユーザー 2026-09-25「遺物もパッシブで働くカードのつもりでした、
+    //   これも凸で性能を制御するものとして」）なので、独立した節にして凸の星を見せる
+    const sections = [
+      { kind: 'weapon',  name: '武器',       sub: '編成に入れて盤に置く' },
+      { kind: 'mod',     name: '武器強化',   sub: '3択に出る。その武器が編成にあると効く' },
+      { kind: 'synergy', name: '連携',       sub: '3択に出る。2つの武器がそろうと効く' },
+      { kind: 'generic', name: '汎用',       sub: '3択に出る。どの編成でも効く' },
+      { kind: 'perm',    name: '遺物',       sub: '持っているだけで常に効く。凸で強くなる' },
+      { kind: 'key',     name: '鍵',         sub: '機能を開く' },
+    ];
+    for (const sec of sections) {
+      const ids = CARD_IDS.filter(id => CARDS[id].kind === sec.kind).sort((a, b) =>
+        (BAL.rarityOrder.indexOf(CARDS[b].rarity) - BAL.rarityOrder.indexOf(CARDS[a].rarity)) || a.localeCompare(b));
+      if (!ids.length) continue;
+      const got = ids.filter(id => Game.own(id) > 0).length;
+      const g = Util.el('div', 'csec k-' + sec.kind);
+      g.innerHTML = '<b>' + sec.name + '</b><span>' + sec.sub + '</span><em>' + got + ' / ' + ids.length + '</em>';
+      p.appendChild(g);
+      const grid = Util.el('div', 'cgrid');
+      for (const id of ids) grid.appendChild(CardFX.face(CARDS[id], { count: Game.own(id), dim: Game.own(id) === 0, tap: true }));
+      p.appendChild(grid);
+    }
   },
 
-  // ================= パック =================
+  // ================= ガチャ（パック） =================
+  //   **いわゆるソシャゲのガチャ画面にする。**（ユーザー 2026-09-25「パックの画面を、所謂ソシャゲのガチャ画面の場所にしましょう、
+  //   ここはデザインが行き届いてないところです」）
+  //   前は「パック名・説明・開封・×N」の行が縦に並ぶだけだった。
+  //   選んだパックを舞台の真ん中に大きく置き、提供割合と引くボタンを添える。下の帯で別のパックに切り替える
   panelPacks(p) {
-    const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>パック開封</b><span class="sub">コインでは買えません</span>';
-    p.appendChild(head);
-
-    for (const pid of PACK_IDS) {
-      const pk = PACKS[pid];
-      const n = Game.perm.packs[pid] || 0;
-      // 遺物パックは初回転生で解放される。それまでは存在も見せない
-      if (pid === 'relic' && !Pack.isUnlocked(Game.perm, pid)) continue;
-      const unlocked = Pack.isUnlocked(Game.perm, pid);
-      const row = Util.el('div', 'prow' + (n > 0 && unlocked ? ' can' : ''));
-      row.innerHTML = CardFX.miniPack(pk) +
-        '<div class="sbody"><div class="sname">' + pk.name + ' <em>×' + n + '</em></div>' +
-        '<div class="sdesc">' + (unlocked
-          ? pk.desc + '<br>' + pk.size + '枚入り' + (pk.guarantee ? ' / ' + BAL.rarity[pk.guarantee].name + '以上1枚確定' : '')
-          : Pack.lockReason(Game.perm, pid)) + '</div></div>' +
-        '<button class="sbuy"' + (n > 0 && unlocked ? '' : ' disabled') + '>開封</button>' +
-        // **1枚ずつ開けるのは、溜まってくると作業になる。** まとめて開けられるようにする
-        '<button class="sbuy bulk"' + (n > 1 && unlocked ? '' : ' disabled') + '>×' + n + '</button>';
-      const btns = row.querySelectorAll('.sbuy');
-      btns[0].addEventListener('click', () => this.openPack(pid));
-      btns[1].addEventListener('click', () => this.openPackBulk(pid));
-      p.appendChild(row);
+    const perm = Game.perm;
+    const shown = PACK_IDS.filter(pid => pid !== 'relic' || Pack.isUnlocked(perm, pid));   // 遺物パックは初回転生まで存在も見せない
+    const n = (pid) => perm.packs[pid] || 0;
+    const open = (pid) => Pack.isUnlocked(perm, pid);
+    // 選んでいるパック。**無ければ、開けられるもの → 開いているもの → 先頭**
+    if (!this.gachaPick || shown.indexOf(this.gachaPick) < 0) {
+      this.gachaPick = shown.find(pid => open(pid) && n(pid) > 0) || shown.find(open) || shown[0];
     }
+    const pid = this.gachaPick, pk = PACKS[pid], have = n(pid), ok = open(pid);
 
-    p.appendChild(Util.el('div', 'sgroup', 'ミッション'));
+    const gs = Util.el('div', 'gs');
+    gs.style.setProperty('--pc', pk.color);
+    gs.style.setProperty('--best', pk.color);
+    // 舞台：光の筋と、浮かぶ金属の箱
+    gs.innerHTML =
+      '<div class="gs-stage' + (ok ? '' : ' locked') + '">' +
+        '<i class="gs-rays"></i><i class="gs-floor"></i>' +
+        '<div class="gs-box"><div class="pfx-strip"></div>' +
+          '<div class="pfx-body"><i class="pfx-rv a"></i><i class="pfx-rv b"></i><i class="pfx-rv c"></i><i class="pfx-rv d"></i>' +
+          '<div class="pfx-emb"><div class="pfx-gear">' + Icons.get('gear') + '</div><div class="pfx-logo">' + CardFX.logoSvg() + '</div></div>' +
+          '<div class="pfx-name">' + pk.name + '</div><div class="pfx-sub">' + pk.size + ' CARDS</div><i class="pfx-haz"></i></div></div>' +
+        '<div class="gs-have"><span>所持</span><b>×' + have + '</b></div>' +
+        (ok ? '' : '<div class="gs-lock">' + Icons.get('lock') + Pack.lockReason(perm, pid) + '</div>') +
+      '</div>' +
+      '<div class="gs-info"><b>' + pk.name + '</b><span>' + pk.desc + '</span></div>';
+    // 提供割合（weights は合計100）
+    const rates = Util.el('div', 'gs-rates');
+    for (const r of BAL.rarityOrder) {
+      const w = pk.weights[r] || 0;
+      const d = Util.el('div', 'gs-rate');
+      d.style.setProperty('--rc', BAL.rarity[r].color);
+      d.innerHTML = '<i style="width:' + Math.max(w > 0 ? 3 : 0, w) + '%"></i><span>' + CardFX.RAR_EN[r] + '</span><b>' + w + '%</b>';
+      rates.appendChild(d);
+    }
+    gs.appendChild(rates);
+    if (pk.guarantee) gs.appendChild(Util.el('div', 'gs-note', BAL.rarity[pk.guarantee].name + '以上 1枚確定'));
+
+    // 引くボタン
+    const btns = Util.el('div', 'gs-btns');
+    const b1 = Util.el('button', 'gs-pull one');
+    b1.innerHTML = '<span>1個 開ける</span><b>' + pk.size + '枚</b>';
+    b1.disabled = !ok || have <= 0;
+    b1.addEventListener('click', () => this.openPack(pid));
+    const bn = Util.el('button', 'gs-pull all');
+    bn.innerHTML = '<span>まとめて開ける</span><b>×' + have + '</b>';
+    bn.disabled = !ok || have <= 1;
+    bn.addEventListener('click', () => this.openPackBulk(pid));
+    btns.appendChild(b1); btns.appendChild(bn);
+    gs.appendChild(btns);
+
+    // パックの切り替え
+    const list = Util.el('div', 'gs-list');
+    for (const id of shown) {
+      const c = Util.el('button', 'gs-tab' + (id === pid ? ' on' : '') + (open(id) ? '' : ' locked'));
+      c.style.setProperty('--pc', PACKS[id].color);
+      c.innerHTML = CardFX.miniPack(PACKS[id]) + '<b>' + PACKS[id].name + '</b>' +
+        (open(id) ? '<em' + (n(id) > 0 ? ' class="has"' : '') + '>×' + n(id) + '</em>' : '<em>' + Icons.get('lock') + '</em>');
+      c.addEventListener('click', () => { this.gachaPick = id; Snd.ui(); this.renderPanel(); });
+      list.appendChild(c);
+    }
+    gs.appendChild(list);
+    p.appendChild(gs);
+
+    // パックの入手（ミッション）。畳んでおく
+    const det = Util.el('details', 'gs-miss');
+    const doneN = MISSIONS.filter(m => perm.missions[m.id]).length;
+    det.innerHTML = '<summary>パックの入手　ミッション <b>' + doneN + ' / ' + MISSIONS.length + '</b></summary>';
     for (const m of MISSIONS) {
-      const done = !!Game.perm.missions[m.id];
+      const done = !!perm.missions[m.id];
       const row = Util.el('div', 'mrow' + (done ? ' done' : ''));
       const rw = Object.entries(m.reward).map(([k, v]) => PACKS[k].name + '×' + v).join(' / ');
       row.innerHTML = '<span>' + (done ? Icons.get('check') : '□') + '</span><b>' + m.name + '</b><em>' + rw + '</em>';
-      p.appendChild(row);
+      det.appendChild(row);
     }
+    p.appendChild(det);
   },
 
   // ================= 開封（ガチャ画面） =================
-  //   ① 封を切る（タップ） → ② 1枚ずつめくる → ③ 換装の3択 → ④ 受け取る
-  //   **武器本体が出たときは、ただのカードとして流さず止めて見せる。**
   // 持っているぶんを全部いっぺんに開ける。
-  //   **1枚ずつめくる演出は、溜まってくるとただの作業になる。**
-  //   中身は1枚ずつ開けたときと完全に同じ（同じ Pack.open を回数ぶん呼ぶだけ）。
-  //   換装だけは選ばせる必要があるので、まとめたあとに順番に出す
+  //   中身は1個ずつ開けたときと完全に同じ（同じ Pack.open を回数ぶん呼ぶだけ）。見せ方は CardFX.openBulk
   openPackBulk(pid) {
     if (this._opening) return;
     const n = Game.perm.packs[pid] || 0;
     if (n <= 0) return;
     this._opening = true;
-    Snd.resume();
     const luck = Skill.mods(Game.meta, Game.perm).packLuck;
     const got = {};            // cardId -> 枚数
     const fresh = {};          // 初めて手に入れたか
     const before = {};         // 開ける前の枚数（凸が上がったかを見る）
-    const swaps = [];
     for (let k = 0; k < n; k++) {
       for (const id of Pack.open(pid, luck)) {
         if (before[id] === undefined) before[id] = Game.own(id);
@@ -1155,99 +1177,22 @@ const UI = {
         got[id] = (got[id] || 0) + 1;
         Game.grant(id, 1);
       }
-      if (Util.chance(Pack.swapChance(pid))) {
-        const c = Skill.swapChoices(Game.meta, Game.perm, 3);
-        if (c.length) swaps.push(c);
-      }
     }
     Game.perm.packs[pid] = 0;
     Game.save();
-    Snd.pack();
 
-    const pk = PACKS[pid];
     // **凸が上がったカードを先に並べる。**そのあとレア度の高い順
-    const upOf = (id) => CARDS[id].noRank ? 0 : Game.totuOf(Game.own(id)) - Game.totuOf(before[id]);
-    const ids = Object.keys(got).sort((a, b) => (upOf(b) > 0) - (upOf(a) > 0) ||
-      BAL.rarityOrder.indexOf(CARDS[b].rarity) - BAL.rarityOrder.indexOf(CARDS[a].rarity));
-    const newCount = Object.keys(fresh).length;
-
-    const body = Util.el('div', 'gacha');
-    body.style.setProperty('--pc', pk.color);
-    body.innerHTML =
-      '<div class="gtop"><b>' + pk.name + ' ×' + n + '</b>' +
-      '<span>' + ids.reduce((a, id) => a + got[id], 0) + '枚　新規 ' + newCount + '種</span></div>' +
-      '<div class="gbody"></div><div class="ghint"></div>';
-    const stage = body.querySelector('.gbody');
-    const grid = Util.el('div', 'bulkgrid');
-    let awoke = null;
-    for (const id of ids) {
-      const el = CardFX.face(CARDS[id], { count: Game.own(id), gain: got[id], isNew: !!fresh[id], tap: true });
-      grid.appendChild(el);
-      const t0 = Game.totuOf(before[id]), t1 = Game.totuOf(Game.own(id));
-      if (t1 > t0 && !CARDS[id].noRank) {
-        const big = t1 >= BAL.totuBigFrom;
-        const tag = Util.el('div', 'cf-up' + (big ? ' big' : ''));
-        tag.innerHTML = '<b>' + t1 + '凸</b><small>×'
-          (1 + totuBonus(t0)).toFixed(2) + ' → ×' + (1 + totuBonus(t1)).toFixed(2) + '</small>';
-        el.appendChild(tag);
-        if (!awoke && t0 < BAL.totuBigFrom && big) awoke = { c: CARDS[id], t0, t1 };
-      }
-    }
-    stage.appendChild(grid);
-    this.openModal(body, true);
-    if (newCount) this.burst('#ffb43c');
-    if (awoke) this.awaken(awoke.c, 1 + totuBonus(awoke.t0), 1 + totuBonus(awoke.t1));
-
-    // 換装は選ばせる。出た回数ぶん、順番に
-    let si = 0;
-    const nextSwap = () => {
-      if (si >= swaps.length) {
-        const close = Util.el('button', 'bigbtn', '受け取る');
-        close.addEventListener('click', () => { this.closeModal(); this.renderPanel(); });
-        body.appendChild(close);
-        return;
-      }
-      const set = swaps[si++];
-      stage.innerHTML = '';
-      stage.appendChild(this.choiceHead('換装 ' + si + ' / ' + swaps.length,
-        'スキルツリーの節を1つ、別の効き方に差し替える部品　取ったかどうかと値段はそのまま'));
-      const row = Util.el('div', 'chrow');
-      for (const sw of set) {
-        const base = SKILL_BY_ID[sw.base];
-        const cur = Skill.node(sw.base);
-        const el = this.choiceCard({
-          name: sw.name,
-          desc: '<span class="swfrom">' + cur.icon + ' ' + cur.name + '：' + Skill.shortDesc(cur) + '</span>' +
-                '<span class="swarrow">▼ ここに差す</span>' +
-                '<span class="swto">' + sw.icon + ' ' + sw.name + '：' + Skill.shortDesc(sw) + '</span>',
-          icon: sw.icon, color: 'var(--acc2)', isNew: true,
-          type: base.group + 'の節「' + base.name + '」用',
-          foot: Skill.lv(Game.meta, sw.base) > 0 ? '取得済みのまま差し替わる' : 'まだ取っていない節',
-        });
-        el.addEventListener('click', () => {
-          Skill.applySwap(Game.perm, sw.id); Game.applyMods(); Game.save();
-          this.toastMsg(base.name + ' → ' + sw.name + ' に換装', '#ff7a18');
-          nextSwap();
-        });
-        row.appendChild(el);
-      }
-      stage.appendChild(row);
-      stage.appendChild(Util.el('div', 'swnote',
-        '選んだ部品は手持ちに残り、スキルツリーの節をタップすればいつでも付け外しできます。' +
-        '元の効き方にも戻せます。選ばなかった部品は手に入りません。'));
-      const skip = Util.el('button', 'gskip', 'どれも受け取らない');
-      skip.addEventListener('click', nextSwap);
-      stage.appendChild(skip);
-    };
-    if (swaps.length) {
-      const go = Util.el('button', 'bigbtn', '換装を選ぶ（' + swaps.length + '回）');
-      go.addEventListener('click', () => { go.remove(); nextSwap(); });
-      body.appendChild(go);
-    } else {
-      const close = Util.el('button', 'bigbtn', '受け取る');
-      close.addEventListener('click', () => { this.closeModal(); this.renderPanel(); });
-      body.appendChild(close);
-    }
+    const list = Object.keys(got).map(id => ({
+      id, gain: got[id], isNew: !!fresh[id],
+      t0: Game.totuOf(before[id]), t1: Game.totuOf(Game.own(id)),
+    }));
+    const up = (e) => !CARDS[e.id].noRank && e.t1 > e.t0;
+    list.sort((a, b) => up(b) - up(a) ||
+      BAL.rarityOrder.indexOf(CARDS[b.id].rarity) - BAL.rarityOrder.indexOf(CARDS[a.id].rarity));
+    CardFX.openBulk(PACKS[pid], n, list, () => {
+      this._opening = false;
+      this.renderPanel();
+    });
   },
 
   // **1回のタップで2枚以上減ることがあった。**（ユーザー報告 2026-09-22・最優先）
@@ -1274,91 +1219,13 @@ const UI = {
     });
     for (const id of ids) Game.grant(id, 1);
 
-    // 換装が出るかどうか。**買っていないノードは候補にならない**ので、
-    // 序盤は自然と出ない
-    const swaps = Util.chance(Pack.swapChance(pid))
-      ? Skill.swapChoices(Game.meta, Game.perm, 3) : [];
     Game.save();
 
     // **開封は CardFX に任せる。**（ユーザー 2026-09-24「カードの演出そのものを作り直しませんか」）
-    //   換装の3択が出たときは、開封が終わってから別の画面で選ばせる
     CardFX.open(PACKS[pid], ids, steps, isNew, () => {
       this._opening = false;
-      if (swaps.length) this.openSwapChooser(swaps);
-      else this.renderPanel();
+      this.renderPanel();
     });
-  },
-
-  // 換装の3択（パックから出たとき）。開封の演出のあとに出す
-  openSwapChooser(swaps) {
-    const body = Util.el('div', 'gacha');
-    body.innerHTML = '<div class="gbody"></div><div class="ghint"></div>';
-    const stage = body.querySelector('.gbody');
-    const hint = body.querySelector('.ghint');
-    this.openModal(body, true);
-    const finish = () => {
-      const close = Util.el('button', 'bigbtn', '閉じる');
-      close.addEventListener('click', () => { this.closeModal(); this.renderPanel(); });
-      body.appendChild(close);
-      hint.textContent = '';
-    };    const showSwaps = () => {
-      stage.innerHTML = '';
-      stage.appendChild(this.choiceHead('換装',
-        'スキルツリーの節を1つ、別の効き方に差し替える部品　取ったかどうかと値段はそのまま'));
-      const row = Util.el('div', 'chrow');
-      for (const sw of swaps) {
-        const base = SKILL_BY_ID[sw.base];
-        const lv = Skill.lv(Game.meta, sw.base);
-        const cur = Skill.node(sw.base);
-        // **何と何が入れ替わるのかを、両方その場に出す。**
-        // 新しい効果だけ見せても、何を手放すのか分からず選べない
-        const el = this.choiceCard({
-          name: sw.name,
-          desc: '<span class="swfrom">' + cur.icon + ' ' + cur.name + '：' + Skill.shortDesc(cur) + '</span>' +
-                '<span class="swarrow">▼ ここに差す</span>' +
-                '<span class="swto">' + sw.icon + ' ' + sw.name + '：' + Skill.shortDesc(sw) + '</span>',
-          icon: sw.icon,
-          color: 'var(--acc2)',
-          isNew: true,
-          type: base.group + 'の節「' + base.name + '」用',
-          foot: lv > 0 ? '取得済みのまま差し替わる' : 'まだ取っていない節',
-        });
-        el.addEventListener('click', () => {
-          Skill.applySwap(Game.perm, sw.id);
-          Game.applyMods();
-          Game.save();
-          this.toastMsg(base.name + ' → ' + sw.name + ' に換装', '#ff7a18');
-          stage.innerHTML = '';
-          stage.appendChild(Util.el('div', 'gdone', sw.name + ' に換装した'));
-          finish();
-        });
-        row.appendChild(el);
-      }
-      stage.appendChild(row);
-      // **選ばなかったらどうなるのか／あとでどうするのかを、その場に書く。**
-      // ここが無いと「今は換えない」を押したあと、戻し方が分からない
-      stage.appendChild(Util.el('div', 'swnote',
-        '選んだ部品は手持ちに残り、スキルツリーの節をタップすればいつでも付け外しできます。' +
-        '元の効き方にも戻せます。選ばなかった部品は手に入りません。'));
-      const skip = Util.el('button', 'gskip', 'どれも受け取らない');
-      skip.addEventListener('click', () => { stage.innerHTML = ''; finish(); });
-      stage.appendChild(skip);
-      hint.textContent = '';
-    };
-
-    showSwaps();
-  },
-
-  awaken(c, m0, m1) {
-    const ov = Util.el('div', 'awaken');
-    ov.style.setProperty('--rc', BAL.rarity[c.rarity].color);
-    ov.innerHTML = '<div class="awk-ring"></div><div class="awk-txt">覚醒</div>' +
-      '<div class="awk-name">' + c.name + '</div>' +
-      '<div class="awk-mul">×' + m0.toFixed(2) + ' → <b>×' + m1.toFixed(2) + '</b></div>';
-    document.body.appendChild(ov);
-    Snd.awaken();
-    ov.addEventListener('click', () => ov.remove());
-    setTimeout(() => ov.remove(), 2400);
   },
 
   burst(color) {
@@ -1371,56 +1238,59 @@ const UI = {
   // ================= 転生 =================
   panelPrestige(p) {
     const perm = Game.perm;
-    const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>転生</b><span class="sub">コインとアップグレードを全て失う代わりに、' +
-      '<b>遺物パック</b>を得る。遺物は<b>転生でも消えない</b>強化で、次の周の立ち上がりが速くなる</span>';
-    p.appendChild(head);
-
-    const R = Relic.mods(perm);
-    const st = Util.el('div', 'stats');
-    st.innerHTML =
-      '<div><span>転生回数</span><b>' + perm.prestiges + '</b></div>' +
-      '<div><span>遺物の枚数</span><b>' + R.count + '</b></div>' +
-      '<div><span>遺物：ダメージ</span><b>×' + Util.fmt(R.dmg) + '</b></div>' +
-      '<div><span>遺物：コイン</span><b>×' + Util.fmt(R.coin) + '</b></div>' +
-      '<div><span>突破ステージ</span><b>' + Game.clearedCount() + ' / ' + STAGES.length + '</b></div>' +
-      '<div><span>累計撃破</span><b>' + Util.fmt(perm.totalKills) + '</b></div>';
-    p.appendChild(st);
-
     const cleared = Game.clearedCount();
-    p.appendChild(Util.el('div', 'note', Game.canPrestige()
-      ? '今転生すると <b>遺物パック ' + (3 + Math.floor(cleared * 0.8)) + '個</b> ＋ カードパック 約' +
-        Math.round(Math.pow(cleared, 1.7)) + '個。奥まで突破してから転生するほど、もらえる数が増えます'
-      : 'ステージを ' + BAL.prestigeMinStages + ' 個突破すると転生できます（現在 ' + cleared + ' 個）'));
-    p.appendChild(Util.el('div', 'warn', '※ 転生するとステージの突破状況も戻ります。もう一度突破すれば初回報酬と初回完璧クリアの報酬を取り直せます（カード・パック・遺物は残ります）'));
+    const can = Game.canPrestige() && Game.phase !== 'battle';
+    // **数は本物の式から出す**（Pack.prestigePreview。前は古い式の案内が残っていた）
+    const pv = Pack.prestigePreview(cleared, perm.prestiges);
+    const R = Relic.mods(perm);
 
-    // **転生ボタンは遺物一覧より前に置く。**
-    // 後ろに置くと、遺物が増えるほどスクロールしないと押せなくなる
-    const btn = Util.el('button', 'bigbtn danger', '転生する');
-    btn.disabled = !Game.canPrestige() || Game.phase === 'battle';
+    const hero = Util.el('div', 'pz-hero' + (can ? ' can' : ''));
+    hero.innerHTML =
+      '<div class="pz-emb"><i class="pz-ring"></i>' + Icons.get('cycle') + '</div>' +
+      '<div class="pz-title"><b>転生</b><span>' + (perm.prestiges + 1) + '回目　突破 ' + cleared + ' / ' + STAGES.length + '章</span></div>';
+    p.appendChild(hero);
+
+    // 失うもの ／ 残るもの・得るもの
+    const cols = Util.el('div', 'pz-cols');
+    cols.innerHTML =
+      '<div class="pz-col lose"><h4>失う</h4><ul>' +
+        '<li>コイン</li><li>スキルツリー</li><li>章の突破（初回報酬は取り直せる）</li><li>盤の配置</li></ul></div>' +
+      '<div class="pz-col keep"><h4>残る</h4><ul>' +
+        '<li>カード・凸</li><li>持っているパック</li><li>遺物</li><li>到達した深さ</li></ul></div>';
+    p.appendChild(cols);
+
+    const gain = Util.el('div', 'pz-gain');
+    gain.innerHTML = '<h4>得る</h4>' + (cleared > 0
+      ? '<div class="pz-packs">' +
+          '<div>' + CardFX.miniPack(PACKS.relic) + '<b>遺物パック</b><em>×' + pv.relic + '</em></div>' +
+          '<div>' + CardFX.miniPack(PACKS.basic) + '<b>カードパック</b><em>×' + pv.cards + '</em></div></div>' +
+        '<p>奥まで突破してから転生するほど多い。カードパックの分野は、突破した章の分野から出る</p>'
+      : '<p>まだ何も得られません</p>');
+    p.appendChild(gain);
+
+    const btn = Util.el('button', 'pz-go', can ? '転生する'
+      : 'ステージを ' + BAL.prestigeMinStages + ' 個突破すると転生できます（現在 ' + cleared + ' 個）');
+    btn.disabled = !can;
     btn.addEventListener('click', () => this.confirmPrestige());
     p.appendChild(btn);
 
-    // 持っている遺物の一覧
-    const owned = Relic.owned(perm);
-    if (owned.length) {
-      const g = Util.el('div', 'sgroup');
-      g.innerHTML = '<span>遺物</span><i>転生で消えない</i>';
-      p.appendChild(g);
-      if (R.startLv > 0) {
-        p.appendChild(Util.el('div', 'reward',
-          'スキルツリーの各連なりの1段目が、最初から取得済みになります（設置枠と敵誘引を除く）'));
-      }
-      for (const o of owned) {
-        const row = Util.el('div', 'srow');
-        row.style.borderColor = BAL.rarity[o.card.rarity].color + '66';
-        row.innerHTML =
-          '<div class="sic" style="color:' + BAL.rarity[o.card.rarity].color + '">◈</div>' +
-          '<div class="sbody"><div class="sname">' + o.card.name +
-            ' <em>×' + o.n + '</em></div>' +
-          '<div class="sdesc">' + o.card.desc + '</div></div>';
-        p.appendChild(row);
-      }
+    // 遺物は「持っているだけで効くカード」。一覧は図鑑の「遺物」の節にある（凸の星つき）
+    const st = Util.el('div', 'pz-stats');
+    st.innerHTML =
+      '<div><span>転生回数</span><b>' + perm.prestiges + '</b></div>' +
+      '<div><span>遺物</span><b>' + R.count + '枚</b></div>' +
+      '<div><span>遺物のダメージ</span><b>×' + Util.fmt(R.dmg) + '</b></div>' +
+      '<div><span>遺物のコイン</span><b>×' + Util.fmt(R.coin) + '</b></div>';
+    p.appendChild(st);
+    if (R.count > 0) {
+      const link = Util.el('button', 'pz-link');
+      link.innerHTML = Icons.get('grid') + '遺物を図鑑で見る';
+      link.addEventListener('click', () => {
+        this.tab = 'coll'; this.renderTabs(); this.renderPanel();
+        const sec = document.querySelector('#panel .csec.k-perm');
+        if (sec) sec.scrollIntoView({ block: 'start' });
+      });
+      p.appendChild(link);
     }
 
     const reset = Util.el('button', 'linkbtn', 'セーブデータを全消去');
@@ -1451,36 +1321,23 @@ const UI = {
   },
 
   showPrestigeResult(res) {
-    const body = Util.el('div');
-    body.appendChild(Util.el('h3', null, '転生 #' + res.prestiges + ' 完了'));
-    const list = Util.el('div', 'stats');
-    list.innerHTML = PACK_IDS.filter(k => res.reward[k] > 0)
-      .map(k => '<div><span>' + PACKS[k].name + '</span><b>×' + res.reward[k] + '</b></div>').join('') ||
-      '<div><span>報酬なし</span><b>-</b></div>';
-    body.appendChild(list);
-    const b = Util.el('button', 'bigbtn', 'パックを開けにいく');
+    // リザルトと同じ形（判定の帯 → 獲得物 → 次へ）
+    const body = Util.el('div', 'rs rs-perfect');
+    body.innerHTML = '<div class="rs-ban"><i class="rs-sweep"></i><b>REBIRTH</b><span>転生 ' + res.prestiges + '回目</span></div>';
+    const rew = Util.el('div', 'rs-rew');
+    for (const k of PACK_IDS.filter(k => res.reward[k] > 0)) {
+      const d = Util.el('div', 'rs-pack');
+      d.innerHTML = CardFX.miniPack(PACKS[k]) + '<b>' + PACKS[k].name + '</b><em>×' + res.reward[k] + '</em>';
+      rew.appendChild(d);
+    }
+    if (rew.children.length) { body.appendChild(Util.el('div', 'rs-h', '獲得')); body.appendChild(rew); }
+    const b = Util.el('button', 'rs-go');
+    b.innerHTML = '<span>パックを</span><b>開けにいく</b>' + Icons.get('pack');
     b.addEventListener('click', () => { this.closeModal(); this.tab = 'pack'; this.renderTabs(); this.renderPanel(); });
     body.appendChild(b);
     this.openModal(body);
-  },
-
-  // デッキ。**まだ枠だけ。**
-  // 3択の抽選に入るカードを自分で組めるようにする場所だが、
-  // カードの種類が増えてからでないと選ぶ意味が出ないので、今は説明だけ置く
-  panelDeck(p) {
-    // **まだ組めないので、説明も出さない。** 枠だけ見せる。
-    // 中身が入ったら、ここに組む画面を作る
-    const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>デッキ</b>';
-    p.appendChild(head);
-
-    const grid = Util.el('div', 'deckslots');
-    for (let i = 0; i < 12; i++) {
-      const s = Util.el('div', 'dslot');
-      s.innerHTML = '<span>' + (i + 1) + '</span>';
-      grid.appendChild(s);
-    }
-    p.appendChild(grid);
+    this.el.modal.classList.add('rsmodal');
+    this.burst('#ffd24a');
   },
 
   // ================= カード選択（ウェーブ突破ごと） =================
@@ -1551,7 +1408,7 @@ const UI = {
     this.openModal(body, true);
   },
 
-  // ---- 3択の画面の部品（レベルアップと換装で使い回す） ----
+  // ---- 3択の画面の部品 ----
   choiceHead(title, sub) {
     const h = Util.el('div', 'chhead');
     h.innerHTML = '<b>' + title + '</b>' + (sub ? '<span>' + sub + '</span>' : '');
@@ -1662,6 +1519,7 @@ const UI = {
   openModal(body, noClose) {
     const m = this.el.modal;
     m.innerHTML = '';
+    m.classList.remove('rsmodal');
     const box = Util.el('div', 'mbox');
     box.appendChild(body);
     m.appendChild(box);
@@ -1670,7 +1528,7 @@ const UI = {
   },
 
   closeModal() {
-    this.el.modal.classList.remove('on');
+    this.el.modal.classList.remove('on', 'rsmodal');
     this.el.modal.innerHTML = '';
     this._opening = false;          // パックの多重開封の鍵を戻す（openPack）
     if (!this.draftOpen) Game.paused = false;
@@ -1686,23 +1544,6 @@ const UI = {
   },
 
   // ================= 結果 =================
-  // 「完璧クリアすると何がもらえるか」を名指しで出す。
-  // パックは分野で分かれているので、分野名まで言わないと狙う理由にならない
-  perfectHint(stage, leaked) {
-    const rec = Game.stageRec(stage.id);
-    const pk = PACKS[Pack.forStage(stage.id)];
-    const el = Util.el('div', 'note');
-    // **完璧クリアのパックは転生ごとに1回・2個。**（0924a）この周でもう取っていたら、そう書く。
-    //   前は取ったあとも「×1 が手に入る」と出ていた（実際には何も出ない）
-    el.innerHTML = (rec.perfect
-      ? '<b>完璧クリア</b>のパックは、この周ではもう受け取り済み（転生すると、また受け取れる）。<br>'
-      : '1体も通さずに凌ぐと<b>完璧クリア</b>。<b style="color:' + pk.color + '">' +
-        pk.name + ' ×2</b> が手に入る（転生ごとに1回）。<br>') +
-      '<span class="dim">' + pk.desc + '</span>' +
-      (leaked > 0 ? '<br>今回は <b>' + Util.fmt(leaked) + '</b> 体通した。' +
-        '盤面の赤い枠が抜けられたルート。' : '');
-    return el;
-  },
 
   // スキップの結果。**手で突破したときと同じものが出た**ことを、そのまま並べる
   showSkipResult(res) {
@@ -1720,72 +1561,101 @@ const UI = {
     this.openModal(body, true);
   },
 
+  // ================= リザルト =================
+  //   **一目で「勝ったか・何を得たか・次へ」だけ分かる形にする。**
+  //   （ユーザー 2026-09-25「連続して遊ぶとリザルトがまだ情報量が多く、デザイン性が悪い」）
+  //   前は見出し・長い説明・6マスの表・ミッション・ボタン3つが縦に並んでいた。
+  //   大きな判定の帯 → 獲得コイン → 報酬（カード・パック） → 次へ、の順。細かい数字は1行に畳む
   showResult(res) {
-    const body = Util.el('div');
-    if (res.ok) {
-      body.appendChild(Util.el('h3', null,
-        res.perfect ? '★★ ' + res.stage.name + ' 完璧クリア！' : '★ ' + res.stage.name + ' 突破！'));
-      if (res.perfect) {
-        // パックが出るのは、その周で初めての完璧クリアだけ
-        const fp = res.stageGot && res.stageGot.firstPerfect;
-        body.appendChild(UI.iconLine('reward', 'trophy', '1体も通さなかった。' + (fp
-          ? PACKS[Pack.forStage(res.stage.id)].name + ' ×2 を獲得'
-          : 'この周の完璧クリアのパックは受け取り済み')));
-        if (fp) this.burst('#ff8a1f');
-      } else {
-        body.appendChild(this.perfectHint(res.stage, res.leaked));
+    const perfect = res.ok && res.perfect;
+    const body = Util.el('div', 'rs ' + (perfect ? 'rs-perfect' : res.ok ? 'rs-clear' : 'rs-lose'));
+    const word = perfect ? 'PERFECT' : res.ok ? 'CLEAR' : 'DEFEAT';
+    const sub = perfect ? '完璧クリア' : res.ok ? '突破' : '防衛線が抜かれた';
+    body.innerHTML =
+      '<div class="rs-ban"><i class="rs-sweep"></i><b>' + word + '</b>' +
+        '<span>' + res.stage.name + '　' + sub + '</span></div>' +
+      '<div class="rs-coin">' + Icons.coin() + '<b>0</b><small>獲得コイン</small></div>' +
+      '<div class="rs-line">' +
+        '<span>ウェーブ <b>' + res.wave + '/' + BAL.wavesPerStage + '</b></span>' +
+        '<span>ライフ <b>' + res.lives + '/' + res.livesMax + '</b></span>' +
+        '<span>通した <b>' + Util.fmt(res.leaked) + '</b></span>' +
+        '<span>撃破 <b>' + Util.fmt(res.kills) + '</b></span></div>';
+
+    // 報酬：初回突破の武器カード・パック・完璧クリアのパック
+    const got = res.stageGot;
+    const rew = Util.el('div', 'rs-rew');
+    if (res.ok && got && got.first && got.cards.length) {
+      for (const cid of got.cards) {
+        const f = CardFX.face(CARDS[cid], { count: Game.own(cid), isNew: true, tap: true });
+        f.classList.add('landed');
+        rew.appendChild(f);
       }
-      if (res.stageGot && res.stageGot.first && res.stageGot.cards.length) {
-        body.appendChild(Util.el('div', 'sgroup', '新しい武器カードを獲得'));
-        const row = Util.el('div', 'popenrow');
-        for (const cid of res.stageGot.cards) { const f = CardFX.face(CARDS[cid], { count: Game.own(cid), isNew: true, tap: true }); f.classList.add('landed'); row.appendChild(f); }
-        body.appendChild(row);
-        this.burst('#ff8a1f');
-      }
-      const pk = res.stageGot ? Object.entries(res.stageGot.packs).map(([k, v]) => PACKS[k].name + ' ×' + v).join(' / ') : '';
-      if (pk) body.appendChild(UI.iconLine('reward', 'pack', pk));
-    } else {
-      body.appendChild(Util.el('h3', null, '防衛線が抜かれた'));
-      body.appendChild(this.perfectHint(res.stage, res.leaked));
+    }
+    if (got) for (const [k, v] of Object.entries(got.packs)) {
+      const d = Util.el('div', 'rs-pack');
+      d.innerHTML = CardFX.miniPack(PACKS[k]) + '<b>' + PACKS[k].name + '</b><em>×' + v + '</em>';
+      rew.appendChild(d);
+    }
+    if (rew.children.length) {
+      body.appendChild(Util.el('div', 'rs-h', '獲得'));
+      body.appendChild(rew);
     }
 
-    const st = Util.el('div', 'stats');
-    st.innerHTML =
-      '<div><span>ステージ</span><b>' + res.stage.name + '</b></div>' +
-      '<div><span>到達ウェーブ</span><b>' + res.wave + ' / ' + BAL.wavesPerStage + '</b></div>' +
-      '<div><span>撃破数</span><b>' + Util.fmt(res.kills) + '</b></div>' +
-      '<div><span>獲得コイン</span><b>' + Icons.coin() + ' ' + Util.fmt(res.coins) + '</b></div>' +
-      '<div><span>残りライフ</span><b>' + res.lives + ' / ' + res.livesMax + '</b></div>' +
-      '<div><span>通した敵</span><b>' + Util.fmt(res.leaked) + '</b></div>';
-    body.appendChild(st);
-
+    // 完璧クリアの案内は1行だけ（取れるもの／取り済み）
+    if (!perfect) {
+      const rec = Game.stageRec(res.stage.id);
+      const pk = PACKS[Pack.forStage(res.stage.id)];
+      body.appendChild(Util.el('div', 'rs-tip', rec.perfect
+        ? 'この周の完璧クリアのパックは受け取り済み'
+        : '1体も通さずに凌ぐと ' + pk.name + ' ×2（転生ごとに1回）'));
+    }
     if (res.missions && res.missions.length) {
-      body.appendChild(Util.el('div', 'sgroup', 'ミッション達成'));
-      for (const m of res.missions) body.appendChild(UI.iconLine('note', 'check', m.name));
+      const ms = Util.el('div', 'rs-miss');
+      for (const m of res.missions) ms.appendChild(UI.iconLine('rs-chip', 'check', m.name));
+      body.appendChild(ms);
     }
 
-    const next = res.ok && res.stageGot && res.stageGot.next;
+    // ボタン：いちばん押すものを大きく1つ。ほかは小さく横に
+    const next = res.ok && got && got.next;
+    const main = Util.el('button', 'rs-go');
     if (next) {
-      const b = Util.el('button', 'bigbtn', '次のステージ「' + next.name + '」へ');
-      b.addEventListener('click', () => {
+      main.innerHTML = '<span>次へ</span><b>' + next.name + '</b>' + Icons.get('play');
+      main.addEventListener('click', () => {
         this.closeModal();
         Game.perm.currentStage = next.id;
         UI.pick = STAGES.findIndex(x => x.id === next.id);
         Game.save();
         Main.toBattle();
       });
-      body.appendChild(b);
+    } else {
+      main.innerHTML = '<span>' + (res.ok ? 'もう一度' : '再挑戦') + '</span><b>' + res.stage.name + '</b>' + Icons.get('cycle');
+      main.addEventListener('click', () => { this.closeModal(); Main.toBattle(); });
     }
-    const again = Util.el('button', next ? 'linkbtn' : 'bigbtn', 'このステージの準備に戻る');
-    again.addEventListener('click', () => { this.closeModal(); Main.toHome(); });
-    body.appendChild(again);
-    const up = Util.el('button', 'linkbtn', 'アップグレードを見る');
+    body.appendChild(main);
+    const subs = Util.el('div', 'rs-subs');
+    const home = Util.el('button', 'rs-sub');
+    home.innerHTML = Icons.get('close') + 'ホーム';
+    home.addEventListener('click', () => { this.closeModal(); Main.toHome(); });
+    const up = Util.el('button', 'rs-sub');
+    up.innerHTML = Icons.get('tree') + 'スキル';
     up.addEventListener('click', () => {
       this.closeModal(); Main.toHome();
       this.tab = 'skill'; this.renderTabs(); this.renderPanel();
     });
-    body.appendChild(up);
+    subs.appendChild(home); subs.appendChild(up);
+    body.appendChild(subs);
 
     this.openModal(body, true);
+    this.el.modal.classList.add('rsmodal');
+    // コインは数え上げる（0.7秒）
+    const cb = body.querySelector('.rs-coin b');
+    const t0 = performance.now(), total = res.coins || 0;
+    const tick = (t) => {
+      const k = Math.min(1, (t - t0) / 700);
+      cb.textContent = Util.fmt(total * (1 - Math.pow(1 - k, 3)));
+      if (k < 1 && cb.isConnected) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    if (perfect || (got && got.first && got.cards.length)) this.burst('#ff8a1f');
   },
 };
