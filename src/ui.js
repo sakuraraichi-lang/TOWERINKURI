@@ -1297,7 +1297,7 @@ const UI = {
     const cleared = Game.clearedCount();
     const can = Game.canPrestige() && Game.phase !== 'battle';
     // **数は本物の式から出す**（Pack.prestigePreview。前は古い式の案内が残っていた）
-    const pv = Pack.prestigePreview(cleared, perm.prestiges);
+    const pv = Pack.prestigePreview(cleared, perm.prestiges, perm.legacyDeep || 0);
     const R = Relic.mods(perm);
 
     const hero = Util.el('div', 'pz-hero' + (can ? ' can' : ''));
@@ -1320,7 +1320,11 @@ const UI = {
       ? '<div class="pz-packs">' +
           '<div>' + CardFX.miniPack(PACKS.relic) + '<b>遺物パック</b><em>×' + pv.relic + '</em></div>' +
           '<div>' + CardFX.miniPack(PACKS.basic) + '<b>カードパック</b><em>×' + pv.cards + '</em></div></div>' +
-        '<p>奥まで突破してから転生するほど多い。カードパックの分野は、突破した章の分野から出る</p>'
+        '<p>奥まで突破してから転生するほど多い。カードパックの分野は、突破した章の分野から出る</p>' +
+        // 前回の到達より浅いときは減る（Pack.prestigePreview）。**減っていることを隠さない**
+        ((perm.legacyDeep || 0) > cleared
+          ? '<p class="pz-warn">前回は第' + perm.legacyDeep + '章まで進んでいます。そこより浅いところで転生すると、得られるパックが大きく減ります（今は突破 ' + cleared + ' 章）</p>'
+          : '')
       : '<p>まだ何も得られません</p>');
     p.appendChild(gain);
 
@@ -1359,7 +1363,7 @@ const UI = {
   },
 
   confirmPrestige() {
-    const pv = Pack.prestigePreview(Game.clearedCount(), Game.perm.prestiges);
+    const pv = Pack.prestigePreview(Game.clearedCount(), Game.perm.prestiges, Game.perm.legacyDeep || 0);
     const body = Util.el('div', 'rs rs-lose');
     body.innerHTML =
       '<div class="rs-ban"><b>転生</b><span>本当に転生しますか？</span></div>' +

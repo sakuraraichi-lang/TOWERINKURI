@@ -1193,6 +1193,7 @@ body:not(.on-home) #homeFx{display:none;}
 .pz-gain{margin-top:8px;padding:10px 12px;background:linear-gradient(180deg,rgba(255,210,74,.08),transparent);border:1px solid rgba(255,210,74,.3);}
 .pz-gain h4{color:#ffd24a;}
 .pz-gain p{margin:8px 0 0;font-size:10px;color:var(--dim);line-height:1.6;}
+.pz-gain p.pz-warn{color:var(--danger);font-size:11px;}
 .pz-packs{display:flex;gap:10px;}
 .pz-packs > div{flex:1 1 0;display:flex;align-items:center;gap:8px;}
 .pz-packs b{font-size:11px;color:var(--txt);}

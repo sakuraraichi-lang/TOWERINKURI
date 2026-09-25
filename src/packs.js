@@ -107,7 +107,7 @@ const Pack = {
     // ステージ側は「一度でも到達した深さ」で見る（転生で戻っても解放は戻さない）
     const depth = Math.max(this.clearedCount(perm), perm.deepest || 0);
     if (depth < (pk.unlock || 0)) return false;
-    return (perm.prestiges || 0) >= (pk.unlockP || 0);
+    return prestigeRank(perm) >= (pk.unlockP || 0);     // 転生の格（回数だと浅い転生で買えた・2026-09-25）
   },
 
   // なぜ開いていないのかを一言で（画面に出す）
@@ -115,10 +115,10 @@ const Pack = {
     const pk = PACKS[id];
     const depth = Math.max(this.clearedCount(perm), perm.deepest || 0);
     if (depth < (pk.unlock || 0)) return 'ステージを ' + pk.unlock + ' 個突破すると解放';
-    const need = (pk.unlockP || 0) - (perm.prestiges || 0);
+    const need = (pk.unlockP || 0) - prestigeRank(perm);
     if (need > 0) return need === 1 && !(perm.prestiges || 0)
       ? '初めて転生すると解放'
-      : 'あと ' + need + ' 回 転生すると解放';
+      : '第' + ((pk.unlockP - 1) * (BAL.rankPerDepth || 4) + 1) + '章まで進んでから転生すると解放';   // 格は到達章で上がる
     return '';
   },
 
@@ -200,20 +200,30 @@ const Pack = {
   // 転生で貰えるパックの個数（分野に振り分ける前）。**画面の案内もこれを見る**
   //   （2026-09-25：転生タブの案内が古い式「遺物 3+突破×0.8／カード 突破^1.7」のままで、
   //    20章突破なら「遺物19個・カード約163個」と出ていた。実際は 4個・16個）
-  prestigePreview(clearedStages, prestiges) {
+  //   prevDeep … **この転生より前の到達章**（perm.legacyDeep。転生の中で書き換える前の値）
+  prestigePreview(clearedStages, prestiges, prevDeep) {
     if (clearedStages <= 0) return { relic: 0, cards: 0 };
+    // **前回の到達より浅い転生は、報酬を減らす。**（2026-09-25・プレイヤーの感想 → ユーザー「経済カーブが破綻しています」）
+    //   > 「2章転生を繰り返し続けると後ろの章がクリアできる」「10章クリアする時間と2章転生をする時間に対する報酬があまりにもちぐはぐ」
+    //   前は第2章で転生しても遺物パック4個・カードパック1個が出た（固定の3個と最低保証の1個のため）。
+    //   掛け率 ＝（今回の突破 ÷ 前回の到達章）^BAL.prestigeShallowPow（1で頭打ち）。前回20章の人が2章で転生すると 0.001倍＝0個。
+    //   前回の到達まで進んだ周は満額（序盤の周はこれまでと同じだけもらえる）。壁で9割までしか行けなかった周でも約7割もらえる
+    //   試して採らなかった形：固定の3個をやめて「0.1×突破^1.5」にした。2章稼ぎは消えたが、**1回目の転生の遺物が4個→1個に減り、
+    //   序盤の周が1章ずつ浅くなった**（交互6組で所要の中央値 121分→128.5分、1本は2周目が第4章で止まった）。プレイヤーを絞る形なので採らない
+    const k = (prevDeep > 0) ? Math.pow(Math.min(1, clearedStages / prevDeep), BAL.prestigeShallowPow) : 1;
     return {
       // 遺物（BAL.relicPack*）。経緯は下の prestigeReward と balance.js
-      relic: Math.round(BAL.relicPackBase + clearedStages * BAL.relicPackPerStage),
+      relic: Math.round((BAL.relicPackBase + clearedStages * BAL.relicPackPerStage) * k),
       // カード：深さで増える形（^1.7）。**係数 BAL.packPrestigeMul で絞る**（ユーザー 2026-09-24「パックの配布を絞ってみましょう」）
-      cards: Util.clamp(Math.round(Math.pow(clearedStages, 1.7) * BAL.packPrestigeMul) + Math.floor(prestiges / 4),
-                        1, BAL.packPerPrestigeMax),
+      //   最低保証の1個は、満額の周だけ（浅い転生の繰り返しで稼げたため）
+      cards: Util.clamp(Math.round((Math.pow(clearedStages, 1.7) * BAL.packPrestigeMul + Math.floor(prestiges / 4)) * k),
+                        k >= 1 ? 1 : 0, BAL.packPerPrestigeMax),
     };
   },
 
   // 転生で貰えるパック。
   // **深く行くほど割に合うようにする。** 浅いところで転生を繰り返しても伸びない
-  prestigeReward(clearedStages, prestiges, packLuck) {
+  prestigeReward(clearedStages, prestiges, packLuck, prevDeep) {
     const out = { basic: 0, arms: 0, chem: 0, syn: 0, relic: 0 };
     if (clearedStages <= 0) return out;
     // **遺物パックが転生の本体。**
@@ -244,7 +254,7 @@ const Pack = {
     //   **さらに絞る。**（2026-09-21・ユーザー指摘「パックそのものを渡しすぎ」）
     //     round(4 + 突破*0.35) … 8回転生で累計234枚。遺物は13種類なので1種18枚
     //     round(2 + 突破*0.12) … 8回転生で累計 約70枚。1種あたり5枚前後
-    const pv = Pack.prestigePreview(clearedStages, prestiges);
+    const pv = Pack.prestigePreview(clearedStages, prestiges, prevDeep);
     out.relic = pv.relic;
     const n = pv.cards;
     // 出る分野は「そこまでに突破したステージ」の分野に限られる。
@@ -254,7 +264,7 @@ const Pack = {
     const wsum = pool.reduce((a, e) => a + e.w, 0);
     //   **連携パックは開いたら一定の割合で混ぜる**（BAL.packSynShare）。前は第28〜30章の分野にしか無く、
     //   通し2本で連携パックは 6〜7個、連携カード15種のうち 7〜9種が最後まで手に入らなかった
-    const synOk = (prestiges + 1) >= (PACKS.syn.unlockP || 0);
+    const synOk = prestigeRank(Game.perm) >= (PACKS.syn.unlockP || 0);   // 転生の格（呼ばれるのは格を上げたあと）
     for (let i = 0; i < n; i++) {
       if (synOk && Math.random() < BAL.packSynShare) { out.syn++; continue; }
       let r = Math.random() * wsum, pick = pool[pool.length - 1].k;
@@ -283,7 +293,7 @@ const MISSIONS = [
   { id: 'kill50k',  name: '累計50,000体撃破',           reward: { arms: 2 },  check: (p) => p.totalKills >= 50000 },
   { id: 'kill1m',   name: '累計1,000,000体撃破',        reward: { chem: 2 },  check: (p) => p.totalKills >= 1000000 },
   { id: 'pres1',    name: '初めての転生',               reward: { basic: 2 }, check: (p) => p.prestiges >= 1 },
-  { id: 'pres10',   name: '転生10回',                   reward: { syn: 1 },   check: (p) => p.prestiges >= 10 },
+  { id: 'pres10',   name: '第21章まで進んでから転生', reward: { syn: 1 },   check: (p) => prestigeRank(p) >= 6 },   // 回数だと浅い転生で稼げた（2026-09-25）
   { id: 'coll25',   name: 'カード25種を所持',           reward: { arms: 1 },  check: (p) => Object.keys(p.collection).length >= 25 },
   { id: 'cat6',     name: '6カテゴリすべての武器を所持', reward: { syn: 1 },
     check: (p) => CATEGORY_IDS.every(cat => WEAPON_IDS.some(w => WEAPONS[w].cat === cat && (p.collection['wc_' + w] || 0) > 0)) },

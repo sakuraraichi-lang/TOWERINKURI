@@ -258,7 +258,7 @@ const Game = {
   skipCoins() { return 0; },
 
   // 自動化が開いているか（BAL.autoUnlock・転生回数）
-  autoOpen(key) { return (this.perm.prestiges || 0) >= (BAL.autoUnlock[key] || Infinity); },
+  autoOpen(key) { return prestigeRank(this.perm) >= (BAL.autoUnlock[key] || Infinity); },   // 転生の格（回数だと浅い転生で買えた・2026-09-25）
 
   // 一括突破で、id から続けて何章飛ばせるか（スキップと同じ条件を順に見る）
   skipRun(id) {
@@ -1097,9 +1097,10 @@ const Game = {
     // **土台の基準を、この時点の到達で固定する。**
     //   `deepest` を直接見ると周の途中で伸びて暴走するので、
     //   **転生のときだけ写し取る。**これが「前回到達章」の正体
+    const prevDeep = this.perm.legacyDeep || 0;   // 浅い転生の報酬を減らすのに使う（Pack.prestigePreview）
     this.perm.legacyDeep = this.perm.deepest || 0;
     Relic.invalidate();
-    const reward = Pack.prestigeReward(cleared, this.perm.prestiges - 1, mods.packLuck);
+    const reward = Pack.prestigeReward(cleared, this.perm.prestiges - 1, mods.packLuck, prevDeep);
     const sink = { packs: {} };
     for (const k in reward) if (reward[k] > 0) this.addPack(k, reward[k], sink);
     // 遺物「初動資金」のぶんだけ、次の周は資金を持って始まる
