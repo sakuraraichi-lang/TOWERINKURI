@@ -29,19 +29,9 @@ const Main = {
       if (Game.run && Game.run.phase === 'build') { this.nextWave(); return; }
       this.retreat();
     });
-    const bm = document.getElementById('btnMute');
-    if (bm) {
-      bm.innerHTML = Icons.get(Game.perm.mute ? 'mute' : 'sound');
-      bm.addEventListener('click', (e) => {
-        Snd.resume();
-        Snd.setMute(!Game.perm.mute);
-        e.currentTarget.innerHTML = Icons.get(Game.perm.mute ? 'mute' : 'sound');
-      });
-    }
-    document.getElementById('btnPause').addEventListener('click', (e) => {
-      Game.paused = !Game.paused;
-      e.currentTarget.innerHTML = Icons.get(Game.paused ? 'play' : 'pause');
-    });
+    // **ホームへ戻る・一時停止・音は ⚙ にまとめた。**（2026-09-26・ユーザー「全て設定ボタンにで出るポップアップに統括して、
+    //   一時停止は設定ボタンを開いてる最中は停止にしましょう」）中身は UI.toggleBattleCfg
+    document.getElementById('btnBcfg').addEventListener('click', () => { Snd.resume(); Snd.ui(); UI.toggleBattleCfg(); });
     document.getElementById('btnSpeed').addEventListener('click', (e) => {
       // ×4 は転生してから。再攻略のテンポを上げる報酬のひとつ
       const top = Game.perm.prestiges >= 1 ? 4 : 3;
@@ -55,11 +45,6 @@ const Main = {
       Game.perm.currentStage = st.id;
       Game.save();
       this.toBattle();
-    });
-    // 戦場からホームへ戻る
-    document.getElementById('btnHome').addEventListener('click', () => {
-      if (Game.phase === 'battle') { this.finish(false); return; }
-      this.toHome();
     });
 
     UI.el.modal.addEventListener('click', (e) => {
@@ -86,6 +71,7 @@ const Main = {
 
   // ---------- ホームへ ----------
   toHome() {
+    UI.closeBattleCfg();
     Snd.bgmStop();
     UI.placingType = null; UI.selected = null; UI.moving = null;
     Game.paused = false;
@@ -123,6 +109,8 @@ const Main = {
     UI.moving = null;
     UI.renderTray();
     this.syncStartButton();
+    UI.closeBattleCfg();
+    UI.cutin('準備フェーズ', '武器を置いて「準備完了」', 'prep');
   },
 
   beginBattle() {
@@ -139,7 +127,7 @@ const Main = {
     UI.renderTray();
     UI.renderPanel();
     this.syncStartButton();
-    UI.toastMsg('ウェーブ 1 / ' + BAL.wavesPerStage, '#ff8a1f');
+    UI.cutinWave(1);
   },
 
   retreat() { this.finish(false); },
@@ -176,6 +164,7 @@ const Main = {
   },
 
   finish(ok) {
+    UI.closeBattleCfg();
     const res = Game.endRun(ok);
     this.syncStartButton();
     UI.placingType = null;
@@ -292,7 +281,7 @@ const Main = {
     UI.placingType = null;
     UI.selected = null;
     UI.renderTray();
-    UI.toastMsg('ウェーブ ' + Game.run.wave + ' / ' + BAL.wavesPerStage, '#ff8a1f');
+    UI.cutinWave(Game.run.wave);
   },
 
   // ---------- ループ ----------
@@ -369,8 +358,8 @@ window.addEventListener('load', () => {
   // 絵文字をやめて SVG のアイコンに（2026-09-24）。HTML に直書きしている分をここで入れる
   document.querySelectorAll('[data-ic]').forEach(e => { e.innerHTML = Icons.get(e.dataset.ic); });
   const ic = (id, html) => { const e = document.getElementById(id); if (e) e.innerHTML = html; };
-  ic('btnCfg', Icons.get('gear')); ic('btnHome', Icons.get('close'));
-  ic('btnPause', Icons.get('pause')); ic('homeCoinIc', Icons.coin());
+  ic('btnCfg', Icons.get('gear')); ic('btnBcfg', Icons.get('gear'));
+  ic('homeCoinIc', Icons.coin());
   Main.init();
   // ホームのロゴ（cardfx.js の描き起こしを使う）
   const hl = document.getElementById('homeLogo');

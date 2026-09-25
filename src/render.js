@@ -139,7 +139,7 @@ const Render = {
     this.miniMap(ctx);
     // **仕掛けの凡例は、盤の変換を戻してから描く。**
     //   盤の中で描くと縮尺が掛かって字が潰れ、左端で切れていた
-    this.zoneLegend(ctx, run.stage);
+    // 減速・加速の説明は DOM の札に移した（UI.renderZoneTip・閉じられる）。2026-09-26
   },
 
   tiles(ctx, st) {
@@ -465,6 +465,28 @@ const Render = {
       g.addColorStop(0, 'rgba(255,60,80,' + pulse.toFixed(3) + ')'); g.addColorStop(1, 'rgba(255,60,80,0)');
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, R * 1.6, 0, Math.PI * 2); ctx.fill();
     }
+    // 湧き口のバリア（stages.js の shield）：範囲の六角を薄い水色で重ねる。**中の敵には攻撃が効かない**ことを見せる
+    if (st.shield && st.vec && st.vec.hexes) {
+      if (!st._shieldHex) {
+        st._shieldHex = st.vec.hexes.filter(h => {
+          const c = (h.x / TILE) | 0, r = (h.y / TILE) | 0;
+          return c >= 0 && r >= 0 && c < st.cols && r < st.rows && st.shield[r * st.cols + c];
+        });
+      }
+      const a = 0.10 + 0.05 * Math.sin(t * 2.2);
+      ctx.fillStyle = 'rgba(90,200,255,' + a.toFixed(3) + ')';
+      ctx.strokeStyle = 'rgba(130,215,255,' + (a * 3).toFixed(3) + ')';
+      ctx.lineWidth = 1.4;
+      for (const h of st._shieldHex) {
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const an = i * Math.PI / 3, rr = R - 2;
+          const x = h.x + Math.cos(an) * rr, y = h.y + Math.sin(an) * rr;
+          if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        }
+        ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+    }
     ctx.restore();
   },
 
@@ -614,36 +636,6 @@ const Render = {
     ctx.globalAlpha = 1;
   },
 
-  zoneLegend(ctx, st) {
-    if (!st || !st.vec || !st.vec.hexes.some(h => h.zone)) return;
-    const rows = [
-      { c: '#6ee6aa', k: '減速', t: '敵が遅くなる' },
-      { c: '#d78cff', k: '加速', t: '敵が速くなる' },
-    ];
-    const d = this.dpr || 1;
-    const w = 168 * d, h = (20 * rows.length + 12) * d;
-    const x = 8 * d, y = this.canvas.height - h - 8 * d;
-    ctx.save();
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.shadowBlur = 0;
-    if ('filter' in ctx) ctx.filter = 'none';
-    ctx.fillStyle = 'rgba(8,10,16,0.9)';
-    ctx.strokeStyle = '#2c3446'; ctx.lineWidth = 1 * d;
-    ctx.beginPath(); ctx.rect(x, y, w, h); ctx.fill(); ctx.stroke();
-    ctx.textBaseline = 'middle';
-    ctx.textAlign = 'left';
-    rows.forEach((r, i) => {
-      const cy = y + (18 + i * 20) * d;
-      ctx.font = '700 ' + Math.round(13 * d) + 'px system-ui, sans-serif';
-      ctx.fillStyle = r.c;
-      ctx.fillText(r.k, x + 10 * d, cy);
-      ctx.font = Math.round(12 * d) + 'px system-ui, sans-serif';
-      ctx.fillStyle = '#aab4c4';
-      ctx.fillText(r.t, x + 44 * d, cy);
-    });
-    ctx.restore();
-  },
 
   // 広いステージのとき、今どこを見ているかを小さく出す。
   // **画面に収まるステージでは出さない**（邪魔にしかならない）
@@ -1255,6 +1247,12 @@ const Render = {
       const col = e.hitFlash > 0 ? '#ffffff' : e.chill > 0 ? '#7fd8ff' : e.burnT > 0 ? '#ff9a4a' : e.color;
       const spr = this.enemySprite(e.tname, col, e.r);
       ctx.drawImage(spr.cv, -spr.h, -spr.h, spr.h * 2, spr.h * 2);
+      // 湧き口のバリアに弾かれた（combat.js の damage）
+      if (e.shieldT > 0) {
+        ctx.strokeStyle = 'rgba(130,215,255,' + Math.min(1, e.shieldT * 6).toFixed(2) + ')';
+        ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.arc(0, 0, e.r + 4, 0, Math.PI * 2); ctx.stroke();
+      }
 
       // ボス：残りHPを輪で見せる。**DPSチェックなので、減り方が見えないと意味がない**
       if (e.boss) {

@@ -132,14 +132,18 @@ const Stage = {
       // **型を章ごとに配る。**（ユーザー 2026-09-25「4〜11章、ほとんどが上下左右を反転させたような…真新しさに欠けます」）
       //   口の数が同じ章どうし（第4〜7章・第8〜11章）で、同じ型が重ならないように、種で並べ替えた型の列から順に取る
       const holesAt = (dd) => { const t = BAL.holesByDepth || [[1, 1]]; for (const row of t) if (dd < row[0]) return row[1]; return t[t.length - 1][1]; };
-      const nh = Math.min(2, holesAt(d));
+      const nh = holesAt(d);
       const same = STAGES.map((s, i) => STAGES.length > 1 ? i / (STAGES.length - 1) : 0)
-        .map((dd, i) => ({ dd, i })).filter(o => o.dd >= (BAL.serpUntilDepth || 0) && o.dd < BAL.forkUntilDepth && Math.min(2, holesAt(o.dd)) === nh);
+        .map((dd, i) => ({ dd, i })).filter(o => o.dd >= (BAL.serpUntilDepth || 0) && o.dd < BAL.forkUntilDepth && holesAt(o.dd) === nh);
       const rank = same.findIndex(o => o.i === idx);
-      const pool = nh === 1 ? ['diamond', 'offset', 'ladder', 'ring', 'snake', 'trident'] : ['eight', 'sidecore', 'pincer', 'corner', 'parallel'];
+      const POOLS = { 1: ['diamond', 'offset', 'ladder', 'ring', 'snake', 'trident'], 2: ['eight', 'sidecore', 'pincer', 'corner', 'parallel'],
+        3: ['fan3', 'flank3', 'corner3', 'hook3'], 4: ['crown4', 'corner4', 'side4', 'zig4'], 6: ['crown6', 'wall6', 'hexring'] };   // mapgen.js の POOL1〜6 と同じ
+      const pool = POOLS[nh] || POOLS[6];
       const pr = MapGen.rng((seed ^ (nh * 97531)) >>> 0), perm = pool.slice();
       for (let i = perm.length - 1; i > 0; i--) { const k = (pr() * (i + 1)) | 0; [perm[i], perm[k]] = [perm[k], perm[i]]; }
       base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, { style: 'fork', holes: nh, roadMax: BAL.forkRoadMax, forkPattern: perm[Math.max(0, rank) % perm.length] });
+      // 六角式に作らせる型（hexring）は、通路の量の帯も六角式のもの（分岐式の上限だと6枚とも超えて落ちた）
+      if (base.forkPattern === 'hexring') Object.assign(base, { roadMin: BAL.hexRoadMin, roadMax: BAL.hexRoadMax });
     }
     if (BAL.hexFromDepth !== undefined && d >= BAL.hexFromDepth) {
       base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, {
@@ -506,12 +510,32 @@ const Stage = {
       }
     }
 
+    // ---- 湧き口のバリア：穴から通路を BAL.mouthShieldTiles 歩くまでの敵は、ダメージを受けない ----
+    //   （2026-09-26・ユーザー「敵の出現位置に対する集中砲火が効きすぎています、敵の出現位置周辺にバリアを置いて出現位置攻撃を保護する」。
+    //    実際の遊び：刀 8基と手裏剣を2つの湧き口の隣に固め、穴から出た瞬間に倒していた＝盤のほかの通路を使わない）
+    //   穴の S タイルから step（六角で隣り合う通路どうし）で広げる。combat.js の damage がここを見る
+    const shield = new Uint8Array(cols * rows);
+    if (BAL.mouthShieldTiles > 0) {
+      const sd = new Int16Array(cols * rows).fill(-1), sq = [];
+      for (const s of spawns) { sd[idx(s.c, s.r)] = 0; sq.push(s); }
+      for (let h = 0; h < sq.length; h++) {
+        const cur = sq[h], d = sd[idx(cur.c, cur.r)];
+        shield[idx(cur.c, cur.r)] = 1;
+        if (d >= BAL.mouthShieldTiles) continue;
+        for (const [dc, dr] of DIRS) {
+          const nc = cur.c + dc, nr = cur.r + dr;
+          if (!step(cur.c, cur.r, nc, nr) || sd[idx(nc, nr)] >= 0) continue;
+          sd[idx(nc, nr)] = d + 1; sq.push({ c: nc, r: nr });
+        }
+      }
+    }
+
     const built = {
       lanes, mouthLanes, mouthOf,
       // 章ごとのマップの形（BAL.mapShape）。**戦闘側もここを読む**
       //   （道が N 方向に分かれるぶん、敵の数も増やさないと1本あたりが薄くなる）
       shape: (BAL.mapShape && BAL.mapShape[STAGE_BY_ID[stageId].idx + 1]) || null,
-      def, id: stageId, cols, rows, grid, spawns, mouths, core, dist, next, idx, walkable, step, routes,
+      def, id: stageId, cols, rows, grid, spawns, mouths, core, dist, next, idx, walkable, step, routes, shield,
       vec: this._vec[stageId] || null,        // 折れ線と幅。絵を滑らかに描くのに使う
       // 地形の仕掛け（0=なし 1=減速 2=加速。内部の名前は mud/slope のまま）。手で書いたマップには無い
       zone: this._zone[stageId] || null,

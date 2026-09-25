@@ -72,36 +72,33 @@
        盤面の上にボタンを浮かせていたせいで、
        置きたいところにユニット選択ボタンが被って置けないことがあった -->
   <div id="stage">
-
-    <!-- 上：戦闘情報 -->
-    <div class="btop">
-      <div class="hphase" id="hudPhase">準備フェーズ</div>
-      <div class="hlife"><i id="hudHpBar"></i><span id="hudHp"></span></div>
-      <button id="btnDmg" class="hdmg" title="武器ごとの火力">火力</button>
-      <div id="perf"></div>
-    </div>
-
-    <div class="bmain">
-      <!-- 左：ユニット -->
-      <div id="tray"></div>
-
-      <!-- 中央：盤面 -->
-      <div class="bfield">
-        <canvas id="cv"></canvas>
-        <div id="upop"></div>
-        <div id="dmgpop"></div>
-        <div id="toast"></div>
-        <div id="tut"></div>
+    <!-- 2026-09-26 作り直し（ユーザー「もう少し洗練しつつ、見やすさとかっこよさを重視しましょう」）
+         上の帯（準備フェーズの表示・HPバー）は外した。HPはコアの周りの緑の輪で見える。
+         準備フェーズとウェーブの番号はカットイン（#cutin）で出す。
+         ホームへ戻る・一時停止・音は ⚙ のポップアップ（#bcfg）にまとめ、開いている間は止める。
+         左にあった武器の列は下の1列に移した：［⚙］［倍速］［武器…］［準備完了］ -->
+    <div class="bfield">
+      <canvas id="cv"></canvas>
+      <!-- 盤の左上に小さく重ねる：火力の内訳と、ウェーブの残り -->
+      <div class="bhud">
+        <button id="btnDmg" class="hdmg" title="武器ごとの火力">火力</button>
+        <span id="hudLeft" class="hleft"></span>
+        <div id="perf"></div>
       </div>
+      <div id="upop"></div>
+      <div id="dmgpop"></div>
+      <div id="zoneTip"></div>
+      <div id="cutin"></div>
+      <div id="toast"></div>
+      <div id="tut"></div>
+      <div id="bcfg"></div>
     </div>
 
-    <!-- 下：操作 -->
+    <!-- 下：1列 -->
     <div class="bbtm">
-      <button id="btnHome" class="ctl sq" title="ホームへ戻る"></button>
-      <button id="btnSpeed" class="ctl sq">×1</button>
-      <button id="btnPause" class="ctl sq"></button>
-      <button id="btnMute" class="ctl sq" title="音"></button>
-      <div class="hwave" id="hudWaveTxt"></div>
+      <button id="btnBcfg" class="bctl" title="設定・一時停止"></button>
+      <button id="btnSpeed" class="bspd" title="倍速">×1</button>
+      <div id="tray"></div>
       <button id="btnStart" class="readybtn">準備完了</button>
     </div>
   </div>

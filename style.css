@@ -55,12 +55,12 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
    以前は盤面の上にボタンを浮かせていて、
    置きたい場所にユニット選択ボタンが被って置けないことがあった */
 #stage{flex:1 1 auto;min-height:0;display:none;
-       grid-template-rows:auto 1fr auto;grid-template-columns:100%;
+       grid-template-rows:1fr auto;grid-template-columns:100%;
        padding:6px 8px calc(6px + var(--safe-b));
        padding-top:calc(6px + env(safe-area-inset-top,0px));gap:6px;}
 
-.btop{display:flex;align-items:center;gap:8px;min-height:0;flex-wrap:wrap;}
-.bmain{display:flex;gap:6px;min-height:0;min-width:0;}
+/* 上の帯（.btop）は 2026-09-26 に外した。ウェーブの番号と残りは盤の左上（.bhud）へ */
+/* 左の武器の列（.bmain）も外した。武器は下の1列（.bbtm の #tray）へ */
 .bfield{position:relative;flex:1 1 auto;min-width:0;min-height:0;}
 #cv{display:block;width:100%;height:100%;touch-action:none;}
 .bbtm{display:flex;align-items:center;gap:6px;min-height:0;}
@@ -334,23 +334,6 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 }
 
 /* ============ 武器トレイ（配置） ============ */
-#tray{display:none;flex-direction:column;gap:5px;flex:0 0 auto;
-      overflow-y:auto;overscroll-behavior:contain;width:58px;
-      scrollbar-width:none;}
-#tray::-webkit-scrollbar{display:none;}
-#tray.on{display:flex;}
-#tray .chip{width:100%;padding:6px 2px;background:rgba(14,17,23,.92);border:1.5px solid var(--line2);
-            min-width:46px;min-height:38px;padding:5px 8px;font-size:12px;font-weight:800;
-            display:flex;flex-direction:column;align-items:center;gap:1px;line-height:1.1;}
-#tray .chip.on{background:#3a1c08;border-color:var(--acc);
-            box-shadow:0 0 12px rgba(255,138,31,.45);}
-#tray .chip i{font-style:normal;font-size:9px;}
-#tray .chip.unit{min-width:0;}
-#tray .chip u{display:block;text-decoration:none;font-size:10px;color:var(--dim);
-              font-variant-numeric:tabular-nums;margin-top:1px;}
-#tray .chip.full u{color:var(--danger);}
-#tray .chip.danger{border-color:var(--danger);color:#ffb7bf;}
-#tray .trayhint{font-size:9px;color:var(--dim);line-height:1.35;text-shadow:0 1px 3px #000;}
 
 /* ============ ステージ一覧 ============ */
 .strow{display:flex;align-items:center;gap:9px;padding:9px;margin-bottom:7px;
@@ -456,18 +439,6 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 .bigstart:active:not(:disabled){transform:translateY(1px);}
 
 /* --- 戦場の最小HUD --- */
-
-.hphase{font-size:12px;font-weight:700;background:rgba(10,12,17,.75);
-  border:1px solid var(--line2);padding:4px 9px;letter-spacing:.04em;
-  clip-path:polygon(0 0,calc(100% - 7px) 0,100% 7px,100% 100%,7px 100%,0 calc(100% - 7px));}
-.hlife{position:relative;flex:1 1 90px;max-width:220px;height:16px;
-  background:rgba(10,12,17,.75);border:1px solid var(--line2);overflow:hidden;}
-.hlife i{position:absolute;inset:0;width:100%;transform-origin:left;
-  background:linear-gradient(90deg,#2f9e63,#7ee3a0);transition:transform .18s;}
-.hlife span{position:absolute;inset:0;display:grid;place-items:center;
-  font-size:10px;font-weight:700;color:#06210f;}
-
-.hwave{flex:1 1 auto;text-align:right;padding-right:4px;font-size:11px;color:var(--dim);}
 /* 準備完了は、小さい操作ボタンの**対岸（同じ行の右端）**に置く */
 .readybtn{flex:0 0 auto;min-height:44px;padding:0 16px;border:none;
   background:linear-gradient(180deg,#ffa347,#ef6a0c);color:#2a1200;
@@ -640,7 +611,6 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
 #perf b.bad{color:var(--danger);}
 #perf span{display:block;font-size:9.5px;color:var(--dim);margin-top:2px;}
 /* タップできると分かるように、下線を薄く引く */
-.hwave{cursor:pointer;border-bottom:1px dotted rgba(255,255,255,.18);}
 
 /* まとめ買い。使用可能コインの帯に並べる */
 .tpoints .tbuyall{margin-left:auto;min-width:106px;min-height:34px;}
@@ -1089,7 +1059,6 @@ body:not(.on-home) #homeFx{display:none;}
 .prow.can .mpack-gear .ico{animation:gearspin 6s linear infinite;}
 
 /* 武器トレイ：アイコン＋略称 */
-#tray .chip.unit .uico{display:block;font-size:20px;line-height:1;margin-bottom:1px;}
 
 /* スキップと一括突破が並ぶとき：出撃は上の段いっぱい、スキップ2つは下の段で半分ずつ */
 .startrow.two{flex-wrap:wrap;}
@@ -1422,3 +1391,90 @@ body:not(.tabsoff) .hlogo{display:none;}
 .bn-copy:disabled{opacity:.4;cursor:default;}
 .bn-txt{display:block;width:100%;height:120px;margin-top:6px;font-size:10px;color:var(--txt);
   background:var(--bg2);border:1px solid var(--line2);user-select:text;-webkit-user-select:text;}
+
+/* ============ 戦闘画面（2026-09-26 作り直し） ============
+   ユーザー「もう少し洗練しつつ、見やすさとかっこよさを重視しましょう」
+   ・上の帯は無し（準備フェーズ／ウェーブはカットイン、ライフはコアの輪）
+   ・下の1列：［⚙］［倍速（小）］［武器…］［準備完了］
+   ・盤の左上に「火力」と W と残りを小さく重ねる */
+.bbtm{gap:6px;align-items:stretch;min-height:48px;}
+.bctl{flex:0 0 42px;display:grid;place-items:center;padding:0;color:var(--txt2);cursor:pointer;
+  background:rgba(14,17,23,.9);border:1px solid var(--line2);
+  clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px));}
+.bctl svg{width:20px;height:20px;}
+.bctl.on{color:#1a0d00;background:var(--acc);border-color:var(--acc);}
+.bspd{flex:0 0 34px;align-self:center;height:28px;padding:0;font:inherit;font-size:11px;font-weight:800;
+  color:var(--dim);background:transparent;border:1px solid var(--line);border-radius:14px;cursor:pointer;
+  font-variant-numeric:tabular-nums;}
+.bspd:active{transform:translateY(1px);}
+#tray{display:none;flex:1 1 auto;min-width:0;gap:5px;overflow-x:auto;overflow-y:hidden;
+  overscroll-behavior:contain;scrollbar-width:none;align-items:stretch;}
+#tray::-webkit-scrollbar{display:none;}
+#tray.on{display:flex;}
+#tray .chip.unit{flex:0 0 auto;min-width:48px;padding:3px 7px;display:flex;flex-direction:column;align-items:center;
+  justify-content:center;gap:0;line-height:1.05;font-size:11px;font-weight:800;cursor:pointer;
+  background:rgba(14,17,23,.92);border:1.5px solid var(--line2);}
+#tray .chip.unit .uico{display:block;line-height:1;}
+#tray .chip.unit .uico svg{width:18px;height:18px;}
+#tray .chip.unit b{font-size:10px;letter-spacing:.03em;}
+#tray .chip.unit u{display:block;text-decoration:none;font-size:9px;color:var(--dim);font-variant-numeric:tabular-nums;}
+#tray .chip.unit.on{background:#3a1c08;border-color:var(--acc)!important;box-shadow:0 0 12px rgba(255,138,31,.45);}
+#tray .chip.unit.full u{color:var(--danger);}
+#tray .chip.unit:disabled{opacity:.55;}
+.bbtm .readybtn{min-height:48px;}
+
+/* 盤の左上の小さな表示 */
+.bhud{position:absolute;left:6px;top:6px;z-index:22;display:flex;align-items:center;gap:6px;pointer-events:none;}
+.bhud > *{pointer-events:auto;}
+.hleft{font-size:11px;font-weight:700;color:var(--txt2);text-shadow:0 1px 3px #000,0 0 6px #000;
+  font-variant-numeric:tabular-nums;pointer-events:none;}
+.bhud #perf{font-size:10px;color:var(--dim);}
+#dmgpop{left:6px;right:auto;top:36px;}
+
+/* カットイン：盤の真ん中を斜めの帯が横切る */
+#cutin{position:absolute;inset:0;z-index:30;pointer-events:none;display:none;overflow:hidden;}
+#cutin.on{display:block;}
+#cutin .ci{position:absolute;left:0;right:0;top:38%;display:flex;flex-direction:column;align-items:center;
+  animation:ciIn 1.45s cubic-bezier(.2,.8,.2,1) forwards;}
+#cutin .ci-band{position:absolute;left:-10%;right:-10%;top:-10px;bottom:-12px;transform:skewY(-4deg);
+  background:linear-gradient(90deg,transparent,rgba(10,12,18,.88) 18%,rgba(10,12,18,.88) 82%,transparent);
+  border-top:2px solid var(--acc);border-bottom:2px solid var(--acc);
+  box-shadow:0 0 24px rgba(255,138,31,.25);animation:ciBand 1.45s cubic-bezier(.2,.8,.2,1) forwards;}
+#cutin .ci b{position:relative;font-size:30px;font-weight:900;letter-spacing:.14em;color:#fff;
+  text-shadow:0 0 14px rgba(255,138,31,.7);}
+#cutin .ci b em{font-style:normal;font-size:18px;color:var(--acc);letter-spacing:.06em;}
+#cutin .ci span{position:relative;margin-top:2px;font-size:12px;font-weight:700;color:var(--gold);letter-spacing:.08em;}
+#cutin .ci-prep b{font-size:24px;}
+#cutin .ci-last .ci-band{border-color:var(--danger);box-shadow:0 0 28px rgba(255,85,102,.35);}
+#cutin .ci-last b{text-shadow:0 0 16px rgba(255,85,102,.8);}
+@keyframes ciIn{0%{opacity:0;transform:translateX(40%)}14%{opacity:1;transform:translateX(0)}
+  78%{opacity:1;transform:translateX(0)}100%{opacity:0;transform:translateX(-30%)}}
+@keyframes ciBand{0%{transform:skewY(-4deg) scaleX(.2)}14%{transform:skewY(-4deg) scaleX(1)}100%{transform:skewY(-4deg) scaleX(1)}}
+
+/* ⚙ の一時停止ポップアップ（開いている間は止まる） */
+#bcfg{position:absolute;inset:0;z-index:40;display:none;background:rgba(4,6,10,.62);
+  backdrop-filter:blur(2px);-webkit-backdrop-filter:blur(2px);}
+#bcfg.on{display:grid;place-items:center;}
+.bc-box{width:min(300px,86%);display:flex;flex-direction:column;gap:7px;padding:14px 14px 12px;
+  background:rgba(12,14,20,.96);border:1px solid var(--line2);
+  clip-path:polygon(0 0,calc(100% - 12px) 0,100% 12px,100% 100%,12px 100%,0 calc(100% - 12px));}
+.bc-h{font-size:12px;font-weight:800;color:var(--acc);letter-spacing:.12em;text-align:center;margin-bottom:2px;}
+.bc-btn{display:flex;align-items:center;gap:10px;min-height:42px;padding:0 12px;font:inherit;font-size:13px;font-weight:700;
+  color:var(--txt);background:#161a22;border:1px solid var(--line2);cursor:pointer;text-align:left;}
+.bc-btn svg{width:18px;height:18px;flex:0 0 18px;}
+.bc-btn.go{background:linear-gradient(180deg,#ffa347,#ef6a0c);color:#2a1200;border-color:transparent;justify-content:center;}
+.bc-btn.danger{color:#ffb7bf;border-color:rgba(255,85,102,.5);}
+.bc-chk{width:18px;height:18px;flex:0 0 18px;display:grid;place-items:center;border:1px solid var(--line2);font-style:normal;}
+.bc-btn.on .bc-chk{background:var(--acc);border-color:var(--acc);color:#1a0d00;}
+.bc-chk svg{width:14px;height:14px;}
+
+/* 減速・加速の説明の札（✕で閉じる。⚙ から戻せる） */
+#zoneTip{position:absolute;left:6px;bottom:6px;z-index:21;display:none;padding:6px 26px 6px 9px;font-size:11px;
+  color:var(--txt2);background:rgba(8,10,16,.86);border:1px solid var(--line2);line-height:1.6;}
+#zoneTip.on{display:block;}
+#zoneTip b{margin-right:6px;font-weight:800;}
+#zoneTip .zt-mud{color:#6ee6aa;}
+#zoneTip .zt-slope{color:#d78cff;}
+#zoneTip .zt-x{position:absolute;right:2px;top:2px;width:22px;height:22px;padding:0;display:grid;place-items:center;
+  color:var(--dim);background:transparent;border:none;cursor:pointer;}
+#zoneTip .zt-x svg{width:13px;height:13px;}

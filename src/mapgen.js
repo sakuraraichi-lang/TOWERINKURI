@@ -1092,7 +1092,7 @@ const MapGen = {
 
     // 口の数。1 なら下か上の縁から反対側の奥のコアへ、2 なら上下の縁からそれぞれ中央のコアへ
     //   （2026-09-25：第8〜11章の口2つの盤も、口ごとに分かれ道を持たせるため）
-    const nHole = Math.max(1, Math.min(2, shape.holes || this.holesFor(d, rnd)));
+    const nHole = Math.max(1, Math.min(6, shape.holes || this.holesFor(d, rnd)));
     const jit = (a) => (rnd() - 0.5) * a;
     // 1本の道を掘る：縦の位置 y0（口の縁）→ y1（コア）。分岐 → 左右の腕 → 合流 を loops 回。
     //   o.endAt … 最後の合流をそこ（コア）にする ／ o.mx … 口の横位置 ／ o.armL / o.armR … 左右の腕の横位置
@@ -1214,8 +1214,67 @@ const MapGen = {
         return { mouths: [A.mouth, B.mouth], paths: A.paths.concat(B.paths), core: [0.5, cy] };
       },
     };
+    // **口3つ・4つ・6つの型（第12〜30章）。**（2026-09-26・ユーザー「第12〜30章にも同様に作りましょう」）
+    //   型は「口の並べ方（どの辺のどこから）」と「コアの位置」だけを持ち、各口からコアへは
+    //   口 → 分岐 → 左右の腕 → 合流 → コア のひし形を自動で引く（diamond）。腕の幅・分岐と合流の位置は乱数でゆらす。
+    //   **コアは盤の端寄りに置く。**真ん中に置くと、辺の真ん中の口からコアまで約10タイルしかなく、経路の下限20に届かなかった
+    //   （19×27・12枚ずつ：コアが真ん中の tri3・wind3・twin3 は0枚合格、上辺の口から下のコアへの fan3 は12枚とも合格）。
+    //   真ん中のコアに6方向から来る形は、同心の囲いで道を伸ばす六角式（makeHex）を型 hexring として使う
+    //   口3つ：fan3 上辺に3つ／flank3 両脇の上と上辺の真ん中／corner3 コアを下の隅に・上辺2つと反対の脇／hook3 左上・左の辺・右の辺の上から右下の隅のコアへ（片側の辺に3つ並べる wall3 は、縦長の盤では道が足りないか右上が空いて落ちた）
+    //   口4つ：crown4 上辺2つと両脇の上／corner4 上の両隅と両脇の真ん中／side4 コアを片側に・反対の辺2つと上下の辺／zig4 コアを下の隅に・上辺2つと反対の脇2つ
+    //   口6つ：crown6 上辺2つ・両脇2つずつ／wall6 コアを片側に・反対の辺3つと上下の辺／hexring 真ん中のコアへ6方向（六角式）
+    const POOL3 = ['fan3', 'flank3', 'corner3', 'hook3'];
+    const POOL4 = ['crown4', 'corner4', 'side4', 'zig4'];
+    const POOL6 = ['crown6', 'wall6', 'hexring'];
+    // 辺の上の点 → 口（side と at と、盤の内側へ少し入った点）
+    const edge = (side, t) => {
+      const at = side === 'top' ? [t, 0.02] : side === 'bottom' ? [t, 0.98] : side === 'left' ? [0.02, t] : [0.98, t];
+      const inn = side === 'top' ? [t, 0.1] : side === 'bottom' ? [t, 0.9] : side === 'left' ? [0.1, t] : [0.9, t];
+      return { side, at, inn };
+    };
+    // 口の内側の点 m からコア c へのひし形（盤の縦横比を効かせて、腕は進む向きの左右に振る）
+    const diamond = (m, c) => {
+      const dx = (c[0] - m[0]) * W, dy = (c[1] - m[1]) * H, L = Math.hypot(dx, dy) || 1;
+      const ux = dx / L, uy = dy / L, px = -uy, py = ux;
+      const f1 = 0.14 + jit(0.08), f2 = 0.66 + jit(0.1), fm = (f1 + f2) / 2;
+      const w1 = (95 + rnd() * 45), w2 = (95 + rnd() * 45);
+      const P2 = (f, off) => [(m[0] * W + ux * L * f + px * off) / W, (m[1] * H + uy * L * f + py * off) / H];
+      const a = P2(f1, 0), j = P2(f2, 0);
+      return [[m, a], [a, P2(fm, w1), j], [a, P2(fm, -w2), j], [j, c]];
+    };
+    const multi = (mouthList, core) => {
+      const out = { mouths: [], paths: [], core };
+      for (const e of mouthList) {
+        out.mouths.push({ side: e.side, at: e.at, path: [e.at, e.inn] });
+        for (const pth of diamond(e.inn, core)) out.paths.push(pth);
+      }
+      return out;
+    };
+    const bot = () => [0.5 + jit(0.1), 0.88];
+    Object.assign(TPL, {
+      fan3: () => multi([edge('top', 0.15 + jit(0.04)), edge('top', 0.5 + jit(0.06)), edge('top', 0.85 + jit(0.04))], bot()),
+      flank3: () => multi([edge('left', 0.15 + jit(0.05)), edge('top', 0.5 + jit(0.08)), edge('right', 0.15 + jit(0.05))], bot()),
+      corner3: () => multi([edge('top', 0.3 + jit(0.06)), edge('top', 0.85 + jit(0.04)), edge('right', 0.45 + jit(0.08))], [0.16, 0.88]),
+      hook3: () => multi([edge('top', 0.12 + jit(0.04)), edge('left', 0.45 + jit(0.06)), edge('right', 0.2 + jit(0.05))], [0.8, 0.9]),
+      crown4: () => multi([edge('top', 0.28 + jit(0.05)), edge('top', 0.72 + jit(0.05)), edge('left', 0.18 + jit(0.05)), edge('right', 0.18 + jit(0.05))], bot()),
+      corner4: () => multi([edge('top', 0.1), edge('top', 0.9), edge('left', 0.5 + jit(0.06)), edge('right', 0.5 + jit(0.06))], bot()),
+      side4: () => multi([edge('left', 0.25 + jit(0.05)), edge('left', 0.75 + jit(0.05)), edge('top', 0.3 + jit(0.06)), edge('bottom', 0.3 + jit(0.06))], [0.86, 0.5 + jit(0.06)]),
+      zig4: () => multi([edge('top', 0.35 + jit(0.05)), edge('top', 0.85 + jit(0.04)), edge('right', 0.35 + jit(0.05)), edge('right', 0.7 + jit(0.05))], [0.16, 0.88]),
+      crown6: () => multi([edge('top', 0.3 + jit(0.04)), edge('top', 0.7 + jit(0.04)), edge('left', 0.15), edge('left', 0.5 + jit(0.05)),
+                           edge('right', 0.15), edge('right', 0.5 + jit(0.05))], bot()),
+      wall6: () => multi([edge('left', 0.15), edge('left', 0.5 + jit(0.04)), edge('left', 0.85), edge('top', 0.3 + jit(0.05)),
+                          edge('bottom', 0.3 + jit(0.05)), edge('top', 0.62 + jit(0.04))], [0.86, 0.55 + jit(0.06)]),
+    });
+    const poolOf = (n) => n === 1 ? POOL1 : n === 2 ? POOL2 : n === 3 ? POOL3 : n === 4 ? POOL4 : POOL6;
     let coreHex, pattern = shape.forkPattern;
-    if (!pattern || (nHole === 1 ? POOL1 : POOL2).indexOf(pattern) < 0) { const pl = nHole === 1 ? POOL1 : POOL2; pattern = pl[(rnd() * pl.length) | 0]; }
+    if (!pattern || poolOf(nHole).indexOf(pattern) < 0) { const pl = poolOf(nHole); pattern = pl[(rnd() * pl.length) | 0]; }
+    // 真ん中のコアへ6方向（六角式に作らせる。同心の囲いで道を伸ばすので、真ん中のコアでも経路が下限に届く）
+    if (pattern === 'hexring') {
+      const m = this.makeHex(seed, d, Object.assign({}, shape, { style: 'hex', chamber: BAL.hexChamber, ringStep: BAL.hexRingStep,
+        doorN: BAL.hexDoorN, wander: BAL.hexWander, roadW: BAL.hexRoadW }));
+      if (m) { m.vec.pattern = 'hexring'; m.pattern = 'hexring'; }
+      return m;
+    }
     if (TPL[pattern]) {
       // 型紙から掘る。左右・上下の反転は乱数で
       const fx = rnd() < 0.5, fy = rnd() < 0.5;

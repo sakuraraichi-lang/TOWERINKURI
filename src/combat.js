@@ -405,6 +405,16 @@ const Combat = {
 
   damage(run, e, amount, opts) {
     if (e.dead) return 0;
+    // **湧き口のバリアの中の敵は、ダメージも状態異常も受けない。**（2026-09-26・stages.js の shield）
+    //   穴の隣に砲を固めて出た瞬間に倒す置き方を止めるため
+    const sh = run.stage && run.stage.shield;
+    if (sh) {
+      const tc = (e.x / TILE) | 0, tr = (e.y / TILE) | 0;
+      if (tc >= 0 && tr >= 0 && tc < run.stage.cols && tr < run.stage.rows && sh[tr * run.stage.cols + tc]) {
+        e.shieldT = 0.15;              // 弾かれた光（render.js）
+        return 0;
+      }
+    }
     opts = opts || {};
     let dmg = amount * this.vuln(run, e);
     // **装甲は1発ごとに引く。** 手数の武器ほど損をする。
@@ -1051,6 +1061,7 @@ const Combat = {
       if (e.fvulnT > 0) e.fvulnT -= dt;
       if (e.slowT > 0) { e.slowT -= dt; if (e.slowT <= 0) e.slow = 0; }
       if (e.hitFlash > 0) e.hitFlash -= dt;
+      if (e.shieldT > 0) e.shieldT -= dt;
       if (e.burnT > 0) {
         e.burnT -= dt;
         // 焼き締め（syn_searbind）：掴まれている敵は炎上ダメージに倍率

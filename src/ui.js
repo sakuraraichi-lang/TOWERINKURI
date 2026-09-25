@@ -20,8 +20,8 @@ const UI = {
   init() {
     const q = (id) => document.getElementById(id);
     this.el = {
-      hudPhase: q('hudPhase'), hudHp: q('hudHp'), hudHpBar: q('hudHpBar'),
-      hudWaveTxt: q('hudWaveTxt'), tray: q('tray'),
+      hudLeft: q('hudLeft'), cutin: q('cutin'), zoneTip: q('zoneTip'), bcfg: q('bcfg'), btnBcfg: q('btnBcfg'),
+      tray: q('tray'),
       panel: q('panel'), tabs: q('tabs'), modal: q('modal'),
       toast: q('toast'), badgePack: q('badgePack'),
       upop: q('upop'), stage: q('stage'), tut: q('tut'), perf: q('perf'),
@@ -343,24 +343,17 @@ const UI = {
     if (this._sk % 12 === 0) this.refreshSkills();
     if (!r) return;
 
-    // **戦闘中に常時出すのは、フェーズ名・ライフ・残りだけ。**
-    // 数字を並べるほど盤面が見えなくなる
-    if (Game.phase === 'prep') {
-      this.el.hudPhase.textContent = '準備フェーズ';
-      this.el.hudWaveTxt.textContent = '全' + BAL.wavesPerStage + 'ウェーブ';
-    } else if (r.phase === 'build') {
-      this.el.hudPhase.textContent = 'ウェーブ ' + r.wave + ' 突破';
-      this.el.hudWaveTxt.textContent = '次は ' + (r.wave + 1) + ' / ' + BAL.wavesPerStage;
-    } else {
-      this.el.hudPhase.textContent = 'ウェーブ ' + r.wave + ' / ' + BAL.wavesPerStage +
-        (Combat.isLastWave(r) ? ' ★' : '');
-      this.el.hudWaveTxt.textContent = '残り ' + Util.fmt(r.toSpawn + r.enemies.length);
+    // **戦闘中に常時出すのは、ウェーブの番号と残りだけ（盤の左上に小さく）。**（2026-09-26 作り直し）
+    //   準備フェーズとウェーブの始まりはカットイン（cutin）で見せる。ライフはコアの周りの輪で見える
+    let left = '';
+    if (Game.phase === 'battle' && r.phase !== 'build') {
+      left = 'W' + r.wave + '/' + BAL.wavesPerStage + (Combat.isLastWave(r) ? '★' : '') + '　残り ' + Util.fmt(r.toSpawn + r.enemies.length);
+    } else if (Game.phase === 'battle') {
+      left = 'W' + r.wave + '/' + BAL.wavesPerStage + '　突破';
     }
-
-    const k = Util.clamp(r.lives / Math.max(1, r.livesMax), 0, 1);
-    this.el.hudHpBar.style.transform = 'scaleX(' + k.toFixed(3) + ')';
-    this.el.hudHp.textContent = Math.ceil(r.lives) + ' / ' + r.livesMax;
+    if (this.el.hudLeft && this.el.hudLeft.textContent !== left) this.el.hudLeft.textContent = left;
     this.renderDmg(false);
+    this.renderZoneTip();
   },
 
   // 盤の右上の火力の内訳。開いているあいだだけ、0.5秒ごとに組み直す
@@ -420,9 +413,99 @@ const UI = {
       });
       t.appendChild(b);
     }
-    t.appendChild(Util.el('span', 'trayhint',
-      !build ? '戦闘中は配置を変えられません'
-        : this.placingType ? '光っている地面をタップ' : 'ユニットを選んで配置／置いたものをタップで調整'));
+  },
+
+  // ================= カットイン =================
+  // **準備フェーズとウェーブの始まりは、上の帯ではなくカットインで見せる。**（2026-09-26・ユーザー
+  //   「準備フェーズはカットインで見せればいいので上の情報を消せます」「今は何ウェーブかはカットインで出しましょう」）
+  //   盤の真ん中を斜めの帯が横切り、1.4秒で消える。触れない（pointer-events: none）
+  cutin(title, sub, kind) {
+    const c = this.el.cutin;
+    if (!c) return;
+    c.className = '';
+    c.innerHTML = '<div class="ci ci-' + (kind || 'wave') + '"><i class="ci-band"></i>' +
+      '<b>' + title + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</div>';
+    void c.offsetWidth;
+    c.className = 'on';
+  },
+  cutinWave(n) {
+    const run = Game.run;
+    const last = n >= BAL.wavesPerStage;
+    const boss = run && Combat.isBossWave(run);
+    this.cutin('WAVE ' + n + '<em> / ' + BAL.wavesPerStage + '</em>',
+      boss ? 'ボスが現れる' : last ? '最終ウェーブ' : '', last ? 'last' : 'wave');
+  },
+
+  // ================= 戦闘中の ⚙（一時停止） =================
+  // **ホームへ戻る・一時停止・音をここにまとめる。開いている間は止める。**（2026-09-26・ユーザー指示）
+  //   閉じたら、開く前の状態（ふつうは動いている）に戻す
+  toggleBattleCfg() {
+    const b = this.el.bcfg;
+    if (!b) return;
+    if (b.classList.contains('on')) { this.closeBattleCfg(); return; }
+    this.bcfgPrev = !!Game.paused;
+    Game.paused = true;
+    b.classList.add('on');
+    if (this.el.btnBcfg) this.el.btnBcfg.classList.add('on');
+    this.renderBattleCfg();
+  },
+  closeBattleCfg() {
+    const b = this.el.bcfg;
+    if (!b || !b.classList.contains('on')) return;
+    b.classList.remove('on');
+    b.innerHTML = '';
+    if (this.el.btnBcfg) this.el.btnBcfg.classList.remove('on');
+    Game.paused = !!this.bcfgPrev;
+  },
+  renderBattleCfg() {
+    const b = this.el.bcfg;
+    if (!b) return;
+    b.innerHTML = '';
+    const box = Util.el('div', 'bc-box');
+    box.appendChild(Util.el('div', 'bc-h', Game.phase === 'battle' ? '一時停止中' : '設定'));
+    const btn = (cls, html, fn) => { const e = Util.el('button', 'bc-btn ' + cls); e.innerHTML = html; e.addEventListener('click', fn); return e; };
+    box.appendChild(btn('go', Icons.get('play') + '<span>' + (Game.phase === 'battle' ? '再開' : '閉じる') + '</span>', () => { Snd.ui(); this.closeBattleCfg(); }));
+    box.appendChild(btn('', Icons.get(Game.perm.mute ? 'mute' : 'sound') + '<span>音 ' + (Game.perm.mute ? 'オフ' : 'オン') + '</span>', () => {
+      Snd.resume(); Snd.setMute(!Game.perm.mute); this.renderBattleCfg();
+    }));
+    const tog = (key, name) => btn(Game.perm[key] ? 'on' : '', '<i class="bc-chk">' + (Game.perm[key] ? Icons.get('check') : '') + '</i><span>' + name + '</span>', () => {
+      Game.perm[key] = !Game.perm[key]; Game.save(); Snd.ui(); this.renderBattleCfg();
+    });
+    box.appendChild(tog('autoWave', '次のウェーブへ自動で進む'));
+    // 減速・加速の説明の札（閉じたあとで、もう一度出せるように）
+    box.appendChild(btn(Game.perm.zoneTipOff ? '' : 'on', '<i class="bc-chk">' + (Game.perm.zoneTipOff ? '' : Icons.get('check')) + '</i><span>減速・加速の説明を出す</span>', () => {
+      Game.perm.zoneTipOff = !Game.perm.zoneTipOff; Game.save(); Snd.ui(); this._zoneKey = null; this.renderBattleCfg();
+    }));
+    const inBattle = Game.phase === 'battle' && Game.run && !Game.run.over;
+    box.appendChild(btn('danger', Icons.get('close') + '<span>' + (inBattle ? '撤退してホームへ' : 'ホームへ戻る') + '</span>', () => {
+      Snd.ui();
+      this.closeBattleCfg();
+      if (inBattle) Main.finish(false); else Main.toHome();
+    }));
+    b.appendChild(box);
+  },
+
+  // ================= 減速・加速の説明 =================
+  // **一度知れば十分なので、閉じられるようにする。**（2026-09-26・ユーザー「減速と加速の説明は消せるようにしましょう」）
+  //   前はキャンバスに描いていて消せなかった（Render.zoneLegend）。閉じたことは perm.zoneTipOff に覚える（⚙ から戻せる）
+  renderZoneTip() {
+    const z = this.el.zoneTip;
+    if (!z) return;
+    const st = Game.run && Game.run.stage;
+    const has = !!(st && st.vec && st.vec.hexes && st.vec.hexes.some(h => h.zone));
+    const show = has && !Game.perm.zoneTipOff && document.body.classList.contains('on-battle');
+    const key = show ? 'on' : 'off';
+    if (this._zoneKey === key) return;
+    this._zoneKey = key;
+    z.classList.toggle('on', show);
+    z.innerHTML = '';
+    if (!show) return;
+    z.innerHTML = '<div><b class="zt-mud">減速</b>敵が遅くなる</div><div><b class="zt-slope">加速</b>敵が速くなる</div>';
+    const x = Util.el('button', 'zt-x');
+    x.innerHTML = Icons.get('close');
+    x.title = 'この説明を閉じる（⚙ から戻せます）';
+    x.addEventListener('click', () => { Game.perm.zoneTipOff = true; Game.save(); Snd.ui(); this._zoneKey = null; this.renderZoneTip(); });
+    z.appendChild(x);
   },
 
   // 選んだ武器の調整。
@@ -597,7 +680,7 @@ const UI = {
     //   「初期装備はガトリング一種でいい、チュートリアルでスナイパーと出るからそこも消しておこう」）
     //   初期の持ち物はガトリングだけ（`STARTER_CARDS`）。スナイパーは第2章の突破報酬なので、
     //   第1章のチュートリアルに名前が出ると「持っていないものを説明される」ことになる
-    { t: '左上の武器をひとつ選ぶ',      s: 'GAT はガトリング' },
+    { t: '下の列の武器をひとつ選ぶ',    s: 'GAT はガトリング' },
     { t: '光っている地面をタップして置く', s: '置けるのは地面（壁）の上だけ' },
     { t: '調整パネルの矢印で、向きを敵のほうへ', s: '向きは六角の6方向。パネルは上をつまんで好きな場所へ動かせる' },
     { t: '右下の「準備完了」で始まる',    s: '置き直しはウェーブの合間にできる' },
