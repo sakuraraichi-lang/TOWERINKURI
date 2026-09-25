@@ -1478,3 +1478,10 @@ body:not(.tabsoff) .hlogo{display:none;}
 #zoneTip .zt-x{position:absolute;right:2px;top:2px;width:22px;height:22px;padding:0;display:grid;place-items:center;
   color:var(--dim);background:transparent;border:none;cursor:pointer;}
 #zoneTip .zt-x svg{width:13px;height:13px;}
+
+/* リザルトの「別の地形で挑む」（負けが続いたときだけ・2026-09-26） */
+.rs-reroll{display:grid;grid-template-columns:18px 1fr;column-gap:8px;align-items:center;width:100%;margin-top:8px;padding:8px 12px;
+  font:inherit;text-align:left;color:var(--txt2);background:transparent;border:1px dashed var(--line2);cursor:pointer;}
+.rs-reroll svg{width:18px;height:18px;grid-row:1 / span 2;}
+.rs-reroll span{font-size:13px;font-weight:700;color:var(--txt);}
+.rs-reroll small{font-size:10px;color:var(--dim);}

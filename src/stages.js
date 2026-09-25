@@ -81,7 +81,6 @@ function stageProgressCount(perm) {
 }
 
 const Stage = {
-  _cache: {},
 
   // **盤面の種があれば、マップはその場で作る**（src/mapgen.js）。
   //   種は新しいセーブを作るときに1回だけ引く。**転生では作り直さない**
@@ -175,32 +174,34 @@ const Stage = {
     //   2026-09-24 実測：6種×30章＝180枚で、1回目で作れなかった盤は0
     let m = null;
     for (let k = 0; k < 8 && !m; k++) {
-      m = MapGen.build(((seed * 2654435761) ^ ((idx + 1) * 40503) ^ ((roll + (k + 8 * (this._regen[stageId] || 0)) * 7919) * 2246822519)) >>> 0, 160, d, shape);
+      m = MapGen.build(((seed * 2654435761) ^ ((idx + 1) * 40503) ^ ((roll + (k + 8 * (this.rec(stageId).regen || 0)) * 7919) * 2246822519)) >>> 0, 160, d, shape);
     }
     if (!m) throw new Error(stageId + ' の盤を作れなかった（種 ' + seed + '）');
-    this._vec[stageId] = m.vec;
-    this._zone[stageId] = m.zone;
+    this.rec(stageId).vec = m.vec;
+    this.rec(stageId).zone = m.zone;
     return m.rows;
   },
 
-  _vec: {},
-  _zone: {},
-  _rows: {},        // 行き止まりを外して焼き直した盤（章ごと）
-  _pruned: {},      // 外した六角の数（{ before, after }）
-  _detour: {},      // 迂回路を足した回数
-  _joined: {},      // 六角の島を繋いだか
-  _regen: {},       // 分岐式を作り直した回数
-  _before: {},      // 迂回路を足す前の盤（最短経路が縮んだら戻す）
-  vecOf(stageId) { return this._vec[stageId] || null; },
+  // **盤の作り置きは、章ごとに1つの記録にまとめる。**（2026-09-26 リファクタリング）
+  //   前は _cache / _vec / _zone / _rows / _pruned / _detour / _joined / _regen / _before の9つに散っていて、
+  //   捨てるときは全部の章をまとめて捨てるしかなかった（1章の引き直しで30章ぶん作り直していた）。
+  //   記録の中身：
+  //     built  … 組み上がった盤（Stage.build の返り値）
+  //     rows / vec / zone … 焼いた盤・絵の元・地形の仕掛け（行き止まり外しや迂回路で焼き直したら差し替わる）
+  //     pruned … 行き止まりを外した六角の数 ／ detour … 迂回路を足した回数（99＝足して戻した）
+  //     joined … 六角の島を繋いだか ／ regen … 分岐式を作り直した回数 ／ before … 迂回路を足す前の盤
+  _st: {},
+  rec(stageId) { return this._st[stageId] || (this._st[stageId] = {}); },
+  vecOf(stageId) { return (this._st[stageId] && this._st[stageId].vec) || null; },
 
-  // 種が変わったら作り直す（転生のとき）
-  invalidate() { this._cache = {}; this._vec = {}; this._zone = {}; this._rows = {}; this._pruned = {}; this._detour = {}; this._before = {}; this._joined = {}; this._regen = {}; },
+  // 作り置きを捨てる。章を渡せばその章だけ、渡さなければ全部（種が変わったとき・転生のとき）
+  invalidate(stageId) { if (stageId) delete this._st[stageId]; else this._st = {}; },
 
   build(stageId) {
-    if (this._cache[stageId]) return this._cache[stageId];
+    if (this.rec(stageId).built) return this.rec(stageId).built;
     const def = STAGE_BY_ID[stageId];
     // 行き止まりを外して焼き直した盤があれば、そちらを使う（下の pruneDead）
-    const map = this._rows[stageId] || this.mapRowsFor(stageId);
+    const map = this.rec(stageId).rows || this.mapRowsFor(stageId);
     const rows = map.length;
     const cols = Math.max.apply(null, map.map(r => r.length));
 
@@ -262,7 +263,7 @@ const Stage = {
     //   両側からはみ出したタイルどうしが上下左右で接してしまう。絵では壁なのに、敵はそこを抜けていた。
     //   タイルごとに「そのタイルを通路にした六角」（MapGen.cover。焼くときと同じ規則）を覚え、
     //   **同じ六角か、隣の六角どうし**のときだけ行き来させる。六角を持たないタイル（口の穴など）はどことでも繋ぐ
-    const vecH = this._vec[stageId];
+    const vecH = this.rec(stageId).vec;
     const linked = (vecH && vecH.hexes) ? MapGen.linker(vecH.hexes, cols, rows) : () => true;
     // (c, r) から (nc, nr) へ1歩で行けるか（戦闘の押し合いも使う）
     const step = (c, r, nc, nr) => walkable(nc, nr) && (c === nc && r === nr || linked(r * cols + c, nr * cols + nc));
@@ -302,14 +303,14 @@ const Stage = {
 
     // ---- 口が届かない（六角どうしで繋がっていない）なら、六角づたいに繋いで焼き直す（1回だけ）----
     //   壁越しのタイルの接触で繋がっていた盤は、上の step で切れる。**絵に無い道を通すのではなく、絵のほうに道を足す**
-    if (vecH && vecH.hexes && !this._joined[stageId] && spawns.some(s => dist[idx(s.c, s.r)] >= INF)) {
-      this._joined[stageId] = 1;
+    if (vecH && vecH.hexes && !this.rec(stageId).joined && spawns.some(s => dist[idx(s.c, s.r)] >= INF)) {
+      this.rec(stageId).joined = 1;
       const hx = MapGen.joinHexes(vecH);
       if (hx) {
         const g2 = MapGen.bake([], vecH.core, vecH.holes, vecH.w, vecH.h, hx);
-        this._rows[stageId] = g2.map(r => r.join(''));
-        this._vec[stageId] = Object.assign({}, vecH, { hexes: hx });
-        this._zone[stageId] = MapGen._zone;
+        this.rec(stageId).rows = g2.map(r => r.join(''));
+        this.rec(stageId).vec = Object.assign({}, vecH, { hexes: hx });
+        this.rec(stageId).zone = g2.zone;
         return this.build(stageId);
       }
     }
@@ -426,28 +427,27 @@ const Stage = {
       mouthLanes.push(mine);
     });
 
-    const vec0 = this._vec[stageId];
+    const vec0 = this.rec(stageId).vec;
     // ---- 分岐式の盤で、レーンが2本取れない口があれば、盤ごと作り直す（6回まで）----
     //   分岐式は「分かれ道がある」ことを作り方で保証するはずの盤。片方の腕が壁越しにしか合流していないと
     //   （ユーザー 2026-09-25「5章で壁が繋がっていて分離できていなかった」）、腕が行き止まりになって1本道に戻る。
     //   迂回路で継ぎ足すより、型のまま作り直すほうが形が崩れない
-    if (vec0 && vec0.pattern && (this._regen[stageId] || 0) < 6 && mouthLanes.some(L => L.length < 2)) {
-      this._regen[stageId] = (this._regen[stageId] || 0) + 1;
-      delete this._rows[stageId]; delete this._vec[stageId]; delete this._zone[stageId];
-      delete this._joined[stageId]; delete this._pruned[stageId]; delete this._detour[stageId]; delete this._before[stageId];
+    if (vec0 && vec0.pattern && (this.rec(stageId).regen || 0) < 6 && mouthLanes.some(L => L.length < 2)) {
+      this.rec(stageId).regen = (this.rec(stageId).regen || 0) + 1;
+      this._st[stageId] = { regen: this.rec(stageId).regen };   // 作り直した回数だけ残して、ほかは捨てる
       return this.build(stageId);
     }
     // ---- 迂回路の検査：足したことで最短経路が下限（BAL.minRouteLen）を割るか、元の BAL.detourMinKeep 倍より縮んだら、
     //      足す前の盤に戻して、もう足さない（少し縮むのは許す。分かれ道のほうが大事）----
-    const bf = this._before[stageId];
+    const bf = this.rec(stageId).before;
     if (bf) {
-      delete this._before[stageId];
+      delete this.rec(stageId).before;
       const minNow = Math.min.apply(null, spawns.map(s => dist[idx(s.c, s.r)]));
       if (minNow < BAL.minRouteLen || minNow < bf.minRoute * BAL.detourMinKeep) {
-        this._rows[stageId] = bf.rows;
-        this._vec[stageId] = bf.vec;
-        this._zone[stageId] = bf.zone;
-        this._detour[stageId] = 99;
+        this.rec(stageId).rows = bf.rows;
+        this.rec(stageId).vec = bf.vec;
+        this.rec(stageId).zone = bf.zone;
+        this.rec(stageId).detour = 99;
         return this.build(stageId);
       }
     }
@@ -455,17 +455,17 @@ const Stage = {
     //   （ユーザー 2026-09-25「5章、6章は左右から分かれてきたら面白いのですが、やはり最短距離です」）
     //   第1〜3章（往復式）は1本の長い道として作っているので足さない
     const d0 = STAGES.length > 1 ? STAGE_BY_ID[stageId].idx / (STAGES.length - 1) : 0;
-    if (BAL.laneMin > 1 && vec0 && vec0.hexes && (this._detour[stageId] || 0) < 2 && d0 >= (BAL.serpUntilDepth || 0)) {
+    if (BAL.laneMin > 1 && vec0 && vec0.hexes && (this.rec(stageId).detour || 0) < 2 && d0 >= (BAL.serpUntilDepth || 0)) {
       const need = mouthLanes.filter(L => L.length && L.length < BAL.laneMin).map(L => lanes[L[0]].route);
-      this._detour[stageId] = (this._detour[stageId] || 0) + 1;
+      this.rec(stageId).detour = (this.rec(stageId).detour || 0) + 1;
       const hx = need.length ? MapGen.addDetours(vec0, need, cols) : null;
       if (hx) {
         // 足す前の盤と最短経路を覚えておく（縮んだら戻す。下の「迂回路の検査」）
-        this._before[stageId] = { rows: map, vec: vec0, zone: this._zone[stageId], minRoute: Math.min.apply(null, spawns.map(s => dist[idx(s.c, s.r)])) };
+        this.rec(stageId).before = { rows: map, vec: vec0, zone: this.rec(stageId).zone, minRoute: Math.min.apply(null, spawns.map(s => dist[idx(s.c, s.r)])) };
         const g2 = MapGen.bake([], vec0.core, vec0.holes, vec0.w, vec0.h, hx);
-        this._rows[stageId] = g2.map(r => r.join(''));
-        this._vec[stageId] = Object.assign({}, vec0, { hexes: hx });
-        this._zone[stageId] = MapGen._zone;
+        this.rec(stageId).rows = g2.map(r => r.join(''));
+        this.rec(stageId).vec = Object.assign({}, vec0, { hexes: hx });
+        this.rec(stageId).zone = g2.zone;
         return this.build(stageId);
       }
     }
@@ -473,7 +473,7 @@ const Stage = {
     // ---- どのレーンも通らない六角は壁に戻して、焼き直す（1回だけ）----
     //   レーンを入れても、別の道として成り立たない行き止まりや膨らみは残る
     //   （実測：第6・7章で通路の4割強、第13〜17章で3割前後）。**六角の単位で**外すので、通路が直線で切られることはない
-    if (BAL.pruneDead && vec0 && vec0.hexes && !this._pruned[stageId]) {
+    if (BAL.pruneDead && vec0 && vec0.hexes && !this.rec(stageId).pruned) {
       const band = new Uint8Array(N);
       for (const l of lanes) { const m = around(l.route); for (let i = 0; i < N; i++) if (m[i]) band[i] = 1; }
       const keepTile = (i) => band[i] || grid[(i / cols) | 0][i % cols] === 'S' || grid[(i / cols) | 0][i % cols] === 'C';
@@ -501,12 +501,12 @@ const Stage = {
         if (best) { keepHex.add(best[0]); keepHex.add(best[1]); }
       }
       const kept = vec0.hexes.filter(hx => keepHex.has(hx));
-      this._pruned[stageId] = { before: vec0.hexes.length, after: kept.length };
+      this.rec(stageId).pruned = { before: vec0.hexes.length, after: kept.length };
       if (kept.length < vec0.hexes.length) {
         const g2 = MapGen.bake([], vec0.core, vec0.holes, vec0.w, vec0.h, kept);
-        this._rows[stageId] = g2.map(r => r.join(''));
-        this._vec[stageId] = Object.assign({}, vec0, { hexes: kept });
-        this._zone[stageId] = MapGen._zone;
+        this.rec(stageId).rows = g2.map(r => r.join(''));
+        this.rec(stageId).vec = Object.assign({}, vec0, { hexes: kept });
+        this.rec(stageId).zone = g2.zone;
         return this.build(stageId);
       }
     }
@@ -537,9 +537,9 @@ const Stage = {
       //   （道が N 方向に分かれるぶん、敵の数も増やさないと1本あたりが薄くなる）
       shape: (BAL.mapShape && BAL.mapShape[STAGE_BY_ID[stageId].idx + 1]) || null,
       def, id: stageId, cols, rows, grid, spawns, mouths, core, dist, next, idx, walkable, step, routes, shield,
-      vec: this._vec[stageId] || null,        // 折れ線と幅。絵を滑らかに描くのに使う
+      vec: this.rec(stageId).vec || null,        // 折れ線と幅。絵を滑らかに描くのに使う
       // 地形の仕掛け（0=なし 1=減速 2=加速。内部の名前は mud/slope のまま）。手で書いたマップには無い
-      zone: this._zone[stageId] || null,
+      zone: this.rec(stageId).zone || null,
       zoneAt(c, r) { return this.zone ? (this.zone[r * cols + c] || 0) : 0; },
       w: cols * TILE, h: rows * TILE,
       center: (c, r) => ({ x: c * TILE + TILE / 2, y: r * TILE + TILE / 2 }),
@@ -624,7 +624,7 @@ const Stage = {
       routeLens: spawns.map(s => dist[idx(s.c, s.r)]).filter(d => d < INF),
     };
 
-    this._cache[stageId] = built;
+    this.rec(stageId).built = built;
     return built;
   },
 

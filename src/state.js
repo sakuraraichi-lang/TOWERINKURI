@@ -958,16 +958,11 @@ const Game = {
     //   **弾く側で完璧を目指すより、詰んだら引き直せるほうが確実。**
     //   突破済みの章は対象外（踏んだ地形は変えない）。
     //   出撃のたびに見るので、測定器でもゲーム本体でも同じように効く
-    if (!rec0.cleared && rec0.attempts > BAL.rerollAfterFails) {
-      const rolls = this.perm.mapRoll || (this.perm.mapRoll = {});
-      if (rolls[run.stageId] !== undefined) {
-        rolls[run.stageId] += 101;                 // 別の引きにする
-        rec0.attempts = 0;
-        if (typeof Stage !== 'undefined' && Stage.invalidate) Stage.invalidate();
-        this.startPrep(run.stageId);               // 新しい地形で組み直す
-        return this.beginBattle();
-      }
-    }
+    //
+    //   **【2026-09-26】黙って引き直すのはやめた。**（ユーザー「負けてリトライしたらさっきまでやってたマップと全く違うものを遊ぶことになった」）
+    //   ここで地形を差し替えてそのまま戦闘に入っていたので、置いた武器のまま知らない盤で戦うことになり、
+    //   「古い版の盤が読み込まれた」ように見えていた。いまは**プレイヤーが選ぶ**：負けが BAL.rerollAfterFails 回に届いたら、
+    //   敗北のリザルトに「別の地形で挑む」を出す（Game.rerollStage → 準備フェーズから）。盤の検査で詰む地形はもう出ない前提
     this.perm.totalRuns++;
     Combat.startWave(run);
     this.save();
@@ -1016,6 +1011,22 @@ const Game = {
       lives: Math.max(0, Math.ceil(r.lives)), livesMax: r.livesMax,
       stageGot, missions, dmg,
     };
+  },
+
+  // ---------- 地形の引き直し（プレイヤーが選ぶ） ----------
+  //   まだ突破していない章で BAL.rerollAfterFails 回負けたら選べる。踏んだ章（突破済み）の地形は変えない
+  canReroll(stageId) {
+    const rec = this.stageRec(stageId);
+    return !rec.cleared && rec.attempts >= BAL.rerollAfterFails && !!(this.perm.mapRoll && this.perm.mapRoll[stageId] !== undefined);
+  },
+  rerollStage(stageId) {
+    if (!this.canReroll(stageId)) return false;
+    this.perm.mapRoll[stageId] += 101;               // 別の引きにする（stages.js の mapRowsFor）
+    this.stageRec(stageId).attempts = 0;
+    if (this.perm.placements) delete this.perm.placements[stageId];   // 前の盤の配置は使えない
+    if (typeof Stage !== 'undefined' && Stage.invalidate) Stage.invalidate(stageId);   // その章だけ作り直す
+    this.save();
+    return true;
   },
 
   // ---------- 武器ごとの記録 ----------

@@ -1769,6 +1769,17 @@ const UI = {
     });
     subs.appendChild(home); subs.appendChild(up);
     body.appendChild(subs);
+    // **地形の引き直しはプレイヤーが選ぶ。**（2026-09-26・前は負けが続くと黙って差し替えていた）
+    if (!res.ok && Game.canReroll(res.stage.id)) {
+      const rr = Util.el('button', 'rs-reroll');
+      rr.innerHTML = Icons.get('grid') + '<span>別の地形で挑む</span><small>この章の地形を作り直します（準備フェーズから）</small>';
+      rr.addEventListener('click', () => {
+        if (!Game.rerollStage(res.stage.id)) return;
+        this.closeModal();
+        Main.toBattle();
+      });
+      body.appendChild(rr);
+    }
 
     this.openModal(body, true);
     this.el.modal.classList.add('rsmodal');

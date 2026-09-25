@@ -384,6 +384,9 @@ async function reachDistAsync(seeds, opts) {
         const r = runStage(stg.id, LOADOUTS[stg.id], 90, opts);
         sec += r.sec; used = i; resLog.push(r.res[0]);
         if (r.res === 'clear') { ok = true; cleared++; break; }
+        // **地形の引き直しはプレイヤーが選ぶ形になった**（2026-09-26・Game.rerollStage）。
+        //   前は本体が負けの5回目で黙って引き直していたので、測定器もプレイヤーと同じく、選べるようになったら引き直す
+        if (Game.canReroll(stg.id)) Game.rerollStage(stg.id);
         // 'slow' が出たら測定器が追いつかなかった行。**隠さず印を残す**
         if (r.res === 'slow') { note = '打切'; break; }
       }

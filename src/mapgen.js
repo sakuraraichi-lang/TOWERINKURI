@@ -599,6 +599,7 @@ const MapGen = {
       }
     }
     this._zone = zone;
+    g.zone = zone;      // 焼いた盤に仕掛けを持たせる（呼び出し側は MapGen._zone ではなくこれを読む・2026-09-26）
 
     // コア
     const cc = Math.max(0, Math.min(cols - 1, Math.floor(core.x / TILE)));
