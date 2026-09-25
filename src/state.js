@@ -70,6 +70,8 @@ const Game = {
       stages: { ch1: { cleared: false, perfect: false, bestWave: 0, attempts: 0 } },
       currentStage: 'ch1',
       placements: {},
+      // **【2026-09-26】mapRoll と mapSeed はもう読まない。**盤は全員同じ30章（BAL.mapSeed）で、二度と変わらない（stages.js の mapRowsFor）。
+      //   古いセーブとの互換のために項目だけ残す
       // 章ごとに「何周目の引きを使ったか」。踏んだ章は変えず、
       //   まだ届いていない章だけ転生で引き直すための記録（stages.js）
       mapRoll: {},
@@ -962,7 +964,7 @@ const Game = {
     //   **【2026-09-26】黙って引き直すのはやめた。**（ユーザー「負けてリトライしたらさっきまでやってたマップと全く違うものを遊ぶことになった」）
     //   ここで地形を差し替えてそのまま戦闘に入っていたので、置いた武器のまま知らない盤で戦うことになり、
     //   「古い版の盤が読み込まれた」ように見えていた。いまは**プレイヤーが選ぶ**：負けが BAL.rerollAfterFails 回に届いたら、
-    //   敗北のリザルトに「別の地形で挑む」を出す（Game.rerollStage → 準備フェーズから）。盤の検査で詰む地形はもう出ない前提
+    //   敗北のリザルトに「別の地形で挑む」を出していたが、**同じ日に撤去した**（ユーザー「盤が変わる仕様を撤廃しましょう、全て固定に」）。盤は二度と変わらない
     this.perm.totalRuns++;
     Combat.startWave(run);
     this.save();
@@ -1011,22 +1013,6 @@ const Game = {
       lives: Math.max(0, Math.ceil(r.lives)), livesMax: r.livesMax,
       stageGot, missions, dmg,
     };
-  },
-
-  // ---------- 地形の引き直し（プレイヤーが選ぶ） ----------
-  //   まだ突破していない章で BAL.rerollAfterFails 回負けたら選べる。踏んだ章（突破済み）の地形は変えない
-  canReroll(stageId) {
-    const rec = this.stageRec(stageId);
-    return !rec.cleared && rec.attempts >= BAL.rerollAfterFails && !!(this.perm.mapRoll && this.perm.mapRoll[stageId] !== undefined);
-  },
-  rerollStage(stageId) {
-    if (!this.canReroll(stageId)) return false;
-    this.perm.mapRoll[stageId] += 101;               // 別の引きにする（stages.js の mapRowsFor）
-    this.stageRec(stageId).attempts = 0;
-    if (this.perm.placements) delete this.perm.placements[stageId];   // 前の盤の配置は使えない
-    if (typeof Stage !== 'undefined' && Stage.invalidate) Stage.invalidate(stageId);   // その章だけ作り直す
-    this.save();
-    return true;
   },
 
   // ---------- 武器ごとの記録 ----------
@@ -1128,18 +1114,10 @@ const Game = {
     //   20章の次が16章）。前の周で凌いだ章が別の地形になるので、
     //   積み上げたはずのものが返ってこない。
     //   地形は1つのセーブの中でずっと同じにして、**配置だけ捨てる。**
-    //   別の遊びで別の地形になるのは mapSeed が違うから
+    //   （盤は全員同じ30章・BAL.mapSeed。配置だけが転生で消える）
     this.perm.placements = {};
-    // **まだ届いていない章の地形だけ引き直す**（stages.js の mapRowsFor）。
-    //   踏んだ章（deepest より手前）は覚えた引きをそのまま使うので変わらない。
-    //   壁に当たった章は次の周で別の地形になる
-    const deep = this.perm.deepest || 0;
-    const rolls = this.perm.mapRoll || {};
-    for (const id of Object.keys(rolls)) {
-      const rec = STAGE_BY_ID[id];
-      if (rec && rec.idx >= deep) delete rolls[id];
-    }
-    if (typeof Stage !== 'undefined' && Stage.invalidate) Stage.invalidate();
+    // **盤は転生でも変えない。**（2026-09-26・ユーザー「盤が変わる仕様を撤廃しましょう、全て固定に」）
+    //   前はここで、まだ届いていない章の地形を引き直していた
     this.run = null;
     this.phase = 'prep';
     const missions = this.checkMissions();

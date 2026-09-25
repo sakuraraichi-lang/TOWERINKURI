@@ -88,7 +88,11 @@ const Stage = {
   //   （ユーザー決定 2026-09-21：「配置は転生で消える」「1000組み合わせで作れない？」）。
   //   種が無い（セーブを読む前）ときは 1 で作る。手書きの盤はもう無い（2026-09-24 削除）
   mapRowsFor(stageId) {
-    const seed = (typeof Game !== 'undefined' && Game.perm && Game.perm.mapSeed) || 1;
+    // **盤は全員同じ30章に固定する。**（2026-09-26・ユーザー「盤が変わる仕様を撤廃しましょう、全て固定にしないと戦略性が産まれません、
+    //   明らかに難しすぎるマップや、詰み要素のあるマップ、簡単すぎる、問題があるものは報告します」→「全員同じ30章」を選択）
+    //   前はセーブごとの種（perm.mapSeed）と章ごとの引きの番号（perm.mapRoll）で作っていて、転生や負けの繰り返しで作り直していた。
+    //   いまは BAL.mapSeed だけで決まる（perm.mapSeed / perm.mapRoll は読まない）
+    const seed = BAL.mapSeed || 1;
     const idx = STAGE_BY_ID[stageId].idx;
     // 章が進むほど難しい形にする（口が増え、通路が広がり、経路が短くなる）
     const d = STAGES.length > 1 ? idx / (STAGES.length - 1) : 0.5;
@@ -104,9 +108,9 @@ const Stage = {
     //   「到達より手前なら固定」と条件で出し分けたら、到達が伸びた瞬間に
     //   その章の地形が別物に変わって、**3章で何周も足踏みした**
     //   （実測 3→6→4→4→4→4）。覚えておけば後から変わらない
-    const rolls = Game.perm.mapRoll || (Game.perm.mapRoll = {});
-    if (rolls[stageId] === undefined) rolls[stageId] = (Game.perm.prestiges || 0);
-    const roll = rolls[stageId];
+    //   **【2026-09-26】撤去した。**上の「前だけ引き直す」も含めて、盤は二度と変わらない（引きの番号は常に0）。
+    //   上の実測（第14章で足踏み）のような「詰む盤」は、遊んだ報告を受けて盤そのものを直す
+    const roll = 0;
     // **章ごとの形。**（2026-09-22）
     //   数値（敵のHP）では拍が作れないことが実測で分かったので、
     //   難易度は**マップの形**でも付ける。表は BAL.mapShape、無い章は今までどおり
