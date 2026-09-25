@@ -32,6 +32,9 @@
   touch-action:manipulation;          /* スクロールとピンチは残し、ダブルタップ拡大だけ殺す */
   user-select:none;-webkit-user-select:none;}
 *::selection{background:transparent;}
+/* **ピンチ拡大も止める。**（2026-09-25・ユーザー「ダブルタップで拡大などのスマホ操作がまだ効くようになってるのがプレイで大変ストレス」）
+   manipulation はピンチを残すので、根元を pan-x pan-y にする（touch-action は親子で重なった分だけ効く） */
+html,body{touch-action:pan-x pan-y;}
 *::-moz-selection{background:transparent;}
 html,body{
   margin:0;padding:0;height:100%;overflow:hidden;

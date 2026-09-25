@@ -337,6 +337,29 @@ const Main = {
   },
 };
 
+// **スマホの拡大を止める。**（2026-09-25・ユーザー「ダブルタップで拡大などのスマホ操作がまだ効くようになってるのが
+//   プレイで大変ストレスです、即座の修正を求めます」）
+//   iOS の Safari は viewport の user-scalable=no を無視し、touch-action だけでは止まらない場面がある。
+//   ・拡大のジェスチャ（gesture*）と、2本指の移動を止める
+//   ・素早い2回目のタップ（ダブルタップ）は既定の動作（拡大）を止め、代わりにそのボタンへクリックを送る
+//     （止めるだけだと、連打した2回目の押下が効かなくなる）。盤面（#cv）はポインタで扱っているので送らない
+(function () {
+  const stop = (e) => e.preventDefault();
+  for (const t of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(t, stop, { passive: false });
+  document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
+  document.addEventListener('dblclick', stop, { passive: false });
+  let last = 0;
+  document.addEventListener('touchend', (e) => {
+    const now = performance.now();
+    if (now - last < 320 && e.changedTouches.length === 1) {
+      e.preventDefault();
+      const el = e.target;
+      if (el && !el.closest('#cv') && typeof el.click === 'function') el.click();
+    }
+    last = now;
+  }, { passive: false });
+})();
+
 window.addEventListener('load', () => {
   // 絵文字をやめて SVG のアイコンに（2026-09-24）。HTML に直書きしている分をここで入れる
   document.querySelectorAll('[data-ic]').forEach(e => { e.innerHTML = Icons.get(e.dataset.ic); });
