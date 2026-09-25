@@ -636,6 +636,16 @@ const Stage = {
       if (!b.core) bad.push(s.id + ': コア(C)が無い');
       if (!b.spawns.length) bad.push(s.id + ': 出現口(S)が無い');
       if (!b.reachable) bad.push(s.id + ': コアへ到達できない出現口 ' + JSON.stringify(b.unreachableSpawns));
+      // **壁をすり抜ける道が無いこと。**（ユーザー 2026-09-25「存在しない経路を通ろうとします、こういうのも忘れずにチェックしておいてください」）
+      //   どのレーンも、1歩ずつ step（六角で隣り合う通路どうし）で繋がっていること
+      let wallStep = 0;
+      for (const l of b.lanes) for (let k = 1; k < l.route.length; k++) {
+        const a = l.route[k - 1], z = l.route[k];
+        if (!b.step(a % b.cols, (a / b.cols) | 0, z % b.cols, (z / b.cols) | 0)) wallStep++;
+      }
+      if (wallStep) bad.push(s.id + ': 壁をすり抜けるレーンの一歩 ' + wallStep + ' か所');
+      // 分岐式（第4〜11章）はどの口も分かれ道（レーン2本以上）を持つこと
+      if (b.vec && b.vec.pattern && u.lanes.some(n => n < 2)) bad.push(s.id + ': 分岐式なのに分かれ道が無い口がある（' + b.vec.pattern + '・レーン ' + u.lanes.join('/') + '）');
       const walls = b.grid.reduce((n, row) => n + row.filter(ch => ch === '#').length, 0);
       if (walls < 12) bad.push(s.id + ': 設置できる壁が少なすぎる (' + walls + ')');
       // 経路が短すぎると、どう置いても撃つ時間が足りずに漏れる。
