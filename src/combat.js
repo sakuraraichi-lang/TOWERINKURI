@@ -413,9 +413,18 @@ const Combat = {
     const crit = opts.crit === true || (typeof opts.crit === 'number' && Util.chance(opts.crit)) ||
                  opts.forceCrit === true;
     if (crit) dmg *= opts.critMul || 2;
+    // **武器ごとの記録。**（ユーザー 2026-09-25「武器ごとのダメージランキングの表示と、リザルトで何が一番ダメージを出していたかを残して」）
+    //   数えるのは**有効ダメージ**（敵の残りHPまで）。倒しきった敵へのやり過ぎ分まで数えると、
+    //   効率の良い武器ほど小さく出る（CLAUDE.md「武器とカードは漏らした数で測る」）
+    const by = opts.by || this._by || 'other';
+    const hp0 = e.hp;
     e.hp -= dmg;
     e.hitFlash = 0.1;
     run.dealt += dmg;
+    if (run.dmgBy && hp0 > 0) {
+      run.dmgBy[by] = (run.dmgBy[by] || 0) + Math.min(dmg, hp0);
+      if (e.hp <= 0) run.killBy[by] = (run.killBy[by] || 0) + 1;
+    }
 
     // ---- 状態異常。**遺物の軸がここで乗る**（relics.js の st）----
     //   opts.dot が立っているものは、燃焼・毒の雲など**すでに状態異常が
@@ -423,7 +432,7 @@ const Combat = {
     //   永久に切れなくなるので、付与（*Grant）は素の攻撃だけに掛ける
     const sc = this.statusScale(e);
     const st = run.st;
-    if (opts.shock) e.shock = Math.max(e.shock, opts.shock * sc + st.shockDur);
+    if (opts.shock) { e.shock = Math.max(e.shock, opts.shock * sc + st.shockDur); e.shockBy = by; }
 
     let sl = opts.slow || 0, slD = (opts.slowDur || 0) * sc, ch = !!opts.chill;
     if (st.chillGrant > 0 && !opts.dot) {           // 霜結：どの武器でも凍る
@@ -438,7 +447,7 @@ const Combat = {
       if (ch) e.chill = Math.max(e.chill, d);
     }
 
-    if (opts.stun) e.stun = Math.max(e.stun, opts.stun * sc + st.stunDur);
+    if (opts.stun) { e.stun = Math.max(e.stun, opts.stun * sc + st.stunDur); e.stunBy = by; }
 
     let bn = opts.burn || 0, bd = opts.burnDur || 0;
     if (st.burnGrant > 0 && !opts.dot) {            // 熾火：どの武器でも燃える
@@ -447,6 +456,7 @@ const Combat = {
     }
     if (bn > 0) {
       e.burn = Math.max(e.burn, bn * st.burnMul);
+      e.burnBy = by;
       e.burnT = Math.max(e.burnT, (bd || 3) + st.burnDur);
     }
 
@@ -646,7 +656,7 @@ const Combat = {
     run.fields.push({
       x, y, r: o.r, dur: o.dur, t: 0, tick: 0,
       dps: o.dps, slow: o.slow || 0, vuln: o.vuln || 0,
-      color: o.color, kind: o.kind || 'gas',
+      color: o.color, kind: o.kind || 'gas', by: this._by,
     });
   },
 
@@ -1016,9 +1026,10 @@ const Combat = {
           //   炎上（`burnT`）と同じ形にして、雲を出たあとも少し続くようにする
           if (f.kind === 'gas') {
             e.poison = Math.max(e.poison || 0, f.dps * BAL.poisonKeep);
+            e.poisonBy = f.by;
             e.poisonT = Math.max(e.poisonT || 0, BAL.poisonDur + run.st.burnDur);
           }
-          this.damage(run, e, f.dps * step, { color: f.kind === 'gas' ? '#c6ff7a' : '#ffb066', dot: true });
+          this.damage(run, e, f.dps * step, { color: f.kind === 'gas' ? '#c6ff7a' : '#ffb066', dot: true, by: f.by });
         }
       }
     }
@@ -1044,12 +1055,12 @@ const Combat = {
         e.burnT -= dt;
         // 焼き締め（syn_searbind）：掴まれている敵は炎上ダメージに倍率
         const gb = (run.grabBurn && e.grabT > 0) ? run.grabBurn : 1;
-        this.damage(run, e, e.burn * dt * gb, { color: '#ff8a3a', dot: true });
+        this.damage(run, e, e.burn * dt * gb, { color: '#ff8a3a', dot: true, by: e.burnBy });
         if (e.dead) continue;
       }
       // **毒のスリップダメージ。**（ユーザー要望8・2026-09-22）
       //   雲を出たあとも続く。炎上と同じ形
-      if (e.poisonT > 0) { e.poisonT -= dt; this.damage(run, e, (e.poison || 0) * dt, { color: '#c6ff7a', dot: true }); if (e.dead) continue; }
+      if (e.poisonT > 0) { e.poisonT -= dt; this.damage(run, e, (e.poison || 0) * dt, { color: '#c6ff7a', dot: true, by: e.poisonBy }); if (e.dead) continue; }
       // **感電と拘束にもスリップダメージ。**（ユーザー判断 2026-09-23）
       //   > 「凍結にスリップダメージは不要、**感電と拘束につける**、これでいきましょう」
       //   **凍結には付けない。**「時間を奪う軸」として上限を開かない決まりにしてあるため。
@@ -1057,11 +1068,11 @@ const Combat = {
       //   **最大HPに対する割合／秒。** 固定値にすると章が進んだ瞬間に意味が消える
       //   （敵のHPは30章で1e14倍になる）。装甲と同じ考え方
       if (e.shock > 0 && BAL.shockDps) {
-        this.damage(run, e, e.maxHp * BAL.shockDps * dt, { color: '#c9b3ff', dot: true });
+        this.damage(run, e, e.maxHp * BAL.shockDps * dt, { color: '#c9b3ff', dot: true, by: e.shockBy });
         if (e.dead) continue;
       }
       if (e.stun > 0 && BAL.stunDps) {
-        this.damage(run, e, e.maxHp * BAL.stunDps * dt, { color: '#bea0ff', dot: true });
+        this.damage(run, e, e.maxHp * BAL.stunDps * dt, { color: '#bea0ff', dot: true, by: e.stunBy });
         if (e.dead) continue;
       }
       // **ボスは雑魚を出し続ける。** 倒すまで手が空かない、が罰になる
@@ -1184,13 +1195,16 @@ const Combat = {
         w.shots++;
         w.group = Game.groupingOf(w);  // 扇の広さで決まる集弾率。fire から参照する
         w.n = this.shotCount(w);       // この発射で撃つ弾数。fire から参照する
+        this._by = w.id;               // この発射で起きたダメージは、この武器のもの（damage の記録）
         w.def.fire(w, run);
+        this._by = null;
       }
     }
 
     // --- 弾 ---
     for (let i = run.bullets.length - 1; i >= 0; i--) {
       const b = run.bullets[i];
+      this._by = b.wid || null;
       b.life -= dt;
       if (b.life <= 0) { this.bulletEnd(run, b); run.bullets.splice(i, 1); continue; }
 
@@ -1344,6 +1358,7 @@ const Combat = {
         run.bullets.splice(i, 1);
       }
     }
+    this._by = null;
 
     // --- 演出 ---
     for (let i = run.fx.length - 1; i >= 0; i--) {

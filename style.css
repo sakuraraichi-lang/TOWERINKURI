@@ -1384,3 +1384,34 @@ body:not(.tabsoff) .hlogo{display:none;}
 .tk-buy.short,.tk-buy:disabled{background:#1a1d25;color:var(--dim);box-shadow:none;cursor:default;}
 .tk-buy.short b{color:#ffcf70;}
 .tk-buy.done{flex-direction:row;gap:4px;font-size:11px;font-weight:900;color:var(--bc);background:#10131a;border:1px solid color-mix(in srgb,var(--bc) 50%,transparent);}
+
+/* --- 武器ごとの火力（2026-09-25・ユーザー「ゲーム中に武器ごとのダメージランキングの表示」）---
+   戦闘中は上の帯の「火力」を押したときだけ、盤の右上に出す（常時出すと盤面が見えなくなる） */
+.hdmg{font-size:11px;font-weight:700;color:var(--txt2);background:rgba(10,12,17,.75);
+  border:1px solid var(--line2);padding:3px 9px;cursor:pointer;
+  clip-path:polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px));}
+.hdmg.on{color:#1a0d00;background:var(--acc);border-color:var(--acc);}
+#dmgpop{position:absolute;right:6px;top:6px;z-index:24;display:none;width:min(220px,58%);
+  background:rgba(8,10,14,.86);border:1px solid var(--line2);padding:7px 8px 6px;pointer-events:none;
+  clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px));}
+#dmgpop.on{display:block;}
+.dmg-h{font-size:10px;color:var(--dim);margin-bottom:4px;letter-spacing:.04em;}
+.dmg-none{font-size:11px;color:var(--dim);}
+.dmg-bars{display:flex;flex-direction:column;gap:4px;}
+.dmg-row{display:block;font-size:11px;}
+.dmg-top{display:flex;align-items:center;gap:6px;}
+.dmg-ic{flex:0 0 16px;width:16px;height:16px;display:flex;align-items:center;justify-content:center;}
+.dmg-ic svg{width:16px;height:16px;}
+.dmg-n{flex:1 1 auto;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;color:var(--txt);}
+.dmg-n em{font-style:normal;color:var(--dim);margin-left:4px;font-size:10px;}
+.dmg-p{flex:0 0 auto;text-align:right;color:var(--gold);font-weight:700;font-variant-numeric:tabular-nums;}
+.dmg-bar{height:4px;margin:3px 0 0 22px;background:rgba(255,255,255,.07);overflow:hidden;}
+.dmg-bar > div{height:100%;}
+.rs .dmg-bars{margin:0 2px 10px;}
+.rs .dmg-row{font-size:12px;}
+/* 版の説明の中の「武器の記録をコピー」 */
+.bn-copy{display:block;margin-top:6px;font-size:11px;color:var(--acc);background:transparent;
+  border:1px solid var(--acc);padding:4px 10px;cursor:pointer;}
+.bn-copy:disabled{opacity:.4;cursor:default;}
+.bn-txt{display:block;width:100%;height:120px;margin-top:6px;font-size:10px;color:var(--txt);
+  background:var(--bg2);border:1px solid var(--line2);user-select:text;-webkit-user-select:text;}

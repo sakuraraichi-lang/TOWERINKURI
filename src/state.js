@@ -25,6 +25,7 @@
 //   ファームで貯めたぶんがそのまま残る。OLD_KEYS を空にしてある。
 //   古い鍵は読み込み時に消して、あとから復活しないようにする
 const SAVE_KEY = 'inkuriment_save_v4';
+const DMG_LOG_MAX = 30;      // 武器ごとの記録を何件残すか（Game.logDamage）
 const OLD_KEYS = [];
 const PURGE_KEYS = ['inkuriment_save_v3', 'inkuriment_save_v2', 'inkuriment_save_v1'];
 
@@ -883,6 +884,7 @@ const Game = {
       // 遺物の状態異常の軸。applyMods が入れ替える（Combat.damage が毎ヒット読む）
       st: Relic.none,
       kills: 0, coinsEarned: 0, dealt: 0, leaked: 0,
+      dmgBy: {}, killBy: {},          // 武器ごとの有効ダメージと撃破（combat.js の damage）
       livesLost: 0, leakBy: {},   // 死因のため：失ったライフと、抜けられた敵の内訳
       shake: 0,
       over: false, cleared: false,
@@ -997,13 +999,43 @@ const Game = {
 
     this.openTabs();     // 出撃を終えたらタブが開く（totalRuns は beginBattle で数えている）
     const missions = this.checkMissions();
+    const dmg = this.logDamage(r, ok);
     this.save();
     return {
       ok, perfect, stage: STAGE_BY_ID[r.stageId], wave: r.wave,
       kills: r.kills, coins: r.coinsEarned, leaked: r.leaked,
       lives: Math.max(0, Math.ceil(r.lives)), livesMax: r.livesMax,
-      stageGot, missions,
+      stageGot, missions, dmg,
     };
+  },
+
+  // ---------- 武器ごとの記録 ----------
+  //   （ユーザー 2026-09-25「リザルトで何が一番ダメージを出していたかを残して、それを何件か分保存しておけば、
+  //    あなたがそれを確認して『この転生回数にしては火力が出過ぎているな？』みたいなバランスの異変にも気が付きやすそう」）
+  //   出撃ごとに、武器ごとの有効ダメージ・撃破・置いた数と、その回の条件（版・章・転生回数・漏れ・勝ち負け）を
+  //   perm.dmgLog に新しい順で DMG_LOG_MAX 件残す（転生でも消えない）。**有効ダメージ**は敵の残りHPまでで切った値
+  dmgRanking(r) {
+    const n = {};
+    for (const w of (r.units || [])) n[w.id] = (n[w.id] || 0) + 1;
+    const ids = Object.keys(Object.assign({}, r.dmgBy || {}, n));
+    const tot = ids.reduce((a, id) => a + ((r.dmgBy || {})[id] || 0), 0) || 1;
+    return ids.map(id => ({ id, dmg: (r.dmgBy || {})[id] || 0, kills: (r.killBy || {})[id] || 0, n: n[id] || 0,
+      pct: Math.round(1000 * (((r.dmgBy || {})[id] || 0) / tot)) / 10 }))
+      .filter(x => x.dmg > 0 || x.n > 0)
+      .sort((a, b) => b.dmg - a.dmg);
+  },
+  logDamage(r, ok) {
+    const rank = this.dmgRanking(r);
+    const P = this.perm;
+    const log = P.dmgLog || (P.dmgLog = []);
+    log.unshift({
+      at: Date.now(), build: BUILD, stage: r.stageId, ok: !!ok, wave: r.wave,
+      prestiges: P.prestiges || 0, legacyDeep: P.legacyDeep || 0, deepest: P.deepest || 0,
+      leaked: r.leaked, kills: r.kills, placed: (r.units || []).length,
+      w: rank.map(x => [x.id, +x.dmg.toPrecision(4), x.kills, x.n]),
+    });
+    if (log.length > DMG_LOG_MAX) log.length = DMG_LOG_MAX;
+    return rank;
   },
 
   // タブの解禁。**一度開いたら閉じない**

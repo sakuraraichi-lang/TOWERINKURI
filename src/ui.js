@@ -25,6 +25,7 @@ const UI = {
       panel: q('panel'), tabs: q('tabs'), modal: q('modal'),
       toast: q('toast'), badgePack: q('badgePack'),
       upop: q('upop'), stage: q('stage'), tut: q('tut'), perf: q('perf'),
+      btnDmg: q('btnDmg'), dmgpop: q('dmgpop'),
       build: q('build'), buildNote: q('buildNote'),
       btnCfg: q('btnCfg'), cfgBox: q('cfgBox'),
       btnStart: q('btnStart'),
@@ -57,6 +58,14 @@ const UI = {
 
     // 「残り◯」をタップすると、処理の重さの表示が出入りする
     if (this.el.hudWaveTxt) this.el.hudWaveTxt.addEventListener('click', () => this.togglePerf());
+    // 戦闘中の火力の内訳（ユーザー 2026-09-25「ゲーム中に武器ごとのダメージランキングの表示」）。押したときだけ出す
+    if (this.el.btnDmg) this.el.btnDmg.addEventListener('click', () => {
+      Snd.resume(); Snd.ui();
+      Game.perm.dmgOpen = !Game.perm.dmgOpen;
+      this._dmgT = 0;
+      this.renderDmg(true);
+      Game.save();
+    });
 
     if (this.el.homeSkip) this.el.homeSkip.addEventListener('click', () => Main.doSkip());
     if (this.el.homeSkipAll) this.el.homeSkipAll.addEventListener('click', () => Main.doSkipAll());
@@ -90,6 +99,23 @@ const UI = {
           '「更新されていない気がする」ときに、ここが変わっているかで確かめられます<br>' +
           '<a href="' + PATCHNOTES_URL + '" target="_blank" rel="noopener">' +
           'この版で何が変わったか（パッチノート）</a>';
+        // **武器ごとの記録を文字で持ち出す。**（ユーザー 2026-09-25「何件か分保存しておけば、あなたがそれを確認して…」）
+        //   端末の中の記録は開発側から見えないので、コピーして貼ってもらう
+        const log = Game.perm.dmgLog || [];
+        const b = Util.el('button', 'bn-copy', '武器の記録をコピー（直近 ' + log.length + ' 回）');
+        b.disabled = !log.length;
+        b.addEventListener('click', (ev) => {
+          ev.stopPropagation();
+          const txt = this.dmgLogText();
+          const done = () => { b.textContent = 'コピーしました（' + log.length + ' 回ぶん）'; };
+          const fallback = () => {
+            const ta = Util.el('textarea', 'bn-txt'); ta.value = txt; ta.readOnly = true;
+            n.appendChild(ta); ta.select();
+            b.textContent = '下の文字を長押しでコピーしてください';
+          };
+          try { navigator.clipboard.writeText(txt).then(done, fallback); } catch (e) { fallback(); }
+        });
+        n.appendChild(b);
       });
     }
 
@@ -100,6 +126,41 @@ const UI = {
     this.renderTabs();
     this.renderPanel();
     this.renderTray();
+  },
+
+  // 武器の名前（記録用。'other' は武器に紐づかないダメージ）
+  wname(id) { return id === 'other' ? 'その他' : (WEAPONS[id] ? WEAPONS[id].name : id); },
+
+  // 武器ごとの記録（Game.perm.dmgLog）を、貼り付けて読める文字にする。1行＝1回の出撃、新しい順
+  dmgLogText() {
+    const log = Game.perm.dmgLog || [];
+    const lines = ['INKURIMENT 武器の記録（新しい順・' + log.length + '回）',
+      '版 章 結果 W 転生 前回到達 最深 漏れ 撃破 置いた数 | 武器 有効ダメージの割合%（有効ダメージ／撃破／基数）'];
+    for (const x of log) {
+      const tot = x.w.reduce((a, w) => a + w[1], 0) || 1;
+      const d = new Date(x.at);
+      lines.push([x.build, x.stage, x.ok ? '突破' : '敗北', 'W' + x.wave, '転生' + x.prestiges, '前回' + x.legacyDeep, '最深' + x.deepest,
+        '漏れ' + x.leaked, '撃破' + x.kills, '置' + x.placed].join(' ') + ' (' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
+        d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0') + ') | ' +
+        x.w.map(w => this.wname(w[0]) + ' ' + (Math.round(1000 * w[1] / tot) / 10) + '%（' + (+w[1]).toExponential(2) + '／' + w[2] + '／' + w[3] + '基）').join('、'));
+    }
+    return lines.join('\n');
+  },
+
+  // 武器ごとの火力の帯（上位 n 件）。リザルトと戦闘中の両方で使う
+  dmgBars(rank, n) {
+    const box = Util.el('div', 'dmg-bars');
+    const top = rank.length ? rank[0].dmg || 1 : 1;
+    for (const x of rank.slice(0, n)) {
+      const w = WEAPONS[x.id];
+      const row = Util.el('div', 'dmg-row');
+      row.innerHTML = '<div class="dmg-top"><span class="dmg-ic" style="color:' + (w ? w.color : '#aab') + '">' + (w ? w.icon : '') + '</span>' +
+        '<span class="dmg-n">' + this.wname(x.id) + (x.n ? '<em>×' + x.n + '</em>' : '') + '</span>' +
+        '<span class="dmg-p">' + x.pct + '%</span></div>' +
+        '<div class="dmg-bar"><div style="width:' + Math.max(2, 100 * x.dmg / top).toFixed(1) + '%;background:' + (w ? w.color : '#889') + '"></div></div>';
+      box.appendChild(row);
+    }
+    return box;
   },
 
   // タブを閉じているあいだはパネルを畳み、ステージの的を大きく見せる
@@ -299,6 +360,26 @@ const UI = {
     const k = Util.clamp(r.lives / Math.max(1, r.livesMax), 0, 1);
     this.el.hudHpBar.style.transform = 'scaleX(' + k.toFixed(3) + ')';
     this.el.hudHp.textContent = Math.ceil(r.lives) + ' / ' + r.livesMax;
+    this.renderDmg(false);
+  },
+
+  // 盤の右上の火力の内訳。開いているあいだだけ、0.5秒ごとに組み直す
+  renderDmg(now) {
+    const p = this.el.dmgpop;
+    if (!p) return;
+    const on = !!Game.perm.dmgOpen;
+    p.classList.toggle('on', on);
+    if (this.el.btnDmg) this.el.btnDmg.classList.toggle('on', on);
+    if (!on) { if (p.firstChild) p.innerHTML = ''; return; }
+    const t = performance.now();
+    if (!now && t - (this._dmgT || 0) < 500) return;
+    this._dmgT = t;
+    const r = Game.run;
+    const rank = r ? Game.dmgRanking(r) : [];
+    p.innerHTML = '';
+    p.appendChild(Util.el('div', 'dmg-h', '火力（与えたダメージの割合）'));
+    if (!rank.some(x => x.dmg > 0)) p.appendChild(Util.el('div', 'dmg-none', 'まだダメージがありません'));
+    else p.appendChild(this.dmgBars(rank, 6));
   },
 
   // 画面下のユニットバー。編成した4種を「配置済 / 上限」で出す
@@ -1514,6 +1595,12 @@ const UI = {
         '<span>ライフ <b>' + res.lives + '/' + res.livesMax + '</b></span>' +
         '<span>通した <b>' + Util.fmt(res.leaked) + '</b></span>' +
         '<span>撃破 <b>' + Util.fmt(res.kills) + '</b></span></div>';
+
+    // 火力の内訳（上位3つ）。**有効ダメージ**（敵の残りHPまで）の割合
+    if (res.dmg && res.dmg.length) {
+      body.appendChild(Util.el('div', 'rs-h', '火力（与えたダメージの割合）'));
+      body.appendChild(this.dmgBars(res.dmg, 3));
+    }
 
     // 報酬：初回突破の武器カード・パック・完璧クリアのパック
     const got = res.stageGot;
