@@ -521,6 +521,12 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 #upop .ubar input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;
       background:var(--gold);border:2px solid #7a3406;}
 #upop .ubar input[type=range]:disabled{opacity:.4;}
+/* 向きの6方向ボタン（2026-09-25） */
+#upop .udirs{gap:4px;}
+#upop .udir{flex:1 1 0;min-width:0;height:26px;padding:0;font-size:14px;line-height:1;color:var(--txt2);
+  background:#1a1f28;border:1px solid var(--line2);cursor:pointer;}
+#upop .udir.on{color:#1a0d00;background:var(--acc);border-color:var(--acc);}
+#upop .udir:disabled{opacity:.4;cursor:default;}
 
 #upop .urow{display:flex;gap:5px;margin:8px 9px 0;}
 #upop .chip{flex:1 1 0;background:#14181f;border:1.5px solid var(--line2);

@@ -601,7 +601,7 @@ const Game = {
     const u = {
       id: weaponId, def, s: Object.assign({}, def.base), flags: {}, dyn: { heat: 0 }, n: 1,
       c, r, x: pos.x, y: pos.y,
-      face: face !== undefined ? face : this.defaultFacing(st, c, r),
+      face: this.snapFace(face !== undefined ? face : this.defaultFacing(st, c, r)),   // 保存された向き（360度の頃のもの）も6方向に丸める
       arc: arc !== undefined ? arc : def.base.arc,
       angle: 0, cd: 0, target: null, aim: null, shots: 0, muzzle: 0,
     };
@@ -698,8 +698,17 @@ const Game = {
     return true;
   },
 
+  // **向きは六角の6方向だけ。**（2026-09-25・プレイヤーの感想「向き設定をハニカムの6方向固定にして欲しい、360度ある意味がない」→ ユーザー採用）
+  //   平らな頭の六角の、隣の六角へ向かう6方向（上・右上・右下・下・左下・左上）
+  FACES: [-90, -30, 30, 90, 150, 210].map(d => d * Math.PI / 180),
+  snapFace(a) {
+    const k = Math.round((a + Math.PI / 2) / (Math.PI / 3));
+    return this.FACES[((k % 6) + 6) % 6];
+  },
+
   aimUnit(u, angle) {
     if (!this.canBuild()) return false;
+    angle = this.snapFace(angle);
     u.face = angle;
     u.angle = angle;
     this.syncPlacements();

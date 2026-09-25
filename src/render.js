@@ -37,38 +37,44 @@ const Render = {
   viewW: 0, viewH: 0,
   camStage: null,
 
+  // **盤のまわりに六角1つぶんの余白を取る。**（2026-09-25・プレイヤーの感想「画面端が見えないのがUIとして酷い、1マス分大きくすべき」→ ユーザー採用）
+  //   前は盤の四角をそのまま画面の端に合わせていたので、縁の六角（盤の外へ半分はみ出して描く）と縁の口が切れていた
+  margin() { return Math.sqrt(3) * MapGen.HEX_R; },
+
   fit() {
     const st = Game.run ? Game.run.stage : Stage.build(Game.perm ? (Game.perm.currentStage || 'ch1') : 'ch1');
     this.stage = st;
+    const M = this.margin();
 
     // **画面に収まらないステージは、縮小せずに一部を切り取る。**
     // 全部映すと1タイルが小さくなりすぎて、密集も配置も見えなくなる
     const REF_W = 15 * TILE, REF_H = 21 * TILE;     // これまでのステージの広さ
-    const s = Math.min(this.cssW / Math.min(st.w, REF_W), this.cssH / Math.min(st.h, REF_H));
+    const s = Math.min(this.cssW / (Math.min(st.w, REF_W) + 2 * M), this.cssH / (Math.min(st.h, REF_H) + 2 * M));
     this.scale = s;
     this.viewW = this.cssW / s;
     this.viewH = this.cssH / s;
 
-    if (this.camStage !== st.id) { this.cam.x = 0; this.cam.y = st.h; this.camStage = st.id; }
+    if (this.camStage !== st.id) { this.cam.x = -M; this.cam.y = st.h; this.camStage = st.id; }
     this.clampCam();
 
-    this.offX = (st.w * s <= this.cssW) ? (this.cssW - st.w * s) / 2 : -this.cam.x * s;
-    this.offY = (st.h * s <= this.cssH) ? (this.cssH - st.h * s) / 2 : -this.cam.y * s;
+    this.offX = ((st.w + 2 * M) * s <= this.cssW) ? (this.cssW - st.w * s) / 2 : -this.cam.x * s;
+    this.offY = ((st.h + 2 * M) * s <= this.cssH) ? (this.cssH - st.h * s) / 2 : -this.cam.y * s;
   },
 
   clampCam() {
     const st = this.stage;
     if (!st) return;
-    if (!Number.isFinite(this.cam.x)) this.cam.x = 0;
-    if (!Number.isFinite(this.cam.y)) this.cam.y = 0;
-    this.cam.x = Math.min(Math.max(0, st.w - this.viewW), Math.max(0, this.cam.x));
-    this.cam.y = Math.min(Math.max(0, st.h - this.viewH), Math.max(0, this.cam.y));
+    const M = this.margin();
+    if (!Number.isFinite(this.cam.x)) this.cam.x = -M;
+    if (!Number.isFinite(this.cam.y)) this.cam.y = -M;
+    this.cam.x = Math.min(Math.max(-M, st.w + M - this.viewW), Math.max(-M, this.cam.x));
+    this.cam.y = Math.min(Math.max(-M, st.h + M - this.viewH), Math.max(-M, this.cam.y));
   },
 
   // なぞって動かせるか（画面に収まっていれば動かす必要が無い）
   canPan() {
-    const st = this.stage;
-    return !!st && (st.w > this.viewW + 1 || st.h > this.viewH + 1);
+    const st = this.stage, M = this.margin();
+    return !!st && (st.w + 2 * M > this.viewW + 1 || st.h + 2 * M > this.viewH + 1);
   },
   panBy(dxPx, dyPx) {
     if (!this.canPan()) return;

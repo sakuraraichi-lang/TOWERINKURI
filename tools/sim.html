@@ -186,8 +186,8 @@ function aimField(st, range, arc, thru) {
       }
       if (!seen.length) continue;
       let bw = 0, ba = 0;
-      for (let k = 0; k < N; k++) {
-        const a0 = -Math.PI + (k * 2 * Math.PI) / N;
+      // **向きは六角の6方向だけ。**（2026-09-25・本体の Game.FACES と同じ候補から選ぶ）
+      for (const a0 of Game.FACES) {
         let w = 0;
         for (const s of seen) {
           let da = s.a - a0;
@@ -663,8 +663,7 @@ function heatField(st, range, arc, traffic) {
   const out = [];
   for (const tile of seenField(st, range)) {
     let bw = 0, ba = 0;
-    for (let k = 0; k < N; k++) {
-      const a0 = -Math.PI + (k * 2 * Math.PI) / N;
+    for (const a0 of Game.FACES) {         // 六角の6方向だけ（本体と同じ）
       let w = 0;
       for (const sn of tile.seen) {
         let da = sn.a - a0;

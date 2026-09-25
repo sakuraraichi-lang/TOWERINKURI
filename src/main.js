@@ -348,15 +348,20 @@ const Main = {
   for (const t of ['gesturestart', 'gesturechange', 'gestureend']) document.addEventListener(t, stop, { passive: false });
   document.addEventListener('touchmove', (e) => { if (e.touches.length > 1) e.preventDefault(); }, { passive: false });
   document.addEventListener('dblclick', stop, { passive: false });
-  let last = 0;
+  //   **同じ場所をすばやく2回叩いたときだけ止める。**（2026-09-25）
+  //   拡大になるのは同じところのダブルタップだけ。前は「320ミリ秒以内の2回目」を場所を見ずに止めていたので、
+  //   武器を選んですぐ盤をタップすると、その2回目が止まって置けないことがあった
+  let last = 0, lx = -1e9, ly = -1e9, lt = null;
   document.addEventListener('touchend', (e) => {
     const now = performance.now();
-    if (now - last < 320 && e.changedTouches.length === 1) {
+    const t = e.changedTouches[0];
+    const x = t ? t.clientX : 0, y = t ? t.clientY : 0;
+    if (now - last < 320 && e.changedTouches.length === 1 && e.target === lt && Math.hypot(x - lx, y - ly) < 40) {
       e.preventDefault();
       const el = e.target;
       if (el && !el.closest('#cv') && typeof el.click === 'function') el.click();
     }
-    last = now;
+    last = now; lx = x; ly = y; lt = e.target;
   }, { passive: false });
 })();
 

@@ -474,12 +474,27 @@ const UI = {
       wrap.appendChild(r);
       return wrap;
     };
-    let deg = Math.round(u.face * 180 / Math.PI); if (deg < 0) deg += 360;
-    p.appendChild(bar('向き', 0, 359, deg, (v) => {
-      Game.aimUnit(u, v * Math.PI / 180);
-      this.tutAimed = true;
-      Game.save();
-    }));
+    // **向きは六角の6方向から選ぶ。**（2026-09-25・プレイヤーの感想「360度ある意味がない」→ ユーザー採用）
+    //   バー（0〜359度）をやめ、隣の六角へ向かう6つのボタンにした。並びは時計回り（上から）
+    const dirs = Util.el('div', 'ubar udirs');
+    dirs.appendChild(Util.el('span', null, '向き'));
+    const ARROW = ['↑', '↗', '↘', '↓', '↙', '↖'];
+    const btns = [];
+    Game.FACES.forEach((a, i) => {
+      const b = Util.el('button', 'udir', ARROW[i]);
+      b.disabled = !build;
+      b.addEventListener('click', () => {
+        Game.aimUnit(u, a);
+        this.tutAimed = true;
+        btns.forEach((x, j) => x.classList.toggle('on', j === i));
+        Game.save();
+      });
+      btns.push(b);
+      dirs.appendChild(b);
+    });
+    const cur = Game.FACES.findIndex(a => Math.abs(Math.atan2(Math.sin(a - u.face), Math.cos(a - u.face))) < 0.01);
+    if (cur >= 0) btns[cur].classList.add('on');
+    p.appendChild(dirs);
     const ar = Game.arcRange(u.def);
     const arcPct = Math.round(Game.arcT(u) * 100);
     p.appendChild(bar(spot ? '着弾範囲' : '射界', 0, 100, arcPct, (v) => {
@@ -584,7 +599,7 @@ const UI = {
     //   第1章のチュートリアルに名前が出ると「持っていないものを説明される」ことになる
     { t: '左上の武器をひとつ選ぶ',      s: 'GAT はガトリング' },
     { t: '光っている地面をタップして置く', s: '置けるのは地面（壁）の上だけ' },
-    { t: '調整パネルのバーで、向きを敵のほうへ', s: 'パネルは上をつまんで好きな場所へ動かせる' },
+    { t: '調整パネルの矢印で、向きを敵のほうへ', s: '向きは六角の6方向。パネルは上をつまんで好きな場所へ動かせる' },
     { t: '右下の「準備完了」で始まる',    s: '置き直しはウェーブの合間にできる' },
     { t: 'あとは眺めるだけ',            s: '倒すとコインが増える。負けても持ち帰れる' },
   ],
