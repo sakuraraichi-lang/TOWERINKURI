@@ -917,7 +917,7 @@ const MapGen = {
       shape: shape, seed: seed, style: 'hex',
     };
   },
-  // ---- 分岐式（第4〜7章）：口から出た道が左右に分かれ、盤の両端を回って合流する ----
+  // ---- 分岐式（第4〜11章）：口から出た道が左右に分かれ、盤の両端を回って合流する ----
   //
   //   **ユーザー 2026-09-25**
   //   > 「左下が迂回路のようになっているのにも関わらず、右に直通しており、敵が利用しないデッドスペースが多数あります、
@@ -969,46 +969,65 @@ const MapGen = {
     };
     const pick = (fx, fy) => this.hexPick(Math.max(R, Math.min(W - R * 2, fx * W)), Math.max(R, Math.min(H - R, fy * H)));
 
-    // 口は下の縁か上の縁（乱数）。t は口（0）からコア（1）までの縦の進み
-    const fromBottom = rnd() < 0.5;
-    const yAt = (t) => fromBottom ? 1 - t : t;
+    // 口の数。1 なら下か上の縁から反対側の奥のコアへ、2 なら上下の縁からそれぞれ中央のコアへ
+    //   （2026-09-25：第8〜11章の口2つの盤も、口ごとに分かれ道を持たせるため）
+    const nHole = Math.max(1, Math.min(2, shape.holes || this.holesFor(d, rnd)));
     const jit = (a) => (rnd() - 0.5) * a;
-    const loops = shape.loops || (rnd() < 0.5 ? 1 : 2);
-    const mx = 0.35 + rnd() * 0.3;
-    const mouthHex = pick(mx, yAt(0.02));
-    const pts = [pick(mx, yAt(0.1))];
-    line(mouthHex, pts[0]);
-    // 分岐 → 左右の腕 → 合流 を loops 回
-    let t = 0.1;
-    const span = 0.78 / loops;
-    for (let k = 0; k < loops; k++) {
-      const fork = pts[pts.length - 1];
-      const tMid = t + span * 0.5, tJoin = t + span;
-      const L = pick(0.12 + jit(0.06), yAt(tMid + jit(0.06)));
-      const Rr = pick(0.82 + jit(0.06), yAt(tMid + jit(0.06)));
-      const join = pick(0.4 + jit(0.2), yAt(tJoin));
-      line(fork, L); line(L, join);
-      line(fork, Rr); line(Rr, join);
-      pts.push(join);
-      t = tJoin;
-    }
-    const core = cells[key(pts[pts.length - 1].c, pts[pts.length - 1].r)] || this.hexAt(pts[pts.length - 1].c, pts[pts.length - 1].r);
-    for (const nb of this.hexNbr(core.c, core.r)) dig1(nb[0], nb[1]);   // コアの部屋
-
+    // 1本の道を掘る：縦の位置 y0（口の縁）→ y1（コア）。分岐 → 左右の腕 → 合流 を loops 回。
+    //   endAt を渡すと、最後の合流をそこ（コア）にする
+    const carve = (y0, y1, loops, endAt) => {
+      const yAt = (t) => y0 + (y1 - y0) * t;
+      const mx = 0.35 + rnd() * 0.3;
+      const mouthHex = pick(mx, yAt(0.02));
+      const pts = [pick(mx, yAt(0.12))];
+      line(mouthHex, pts[0]);
+      let t = 0.12;
+      const span = 0.8 / loops;
+      for (let k = 0; k < loops; k++) {
+        const fork = pts[pts.length - 1];
+        const tMid = t + span * 0.5, tJoin = t + span;
+        const L = pick(0.12 + jit(0.06), yAt(tMid + jit(0.06)));
+        const Rr = pick(0.82 + jit(0.06), yAt(tMid + jit(0.06)));
+        const join = (k === loops - 1 && endAt) ? endAt : pick(0.4 + jit(0.2), yAt(tJoin));
+        line(fork, L); line(L, join);
+        line(fork, Rr); line(Rr, join);
+        pts.push(join);
+        t = tJoin;
+      }
+      return { mouthHex, end: pts[pts.length - 1] };
+    };
     // 口：縁のタイルに穴を開け、そこに乗る六角も掘る
-    const holeW = 2 + ((rnd() * 2) | 0);
-    const mh = this.hexAt(mouthHex.c, mouthHex.r);
-    const tc = Math.max(0, Math.min(cols - holeW, Math.round(mh.x / TILE - holeW / 2)));
-    const tr = fromBottom ? rows - 1 : 0;
-    const tiles = [];
-    for (let q = 0; q < holeW; q++) tiles.push({ c: tc + q, r: tr });
-    for (const tt of tiles) {
-      const q = this.hexPick(tt.c * TILE + TILE / 2, tt.r * TILE + TILE / 2);
-      dig1(q.c, q.r);
-      line(q, mouthHex);
+    const holes = [];
+    const openMouth = (mouthHex, atBottom) => {
+      const holeW = 2 + ((rnd() * 2) | 0);
+      const mh = this.hexAt(mouthHex.c, mouthHex.r);
+      const tc = Math.max(0, Math.min(cols - holeW, Math.round(mh.x / TILE - holeW / 2)));
+      const tr = atBottom ? rows - 1 : 0;
+      const tiles = [];
+      for (let q = 0; q < holeW; q++) tiles.push({ c: tc + q, r: tr });
+      for (const tt of tiles) {
+        const q = this.hexPick(tt.c * TILE + TILE / 2, tt.r * TILE + TILE / 2);
+        dig1(q.c, q.r);
+        line(q, mouthHex);
+      }
+      holes.push({ side: 'fork' + holes.length, tiles, w: holeW,
+        x: (tiles[0].c + tiles[holeW - 1].c) / 2 * TILE + TILE / 2, y: tr * TILE + TILE / 2 });
+    };
+    let coreHex;
+    if (nHole === 1) {
+      const fromBottom = rnd() < 0.5;
+      const a = carve(fromBottom ? 1 : 0, fromBottom ? 0.1 : 0.9, shape.loops || (rnd() < 0.5 ? 1 : 2), null);
+      openMouth(a.mouthHex, fromBottom);
+      coreHex = a.end;
+    } else {
+      coreHex = pick(0.45 + jit(0.2), 0.5 + jit(0.08));
+      const a = carve(1, 0.5, shape.loops || 1, coreHex);
+      openMouth(a.mouthHex, true);
+      const b = carve(0, 0.5, shape.loops || 1, coreHex);
+      openMouth(b.mouthHex, false);
     }
-    const holes = [{ side: 'fork', tiles, w: holeW,
-      x: (tiles[0].c + tiles[holeW - 1].c) / 2 * TILE + TILE / 2, y: tr * TILE + TILE / 2 }];
+    const core = cells[key(coreHex.c, coreHex.r)] || this.hexAt(coreHex.c, coreHex.r);
+    for (const nb of this.hexNbr(core.c, core.r)) dig1(nb[0], nb[1]);   // コアの部屋
 
     let hexes = [];
     for (const k in open) hexes.push(cells[k]);

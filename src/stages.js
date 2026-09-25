@@ -126,7 +126,7 @@ const Stage = {
       base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, { style: 'serp', routeMin: BAL.serpRouteMin,
         width: BAL.serpWidth, roadMax: BAL.serpRoadMax });
     }
-    // **第4〜7章は分岐式。**（ユーザー 2026-09-25「5章、6章は左右から分かれてきたら面白い」）
+    // **第4〜11章は分岐式。**（ユーザー 2026-09-25「5章、6章は左右から分かれてきたら面白い」。第8〜11章は口2つ）
     //   口から出た道が左右に分かれ、盤の両端を回って合流する（MapGen.makeFork）
     if (BAL.forkUntilDepth !== undefined && d >= (BAL.serpUntilDepth || 0) && d < BAL.forkUntilDepth) {
       base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, { style: 'fork' });
