@@ -303,6 +303,18 @@ const Combat = {
   //   出す順番を最後に変えても 7体中1体しか倒せず、
   //   「倒せない1体に必ず税金を取られる」以上の役をしていなかったので外した
   // 1体作る。**種類の違いはここで全部乗る**（装甲・再生・分裂）
+  // **出てきた敵を、その口のレーンへ順番に振り分ける。**（2026-09-25）
+  //   同じ口から出た群れが、分かれ道で左右に分かれて進む。レーンが1本なら今までどおり
+  pickLane(run, si) {
+    const st = run.stage;
+    const mi = st.mouthOf ? st.mouthOf[si] : 0;
+    const L = st.mouthLanes && st.mouthLanes[mi];
+    if (!L || !L.length) return null;
+    run.laneRot = run.laneRot || {};
+    const k = run.laneRot[mi] = (run.laneRot[mi] || 0) + 1;
+    return L[k % L.length];
+  },
+
   makeEnemy(run, t, g, x, y, si, hpOverride, gen) {
     // 章ごとの重み（ストップポイント／跳ね上げポイント）
     const chMul = this.chapterWeight(run);
@@ -311,6 +323,7 @@ const Combat = {
     const hp = hpOverride !== undefined ? hpOverride : base * t.hp;
     return {
       x, y, hp, maxHp: hp, si,
+      lane: this.pickLane(run, si),    // その口のレーンに順番に振る（stages.js の lanes）
       spd: Math.min(BAL.enemySpdCap, BAL.enemySpdBase * Math.pow(BAL.enemySpdGrowth, g)) * t.spd,
       r: t.r,
       coin: BAL.enemyCoinBase * Math.pow(BAL.enemyCoinGrowth, g - 1) * t.coin,
@@ -457,6 +470,7 @@ const Combat = {
       for (let i = 0; i < e.split; i++) {
         const c = this.makeEnemy(run, t, g, e.x + Util.rand(-12, 12), e.y + Util.rand(-12, 12),
                                  e.si, e.maxHp * BAL.splitHp, 1);
+        c.lane = e.lane;                 // 分かれた子は親と同じ道を行く
         c.r = Math.max(6, t.r * 0.7);
         c.spd = e.spd * 1.25;
         c.coin = e.coin * 0.35;
@@ -1058,8 +1072,9 @@ const Combat = {
           if (run.enemies.length < BAL.enemyCap) {
             const g2 = this.gw(run);
             const t2 = this.pickType(g2);
-            run.enemies.push(this.makeEnemy(run, t2, g2,
-              e.x + Util.rand(-18, 18), e.y + Util.rand(-18, 18), e.si));
+            const add = this.makeEnemy(run, t2, g2, e.x + Util.rand(-18, 18), e.y + Util.rand(-18, 18), e.si);
+            add.lane = e.lane;
+            run.enemies.push(add);
           }
         }
       }
@@ -1073,7 +1088,7 @@ const Combat = {
       // 通行量の記録（どこに溜まるかを、次の準備フェーズで見せるため）
       if (sample && inside) run.traffic[st.idx(tc, tr)]++;
 
-      const goal = inside ? st.flowTo(tc, tr) : { x: tw.x, y: tw.y };
+      const goal = inside ? st.flowTo(tc, tr, e.lane) : { x: tw.x, y: tw.y };
       const a = Util.angle(e.x, e.y, goal.x, goal.y);
 
       if (e.stun <= 0) {
@@ -1119,7 +1134,7 @@ const Combat = {
         run.leakBy[tn] = (run.leakBy[tn] || 0) + 1;
         // 経路全体を塗るが、コアに近い区間ほど濃くする。
         // 「どこで止め損ねたか」が知りたいので、手前ほど強調しても意味が薄い
-        const route = st.routes[e.si];
+        const route = (e.lane !== null && e.lane !== undefined && st.lanes && st.lanes[e.lane]) ? st.lanes[e.lane].route : st.routes[e.si];
         if (route) for (let k = 0; k < route.length; k++) {
           run.leak[route[k]] += 0.15 + 0.85 * (k / Math.max(1, route.length - 1));
         }

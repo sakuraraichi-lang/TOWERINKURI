@@ -126,6 +126,11 @@ const Stage = {
       base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, { style: 'serp', routeMin: BAL.serpRouteMin,
         width: BAL.serpWidth, roadMax: BAL.serpRoadMax });
     }
+    // **第4〜7章は分岐式。**（ユーザー 2026-09-25「5章、6章は左右から分かれてきたら面白い」）
+    //   口から出た道が左右に分かれ、盤の両端を回って合流する（MapGen.makeFork）
+    if (BAL.forkUntilDepth !== undefined && d >= (BAL.serpUntilDepth || 0) && d < BAL.forkUntilDepth) {
+      base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, { style: 'fork' });
+    }
     if (BAL.hexFromDepth !== undefined && d >= BAL.hexFromDepth) {
       base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, {
         style: 'hex',
@@ -165,15 +170,20 @@ const Stage = {
 
   _vec: {},
   _zone: {},
+  _rows: {},        // 行き止まりを外して焼き直した盤（章ごと）
+  _pruned: {},      // 外した六角の数（{ before, after }）
+  _detour: {},      // 迂回路を足した回数
+  _before: {},      // 迂回路を足す前の盤（最短経路が縮んだら戻す）
   vecOf(stageId) { return this._vec[stageId] || null; },
 
   // 種が変わったら作り直す（転生のとき）
-  invalidate() { this._cache = {}; this._vec = {}; this._zone = {}; },
+  invalidate() { this._cache = {}; this._vec = {}; this._zone = {}; this._rows = {}; this._pruned = {}; this._detour = {}; this._before = {}; },
 
   build(stageId) {
     if (this._cache[stageId]) return this._cache[stageId];
     const def = STAGE_BY_ID[stageId];
-    const map = this.mapRowsFor(stageId);
+    // 行き止まりを外して焼き直した盤があれば、そちらを使う（下の pruneDead）
+    const map = this._rows[stageId] || this.mapRowsFor(stageId);
     const rows = map.length;
     const cols = Math.max.apply(null, map.map(r => r.length));
 
@@ -262,7 +272,172 @@ const Stage = {
       return out;
     });
 
+    // ---- レーン：同じ口から、互いに離れた別の道筋を何本か用意する ----
+    //   （ユーザー 2026-09-25「左下が迂回路のようになっているのにも関わらず、右に直通しており、
+    //    敵が利用しないデッドスペースが多数あります…不要なスペースを除くと1本道の虚無みたいなタワーディフェンス」）
+    //   前は幅優先探索の「次のタイル」1つを全員がなぞるだけで、**迂回路は構造上一度も使われなかった**
+    //   （実測：第4章から先は通路の4割前後に敵が来ない。種3つ×30章）。
+    //   口ごとに、最短の道のほかに「前の道から離れた道」を探し（重み付きの最短経路で、前の道の近くを高くする）、
+    //   長さが最短の BAL.laneMaxRatio 倍以内・前のレーンから離れた区間がひと続きで BAL.laneMinSplit タイル以上あれば採る。
+    //   敵は出るときにその口のレーンへ順番に振り分けられ、レーンに沿って進む（combat.js の flowTo）
+    const N = cols * rows;
+    const nbr = (i) => {
+      const c = i % cols, r = (i / cols) | 0, out = [];
+      for (const [dc, dr] of DIRS) { const nc = c + dc, nr = r + dr; if (walkable(nc, nr)) out.push(idx(nc, nr)); }
+      return out;
+    };
+    // コアからの重み付き最短距離（cost(i) … そのタイルに入る重さ）。小さな二分ヒープで回す
+    const dijkstra = (cost) => {
+      const d = new Float64Array(N).fill(INF);
+      const hp = [];
+      const push = (v, i) => { hp.push([v, i]); let k = hp.length - 1; while (k > 0) { const p = (k - 1) >> 1; if (hp[p][0] <= hp[k][0]) break; [hp[p], hp[k]] = [hp[k], hp[p]]; k = p; } };
+      const pop = () => { const top = hp[0], last = hp.pop(); if (hp.length) { hp[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r2 = l + 1; let m = k; if (l < hp.length && hp[l][0] < hp[m][0]) m = l; if (r2 < hp.length && hp[r2][0] < hp[m][0]) m = r2; if (m === k) break; [hp[m], hp[k]] = [hp[k], hp[m]]; k = m; } } return top; };
+      const ci = idx(core.c, core.r);
+      d[ci] = 0; push(0, ci);
+      while (hp.length) {
+        const [v, i] = pop();
+        if (v > d[i]) continue;
+        for (const j of nbr(i)) { const nv = v + cost(j); if (nv < d[j]) { d[j] = nv; push(nv, j); } }
+      }
+      return d;
+    };
+    // 距離の場から、そのタイルの次に進むタイル（一番小さい隣）
+    const nextOf = (d) => {
+      const nx = new Array(N).fill(null);
+      for (let i = 0; i < N; i++) {
+        if (d[i] >= INF || d[i] === 0) continue;
+        let best = d[i], bj = -1;
+        for (const j of nbr(i)) if (d[j] < best) { best = d[j]; bj = j; }
+        if (bj >= 0) nx[i] = { c: bj % cols, r: (bj / cols) | 0 };
+      }
+      return nx;
+    };
+    const walk = (nx, s) => {
+      const out = [];
+      let cur = s, guard = 0;
+      while (cur && guard++ < N) {
+        const i = idx(cur.c, cur.r);
+        out.push(i);
+        if (cur.c === core.c && cur.r === core.r) break;
+        cur = nx[i];
+      }
+      return out;
+    };
+    // 道のまわり（±rad タイル。省くと1）の印
+    const around = (list, rad) => {
+      const m = new Uint8Array(N);
+      const k = rad || 1;
+      for (const i of list) {
+        const c = i % cols, r = (i / cols) | 0;
+        for (let dc = -k; dc <= k; dc++) for (let dr = -k; dr <= k; dr++) {
+          const cc = c + dc, rr = r + dr;
+          if (cc >= 0 && rr >= 0 && cc < cols && rr < rows) m[idx(cc, rr)] = 1;
+        }
+      }
+      return m;
+    };
+    const lanes = [];                       // { mouth, route, next }
+    const mouthLanes = [];                  // 口ごとのレーン番号
+    const mouthOf = new Array(spawns.length).fill(0);
+    const mouthList = mouths.length ? mouths : spawns.map((s, i) => [i]);
+    mouthList.forEach((g, mi) => {
+      for (const si of g) mouthOf[si] = mi;
+      const src = spawns[g[0]];
+      if (!src || dist[idx(src.c, src.r)] >= INF) { mouthLanes.push([]); return; }
+      const mine = [];
+      const taken = [];                     // これまでのレーンのタイル
+      const L1 = dist[idx(src.c, src.r)];
+      for (let k = 0; k < (BAL.laneMax || 1); k++) {
+        let route;
+        if (k === 0) route = walk(next, src);
+        else {
+          // **同じ太い通路の中で並んで走るだけの道は「別の道」にしない**（±BAL.laneSep タイルを前のレーンの近くとみなす）
+          const near = around(taken, BAL.laneSep);
+          const d = dijkstra((j) => 1 + (near[j] ? BAL.lanePenalty : 0));
+          route = walk(nextOf(d), src);
+          if (route.length > L1 * BAL.laneMaxRatio + 1) break;
+          // **前のレーンから離れた区間が、ひと続きで BAL.laneMinSplit タイル以上あるか。**
+          //   口のすぐ先とコアの手前で重なるのは自然（そこは同じ幹）なので、重なりの割合では見ない
+          let run = 0, best = 0;
+          for (const i of route) { if (near[i]) run = 0; else { run++; if (run > best) best = run; } }
+          if (best < BAL.laneMinSplit) break;
+        }
+        // レーンに沿って進む場：レーンのまわりは安く、外は高い（押し出されてもレーンに戻る）
+        const band = around(route);
+        const lf = dijkstra((j) => band[j] ? 1 : BAL.laneOffCost);
+        lanes.push({ mouth: mi, route, next: nextOf(lf) });
+        mine.push(lanes.length - 1);
+        for (const i of route) taken.push(i);
+      }
+      mouthLanes.push(mine);
+    });
+
+    const vec0 = this._vec[stageId];
+    // ---- 迂回路の検査：足したことで最短経路が下限（BAL.minRouteLen）を割るか、元の BAL.detourMinKeep 倍より縮んだら、
+    //      足す前の盤に戻して、もう足さない（少し縮むのは許す。分かれ道のほうが大事）----
+    const bf = this._before[stageId];
+    if (bf) {
+      delete this._before[stageId];
+      const minNow = Math.min.apply(null, spawns.map(s => dist[idx(s.c, s.r)]));
+      if (minNow < BAL.minRouteLen || minNow < bf.minRoute * BAL.detourMinKeep) {
+        this._rows[stageId] = bf.rows;
+        this._vec[stageId] = bf.vec;
+        this._zone[stageId] = bf.zone;
+        this._detour[stageId] = 99;
+        return this.build(stageId);
+      }
+    }
+    // ---- レーンが1本しか取れない口には、迂回路を足して焼き直す（2回まで）----
+    //   （ユーザー 2026-09-25「5章、6章は左右から分かれてきたら面白いのですが、やはり最短距離です」）
+    //   第1〜3章（往復式）は1本の長い道として作っているので足さない
+    const d0 = STAGES.length > 1 ? STAGE_BY_ID[stageId].idx / (STAGES.length - 1) : 0;
+    if (BAL.laneMin > 1 && vec0 && vec0.hexes && (this._detour[stageId] || 0) < 2 && d0 >= (BAL.serpUntilDepth || 0)) {
+      const need = mouthLanes.filter(L => L.length && L.length < BAL.laneMin).map(L => lanes[L[0]].route);
+      this._detour[stageId] = (this._detour[stageId] || 0) + 1;
+      const hx = need.length ? MapGen.addDetours(vec0, need, cols) : null;
+      if (hx) {
+        // 足す前の盤と最短経路を覚えておく（縮んだら戻す。下の「迂回路の検査」）
+        this._before[stageId] = { rows: map, vec: vec0, zone: this._zone[stageId], minRoute: Math.min.apply(null, spawns.map(s => dist[idx(s.c, s.r)])) };
+        const g2 = MapGen.bake([], vec0.core, vec0.holes, vec0.w, vec0.h, hx);
+        this._rows[stageId] = g2.map(r => r.join(''));
+        this._vec[stageId] = Object.assign({}, vec0, { hexes: hx });
+        this._zone[stageId] = MapGen._zone;
+        return this.build(stageId);
+      }
+    }
+
+    // ---- どのレーンも通らない六角は壁に戻して、焼き直す（1回だけ）----
+    //   レーンを入れても、別の道として成り立たない行き止まりや膨らみは残る
+    //   （実測：第6・7章で通路の4割強、第13〜17章で3割前後）。**六角の単位で**外すので、通路が直線で切られることはない
+    if (BAL.pruneDead && vec0 && vec0.hexes && !this._pruned[stageId]) {
+      const band = new Uint8Array(N);
+      for (const l of lanes) { const m = around(l.route); for (let i = 0; i < N; i++) if (m[i]) band[i] = 1; }
+      const keepTile = (i) => band[i] || grid[(i / cols) | 0][i % cols] === 'S' || grid[(i / cols) | 0][i % cols] === 'C';
+      const R = MapGen.HEX_R, q = TILE * 0.3;
+      const kept = vec0.hexes.filter(hx => {
+        // この六角が焼いたタイル（bake と同じ5点の判定）のどれかがレーンのまわりなら残す
+        const c0 = Math.max(0, Math.floor((hx.x - R) / TILE)), c1 = Math.min(cols - 1, Math.ceil((hx.x + R) / TILE));
+        const r0 = Math.max(0, Math.floor((hx.y - R) / TILE)), r1 = Math.min(rows - 1, Math.ceil((hx.y + R) / TILE));
+        for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
+          const cx = c * TILE + TILE / 2 - hx.x, cy = r * TILE + TILE / 2 - hx.y;
+          let hit = 0;
+          for (const [ox, oy] of [[0, 0], [-q, -q], [q, -q], [-q, q], [q, q]]) if (MapGen.inHex(cx + ox, cy + oy, R)) hit++;
+          if (hit >= 2 && keepTile(idx(c, r))) return true;
+        }
+        return false;
+      });
+      this._pruned[stageId] = { before: vec0.hexes.length, after: kept.length };
+      if (kept.length < vec0.hexes.length) {
+        const g2 = MapGen.bake([], vec0.core, vec0.holes, vec0.w, vec0.h, kept);
+        this._rows[stageId] = g2.map(r => r.join(''));
+        this._vec[stageId] = Object.assign({}, vec0, { hexes: kept });
+        this._zone[stageId] = MapGen._zone;
+        return this.build(stageId);
+      }
+    }
+
     const built = {
+      lanes, mouthLanes, mouthOf,
       // 章ごとのマップの形（BAL.mapShape）。**戦闘側もここを読む**
       //   （道が N 方向に分かれるぶん、敵の数も増やさないと1本あたりが薄くなる）
       shape: (BAL.mapShape && BAL.mapShape[STAGE_BY_ID[stageId].idx + 1]) || null,
@@ -341,9 +516,10 @@ const Stage = {
         return out;
       },
       hexPick: (x, y) => MapGen.hexPick(x, y),
-      // このタイルから次に向かうべきタイルの中心（無ければコア）
-      flowTo(c, r) {
-        const n = next[idx(c, r)];
+      // このタイルから次に向かうべきタイルの中心（無ければコア）。lane を渡すとそのレーンに沿う
+      flowTo(c, r, lane) {
+        const L = (lane !== undefined && lane !== null) ? lanes[lane] : null;
+        const n = (L && L.next[idx(c, r)]) || next[idx(c, r)];
         if (!n) return this.center(core.c, core.r);
         return this.center(n.c, n.r);
       },
@@ -360,10 +536,33 @@ const Stage = {
   // いまのセーブの種で、全30章の盤が壊れていないか調べる（**開発用・手で呼ぶ**）。
   //   30枚ぶん生成するので1枚0.2秒×30＝数秒かかる。**起動時には呼ばない**（2026-09-22 に画面が固まった）。
   //   MapGen.check が作る時点で同じ条件を見ているので、ここは作り終えた盤の念押し
+  // **盤が活かされているか。**（2026-09-25・ユーザー「マップの広さに対して敵はどう動くか、作ったマップは活かせてるか？」）
+  //   通路のうち、どれかのレーンのまわり（±1タイル）に入る割合と、口ごとのレーン数を返す。
+  //   レーンを入れる前は、第4章から先で通路の4割前後に敵が一度も来なかった
+  usage(st) {
+    const N = st.cols * st.rows, on = new Uint8Array(N);
+    for (const l of st.lanes) for (const i of l.route) {
+      const c = i % st.cols, r = (i / st.cols) | 0;
+      for (let dc = -1; dc <= 1; dc++) for (let dr = -1; dr <= 1; dr++) {
+        const cc = c + dc, rr = r + dr;
+        if (cc >= 0 && rr >= 0 && cc < st.cols && rr < st.rows) on[st.idx(cc, rr)] = 1;
+      }
+    }
+    let road = 0, used = 0;
+    for (let r = 0; r < st.rows; r++) for (let c = 0; c < st.cols; c++) {
+      if (!st.walkable(c, r)) continue;
+      road++;
+      if (on[st.idx(c, r)]) used++;
+    }
+    return { road, used, pct: road ? Math.round(100 * used / road) : 0, lanes: st.mouthLanes.map(a => a.length) };
+  },
+
   validateAll() {
     const bad = [];
     for (const s of STAGES) {
       const b = this.build(s.id);
+      const u = this.usage(b);
+      if (u.pct < BAL.usageMin) bad.push(s.id + ': 敵が通らない通路が多い（通る割合 ' + u.pct + '%）');
       if (!b.core) bad.push(s.id + ': コア(C)が無い');
       if (!b.spawns.length) bad.push(s.id + ': 出現口(S)が無い');
       if (!b.reachable) bad.push(s.id + ': コアへ到達できない出現口 ' + JSON.stringify(b.unreachableSpawns));

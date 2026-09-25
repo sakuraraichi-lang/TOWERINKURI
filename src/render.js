@@ -423,13 +423,11 @@ const Render = {
   flowLines(st) {
     if (st._flow) return st._flow;
     const out = [];
-    const used = {};
-    (st.routes || []).forEach((rt, i) => {
-      const sp = st.spawns[i];
-      // 同じ口（隣り合う S）から出る道は1本にまとめる
-      const key = st.mouths ? st.mouths.findIndex(m => m.indexOf(i) >= 0) : i;
-      if (used[key]) return;
-      used[key] = 1;
+    // **レーンごとに1本。**（2026-09-25）敵は口ごとのレーンに分かれて進むので、分かれ道も全部描く。
+    //   レーンが無い古い形のときは、口ごとの最短の道
+    const list = (st.lanes && st.lanes.length) ? st.lanes.map(l => l.route)
+      : (st.routes || []).filter((rt, i) => !st.mouths || st.mouths.findIndex(m => m[0] === i) >= 0);
+    list.forEach((rt) => {
       const pts = rt.map(ix => ({ x: (ix % st.cols) * TILE + TILE / 2, y: ((ix / st.cols) | 0) * TILE + TILE / 2 }));
       // 折れを間引いて滑らかに（3点ごと）
       const thin = pts.filter((p, j) => j % 3 === 0 || j === pts.length - 1);

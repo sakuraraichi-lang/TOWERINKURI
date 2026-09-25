@@ -243,6 +243,93 @@ const MapGen = {
     return best;
   },
 
+  // **分かれ道を足す。**（2026-09-25・ユーザー「5章、6章は左右から分かれてきたら面白いのですが、やはり最短距離です」）
+  //   口のレーン（別の道筋）が1本しか取れないとき、その道の途中の区間を、**壁の中を回り込む迂回路**で結ぶ。
+  //   迂回路は元の道とは六角1つ以上の壁で隔てる（隣り合う太い通路にしない）。長さは区間の BAL.detourMaxRatio 倍まで。
+  //   routes … 迂回路を足したい道（タイル番号の列） ／ 返り値 … 足したあとの六角の一覧（足せなければ null）
+  addDetours(vec, routes, cols) {
+    const R = this.HEX_R;
+    const key = (c, r) => c + ',' + r;
+    const road = {};
+    for (const h of vec.hexes) road[key(h.c, h.r)] = 1;
+    const inside = (c, r) => {
+      const p = this.hexAt(c, r);
+      return p.x >= R * 0.9 && p.y >= R * 0.9 && p.x <= vec.w - R * 0.9 && p.y <= vec.h - R * 0.9;
+    };
+    // 道から六角2つ以内か（迂回路は道と壁2枚ぶん離す。1枚だとレーンの判定で「同じ道」とみなされた）
+    const ring2 = (c, r) => {
+      const out = {};
+      for (const [a, b] of this.hexNbr(c, r)) { out[key(a, b)] = 1; for (const [a2, b2] of this.hexNbr(a, b)) out[key(a2, b2)] = 1; }
+      return out;
+    };
+    const nearRoad = (c, r) => Object.keys(ring2(c, r)).some(k => road[k]);
+    const added = [];
+    for (const rt of routes) {
+      // タイルの道 → 六角の道（続く同じ六角は1つに）
+      const hp = [];
+      for (const i of rt) {
+        const q = this.hexPick((i % cols) * TILE + TILE / 2, ((i / cols) | 0) * TILE + TILE / 2);
+        const k = key(q.c, q.r);
+        if (!hp.length || hp[hp.length - 1].k !== k) hp.push({ c: q.c, r: q.r, k });
+      }
+      let found = null;
+      // 区間の長さと位置を順に試す。口のすぐ近くとコアのすぐ近くは避ける
+      for (const len of [6, 8, 5, 10, 4]) {
+        for (let s = 2; s + len < hp.length - 2 && !found; s++) {
+          const A = hp[s], B = hp[s + len];
+          const goal = {};
+          for (const [a, b] of this.hexNbr(B.c, B.r)) if (!road[key(a, b)]) goal[key(a, b)] = 1;
+          // 出入り口（A・B から六角2つ以内）だけは道に近くてよい。**ただし近くてよいのはこの区間の道だけ**
+          //   （折り返した道の別の段に触れると、そこへの近道になり最短経路が縮んだ。実測で 20 → 12）
+          const nearA = ring2(A.c, A.r), nearB = ring2(B.c, B.r);
+          const sec = {};
+          for (let t = Math.max(0, s - 2); t <= Math.min(hp.length - 1, s + len + 2); t++) {
+            sec[hp[t].k] = 1;
+            // 通路の幅の部分（経路の線に乗っていない隣の通路の六角）も、この区間の道として数える
+            for (const [a, b] of this.hexNbr(hp[t].c, hp[t].r)) if (road[key(a, b)]) sec[key(a, b)] = 1;
+          }
+          const touchesOther = (c, r) => Object.keys(ring2(c, r)).some(k => road[k] && !sec[k]);
+          // A の隣から、道にも道の隣にも触れない壁の六角だけを通って、B の隣へ（幅優先）
+          const prev = {}, q2 = [];
+          for (const [a, b] of this.hexNbr(A.c, A.r)) {
+            if (!inside(a, b) || road[key(a, b)] || goal[key(a, b)] || touchesOther(a, b)) continue;
+            prev[key(a, b)] = null; q2.push([a, b, 1]);
+          }
+          const maxLen = Math.round(len * BAL.detourMaxRatio) + 1;
+          for (let h = 0; h < q2.length && !found; h++) {
+            const [c, r, n] = q2[h];
+            if (n > maxLen) break;
+            for (const [a, b] of this.hexNbr(c, r)) {
+              const k = key(a, b);
+              if (k in prev || road[k] || !inside(a, b)) continue;
+              if (goal[k]) {
+                if (n + 1 < len || touchesOther(a, b)) continue;   // 近道になる迂回路は作らない（元の区間より短いと最短の道が変わる）
+                const path = [[a, b]];
+                let cur = key(c, r);
+                path.push([c, r]);
+                while (prev[cur]) { path.push(prev[cur].split(',').map(Number)); cur = prev[cur]; }
+                found = path;
+                break;
+              }
+              if (touchesOther(a, b)) continue;
+              if (!nearA[k] && !nearB[k] && nearRoad(a, b)) continue;
+              prev[k] = key(c, r);
+              q2.push([a, b, n + 1]);
+            }
+          }
+        }
+        if (found) break;
+      }
+      if (!found) continue;
+      for (const [c, r] of found) {
+        if (road[key(c, r)]) continue;
+        road[key(c, r)] = 1;
+        added.push(this.hexAt(c, r));
+      }
+    }
+    return added.length ? vec.hexes.concat(added) : null;
+  },
+
   hexNbr(c, r) {
     return (c & 1)
       ? [[c, r - 1], [c, r + 1], [c - 1, r], [c - 1, r + 1], [c + 1, r], [c + 1, r + 1]]
@@ -830,6 +917,111 @@ const MapGen = {
       shape: shape, seed: seed, style: 'hex',
     };
   },
+  // ---- 分岐式（第4〜7章）：口から出た道が左右に分かれ、盤の両端を回って合流する ----
+  //
+  //   **ユーザー 2026-09-25**
+  //   > 「左下が迂回路のようになっているのにも関わらず、右に直通しており、敵が利用しないデッドスペースが多数あります、
+  //   >   特に5章、6章は左右から分かれてきたら面白いのですが、やはり最短距離です」
+  //   前の折れ線（make）は、道を1本彫って太らせる作りなので**分かれ道そのものが無く**、
+  //   あとから迂回路を継ぎ足すと近道になったり隣の道にくっついたりして崩れた（実測）。
+  //   **分かれ道を作り方で保証する。**口 → 分岐 → 左右の腕（盤の両端を回る） → 合流 → （もう1回）→ コア。
+  //   左右の腕はほぼ同じ長さなので、敵はレーンに分かれて両側から来る（stages.js の lanes）。
+  //   腕の間は壁の島で、両方の腕を狙える置き場所になる。
+  //   道は六角2列の太さで掘る（1列だと焼いたとき斜めの一歩で途切れる。往復式で分かったこと）
+  //
+  //   shape で効くもの
+  //     loops … 分岐の回数（1〜2。省くと乱数で1か2）
+  makeFork(seed, d, shape) {
+    shape = shape || {};
+    const rnd = this.rng(seed);
+    const cols = (shape.cols | 0) || this.COLS, rows = (shape.rows | 0) || this.ROWS;
+    const W = cols * TILE, H = rows * TILE, R = this.HEX_R;
+    const key = (c, r) => c + ',' + r;
+    const cells = {};
+    const g0 = this.hexRange(0, 0, W, H, 0);
+    for (let c = g0.c0; c <= g0.c1; c++) {
+      for (let r = g0.r0; r <= g0.r1; r++) {
+        const h = this.hexAt(c, r);
+        if (h.x < 0 || h.y < 0 || h.x > W || h.y > H) continue;
+        cells[key(c, r)] = h;
+      }
+    }
+    const open = {};
+    const dig1 = (c, r) => { if (cells[key(c, r)]) open[key(c, r)] = 1; };
+    const dig = (c, r) => { dig1(c, r); dig1(c + 1, r); };
+    // 六角の直線（offset の odd-q ⇔ 立方体座標で線を引く）
+    const toCube = (c, r) => { const z = r - ((c - (c & 1)) >> 1); return [c, -c - z, z]; };
+    const fromCube = (x, z) => ({ c: x, r: z + ((x - (x & 1)) >> 1) });
+    const round = (x, y, z) => {
+      let rx = Math.round(x), ry = Math.round(y), rz = Math.round(z);
+      const dx = Math.abs(rx - x), dy = Math.abs(ry - y), dz = Math.abs(rz - z);
+      if (dx > dy && dx > dz) rx = -ry - rz; else if (dy > dz) ry = -rx - rz; else rz = -rx - ry;
+      return fromCube(rx, rz);
+    };
+    const line = (a, b) => {
+      const A = toCube(a.c, a.r), B = toCube(b.c, b.r);
+      const n = Math.max(Math.abs(A[0] - B[0]), Math.abs(A[1] - B[1]), Math.abs(A[2] - B[2]));
+      for (let i = 0; i <= n; i++) {
+        const t = n ? i / n : 0;
+        const p = round(A[0] + (B[0] - A[0]) * t + 1e-6, A[1] + (B[1] - A[1]) * t + 1e-6, A[2] + (B[2] - A[2]) * t - 2e-6);
+        dig(p.c, p.r);
+      }
+    };
+    const pick = (fx, fy) => this.hexPick(Math.max(R, Math.min(W - R * 2, fx * W)), Math.max(R, Math.min(H - R, fy * H)));
+
+    // 口は下の縁か上の縁（乱数）。t は口（0）からコア（1）までの縦の進み
+    const fromBottom = rnd() < 0.5;
+    const yAt = (t) => fromBottom ? 1 - t : t;
+    const jit = (a) => (rnd() - 0.5) * a;
+    const loops = shape.loops || (rnd() < 0.5 ? 1 : 2);
+    const mx = 0.35 + rnd() * 0.3;
+    const mouthHex = pick(mx, yAt(0.02));
+    const pts = [pick(mx, yAt(0.1))];
+    line(mouthHex, pts[0]);
+    // 分岐 → 左右の腕 → 合流 を loops 回
+    let t = 0.1;
+    const span = 0.78 / loops;
+    for (let k = 0; k < loops; k++) {
+      const fork = pts[pts.length - 1];
+      const tMid = t + span * 0.5, tJoin = t + span;
+      const L = pick(0.12 + jit(0.06), yAt(tMid + jit(0.06)));
+      const Rr = pick(0.82 + jit(0.06), yAt(tMid + jit(0.06)));
+      const join = pick(0.4 + jit(0.2), yAt(tJoin));
+      line(fork, L); line(L, join);
+      line(fork, Rr); line(Rr, join);
+      pts.push(join);
+      t = tJoin;
+    }
+    const core = cells[key(pts[pts.length - 1].c, pts[pts.length - 1].r)] || this.hexAt(pts[pts.length - 1].c, pts[pts.length - 1].r);
+    for (const nb of this.hexNbr(core.c, core.r)) dig1(nb[0], nb[1]);   // コアの部屋
+
+    // 口：縁のタイルに穴を開け、そこに乗る六角も掘る
+    const holeW = 2 + ((rnd() * 2) | 0);
+    const mh = this.hexAt(mouthHex.c, mouthHex.r);
+    const tc = Math.max(0, Math.min(cols - holeW, Math.round(mh.x / TILE - holeW / 2)));
+    const tr = fromBottom ? rows - 1 : 0;
+    const tiles = [];
+    for (let q = 0; q < holeW; q++) tiles.push({ c: tc + q, r: tr });
+    for (const tt of tiles) {
+      const q = this.hexPick(tt.c * TILE + TILE / 2, tt.r * TILE + TILE / 2);
+      dig1(q.c, q.r);
+      line(q, mouthHex);
+    }
+    const holes = [{ side: 'fork', tiles, w: holeW,
+      x: (tiles[0].c + tiles[holeW - 1].c) / 2 * TILE + TILE / 2, y: tr * TILE + TILE / 2 }];
+
+    let hexes = [];
+    for (const k in open) hexes.push(cells[k]);
+    hexes = this.tagZones(hexes, rnd, d);
+    const g = this.bake([], { x: core.x, y: core.y }, holes, W, H, hexes);
+    return {
+      rows: g.map(r => r.join('')),
+      vec: { lanes: [], holes, core: { x: core.x, y: core.y }, w: W, h: H, hexes, hexR: R },
+      zone: this._zone,
+      shape, seed, style: 'fork',
+    };
+  },
+
   // ---- 序盤（第1〜3章）：六角の列で往復させる ----
   //
   //   **ユーザー 2026-09-24「序盤専用の生成器を作る」**
@@ -997,6 +1189,7 @@ const MapGen = {
     // **六角式はここで分岐する。**（第12章から。第1〜11章は下の折れ線）
     if (shape.style === 'hex') return this.makeHex(seed, d, shape);
     if (shape.style === 'serp') return this.makeSerp(seed, d, shape);
+    if (shape.style === 'fork') return this.makeFork(seed, d, shape);
     const rnd = this.rng(seed);
     // **盤の大きさも章ごとに変えられる。**（ユーザー 2026-09-22
     //   「ボス章や後半ステージ、ラスボスは広いマップ…を意識して」）
