@@ -974,10 +974,12 @@ const MapGen = {
     const nHole = Math.max(1, Math.min(2, shape.holes || this.holesFor(d, rnd)));
     const jit = (a) => (rnd() - 0.5) * a;
     // 1本の道を掘る：縦の位置 y0（口の縁）→ y1（コア）。分岐 → 左右の腕 → 合流 を loops 回。
-    //   endAt を渡すと、最後の合流をそこ（コア）にする
-    const carve = (y0, y1, loops, endAt) => {
+    //   o.endAt … 最後の合流をそこ（コア）にする ／ o.mx … 口の横位置 ／ o.armL / o.armR … 左右の腕の横位置
+    //   o.joinX … 合流の横位置 ／ o.ladder … 左右の腕を途中の横棒でつなぐ（道の組み合わせが増える）
+    const carve = (y0, y1, loops, o) => {
+      o = o || {};
       const yAt = (t) => y0 + (y1 - y0) * t;
-      const mx = 0.35 + rnd() * 0.3;
+      const mx = o.mx !== undefined ? o.mx : 0.35 + rnd() * 0.3;
       const mouthHex = pick(mx, yAt(0.02));
       const pts = [pick(mx, yAt(0.12))];
       line(mouthHex, pts[0]);
@@ -986,11 +988,13 @@ const MapGen = {
       for (let k = 0; k < loops; k++) {
         const fork = pts[pts.length - 1];
         const tMid = t + span * 0.5, tJoin = t + span;
-        const L = pick(0.12 + jit(0.06), yAt(tMid + jit(0.06)));
-        const Rr = pick(0.82 + jit(0.06), yAt(tMid + jit(0.06)));
-        const join = (k === loops - 1 && endAt) ? endAt : pick(0.4 + jit(0.2), yAt(tJoin));
+        const L = pick((o.armL !== undefined ? o.armL : 0.12) + jit(0.06), yAt(tMid + jit(0.06)));
+        const Rr = pick((o.armR !== undefined ? o.armR : 0.82) + jit(0.06), yAt(tMid + jit(0.06)));
+        const join = (k === loops - 1 && o.endAt) ? o.endAt
+          : pick((o.joinX !== undefined ? o.joinX : 0.4) + jit(0.2), yAt(tJoin));
         line(fork, L); line(L, join);
         line(fork, Rr); line(Rr, join);
+        if (o.ladder) line(L, Rr);
         pts.push(join);
         t = tJoin;
       }
@@ -1013,17 +1017,48 @@ const MapGen = {
       holes.push({ side: 'fork' + holes.length, tiles, w: holeW,
         x: (tiles[0].c + tiles[holeW - 1].c) / 2 * TILE + TILE / 2, y: tr * TILE + TILE / 2 });
     };
-    let coreHex;
+    // **形の種類。**（2026-09-25・同じ骨格ばかりだとコピペに見える。ユーザー「マップがコピペすぎる」）
+    //   口1つ：ひし形（分岐1〜2回）／片寄せ（口を角に寄せ、片方の腕は縁沿い）／はしご（左右の腕を横棒でつなぐ）
+    //   口2つ：8の字（上下の口・中央のコア）／対角（口を上下の対角の角に）／片寄せコア（コアを左右どちらかへ）
+    let coreHex, pattern;
     if (nHole === 1) {
       const fromBottom = rnd() < 0.5;
-      const a = carve(fromBottom ? 1 : 0, fromBottom ? 0.1 : 0.9, shape.loops || (rnd() < 0.5 ? 1 : 2), null);
+      const y0 = fromBottom ? 1 : 0, y1 = fromBottom ? 0.1 : 0.9;
+      const pr = rnd();
+      let a;
+      if (pr < 0.4) {
+        pattern = 'diamond';
+        a = carve(y0, y1, shape.loops || (rnd() < 0.5 ? 1 : 2), {});
+      } else if (pr < 0.7) {
+        pattern = 'offset';
+        const left = rnd() < 0.5;
+        a = carve(y0, y1, 1, { mx: left ? 0.15 : 0.8, armL: left ? 0.1 : 0.3, armR: left ? 0.62 : 0.85, joinX: left ? 0.62 : 0.2 });
+      } else {
+        pattern = 'ladder';
+        a = carve(y0, y1, shape.loops || 1, { ladder: true });
+      }
       openMouth(a.mouthHex, fromBottom);
       coreHex = a.end;
     } else {
-      coreHex = pick(0.45 + jit(0.2), 0.5 + jit(0.08));
-      const a = carve(1, 0.5, shape.loops || 1, coreHex);
+      const pr = rnd();
+      let mxB, mxT;
+      if (pr < 0.4) {
+        pattern = 'eight';
+        coreHex = pick(0.45 + jit(0.2), 0.5 + jit(0.08));
+      } else if (pr < 0.7) {
+        pattern = 'diagonal';
+        const left = rnd() < 0.5;
+        mxB = left ? 0.15 : 0.8; mxT = left ? 0.8 : 0.15;
+        coreHex = pick(0.45 + jit(0.1), 0.5 + jit(0.08));
+      } else {
+        pattern = 'sidecore';
+        const left = rnd() < 0.5;
+        coreHex = pick(left ? 0.28 : 0.62, 0.5 + jit(0.08));
+        mxB = mxT = left ? 0.7 : 0.25;
+      }
+      const a = carve(1, 0.5, shape.loops || 1, { endAt: coreHex, mx: mxB });
       openMouth(a.mouthHex, true);
-      const b = carve(0, 0.5, shape.loops || 1, coreHex);
+      const b = carve(0, 0.5, shape.loops || 1, { endAt: coreHex, mx: mxT });
       openMouth(b.mouthHex, false);
     }
     const core = cells[key(coreHex.c, coreHex.r)] || this.hexAt(coreHex.c, coreHex.r);
@@ -1035,9 +1070,9 @@ const MapGen = {
     const g = this.bake([], { x: core.x, y: core.y }, holes, W, H, hexes);
     return {
       rows: g.map(r => r.join('')),
-      vec: { lanes: [], holes, core: { x: core.x, y: core.y }, w: W, h: H, hexes, hexR: R },
+      vec: { lanes: [], holes, core: { x: core.x, y: core.y }, w: W, h: H, hexes, hexR: R, pattern },
       zone: this._zone,
-      shape, seed, style: 'fork',
+      shape, seed, style: 'fork', pattern,
     };
   },
 

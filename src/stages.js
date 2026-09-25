@@ -336,6 +336,18 @@ const Stage = {
       }
       return m;
     };
+    // **通路を歩いて rad 歩以内**の印。壁を挟んだ隣の通路は、歩くと遠回りなので入らない
+    //   （直線距離の ±2 だと、壁1枚向こうの別の通路まで「同じ道」とみなしていた）
+    const roadNear = (list, rad) => {
+      const m = new Uint8Array(N), step = new Int16Array(N).fill(-1), q = [];
+      for (const i of list) if (step[i] < 0) { step[i] = 0; m[i] = 1; q.push(i); }
+      for (let h = 0; h < q.length; h++) {
+        const i = q[h];
+        if (step[i] >= rad) continue;
+        for (const j of nbr(i)) if (step[j] < 0) { step[j] = step[i] + 1; m[j] = 1; q.push(j); }
+      }
+      return m;
+    };
     const lanes = [];                       // { mouth, route, next }
     const mouthLanes = [];                  // 口ごとのレーン番号
     const mouthOf = new Array(spawns.length).fill(0);
@@ -352,7 +364,7 @@ const Stage = {
         if (k === 0) route = walk(next, src);
         else {
           // **同じ太い通路の中で並んで走るだけの道は「別の道」にしない**（±BAL.laneSep タイルを前のレーンの近くとみなす）
-          const near = around(taken, BAL.laneSep);
+          const near = roadNear(taken, BAL.laneSep);
           const d = dijkstra((j) => 1 + (near[j] ? BAL.lanePenalty : 0));
           route = walk(nextOf(d), src);
           if (route.length > L1 * BAL.laneMaxRatio + 1) break;
