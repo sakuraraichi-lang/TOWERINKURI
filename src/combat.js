@@ -89,7 +89,7 @@ const Crowd = {
       if (m > cap) { px = px / m * cap; py = py / m * cap; }
       const nx = e.x + px, ny = e.y + py;
       // 壁に押し出さない
-      if (st.walkable((nx / TILE) | 0, (ny / TILE) | 0)) { e.x = nx; e.y = ny; }
+      if (st.step((e.x / TILE) | 0, (e.y / TILE) | 0, (nx / TILE) | 0, (ny / TILE) | 0)) { e.x = nx; e.y = ny; }
     }
   },
 
@@ -1100,7 +1100,7 @@ const Combat = {
           if (inside) {
             const nx = e.x - Math.cos(a) * e.grabV * dt;
             const ny = e.y - Math.sin(a) * e.grabV * dt;
-            if (st.walkable((nx / TILE) | 0, (ny / TILE) | 0)) { e.x = nx; e.y = ny; }
+            if (st.step((e.x / TILE) | 0, (e.y / TILE) | 0, (nx / TILE) | 0, (ny / TILE) | 0)) { e.x = nx; e.y = ny; }
           }
         } else {
           // **地形の仕掛け。**減速マスは遅く、加速マスは速くなる（src/mapgen.js の tagZones）。

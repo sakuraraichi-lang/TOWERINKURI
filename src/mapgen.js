@@ -243,6 +243,56 @@ const MapGen = {
     return best;
   },
 
+  // **六角の島を、コアのいる島へ六角づたいに繋ぐ。**（2026-09-25）
+  //   経路探索が「隣の六角どうしだけ行き来できる」になったので（Stage.build の step）、
+  //   それまで壁越しのタイルの接触だけで繋がっていた口が届かなくなる（種1つ・30章で2章）。
+  //   島ごとに、壁の六角を通ってコアの島へいちばん短い六角の列を掘る。
+  //   返り値 … 足したあとの六角の一覧（島が1つなら null）
+  joinHexes(vec) {
+    const key = (c, r) => c + ',' + r;
+    const set = {};
+    for (const h of vec.hexes) set[key(h.c, h.r)] = h;
+    const g0 = this.hexRange(0, 0, vec.w, vec.h, 0);
+    const inBoard = (c, r) => { if (c < g0.c0 || c > g0.c1 || r < g0.r0 || r > g0.r1) return null; const h = this.hexAt(c, r); return (h.x < 0 || h.y < 0 || h.x > vec.w || h.y > vec.h) ? null : h; };
+    const coreH = this.hexPick(vec.core.x, vec.core.y);
+    const add = [];
+    for (let pass = 0; pass < 12; pass++) {
+      // コアの島
+      const home = {}, q = [];
+      const ck = key(coreH.c, coreH.r);
+      if (!set[ck]) return null;
+      home[ck] = 1; q.push(set[ck]);
+      for (let i = 0; i < q.length; i++) for (const [a, b] of this.hexNbr(q[i].c, q[i].r)) { const k = key(a, b); if (set[k] && !home[k]) { home[k] = 1; q.push(set[k]); } }
+      const rest = vec.hexes.concat(add).filter(h => !home[key(h.c, h.r)]);
+      if (!rest.length) break;
+      // 島の外（どれか1つ）から、壁の六角を通ってコアの島まで幅優先で掘る
+      const from = {}, q2 = [];
+      const seed = rest[0], sk = key(seed.c, seed.r);
+      // 同じ島の六角を全部起点にする
+      const isl = { [sk]: 1 }; const iq = [seed];
+      for (let i = 0; i < iq.length; i++) for (const [a, b] of this.hexNbr(iq[i].c, iq[i].r)) { const k = key(a, b); if (set[k] && !isl[k] && !home[k]) { isl[k] = 1; iq.push(set[k]); } }
+      for (const h of iq) { from[key(h.c, h.r)] = null; q2.push(h); }
+      let hit = null;
+      for (let i = 0; i < q2.length && !hit; i++) {
+        for (const [a, b] of this.hexNbr(q2[i].c, q2[i].r)) {
+          const k = key(a, b);
+          if (k in from) continue;
+          const h = set[k] || inBoard(a, b);
+          if (!h) continue;
+          from[k] = q2[i];
+          if (home[k]) { hit = h; break; }
+          q2.push(h);
+        }
+      }
+      if (!hit) return null;
+      for (let cur = from[key(hit.c, hit.r)]; cur; cur = from[key(cur.c, cur.r)]) {
+        const k = key(cur.c, cur.r);
+        if (!set[k]) { const h = this.hexAt(cur.c, cur.r); set[k] = h; add.push(h); }
+      }
+    }
+    return add.length ? vec.hexes.concat(add) : null;
+  },
+
   // **分かれ道を足す。**（2026-09-25・ユーザー「5章、6章は左右から分かれてきたら面白いのですが、やはり最短距離です」）
   //   口のレーン（別の道筋）が1本しか取れないとき、その道の途中の区間を、**壁の中を回り込む迂回路**で結ぶ。
   //   迂回路は元の道とは六角1つ以上の壁で隔てる（隣り合う太い通路にしない）。長さは区間の BAL.detourMaxRatio 倍まで。
@@ -439,6 +489,75 @@ const MapGen = {
   // ---- 焼く ----
   //   タイルの中心が、拾った六角セルのどれかの中にあれば通路。
   //   **ここでタイルへ落とすので、この先（BFS・Crowd・設置）は何も変わらない**
+  // **タイルごとに「そのタイルを通路にした六角」を並べる。**（2026-09-25）
+  //   焼く（bake）のと、経路探索で「六角で隣り合う通路どうしだけ行き来させる」（Stage.build の step）の両方がこれを使う。
+  //   ・5点のうち2点以上がその六角に入るタイル（bake の元の規則）
+  //   ・**隣り合う通路の六角どうしは、中心を結ぶ線が通るタイルも両方の六角のものにする。**
+  //     盤の縁では六角が半分はみ出していて、隣どうしでも焼いたタイルが繋がらないことがあった
+  //     （実測：種11の第28章。右の縁の六角 24,23 と 24,24 の間が1タイル壁になり、
+  //       それまでは壁越しのタイルの接触が穴を埋めていた）。線は盤の内側へ寄せて拾う
+  //   返り値 … 長さ cols*rows の配列。通路にならないタイルは null、なるタイルは六角の [c, r] の列
+  cover(hexes, cols, rows, only5) {
+    const R = this.HEX_R, q = TILE * 0.3;
+    const out = new Array(cols * rows).fill(null);
+    const put = (i, hx) => { const a = out[i] || (out[i] = []); if (a.indexOf(hx) < 0) a.push(hx); };
+    for (const hx of hexes) {
+      const minc = Math.max(0, Math.floor((hx.x - R) / TILE));
+      const maxc = Math.min(cols - 1, Math.ceil((hx.x + R) / TILE));
+      const minr = Math.max(0, Math.floor((hx.y - R) / TILE));
+      const maxr = Math.min(rows - 1, Math.ceil((hx.y + R) / TILE));
+      for (let r = minr; r <= maxr; r++) for (let c = minc; c <= maxc; c++) {
+        const cx = c * TILE + TILE / 2 - hx.x, cy = r * TILE + TILE / 2 - hx.y;
+        let hit = 0;
+        if (this.inHex(cx, cy, R)) hit++;
+        if (this.inHex(cx - q, cy - q, R)) hit++;
+        if (this.inHex(cx + q, cy - q, R)) hit++;
+        if (this.inHex(cx - q, cy + q, R)) hit++;
+        if (this.inHex(cx + q, cy + q, R)) hit++;
+        if (hit >= 2) put(r * cols + c, hx);
+      }
+    }
+    if (only5) return out;          // 5点の規則だけ（Stage.build の行き止まり外しが使う）
+    const set = {};
+    for (const hx of hexes) set[hx.c + ',' + hx.r] = hx;
+    const tc = (x) => Math.max(0, Math.min(cols - 1, Math.floor(x / TILE)));
+    const tr = (y) => Math.max(0, Math.min(rows - 1, Math.floor(y / TILE)));
+    for (const a of hexes) {
+      for (const [nc, nr] of this.hexNbr(a.c, a.r)) {
+        const b = set[nc + ',' + nr];
+        if (!b || b.c < a.c || (b.c === a.c && b.r < a.r)) continue;      // 1組につき1回
+        let pc = tc(a.x), pr = tr(a.y);
+        for (let k = 0; k <= 12; k++) {
+          const t = k / 12, c = tc(a.x + (b.x - a.x) * t), r = tr(a.y + (b.y - a.y) * t);
+          // 斜めに1歩で飛ぶと上下左右で繋がらないので、角のタイルも入れる
+          if (c !== pc && r !== pr) { put(pr * cols + c, a); put(pr * cols + c, b); }
+          put(r * cols + c, a); put(r * cols + c, b);
+          pc = c; pr = r;
+        }
+      }
+    }
+    return out;
+  },
+
+  // **タイル a と b（番号）を1歩で行き来できるか。** 焼いた六角が同じか隣どうしのときだけ（cover を使う）。
+  //   六角を持たないタイル（口の穴など）はどことでも繋ぐ。Stage.build の経路探索と check の両方がこれを使う
+  linker(hexes, cols, rows) {
+    const hk = (c, r) => (c + 64) * 4096 + (r + 64);
+    const nsets = {};
+    for (const hx of hexes) {
+      const ns = nsets[hk(hx.c, hx.r)] = new Set([hk(hx.c, hx.r)]);
+      for (const [a, b] of this.hexNbr(hx.c, hx.r)) ns.add(hk(a, b));
+    }
+    const cov = this.cover(hexes, cols, rows);
+    const hs = cov.map(a => a ? a.map(h => hk(h.c, h.r)) : null);
+    return (a, b) => {
+      const A = hs[a], B = hs[b];
+      if (!A || !B) return true;
+      for (const ka of A) { const ns = nsets[ka]; for (const kb of B) if (ns.has(kb)) return true; }
+      return false;
+    };
+  },
+
   bake(lanes, core, holes, W, H, hexes) {
     const cols = Math.round(W / TILE), rows = Math.round(H / TILE);
     const g = [];
@@ -446,6 +565,8 @@ const MapGen = {
 
     const R = this.HEX_R;
     const zone = new Array(cols * rows).fill(0);
+    const cov = this.cover(hexes, cols, rows);
+    for (let i = 0; i < cov.length; i++) if (cov[i]) g[(i / cols) | 0][i % cols] = '.';
     for (const hx of hexes) {
       const minc = Math.max(0, Math.floor((hx.x - R) / TILE));
       const maxc = Math.min(cols - 1, Math.ceil((hx.x + R) / TILE));
@@ -1000,58 +1121,133 @@ const MapGen = {
       }
       return { mouthHex, end: pts[pts.length - 1] };
     };
-    // 口：縁のタイルに穴を開け、そこに乗る六角も掘る
+    // 口：縁のタイルに穴を開け、そこに乗る六角も掘る。side … 'top' / 'bottom' / 'left' / 'right'（true は下、false は上）
     const holes = [];
-    const openMouth = (mouthHex, atBottom) => {
+    const openMouth = (mouthHex, side) => {
+      if (side === true) side = 'bottom';
+      if (side === false) side = 'top';
       const holeW = 2 + ((rnd() * 2) | 0);
       const mh = this.hexAt(mouthHex.c, mouthHex.r);
-      const tc = Math.max(0, Math.min(cols - holeW, Math.round(mh.x / TILE - holeW / 2)));
-      const tr = atBottom ? rows - 1 : 0;
       const tiles = [];
-      for (let q = 0; q < holeW; q++) tiles.push({ c: tc + q, r: tr });
+      if (side === 'top' || side === 'bottom') {
+        const tc = Math.max(0, Math.min(cols - holeW, Math.round(mh.x / TILE - holeW / 2)));
+        const tr = side === 'bottom' ? rows - 1 : 0;
+        for (let q = 0; q < holeW; q++) tiles.push({ c: tc + q, r: tr });
+      } else {
+        const tr = Math.max(0, Math.min(rows - holeW, Math.round(mh.y / TILE - holeW / 2)));
+        const tc = side === 'right' ? cols - 1 : 0;
+        for (let q = 0; q < holeW; q++) tiles.push({ c: tc, r: tr + q });
+      }
       for (const tt of tiles) {
         const q = this.hexPick(tt.c * TILE + TILE / 2, tt.r * TILE + TILE / 2);
         dig1(q.c, q.r);
         line(q, mouthHex);
       }
-      holes.push({ side: 'fork' + holes.length, tiles, w: holeW,
-        x: (tiles[0].c + tiles[holeW - 1].c) / 2 * TILE + TILE / 2, y: tr * TILE + TILE / 2 });
+      const xs = tiles.map(t => t.c), ys = tiles.map(t => t.r);
+      holes.push({ side: 'fork' + holes.length + ':' + side, tiles, w: holeW,
+        x: (Math.min.apply(null, xs) + Math.max.apply(null, xs)) / 2 * TILE + TILE / 2,
+        y: (Math.min.apply(null, ys) + Math.max.apply(null, ys)) / 2 * TILE + TILE / 2 });
     };
-    // **形の種類。**（2026-09-25・同じ骨格ばかりだとコピペに見える。ユーザー「マップがコピペすぎる」）
-    //   口1つ：ひし形（分岐1〜2回）／片寄せ（口を角に寄せ、片方の腕は縁沿い）／はしご（左右の腕を横棒でつなぐ）
-    //   口2つ：8の字（上下の口・中央のコア）／対角（口を上下の対角の角に）／片寄せコア（コアを左右どちらかへ）
-    let coreHex, pattern;
-    if (nHole === 1) {
+    // **形の種類。**（2026-09-25・ユーザー）
+    //   > 「4〜11章、ほとんどが上下左右を反転させたような、少し角度が違うようなマップで真新しさに欠けます…
+    //   >   敵の経路を分けたなら次は左右から攻めてくる、上下から攻めてくるなど、バリエーションに富んだデザインで」
+    //   前は全部が「上か下の縁の口 → 反対側のコア」の縦向きで、違いは腕の位置と反転だけだった。
+    //   **骨格の違う型を並べ、同じ周の第4〜7章・第8〜11章で型が重ならないように配る**（shape.forkPattern。Stage.mapRowsFor が決める）。
+    //   型は 0〜1 の座標の「道の折れ線」と「口（辺と位置）」と「コア」で書く。反転は型を選んだあとに乱数で掛ける
+    //   口1つ：diamond ひし形 ／ offset 片寄せ ／ ladder はしご ／ ring 横から入ってコアの周りを両回り ／
+    //          snake 角の口から折り返して箱で分かれる ／ trident 三叉
+    //   口2つ：eight 上下から8の字 ／ sidecore 片寄せコア ／ pincer 左右の縁から挟む ／ corner 隣り合う2辺から ／
+    //          parallel 同じ辺から2本並んで
+    //   （試して外した型：pinwheel 左上と右下の縁から中央のコアへ。19×27 では口からコアまでが16〜17しか取れず、下限20に届かない）
+    const POOL1 = ['diamond', 'offset', 'ladder', 'ring', 'snake', 'trident'];
+    const POOL2 = ['eight', 'sidecore', 'pincer', 'corner', 'parallel'];
+    const TPL = {
+      ring: (j) => {
+        const y = 0.5 + j(0.16), cy = 0.5 + j(0.08);
+        return { mouths: [{ side: 'left', at: [0.02, y], path: [[0.02, y], [0.14, y]] }],
+          paths: [[[0.14, y], [0.12 + j(0.03), 0.13], [0.84 + j(0.03), 0.13], [0.84, 0.5]],
+                  [[0.14, y], [0.12 + j(0.03), 0.87], [0.84 + j(0.03), 0.87], [0.84, 0.5]],
+                  [[0.84, 0.5], [0.54, cy]]],
+          core: [0.54, cy] };
+      },
+      snake: (j) => {
+        const sy = 0.36 + j(0.06), jy = 0.64 + j(0.06);
+        return { mouths: [{ side: 'top', at: [0.84, 0.02], path: [[0.84, 0.02], [0.84, 0.13]] }],
+          paths: [[[0.84, 0.13], [0.14, 0.13], [0.14, sy]],
+                  [[0.14, sy], [0.86, sy], [0.86, jy], [0.6, jy]],
+                  [[0.14, sy], [0.14, jy], [0.6, jy]],
+                  [[0.6, jy], [0.6 + j(0.1), 0.88]]],
+          core: null };
+      },
+      trident: (j) => {
+        const ay = 0.84;
+        return { mouths: [{ side: 'bottom', at: [0.5, 0.98], path: [[0.5, 0.98], [0.5, ay]] }],
+          paths: [[[0.5, ay], [0.12, 0.7 + j(0.06)], [0.12, 0.3 + j(0.06)], [0.5, 0.13]],
+                  [[0.5, ay], [0.88, 0.7 + j(0.06)], [0.88, 0.3 + j(0.06)], [0.5, 0.13]],
+                  [[0.5, ay], [0.38, 0.6], [0.62, 0.4], [0.5, 0.13]]],
+          core: [0.5, 0.13] };
+      },
+      pincer: (j) => {
+        const y = 0.2 + j(0.06), side = (s, x) => (s ? x : 1 - x);
+        const one = (s) => ({ mouth: { side: s ? 'left' : 'right', at: [side(s, 0.02), y], path: [[side(s, 0.02), y], [side(s, 0.15), y]] },
+          paths: [[[side(s, 0.15), y], [side(s, 0.08), 0.55 + j(0.06)], [side(s, 0.24), 0.74]],
+                  [[side(s, 0.15), y], [side(s, 0.36), 0.44 + j(0.06)], [side(s, 0.24), 0.74]],
+                  [[side(s, 0.24), 0.74], [0.5, 0.86]]] });
+        const A = one(true), B = one(false);
+        return { mouths: [A.mouth, B.mouth], paths: A.paths.concat(B.paths), core: [0.5, 0.86] };
+      },
+      corner: (j) => {
+        const tx = 0.78 + j(0.06), ly = 0.24 + j(0.06);
+        return { mouths: [{ side: 'top', at: [tx, 0.02], path: [[tx, 0.02], [tx, 0.13]] },
+                          { side: 'left', at: [0.02, ly], path: [[0.02, ly], [0.14, ly]] }],
+          paths: [[[tx, 0.13], [0.94, 0.42], [0.8, 0.62]], [[tx, 0.13], [0.56, 0.36], [0.8, 0.62]], [[0.8, 0.62], [0.72, 0.8]],
+                  [[0.14, ly], [0.12, 0.66], [0.3, 0.84]], [[0.14, ly], [0.38, 0.52], [0.3, 0.84]], [[0.3, 0.84], [0.72, 0.8]]],
+          core: [0.72, 0.8] };
+      },
+      parallel: (j) => {
+        const side = (s, x) => (s ? x : 1 - x), cy = 0.14 + j(0.04);
+        const one = (s) => ({ mouth: { side: 'bottom', at: [side(s, 0.2), 0.98], path: [[side(s, 0.2), 0.98], [side(s, 0.2), 0.86]] },
+          paths: [[[side(s, 0.2), 0.86], [side(s, 0.06), 0.6 + j(0.06)], [side(s, 0.22), 0.36]],
+                  [[side(s, 0.2), 0.86], [side(s, 0.37), 0.62 + j(0.06)], [side(s, 0.22), 0.36]],
+                  [[side(s, 0.22), 0.36], [0.5, cy]]] });
+        const A = one(true), B = one(false);
+        return { mouths: [A.mouth, B.mouth], paths: A.paths.concat(B.paths), core: [0.5, cy] };
+      },
+    };
+    let coreHex, pattern = shape.forkPattern;
+    if (!pattern || (nHole === 1 ? POOL1 : POOL2).indexOf(pattern) < 0) { const pl = nHole === 1 ? POOL1 : POOL2; pattern = pl[(rnd() * pl.length) | 0]; }
+    if (TPL[pattern]) {
+      // 型紙から掘る。左右・上下の反転は乱数で
+      const fx = rnd() < 0.5, fy = rnd() < 0.5;
+      const T = TPL[pattern](jit);
+      const tf = (p) => [fx ? 1 - p[0] : p[0], fy ? 1 - p[1] : p[1]];
+      const flipSide = (s) => (fx && s === 'left') ? 'right' : (fx && s === 'right') ? 'left'
+        : (fy && s === 'top') ? 'bottom' : (fy && s === 'bottom') ? 'top' : s;
+      const P = (p) => { const q = tf(p); return pick(q[0], q[1]); };
+      const poly = (pts) => { for (let i = 1; i < pts.length; i++) line(P(pts[i - 1]), P(pts[i])); };
+      for (const m of T.mouths) { poly(m.path); openMouth(P(m.at), flipSide(m.side)); }
+      for (const pth of T.paths) poly(pth);
+      const last = T.paths[T.paths.length - 1];
+      coreHex = P(T.core || last[last.length - 1]);
+    } else if (nHole === 1) {
       const fromBottom = rnd() < 0.5;
       const y0 = fromBottom ? 1 : 0, y1 = fromBottom ? 0.1 : 0.9;
-      const pr = rnd();
       let a;
-      if (pr < 0.4) {
-        pattern = 'diamond';
+      if (pattern === 'diamond') {
         a = carve(y0, y1, shape.loops || (rnd() < 0.5 ? 1 : 2), {});
-      } else if (pr < 0.7) {
-        pattern = 'offset';
+      } else if (pattern === 'offset') {
         const left = rnd() < 0.5;
         a = carve(y0, y1, 1, { mx: left ? 0.15 : 0.8, armL: left ? 0.1 : 0.3, armR: left ? 0.62 : 0.85, joinX: left ? 0.62 : 0.2 });
       } else {
-        pattern = 'ladder';
         a = carve(y0, y1, shape.loops || 1, { ladder: true });
       }
       openMouth(a.mouthHex, fromBottom);
       coreHex = a.end;
     } else {
-      const pr = rnd();
       let mxB, mxT;
-      if (pr < 0.4) {
-        pattern = 'eight';
+      if (pattern === 'eight') {
         coreHex = pick(0.45 + jit(0.2), 0.5 + jit(0.08));
-      } else if (pr < 0.7) {
-        pattern = 'diagonal';
-        const left = rnd() < 0.5;
-        mxB = left ? 0.15 : 0.8; mxT = left ? 0.8 : 0.15;
-        coreHex = pick(0.45 + jit(0.1), 0.5 + jit(0.08));
       } else {
-        pattern = 'sidecore';
         const left = rnd() < 0.5;
         coreHex = pick(left ? 0.28 : 0.62, 0.5 + jit(0.08));
         mxB = mxT = left ? 0.7 : 0.25;
@@ -1475,7 +1671,8 @@ const MapGen = {
   //   ここで落とす条件は Stage.validateAll と同じ意味にしてある。
   //   **経路が短いマップは「どう置いても撃つ時間が足りず必ず漏れる」**
   //   （実測：経路17タイルで8回挑戦して全部ウェーブ1で撃沈）
-  check(rowsArr, d, shape) {
+  // hexes … 焼いた六角（あれば、壁越しのタイルの接触を道として数えない。Stage.build と同じ規則）
+  check(rowsArr, d, shape, hexes) {
     shape = shape || {};
     const dd = (d === undefined ? 0.5 : d);
     const rows = rowsArr.length, cols = rowsArr[0].length;
@@ -1489,12 +1686,14 @@ const MapGen = {
     }
     if (!core || !spawns.length) return null;
     const INF = 1e9, dist = new Array(cols * rows).fill(INF), idx = (c, r) => r * cols + c;
+    const link = hexes ? this.linker(hexes, cols, rows) : null;
     const q = [core]; dist[idx(core.c, core.r)] = 0;
     for (let h = 0; h < q.length; h++) {
       const cur = q[h], d = dist[idx(cur.c, cur.r)];
       for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
         const nc = cur.c + dc, nr = cur.r + dr;
         if (!walk(nc, nr) || dist[idx(nc, nr)] <= d + 1) continue;
+        if (link && !link(idx(cur.c, cur.r), idx(nc, nr))) continue;
         dist[idx(nc, nr)] = d + 1; q.push({ c: nc, r: nr });
       }
     }
@@ -1696,7 +1895,7 @@ const MapGen = {
       for (let i = 0; i < tries; i++) {
         const m = this.make((seed + i * 7919) >>> 0, d, sh);
         if (!m) continue;                // 作れなかった（組み合わせが無い等）
-        const st = this.check(m.rows, d, sh);
+        const st = this.check(m.rows, d, sh, m.vec && m.vec.hexes);
         if (st && st.ok) {
           m.stat = st; m.retries = i;
           m.relaxed = sI;              // 0 なら指定どおり。大きいほど緩めた

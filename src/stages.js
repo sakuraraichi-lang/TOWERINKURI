@@ -129,7 +129,17 @@ const Stage = {
     // **第4〜11章は分岐式。**（ユーザー 2026-09-25「5章、6章は左右から分かれてきたら面白い」。第8〜11章は口2つ）
     //   口から出た道が左右に分かれ、盤の両端を回って合流する（MapGen.makeFork）
     if (BAL.forkUntilDepth !== undefined && d >= (BAL.serpUntilDepth || 0) && d < BAL.forkUntilDepth) {
-      base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, { style: 'fork' });
+      // **型を章ごとに配る。**（ユーザー 2026-09-25「4〜11章、ほとんどが上下左右を反転させたような…真新しさに欠けます」）
+      //   口の数が同じ章どうし（第4〜7章・第8〜11章）で、同じ型が重ならないように、種で並べ替えた型の列から順に取る
+      const holesAt = (dd) => { const t = BAL.holesByDepth || [[1, 1]]; for (const row of t) if (dd < row[0]) return row[1]; return t[t.length - 1][1]; };
+      const nh = Math.min(2, holesAt(d));
+      const same = STAGES.map((s, i) => STAGES.length > 1 ? i / (STAGES.length - 1) : 0)
+        .map((dd, i) => ({ dd, i })).filter(o => o.dd >= (BAL.serpUntilDepth || 0) && o.dd < BAL.forkUntilDepth && Math.min(2, holesAt(o.dd)) === nh);
+      const rank = same.findIndex(o => o.i === idx);
+      const pool = nh === 1 ? ['diamond', 'offset', 'ladder', 'ring', 'snake', 'trident'] : ['eight', 'sidecore', 'pincer', 'corner', 'parallel'];
+      const pr = MapGen.rng((seed ^ (nh * 97531)) >>> 0), perm = pool.slice();
+      for (let i = perm.length - 1; i > 0; i--) { const k = (pr() * (i + 1)) | 0; [perm[i], perm[k]] = [perm[k], perm[i]]; }
+      base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, { style: 'fork', holes: nh, roadMax: BAL.forkRoadMax, forkPattern: perm[Math.max(0, rank) % perm.length] });
     }
     if (BAL.hexFromDepth !== undefined && d >= BAL.hexFromDepth) {
       base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, {
@@ -160,7 +170,7 @@ const Stage = {
     //   2026-09-24 実測：6種×30章＝180枚で、1回目で作れなかった盤は0
     let m = null;
     for (let k = 0; k < 8 && !m; k++) {
-      m = MapGen.build(((seed * 2654435761) ^ ((idx + 1) * 40503) ^ ((roll + k * 7919) * 2246822519)) >>> 0, 160, d, shape);
+      m = MapGen.build(((seed * 2654435761) ^ ((idx + 1) * 40503) ^ ((roll + (k + 8 * (this._regen[stageId] || 0)) * 7919) * 2246822519)) >>> 0, 160, d, shape);
     }
     if (!m) throw new Error(stageId + ' の盤を作れなかった（種 ' + seed + '）');
     this._vec[stageId] = m.vec;
@@ -173,11 +183,13 @@ const Stage = {
   _rows: {},        // 行き止まりを外して焼き直した盤（章ごと）
   _pruned: {},      // 外した六角の数（{ before, after }）
   _detour: {},      // 迂回路を足した回数
+  _joined: {},      // 六角の島を繋いだか
+  _regen: {},       // 分岐式を作り直した回数
   _before: {},      // 迂回路を足す前の盤（最短経路が縮んだら戻す）
   vecOf(stageId) { return this._vec[stageId] || null; },
 
   // 種が変わったら作り直す（転生のとき）
-  invalidate() { this._cache = {}; this._vec = {}; this._zone = {}; this._rows = {}; this._pruned = {}; this._detour = {}; this._before = {}; },
+  invalidate() { this._cache = {}; this._vec = {}; this._zone = {}; this._rows = {}; this._pruned = {}; this._detour = {}; this._before = {}; this._joined = {}; this._regen = {}; },
 
   build(stageId) {
     if (this._cache[stageId]) return this._cache[stageId];
@@ -239,6 +251,17 @@ const Stage = {
       return ch === '.' || ch === 'S' || ch === 'C';
     };
 
+    // ---- タイルからタイルへ進めるか：**六角で隣り合っていない通路どうしは繋がない** ----
+    //   （ユーザー 2026-09-25「5章で壁が繋がっていて分離できていなかったりしますね、存在しない経路を通ろうとします」）
+    //   焼き直しは「タイルの5点のうち2点以上が通路の六角に入れば通路」なので、六角1つの壁を挟んだ2本の通路は、
+    //   両側からはみ出したタイルどうしが上下左右で接してしまう。絵では壁なのに、敵はそこを抜けていた。
+    //   タイルごとに「そのタイルを通路にした六角」（MapGen.cover。焼くときと同じ規則）を覚え、
+    //   **同じ六角か、隣の六角どうし**のときだけ行き来させる。六角を持たないタイル（口の穴など）はどことでも繋ぐ
+    const vecH = this._vec[stageId];
+    const linked = (vecH && vecH.hexes) ? MapGen.linker(vecH.hexes, cols, rows) : () => true;
+    // (c, r) から (nc, nr) へ1歩で行けるか（戦闘の押し合いも使う）
+    const step = (c, r, nc, nr) => walkable(nc, nr) && (c === nc && r === nr || linked(r * cols + c, nr * cols + nc));
+
     // コアからの幅優先探索。各通路タイルに「次に進むタイル」を持たせる
     const INF = 1e9;
     const dist = new Array(cols * rows).fill(INF);
@@ -252,7 +275,7 @@ const Stage = {
       const d = dist[idx(cur.c, cur.r)];
       for (const [dc, dr] of DIRS) {
         const nc = cur.c + dc, nr = cur.r + dr;
-        if (!walkable(nc, nr)) continue;
+        if (!step(cur.c, cur.r, nc, nr)) continue;
         if (dist[idx(nc, nr)] <= d + 1) continue;
         dist[idx(nc, nr)] = d + 1;
         next[idx(nc, nr)] = { c: cur.c, r: cur.r };
@@ -272,6 +295,20 @@ const Stage = {
       return out;
     });
 
+    // ---- 口が届かない（六角どうしで繋がっていない）なら、六角づたいに繋いで焼き直す（1回だけ）----
+    //   壁越しのタイルの接触で繋がっていた盤は、上の step で切れる。**絵に無い道を通すのではなく、絵のほうに道を足す**
+    if (vecH && vecH.hexes && !this._joined[stageId] && spawns.some(s => dist[idx(s.c, s.r)] >= INF)) {
+      this._joined[stageId] = 1;
+      const hx = MapGen.joinHexes(vecH);
+      if (hx) {
+        const g2 = MapGen.bake([], vecH.core, vecH.holes, vecH.w, vecH.h, hx);
+        this._rows[stageId] = g2.map(r => r.join(''));
+        this._vec[stageId] = Object.assign({}, vecH, { hexes: hx });
+        this._zone[stageId] = MapGen._zone;
+        return this.build(stageId);
+      }
+    }
+
     // ---- レーン：同じ口から、互いに離れた別の道筋を何本か用意する ----
     //   （ユーザー 2026-09-25「左下が迂回路のようになっているのにも関わらず、右に直通しており、
     //    敵が利用しないデッドスペースが多数あります…不要なスペースを除くと1本道の虚無みたいなタワーディフェンス」）
@@ -283,7 +320,7 @@ const Stage = {
     const N = cols * rows;
     const nbr = (i) => {
       const c = i % cols, r = (i / cols) | 0, out = [];
-      for (const [dc, dr] of DIRS) { const nc = c + dc, nr = r + dr; if (walkable(nc, nr)) out.push(idx(nc, nr)); }
+      for (const [dc, dr] of DIRS) { const nc = c + dc, nr = r + dr; if (step(c, r, nc, nr)) out.push(idx(nc, nr)); }
       return out;
     };
     // コアからの重み付き最短距離（cost(i) … そのタイルに入る重さ）。小さな二分ヒープで回す
@@ -385,6 +422,16 @@ const Stage = {
     });
 
     const vec0 = this._vec[stageId];
+    // ---- 分岐式の盤で、レーンが2本取れない口があれば、盤ごと作り直す（6回まで）----
+    //   分岐式は「分かれ道がある」ことを作り方で保証するはずの盤。片方の腕が壁越しにしか合流していないと
+    //   （ユーザー 2026-09-25「5章で壁が繋がっていて分離できていなかった」）、腕が行き止まりになって1本道に戻る。
+    //   迂回路で継ぎ足すより、型のまま作り直すほうが形が崩れない
+    if (vec0 && vec0.pattern && (this._regen[stageId] || 0) < 6 && mouthLanes.some(L => L.length < 2)) {
+      this._regen[stageId] = (this._regen[stageId] || 0) + 1;
+      delete this._rows[stageId]; delete this._vec[stageId]; delete this._zone[stageId];
+      delete this._joined[stageId]; delete this._pruned[stageId]; delete this._detour[stageId]; delete this._before[stageId];
+      return this.build(stageId);
+    }
     // ---- 迂回路の検査：足したことで最短経路が下限（BAL.minRouteLen）を割るか、元の BAL.detourMinKeep 倍より縮んだら、
     //      足す前の盤に戻して、もう足さない（少し縮むのは許す。分かれ道のほうが大事）----
     const bf = this._before[stageId];
@@ -425,19 +472,30 @@ const Stage = {
       const band = new Uint8Array(N);
       for (const l of lanes) { const m = around(l.route); for (let i = 0; i < N; i++) if (m[i]) band[i] = 1; }
       const keepTile = (i) => band[i] || grid[(i / cols) | 0][i % cols] === 'S' || grid[(i / cols) | 0][i % cols] === 'C';
-      const R = MapGen.HEX_R, q = TILE * 0.3;
-      const kept = vec0.hexes.filter(hx => {
-        // この六角が焼いたタイル（bake と同じ5点の判定）のどれかがレーンのまわりなら残す
-        const c0 = Math.max(0, Math.floor((hx.x - R) / TILE)), c1 = Math.min(cols - 1, Math.ceil((hx.x + R) / TILE));
-        const r0 = Math.max(0, Math.floor((hx.y - R) / TILE)), r1 = Math.min(rows - 1, Math.ceil((hx.y + R) / TILE));
-        for (let r = r0; r <= r1; r++) for (let c = c0; c <= c1; c++) {
-          const cx = c * TILE + TILE / 2 - hx.x, cy = r * TILE + TILE / 2 - hx.y;
-          let hit = 0;
-          for (const [ox, oy] of [[0, 0], [-q, -q], [q, -q], [-q, q], [q, q]]) if (MapGen.inHex(cx + ox, cy + oy, R)) hit++;
-          if (hit >= 2 && keepTile(idx(c, r))) return true;
+      // この六角が焼いたタイルのどれかがレーンのまわりなら残す。**まわり（band）は5点の規則だけで見る**
+      //   （隣どうしを繋ぐ線のタイルまで数えると、使っていない隣の六角まで残ってしまう。種11で後半の通る割合が 8〜17点下がった）。
+      //   レーンが1歩進むごとに、その1歩を繋いでいる六角の組（同じか隣どうし）を1組だけ残す（残さないと道が切れる）
+      const cov = MapGen.cover(vec0.hexes, cols, rows), cov5 = MapGen.cover(vec0.hexes, cols, rows, true), keepHex = new Set();
+      for (let i = 0; i < N; i++) if (cov5[i] && keepTile(i)) for (const h of cov5[i]) keepHex.add(h);
+      // レーンが通るタイルは、そのタイルを焼いた六角を残す。**線のタイル（隣どうしを繋ぐだけのタイル）は両端の六角を両方**
+      //   （片方だけ残すと、そのタイルが焼かれなくなって道が切れる。種11の第7章で三叉の真ん中が斜めの一歩で切れた）
+      for (const l of lanes) for (const i of l.route) {
+        const own = (cov5[i] && cov5[i].length) ? cov5[i] : cov[i];
+        if (own) for (const h of own) keepHex.add(h);
+      }
+      const adj = (a, b) => a === b || MapGen.hexNbr(a.c, a.r).some(([c, r]) => c === b.c && r === b.r);
+      for (const l of lanes) for (let k = 1; k < l.route.length; k++) {
+        const A = cov[l.route[k - 1]], B = cov[l.route[k]];
+        if (!A || !B) continue;
+        let best = null, bs = -1;
+        for (const a of A) for (const b of B) {
+          if (!adj(a, b)) continue;
+          const sc = (keepHex.has(a) ? 2 : 0) + (keepHex.has(b) ? 2 : 0) + (cov5[l.route[k - 1]] && cov5[l.route[k - 1]].includes(a) ? 1 : 0) + (cov5[l.route[k]] && cov5[l.route[k]].includes(b) ? 1 : 0);
+          if (sc > bs) { bs = sc; best = [a, b]; }
         }
-        return false;
-      });
+        if (best) { keepHex.add(best[0]); keepHex.add(best[1]); }
+      }
+      const kept = vec0.hexes.filter(hx => keepHex.has(hx));
       this._pruned[stageId] = { before: vec0.hexes.length, after: kept.length };
       if (kept.length < vec0.hexes.length) {
         const g2 = MapGen.bake([], vec0.core, vec0.holes, vec0.w, vec0.h, kept);
@@ -453,7 +511,7 @@ const Stage = {
       // 章ごとのマップの形（BAL.mapShape）。**戦闘側もここを読む**
       //   （道が N 方向に分かれるぶん、敵の数も増やさないと1本あたりが薄くなる）
       shape: (BAL.mapShape && BAL.mapShape[STAGE_BY_ID[stageId].idx + 1]) || null,
-      def, id: stageId, cols, rows, grid, spawns, mouths, core, dist, next, idx, walkable, routes,
+      def, id: stageId, cols, rows, grid, spawns, mouths, core, dist, next, idx, walkable, step, routes,
       vec: this._vec[stageId] || null,        // 折れ線と幅。絵を滑らかに描くのに使う
       // 地形の仕掛け（0=なし 1=減速 2=加速。内部の名前は mud/slope のまま）。手で書いたマップには無い
       zone: this._zone[stageId] || null,
