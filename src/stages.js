@@ -137,7 +137,8 @@ const Stage = {
         .map((dd, i) => ({ dd, i })).filter(o => o.dd >= (BAL.serpUntilDepth || 0) && o.dd < BAL.forkUntilDepth && holesAt(o.dd) === nh);
       const rank = same.findIndex(o => o.i === idx);
       const POOLS = { 1: ['diamond', 'offset', 'ladder', 'ring', 'snake', 'trident'], 2: ['eight', 'sidecore', 'pincer', 'corner', 'parallel'],
-        3: ['fan3', 'flank3', 'corner3', 'hook3'], 4: ['crown4', 'corner4', 'side4', 'zig4'], 6: ['crown6', 'wall6', 'hexring'] };   // mapgen.js の POOL1〜6 と同じ
+        3: ['fan3', 'flank3', 'corner3', 'hook3', 'deep3', 'lad3', 'side3'], 4: ['crown4', 'corner4', 'side4', 'zig4', 'deep4', 'lad4', 'edge4'],
+        6: ['crown6', 'wall6', 'hexring', 'lad6'] };   // mapgen.js の POOL1〜6 と同じ
       const pool = POOLS[nh] || POOLS[6];
       const pr = MapGen.rng((seed ^ (nh * 97531)) >>> 0), perm = pool.slice();
       for (let i = perm.length - 1; i > 0; i--) { const k = (pr() * (i + 1)) | 0; [perm[i], perm[k]] = [perm[k], perm[i]]; }

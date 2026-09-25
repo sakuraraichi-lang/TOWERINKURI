@@ -1222,10 +1222,11 @@ const MapGen = {
     //   真ん中のコアに6方向から来る形は、同心の囲いで道を伸ばす六角式（makeHex）を型 hexring として使う
     //   口3つ：fan3 上辺に3つ／flank3 両脇の上と上辺の真ん中／corner3 コアを下の隅に・上辺2つと反対の脇／hook3 左上・左の辺・右の辺の上から右下の隅のコアへ（片側の辺に3つ並べる wall3 は、縦長の盤では道が足りないか右上が空いて落ちた）
     //   口4つ：crown4 上辺2つと両脇の上／corner4 上の両隅と両脇の真ん中／side4 コアを片側に・反対の辺2つと上下の辺／zig4 コアを下の隅に・上辺2つと反対の脇2つ
-    //   口6つ：crown6 上辺2つ・両脇2つずつ／wall6 コアを片側に・反対の辺3つと上下の辺／hexring 真ん中のコアへ6方向（六角式）
-    const POOL3 = ['fan3', 'flank3', 'corner3', 'hook3'];
-    const POOL4 = ['crown4', 'corner4', 'side4', 'zig4'];
-    const POOL6 = ['crown6', 'wall6', 'hexring'];
+    //   口6つ：crown6 上辺2つ・両脇2つずつ／wall6 コアを片側に・反対の辺3つと上下の辺／hexring 真ん中のコアへ6方向（六角式）／lad6 crown6 をはしご状に
+    //   道の組み方を変えた型：deep3・deep4（2回分かれて2回合流）／lad3・lad4（腕の途中を横棒でつなぐ）／side3 左の辺2つと上辺から右下の隅へ／edge4 上辺に4つ
+    const POOL3 = ['fan3', 'flank3', 'corner3', 'hook3', 'deep3', 'lad3', 'side3'];
+    const POOL4 = ['crown4', 'corner4', 'side4', 'zig4', 'deep4', 'lad4', 'edge4'];
+    const POOL6 = ['crown6', 'wall6', 'hexring', 'lad6'];
     // 辺の上の点 → 口（side と at と、盤の内側へ少し入った点）
     const edge = (side, t) => {
       const at = side === 'top' ? [t, 0.02] : side === 'bottom' ? [t, 0.98] : side === 'left' ? [0.02, t] : [0.98, t];
@@ -1233,20 +1234,32 @@ const MapGen = {
       return { side, at, inn };
     };
     // 口の内側の点 m からコア c へのひし形（盤の縦横比を効かせて、腕は進む向きの左右に振る）
-    const diamond = (m, c) => {
+    // 道の組み方：kind 'plain'（分岐1回）／'deep'（途中で2回分かれて2回合流）／'lad'（左右の腕の途中を横棒でつなぐ）
+    //   2026-09-26：口の並べ方だけ変えた型は、反転すると同じに見える（ユーザー「上下左右を反転させたような…真新しさに欠けます」）。
+    //   道の組み方そのものを変えた型を混ぜる
+    const diamond = (m, c, kind) => {
       const dx = (c[0] - m[0]) * W, dy = (c[1] - m[1]) * H, L = Math.hypot(dx, dy) || 1;
       const ux = dx / L, uy = dy / L, px = -uy, py = ux;
+      const P2 = (f, off) => [(m[0] * W + ux * L * f + px * off) / W, (m[1] * H + uy * L * f + py * off) / H];
+      if (kind === 'deep') {
+        // 1回目の菱形（0.10〜0.45）と2回目（0.50〜0.85）。腕の幅は少し細め
+        const a1 = P2(0.1 + jit(0.04), 0), j1 = P2(0.45 + jit(0.04), 0), a2 = P2(0.5 + jit(0.03), 0), j2 = P2(0.84 + jit(0.04), 0);
+        const w = () => 80 + rnd() * 35;
+        return [[m, a1], [a1, P2(0.28, w()), j1], [a1, P2(0.28, -w()), j1], [j1, a2],
+                [a2, P2(0.67, w()), j2], [a2, P2(0.67, -w()), j2], [j2, c]];
+      }
       const f1 = 0.14 + jit(0.08), f2 = 0.66 + jit(0.1), fm = (f1 + f2) / 2;
       const w1 = (95 + rnd() * 45), w2 = (95 + rnd() * 45);
-      const P2 = (f, off) => [(m[0] * W + ux * L * f + px * off) / W, (m[1] * H + uy * L * f + py * off) / H];
       const a = P2(f1, 0), j = P2(f2, 0);
-      return [[m, a], [a, P2(fm, w1), j], [a, P2(fm, -w2), j], [j, c]];
+      const out = [[m, a], [a, P2(fm, w1), j], [a, P2(fm, -w2), j], [j, c]];
+      if (kind === 'lad') out.push([P2(fm, w1), P2(fm, -w2)]);    // 横棒（左右の腕の真ん中をつなぐ）
+      return out;
     };
-    const multi = (mouthList, core) => {
+    const multi = (mouthList, core, kind) => {
       const out = { mouths: [], paths: [], core };
       for (const e of mouthList) {
         out.mouths.push({ side: e.side, at: e.at, path: [e.at, e.inn] });
-        for (const pth of diamond(e.inn, core)) out.paths.push(pth);
+        for (const pth of diamond(e.inn, core, kind || 'plain')) out.paths.push(pth);
       }
       return out;
     };
@@ -1264,6 +1277,15 @@ const MapGen = {
                            edge('right', 0.15), edge('right', 0.5 + jit(0.05))], bot()),
       wall6: () => multi([edge('left', 0.15), edge('left', 0.5 + jit(0.04)), edge('left', 0.85), edge('top', 0.3 + jit(0.05)),
                           edge('bottom', 0.3 + jit(0.05)), edge('top', 0.62 + jit(0.04))], [0.86, 0.55 + jit(0.06)]),
+      // 道の組み方を変えた型（2026-09-26・7章に1型ずつ配れるように）
+      deep3: () => multi([edge('top', 0.18 + jit(0.04)), edge('top', 0.82 + jit(0.04)), edge('left', 0.4 + jit(0.06))], bot(), 'deep'),
+      lad3: () => multi([edge('left', 0.15 + jit(0.05)), edge('top', 0.5 + jit(0.08)), edge('right', 0.15 + jit(0.05))], bot(), 'lad'),
+      side3: () => multi([edge('left', 0.12 + jit(0.04)), edge('left', 0.45 + jit(0.05)), edge('top', 0.72 + jit(0.05))], [0.8, 0.9]),
+      deep4: () => multi([edge('top', 0.28 + jit(0.05)), edge('top', 0.72 + jit(0.05)), edge('left', 0.18 + jit(0.05)), edge('right', 0.18 + jit(0.05))], bot(), 'deep'),
+      lad4: () => multi([edge('top', 0.1), edge('top', 0.9), edge('left', 0.5 + jit(0.06)), edge('right', 0.5 + jit(0.06))], bot(), 'lad'),
+      edge4: () => multi([edge('top', 0.12), edge('top', 0.38 + jit(0.03)), edge('top', 0.62 + jit(0.03)), edge('top', 0.88)], bot()),
+      lad6: () => multi([edge('top', 0.3 + jit(0.04)), edge('top', 0.7 + jit(0.04)), edge('left', 0.15), edge('left', 0.5 + jit(0.05)),
+                         edge('right', 0.15), edge('right', 0.5 + jit(0.05))], bot(), 'lad'),
     });
     const poolOf = (n) => n === 1 ? POOL1 : n === 2 ? POOL2 : n === 3 ? POOL3 : n === 4 ? POOL4 : POOL6;
     let coreHex, pattern = shape.forkPattern;
