@@ -837,7 +837,9 @@ const UI = {
     const perm = Game.perm, meta = Game.meta;
     this.skillRows = [];
     if (!this.skillTab) this.skillTab = 'weapon';
-    const tab = this.SKILL_TABS.find(t => t.id === this.skillTab) || this.SKILL_TABS[0];
+    // 「危険」（敵誘引）のタブは BAL.lureInTree のときだけ出す（2026-09-26 ツリーから外した）
+    const tabList = this.SKILL_TABS.filter(t => t.id !== 'risk' || BAL.lureInTree);
+    const tab = tabList.find(t => t.id === this.skillTab) || tabList[0];
 
     // コインとまとめ買い（上に貼り付く）
     p.appendChild(this.treePoints());
@@ -845,7 +847,7 @@ const UI = {
 
     // 目的タブ
     const tabs = Util.el('div', 'sk-tabs');
-    for (const t of this.SKILL_TABS) {
+    for (const t of tabList) {
       const n = this.skillTabCan(t);
       const b = Util.el('button', 'sk-tab' + (t.id === tab.id ? ' on' : ''));
       b.innerHTML = '<b>' + t.name + '</b>' + (n ? '<i>' + n + '</i>' : '');

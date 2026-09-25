@@ -61,6 +61,8 @@ const RELIC_IDS = CARD_IDS.filter(id => CARDS[id].kind === 'perm');
 //   （BAL.rankPerDepth 章ごとに1つ上がる。通しの測定で転生回数とほぼ同じ速さで上がるように 4）
 function prestigeRank(perm) {
   if (!perm || !(perm.prestiges > 0)) return 0;
+  // 測定用：格の代わりに転生回数を使う（0926a 以前と同じ開き方。格の影響だけを切り出して比べるため）
+  if (BAL.rankByCount) return perm.prestiges;
   return Math.max(1, Math.ceil((perm.legacyDeep || 0) / (BAL.rankPerDepth || 4)));
 }
 

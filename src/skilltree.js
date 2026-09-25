@@ -452,6 +452,9 @@ const Skill = {
   // カテゴリのノードは、そのカテゴリの武器を1つでも持っていれば解放される
   isUnlocked(perm, id) {
     const s = SKILL_BY_ID[id];
+    // **敵誘引はツリーから外した。**（2026-09-26・ユーザー「誘引自体はこれは難易度上昇要素として残しておき、スキルツリーから一旦消してしまっても良い」）
+    //   定義と効き方（mods.spawn）は、あとでハードモードの難易度調整に使えるように残す。BAL.lureInTree で戻せる
+    if (s && s.gkey === 'lure' && !BAL.lureInTree) return false;
     // **前のノードを取っていないと開かない。**（取り切り型ツリー・2026-09-21）
     //   `needs` に前のノードのIDを書く。枝が「順に開いていく」形になる
     if (s.needs) {
@@ -587,10 +590,10 @@ const Skill = {
     }
 
     return {
-      coin:   (1 + G('coin')) * (1 + 0.06 * Skill.gsum(meta, 'lure') / 0.25) * R.coin,
+      coin:   (1 + G('coin')) * (1 + (BAL.lureInTree ? 0.06 * Skill.gsum(meta, 'lure') / 0.25 : 0)) * R.coin,
       lives:  R.lives,        // ツリーからは増えない（「防衛線」を撤去した）
       regen:  G('regen') + (R.regen || 0),
-      spawn:  1 + G('lure'),
+      spawn:  1 + (BAL.lureInTree ? G('lure') : 0),   // 誘引を外している間は、買ってあっても効かせない（見えない所で敵が増えたままにしない）
       luck:   G('luck'),
       packLuck: G('pack'),
       picks:   1 + G('picks') + (R.picks || 0),
