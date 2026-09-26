@@ -174,6 +174,10 @@ const Combat = {
     //   ＝ 置ける数だけで決まる「偽の難易度」になる
     const le = BAL.lateEnemyMul;
     if (le && le.g > 1 && ch > le.from) w *= Math.pow(le.g, ch - le.from);
+    // 第31章から先（アセンション）だけの上乗せ（BAL.ascEnemyG）
+    if (ch > MAIN_CHAPTERS && BAL.ascEnemyG > 1) w *= Math.pow(BAL.ascEnemyG, ch - MAIN_CHAPTERS);
+    // 節目の章の壁（BAL.ascWallMul）。その章だけ
+    if (ch > MAIN_CHAPTERS && BAL.ascWallEvery > 0 && ch % BAL.ascWallEvery === 0) w *= BAL.ascWallMul;
     return w;
   },
 

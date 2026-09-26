@@ -546,15 +546,15 @@ async function progressAsync(seeds, opts) {
 // ---------------------------------------------------------------
 // 第31章から先（エンドレス・アセンション）を測る（2026-09-26）
 //
-//   endlessAsync(seed, { toCh: 40, tries: 6, farm: 16 })
+//   endlessAsync(seed, { toCh: 40, tries: 3, farm: 5, rounds: 3 })
 //   新しいセーブから通しで第30章まで行き（progressAsync と同じ歩き方）、そこから第31章、第32章…と進む。
-//   **詰まったら（tries 回続けて負けたら）、1つ手前の章を farm 回まわして経験値とパックを稼ぎ、また挑む**（プレイヤーの動きを真似る）。
+//   **詰まったら（tries 回続けて負けたら）、1つ手前の章を farm 回まわして経験値とパックを稼ぎ、また挑む**（これを rounds 回まで。ユーザー「壁で3〜5回くらい回させたい」）。
 //   稼いでも抜けられなければ、そこで止める。
 //   結果：章ごとに { ch, tries, farmed, lv, min, packs（そこまでに開けた数）, totuMed, totu4 }
 // ---------------------------------------------------------------
 async function endlessAsync(seed, opts) {
   opts = opts || {};
-  const toCh = opts.toCh || 40, tries = opts.tries || 6, farm = opts.farm || 16;
+  const toCh = opts.toCh || 40, tries = opts.tries || 3, farm = opts.farm || 5, rounds = opts.rounds || 3;
   const yieldNow = () => new Promise(r => setTimeout(r, 0));
   const was = BAL.ascEnabled, wasTime = TIME_MIN;
   //   **第31章から先は1章が3.5分（TIME_MIN）に収まらない。**敵の数を上限で切らないので1ウェーブ2,000体を超え、
@@ -578,8 +578,8 @@ async function endlessAsync(seed, opts) {
     for (let n = MAIN_CHAPTERS + 1; n <= toCh; n++) {
       const id = 'ch' + n;
       let sec = 0, used = 0, farmed = 0, ok = false;
-      for (let round = 0; round < 2 && !ok; round++) {
-        if (round === 1) {
+      for (let round = 0; round < rounds && !ok; round++) {
+        if (round >= 1) {
           // 詰まった：1つ手前を回して稼ぐ
           const prev = 'ch' + (n - 1);
           for (let k = 0; k < farm; k++) {
@@ -595,7 +595,21 @@ async function endlessAsync(seed, opts) {
           sec += r.sec; used++;
           await yieldNow();
           if (r.res === 'clear') { ok = true; break; }
-          if (r.res === 'slow' || r.res === 'timeout') { out.stop = '打切（第' + n + '章・' + r.res + '・' + r.sec + '秒）'; break; }
+          if (r.res === 'slow' || r.res === 'timeout') {
+            out.stop = '打切（第' + n + '章・' + r.res + '・' + r.sec + '秒）';
+            // 何が残っていたか（敵がどこかで詰まっていないか）を残す
+            const run = Game.run;
+            if (run) {
+              const es = run.enemies.filter(e => !e.dead);
+              const byTile = {};
+              for (const e of es) { const k = Math.floor(e.x / TILE) + ',' + Math.floor(e.y / TILE); byTile[k] = (byTile[k] || 0) + 1; }
+              out.diag = { wave: run.wave, phase: run.phase, toSpawn: run.toSpawn, left: es.length,
+                           types: es.reduce((a, e) => (a[e.tname || '?'] = (a[e.tname || '?'] || 0) + 1, a), {}),
+                           tiles: Object.entries(byTile).sort((a, b) => b[1] - a[1]).slice(0, 10),
+                           spd0: es.filter(e => !(e.spd > 0)).length, boss: es.filter(e => e.boss).length };
+            }
+            break;
+          }
         }
         if (out.stop) break;
       }
