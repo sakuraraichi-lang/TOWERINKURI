@@ -603,7 +603,7 @@ const Game = {
     const u = {
       id: weaponId, def, s: Object.assign({}, def.base), flags: {}, dyn: { heat: 0 }, n: 1,
       c, r, x: pos.x, y: pos.y,
-      face: this.snapFace(face !== undefined ? face : this.defaultFacing(st, c, r)),   // 保存された向き（360度の頃のもの）も6方向に丸める
+      face: this.snapFace(face !== undefined ? face : this.defaultFacing(st, c, r, def)),   // 保存された向き（360度の頃のもの）も6方向に丸める
       arc: arc !== undefined ? arc : def.base.arc,
       angle: 0, cd: 0, target: null, aim: null, shots: 0, muzzle: 0,
     };
@@ -641,8 +641,33 @@ const Game = {
   //   **(c,r) は六角のセル、通路はタイル。**単位が違うので、
   //   画素に直してから比べる（前はセル番号どうしを引き算していて、
   //   六角に変えた瞬間にあらぬ方向を向くようになる）
-  defaultFacing(st, c, r) {
+  // 置いた瞬間の向き。**6方向のうち、扇（射程と射界）に敵の通り道がいちばん多く入る向き**（2026-09-26）
+  //   前は「いちばん近い通路のタイル」を向いていた。コアの隣に置くと近い通路はコアの部屋なので、
+  //   部屋のほうを向いて道を撃てず、オタクくんのテストプレイ（測定器・第1章・コアの周りに6基・12本）で
+  //   **0/12 突破・撃破0〜5**だった。通り道はレーン（stages.js の lanes）のタイル。壁で射線が切れる所は数えない
+  //   （壁を抜ける武器は数える）。通り道が1つも入らないときだけ、前と同じ「いちばん近い通路」へ
+  defaultFacing(st, c, r, def) {
     const p = st.hexCenter(c, r);
+    if (def && def.base && st.lanes && st.lanes.length) {
+      const range = def.base.range || 150, arc = def.base.arc || 0.5;
+      const seen = new Set();
+      for (const l of st.lanes) for (const i of l.route) seen.add(i);
+      const pts = [];
+      for (const i of seen) {
+        const q = st.center(i % st.cols, (i / st.cols) | 0);
+        const d = Math.hypot(q.x - p.x, q.y - p.y);
+        if (d > range || d < 1) continue;
+        if (!def.wallThrough && typeof Combat !== 'undefined' && Combat.losBlocked(st, p.x, p.y, q.x, q.y)) continue;
+        pts.push(Math.atan2(q.y - p.y, q.x - p.x));
+      }
+      let bestA = null, bestN = 0;
+      for (const a of this.FACES) {
+        let n = 0;
+        for (const b of pts) { let da = b - a; while (da > Math.PI) da -= 2 * Math.PI; while (da < -Math.PI) da += 2 * Math.PI; if (Math.abs(da) <= arc) n++; }
+        if (n > bestN) { bestN = n; bestA = a; }
+      }
+      if (bestA !== null) return bestA;
+    }
     let best = null, bd = 1e9;
     for (let rr = 0; rr < st.rows; rr++) {
       for (let cc = 0; cc < st.cols; cc++) {

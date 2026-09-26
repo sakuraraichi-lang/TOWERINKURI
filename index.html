@@ -11,7 +11,8 @@
 <title>INKURIMENT</title>
 <link rel="stylesheet" href="style.css">
 </head>
-<body>
+<!-- 最初からホームの状態のクラスを付けておく。本体の準備（Main.init）が済むまでの一瞬、タブの開いた空のパネルが見えていた（2026-09-26・オタクくんのテストプレイ） -->
+<body class="tabsoff on-home">
 
 <div id="app">
 
@@ -58,9 +59,9 @@
     <div class="startrow">
       <button id="homeStart" class="bigstart">出撃<s>▶</s></button>
       <!-- スキップ。**何も失わない。**解放条件を満たしたステージにだけ出る -->
-      <button id="homeSkip" class="skipbtn">スキップ</button>
+      <button id="homeSkip" style="display:none" class="skipbtn">スキップ</button>
       <!-- 一括突破（転生3回から）。飛ばせる章をまとめて通過する -->
-      <button id="homeSkipAll" class="skipbtn"></button>
+      <button id="homeSkipAll" style="display:none" class="skipbtn"></button>
     </div>
 
     <!-- タブの中身。ホームにいるときだけ出る -->

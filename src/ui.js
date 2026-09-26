@@ -681,8 +681,10 @@ const UI = {
     //   初期の持ち物はガトリングだけ（`STARTER_CARDS`）。スナイパーは第2章の突破報酬なので、
     //   第1章のチュートリアルに名前が出ると「持っていないものを説明される」ことになる
     { t: '下の列の武器をひとつ選ぶ',    s: 'GAT はガトリング' },
-    { t: '光っている地面をタップして置く', s: '置けるのは地面（壁）の上だけ' },
-    { t: '調整パネルの矢印で、向きを敵のほうへ', s: '向きは六角の6方向。パネルは上をつまんで好きな場所へ動かせる' },
+    // **敵の通り道（点線）を撃てるように置く、を教える。**（2026-09-26・ユーザー「敵が通るガイドをみて、そこを打つようにしておくと良いよ！みたいなチュートリアルを少し挟んであげると、親切なゲームになりそう」）
+    //   オタクくんのテストプレイで、コアの周りに固めて置くと第1章を 12本中0本 しか越えられなかった
+    { t: '点線が敵の通り道。その近くの光っている地面に置く', s: 'コアのすぐ横より、道の途中のほうが長く撃てる' },
+    { t: '矢印で向きを変え、扇（撃てる範囲）に点線を入れる', s: '扇に入る点線が長いほど、たくさん撃てる。向きは六角の6方向' },
     { t: '右下の「準備完了」で始まる',    s: '置き直しはウェーブの合間にできる' },
     { t: 'あとは眺めるだけ',            s: '倒すとコインが増える。負けても持ち帰れる' },
   ],
@@ -691,9 +693,10 @@ const UI = {
   tutDone(i) {
     const run = Game.run;
     switch (i) {
-      case 0: return !!this.placingType || (run && run.units.length > 0);
-      case 1: return !!(run && run.units.length > 0);
-      case 2: return !!this.tutAimed;
+      // 戦闘が始まったら、準備の段（0〜2）は済んだことにする（2026-09-26：向きを合わせずに始めると、戦闘中も「向きを合わせて」が出続けていた）
+      case 0: return Game.phase === 'battle' || !!this.placingType || (run && run.units.length > 0);
+      case 1: return Game.phase === 'battle' || !!(run && run.units.length > 0);
+      case 2: return Game.phase === 'battle' || !!this.tutAimed;
       case 3: return Game.phase === 'battle';
       case 4: return !!(run && run.wave > 1);
       default: return true;
