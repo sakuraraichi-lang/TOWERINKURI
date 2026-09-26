@@ -191,9 +191,17 @@ const UI = {
     e.homeCoin.textContent = Util.fmt(Game.meta.coins);
     // 階級＝転生回数。伸び方が一番ゆっくりで、外から見た「格」に近い
     if (e.homeRank) e.homeRank.textContent = Game.perm.prestiges;
-    if (e.homeXp) e.homeXp.style.width = (100 * done / all).toFixed(1) + '%';
-    e.homeProg.textContent = '突破 ' + done + ' / ' + all +
-      '　撃破 ' + Util.fmt(Game.perm.totalKills);
+    if (Asc.on(Game.perm)) {
+      // アセンション中：レベルと、次のレベルまでの経験値
+      const a = Game.perm.asc;
+      if (e.homeXp) e.homeXp.style.width = Math.min(100, 100 * a.exp / Asc.need(a.lv)).toFixed(1) + '%';
+      e.homeProg.textContent = 'アセンション Lv' + a.lv + '　到達 第' + Math.max(MAIN_CHAPTERS, Game.endlessReach()) + '章' +
+        '　撃破 ' + Util.fmt(Game.perm.totalKills);
+    } else {
+      if (e.homeXp) e.homeXp.style.width = (100 * done / all).toFixed(1) + '%';
+      e.homeProg.textContent = '突破 ' + done + ' / ' + all +
+        '　撃破 ' + Util.fmt(Game.perm.totalKills);
+    }
 
     const mi = STAGES.findIndex(x => x.id === st.id);
     e.homeLabel.innerHTML = 'ステージ <b>' + (mi + 1) + '</b>';
@@ -795,6 +803,8 @@ const UI = {
       const id = b.dataset.tab;
       const open = Game.tabOpen(id);
       b.classList.toggle('lock', !open);
+      // 第30章を突破したら「転生」は「アセンション」になる（src/ascension.js）
+      if (id === 'pres') { const tl = b.querySelector('.tl'); if (tl) tl.textContent = Asc.on(Game.perm) ? 'アセンション' : '転生'; }
       b.classList.toggle('new', open && this.isNew('tab_' + id) && !!this.TAB_TIP[id]);
       b.classList.toggle('on', open && id === this.tab && !this.tabsOff);
     }
@@ -834,7 +844,7 @@ const UI = {
     else if (this.tab === 'load') this.panelLoadout(p);
     else if (this.tab === 'coll') this.panelCollection(p);
     else if (this.tab === 'pack') this.panelPacks(p);
-    else if (this.tab === 'pres') this.panelPrestige(p);
+    else if (this.tab === 'pres') (Asc.on(Game.perm) ? this.panelAscension(p) : this.panelPrestige(p));
   },
 
   // ================= ステージ =================
@@ -1448,6 +1458,41 @@ const UI = {
   },
 
   // ================= 転生 =================
+  // ================= アセンション（第30章のあと・src/ascension.js） =================
+  //   転生の代わりに出る。**押すボタンは無い**（章を突破すると経験値が入り、勝手にレベルが上がる）。
+  //   ここは「いまのレベル・次まで・もらえるもの・敵側の段」を見せるだけ
+  panelAscension(p) {
+    const perm = Game.perm, a = perm.asc;
+    const lv = a.lv, need = Asc.need(lv);
+    const reach = Game.endlessReach();
+    const next = Math.max(MAIN_CHAPTERS + 1, reach + 1);
+    const hero = Util.el('div', 'pz-hero can');
+    hero.innerHTML =
+      '<div class="pz-emb"><i class="pz-ring"></i>' + Icons.get('cycle') + '</div>' +
+      '<div class="pz-title"><b>アセンション Lv' + lv + '</b><span>到達 第' + Math.max(MAIN_CHAPTERS, reach) + '章</span></div>';
+    p.appendChild(hero);
+
+    const bar = Util.el('div', 'asc-bar');
+    bar.innerHTML = '<div class="asc-exp"><i style="width:' + Math.min(100, 100 * a.exp / need).toFixed(1) + '%"></i></div>' +
+      '<span>次のレベルまで ' + Util.fmt(Math.max(0, need - a.exp)) + '（第' + next + '章を初めて突破すると ' + Util.fmt(Asc.expFor(next, true)) + '）</span>';
+    p.appendChild(bar);
+
+    const st = Util.el('div', 'pz-stats');
+    st.innerHTML =
+      '<div><span>恒久の火力</span><b>×' + Util.fmt(Asc.dmgMul(perm)) + '</b></div>' +
+      '<div><span>次のレベルでパック</span><b>×' + Asc.packsAt(lv + 1) + '</b></div>' +
+      '<div><span>敵側のアセンション</span><b>誘引 ' + Asc.lureLv(perm, MAIN_CHAPTERS) + '段</b></div>' +
+      '<div><span>敵の量</span><b>×' + Asc.spawnMul(perm, MAIN_CHAPTERS).toFixed(2) + '</b></div>';
+    p.appendChild(st);
+
+    const note = Util.el('div', 'pz-gain');
+    note.innerHTML = '<h4>しくみ</h4>' +
+      '<p>第31章から先を突破すると経験値が入り、レベルが上がるたびに恒久の火力とパックがもらえます。何も失いません</p>' +
+      '<p>奥の章ほど経験値が大きく増えます。同じ章をもう一度突破しても、少しだけ入ります</p>' +
+      '<p>第31章から先は敵も強くなり、レベル ' + BAL.ascLurePerLv + ' ごとに敵の量（誘引）が1段上がります</p>';
+    p.appendChild(note);
+  },
+
   panelPrestige(p) {
     const perm = Game.perm;
     const cleared = Game.clearedCount();
@@ -1829,6 +1874,15 @@ const UI = {
     if (rew.children.length) {
       body.appendChild(Util.el('div', 'rs-h', '獲得'));
       body.appendChild(rew);
+    }
+    // アセンション：第30章を初めて突破した／経験値とレベルアップ（パックは上の「獲得」に入っている）
+    if (res.ok && got && got.ascOpened) {
+      body.appendChild(Util.el('div', 'rs-tip', 'アセンションが開きました。第31章から先へ進めます（下の「アセンション」で確認）'));
+    }
+    if (res.ok && got && got.asc) {
+      const g = got.asc;
+      body.appendChild(Util.el('div', 'rs-tip', 'アセンション経験値 +' + Util.fmt(g.exp) +
+        (g.to > g.from ? '　レベル ' + g.from + ' → ' + g.to + '（火力 ×' + Util.fmt(Asc.dmgMul(Game.perm)) + '）' : '')));
     }
 
     // 完璧クリアの案内は1行だけ（取れるもの／取り済み）

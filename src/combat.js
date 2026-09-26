@@ -211,6 +211,13 @@ const Combat = {
     const hm = 1 + (mouths - 1) * ph;
     // **上限も穴の数で伸ばす。** 伸ばさないと、この倍率は第12章から先で
     //   まるごと上限に食われて効かない（そこから先はずっと waveCountMax のまま）
+    // **第31章から先（アセンション）は、敵側のアセンション（誘引）で量を増やし、上限で切らない。**
+    //   第31章で1ウェーブ約1,790体と、上限（900 × 口の倍率 2.0 = 1,800）に届いてしまい、
+    //   誘引を足しても上限に食われて効かないため（方針「上限は壊れるから置くもの」）。
+    //   同時に盤にいる数は enemyCap で別に抑えている（処理の重さ）
+    if (run.stageIdx >= MAIN_CHAPTERS) {
+      return Math.floor(base * run.mods.spawn * wm * hm * Asc.spawnMul(Game.perm, run.stageIdx));
+    }
     return Math.min(Math.floor(BAL.waveCountMax * hm),
                     Math.floor(base * run.mods.spawn * wm * hm));
   },

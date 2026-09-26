@@ -172,7 +172,9 @@ const Relic = {
     const L = Legacy.of(perm);
     this._cache = {
       legacy: L,
-      dmg: (1 + add.dmg) * L,
+      // アセンションレベルの恒久の火力（第30章のあと・src/ascension.js）。アセンション前は1
+      asc: Asc.dmgMul(perm),
+      dmg: (1 + add.dmg) * L * Asc.dmgMul(perm),
       coin: (1 + add.coin),
       rate: (1 + add.rate),
       range: (1 + add.range),

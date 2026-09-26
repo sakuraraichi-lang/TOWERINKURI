@@ -48,10 +48,26 @@ const STAGES = [
   { id: 'ch30', name: '第30章', act: 'VI 決着',     reward: { packs: { basic: 1 } } },
 ];
 
-
+// **本編の章の数。**第31章から先（エンドレス）は ensureStages で STAGES の後ろに足すので、
+//   STAGES.length は30を超えることがある。**盤の深さ（0〜1）や「全30章」の数え方は、これで割る**
+//   （STAGES.length で割ると、章を足すたびに30章ぶんの盤が全部変わる）
+const MAIN_CHAPTERS = 30;
 
 const STAGE_BY_ID = {};
 STAGES.forEach((s, i) => { s.idx = i; STAGE_BY_ID[s.id] = s; });
+
+// 第31章から先を、n 章目まで並べる（アセンション・2026-09-26）。報酬は無い（アセンションの経験値とパックが報酬）
+function ensureStages(n) {
+  while (STAGES.length < n) {
+    const k = STAGES.length + 1;
+    const s = { id: 'ch' + k, name: '第' + k + '章', act: 'EX 果て', reward: {}, endless: true, idx: STAGES.length };
+    STAGES.push(s); STAGE_BY_ID[s.id] = s;
+  }
+}
+// 本編の30章に戻す（新しいセーブ）
+function resetStages() {
+  while (STAGES.length > MAIN_CHAPTERS) { const s = STAGES.pop(); delete STAGE_BY_ID[s.id]; }
+}
 
 // 通算ウェーブ番号。ステージ1のW1が1、ステージ2のW1が6。敵の強さはこれで決まる
 function globalWave(stageIdx, wave) { return stageIdx * BAL.wavesPerStage + wave; }
@@ -95,7 +111,8 @@ const Stage = {
     const seed = BAL.mapSeed || 1;
     const idx = STAGE_BY_ID[stageId].idx;
     // 章が進むほど難しい形にする（口が増え、通路が広がり、経路が短くなる）
-    const d = STAGES.length > 1 ? idx / (STAGES.length - 1) : 0.5;
+    //   **第31章から先は第30章と同じ深さ（1）で作る**（口6つの型を章ごとに回す。下の rank）
+    const d = Math.min(1, idx / (MAIN_CHAPTERS - 1));
     // **踏んだ章の地形は変えない。まだ届いていない章だけ、転生のたびに引き直す。**
     //
     //   転生のたびに30章ぶん作り直していたら**周が後退した**
@@ -136,9 +153,10 @@ const Stage = {
       //   口の数が同じ章どうし（第4〜7章・第8〜11章）で、同じ型が重ならないように、種で並べ替えた型の列から順に取る
       const holesAt = (dd) => { const t = BAL.holesByDepth || [[1, 1]]; for (const row of t) if (dd < row[0]) return row[1]; return t[t.length - 1][1]; };
       const nh = holesAt(d);
-      const same = STAGES.map((s, i) => STAGES.length > 1 ? i / (STAGES.length - 1) : 0)
+      const same = STAGES.slice(0, MAIN_CHAPTERS).map((s, i) => i / (MAIN_CHAPTERS - 1))
         .map((dd, i) => ({ dd, i })).filter(o => o.dd >= (BAL.serpUntilDepth || 0) && o.dd < BAL.forkUntilDepth && holesAt(o.dd) === nh);
-      const rank = same.findIndex(o => o.i === idx);
+      // 第31章から先は、本編の口6つの章の続きとして型を回す（第26〜30章の次の型から順に）
+      const rank = idx >= MAIN_CHAPTERS ? same.length + (idx - MAIN_CHAPTERS) : same.findIndex(o => o.i === idx);
       const POOLS = { 1: ['diamond', 'offset', 'ladder', 'ring', 'snake', 'trident'], 2: ['eight', 'sidecore', 'pincer', 'corner', 'parallel'],
         3: ['fan3', 'flank3', 'corner3', 'hook3', 'deep3', 'lad3', 'side3'], 4: ['crown4', 'corner4', 'side4', 'zig4', 'deep4', 'lad4', 'edge4'],
         6: ['crown6', 'wall6', 'hexring', 'lad6'] };   // mapgen.js の POOL1〜6 と同じ
@@ -458,7 +476,7 @@ const Stage = {
     // ---- レーンが1本しか取れない口には、迂回路を足して焼き直す（2回まで）----
     //   （ユーザー 2026-09-25「5章、6章は左右から分かれてきたら面白いのですが、やはり最短距離です」）
     //   第1〜3章（往復式）は1本の長い道として作っているので足さない
-    const d0 = STAGES.length > 1 ? STAGE_BY_ID[stageId].idx / (STAGES.length - 1) : 0;
+    const d0 = Math.min(1, STAGE_BY_ID[stageId].idx / (MAIN_CHAPTERS - 1));
     if (BAL.laneMin > 1 && vec0 && vec0.hexes && (this.rec(stageId).detour || 0) < 2 && d0 >= (BAL.serpUntilDepth || 0)) {
       const need = mouthLanes.filter(L => L.length && L.length < BAL.laneMin).map(L => lanes[L[0]].route);
       this.rec(stageId).detour = (this.rec(stageId).detour || 0) + 1;

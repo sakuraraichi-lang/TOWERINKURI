@@ -1501,3 +1501,10 @@ body:not(.tabsoff) .hlogo{display:none;}
 .firsthint{margin:0 0 8px;padding:7px 10px;font-size:11px;line-height:1.5;
   background:rgba(255,138,31,.08);border-left:2px solid var(--acc);}
 .firsthint i{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.12em;color:var(--acc);margin-right:7px;}
+
+/* ============ アセンション（第30章のあと） ============ */
+.asc-bar{margin:8px 0;}
+.asc-exp{height:8px;background:#10131a;border:1px solid var(--line2);overflow:hidden;}
+.asc-exp i{display:block;height:100%;background:linear-gradient(90deg,#ffd24a,var(--acc));box-shadow:0 0 8px var(--acc);}
+.asc-bar span{display:block;margin-top:5px;font-size:10px;color:var(--dim);}
+.pz-stats b{word-break:break-all;}

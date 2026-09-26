@@ -49,6 +49,7 @@
 <script src="../src/cards.js"></script>
 <script src="../src/skilltree.js"></script>
 <script src="../src/relics.js"></script>
+<script src="../src/ascension.js"></script>
 <script src="../src/packs.js"></script>
 <script src="../src/state.js"></script>
 <script src="../src/draft.js"></script>
@@ -542,6 +543,70 @@ async function progressAsync(seeds, opts) {
   return pg.rows;
 }
 
+// ---------------------------------------------------------------
+// 第31章から先（エンドレス・アセンション）を測る（2026-09-26）
+//
+//   endlessAsync(seed, { toCh: 40, tries: 6, farm: 16 })
+//   新しいセーブから通しで第30章まで行き（progressAsync と同じ歩き方）、そこから第31章、第32章…と進む。
+//   **詰まったら（tries 回続けて負けたら）、1つ手前の章を farm 回まわして経験値とパックを稼ぎ、また挑む**（プレイヤーの動きを真似る）。
+//   稼いでも抜けられなければ、そこで止める。
+//   結果：章ごとに { ch, tries, farmed, lv, min, packs（そこまでに開けた数）, totuMed, totu4 }
+// ---------------------------------------------------------------
+async function endlessAsync(seed, opts) {
+  opts = opts || {};
+  const toCh = opts.toCh || 40, tries = opts.tries || 6, farm = opts.farm || 16;
+  const yieldNow = () => new Promise(r => setTimeout(r, 0));
+  const was = BAL.ascEnabled;
+  BAL.ascEnabled = true; BAL_PRISTINE.ascEnabled = true;   // runStage の入口で戻されないように
+  try {
+    const rows = await progressAsync([seed], { laps: 12 });
+    const out = { seed, main: rows[0] && rows[0].line, chapters: [], stop: '' };
+    if (!Asc.on(Game.perm)) { out.stop = '第30章に届かなかった'; return out; }
+    seedRng(seed * 7919 + 1);
+    let packsOpened = 0;
+    const openAll = () => { for (;;) { const r = openAllPacks(); packsOpened += r.opened; if (r.opened < 500) break; } };
+    const totuOf = n => n < BAL.totuBase ? 0 : Math.floor(Math.log2(n / BAL.totuBase)) + 1;
+    const totuStat = () => {
+      const t = Object.keys(Game.perm.collection).filter(id => CARDS[id] && CARDS[id].kind !== 'weapon')
+        .map(id => totuOf(Game.perm.collection[id])).sort((a, b) => a - b);
+      return { med: t[t.length >> 1] || 0, four: t.filter(x => x >= 4).length };
+    };
+    for (let n = MAIN_CHAPTERS + 1; n <= toCh; n++) {
+      const id = 'ch' + n;
+      let sec = 0, used = 0, farmed = 0, ok = false;
+      for (let round = 0; round < 2 && !ok; round++) {
+        if (round === 1) {
+          // 詰まった：1つ手前を回して稼ぐ
+          const prev = 'ch' + (n - 1);
+          for (let k = 0; k < farm; k++) {
+            openAll();
+            const r = runStage(prev, LOADOUTS[prev], 90, {});
+            sec += r.sec; farmed++;
+            await yieldNow();
+          }
+        }
+        for (let i = 0; i < tries; i++) {
+          openAll();
+          const r = runStage(id, LOADOUTS[id], 90, {});
+          sec += r.sec; used++;
+          await yieldNow();
+          if (r.res === 'clear') { ok = true; break; }
+          if (r.res === 'slow') { out.stop = '打切（第' + n + '章）'; break; }
+        }
+        if (out.stop) break;
+      }
+      const ts = totuStat();
+      out.chapters.push({ ch: n, ok, tries: used, farmed, lv: Asc.lv(Game.perm), lure: Asc.lureLv(Game.perm, n - 1),
+                          min: +(sec / 60).toFixed(1), packs: packsOpened, totuMed: ts.med, totu4: ts.four });
+      if (!ok) { if (!out.stop) out.stop = '第' + n + '章で止まった（稼いでも抜けられない）'; break; }
+    }
+    return out;
+  } finally {
+    BAL.ascEnabled = was; BAL_PRISTINE.ascEnabled = was;
+    unseedRng();
+  }
+}
+
 // 分布のまとめ。**打切の行は除いて数える**
 function reachStat(rows, key, noteKey) {
   const v = rows.filter(r => !r[noteKey] && typeof r[key] === 'number').map(r => r[key]);
@@ -726,19 +791,10 @@ function replaceUnits(run) {
     Game.aimUnit(u, pick.a);
     applyArc(u, st);
   }
+  // 置き直したユニットへのカードの掛け直しは、本体の applyMods がやる（2026-09-26）。
+  //   前はここで run.coinMul などを戻して applyCard を全部呼び直していたが、本体の applyCard が
+  //   その武器の最初の1基にしか効かない作りだったので、測定器でも1基にしか乗っていなかった
   Game.applyMods();
-  // 置き直したユニットには、これまでに引いたカードを掛け直す。
-  // **掛け直す前に、カードがラン単位で積む値を戻す。**
-  // 戻さないと、置き直すたびにコイン倍率などが二重に乗ってしまう。
-  // resonance は戦闘中に貯まる値でカードが積むものではないので、触らない
-  run.coinMul = 1;
-  run.chillVuln = BAL.chillVulnBase;
-  run.backdraft = 0;
-  for (const id in run.cards) {
-    const c = CARDS[id];
-    if (!c.apply) continue;
-    for (let i = 0; i < run.cards[id]; i++) Game.applyCard(id, run);
-  }
 }
 
 // 【比較用】以前の配置。通路に隣接するタイルにしか置かない。

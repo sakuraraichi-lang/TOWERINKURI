@@ -47,6 +47,8 @@ const Game = {
     // **遺物のキャッシュを捨てる。** これが無いと、リセットしても
     //   前のセーブの遺物効果（ライフ・ダメージ・コイン）が残ったままになる
     Relic.invalidate();
+    // 第31章から先（前のセーブのアセンション）を外して、本編の30章に戻す
+    resetStages();
     // **地図のキャッシュも捨てる。**（2026-09-22・実測で見つけた）
     //   下で mapSeed を引き直しているのに Stage の中身は古いままだったので、
     //   **新規開始しても前のセーブと同じ地図で遊ぶことになっていた。**
@@ -186,6 +188,8 @@ const Game = {
     if (!this.perm.packs) this.perm.packs = {};
     for (const k of Object.keys(this.perm.packs)) if (PACK_IDS.indexOf(k) < 0) delete this.perm.packs[k];
     for (const k of PACK_IDS) if (typeof this.perm.packs[k] !== 'number') this.perm.packs[k] = 0;
+    // アセンション中なら、突破した章の次まで並べる（第31章から先は STAGES に足していく）
+    if (Asc.on(this.perm)) ensureStages(Math.max(MAIN_CHAPTERS + 1, this.endlessReach() + 1));
     if (!STAGE_BY_ID[this.perm.currentStage]) this.perm.currentStage = 'ch1';
     Relic.invalidate();
     return true;
@@ -205,6 +209,15 @@ const Game = {
 
   // **実際に突破した数。** 報酬と表示はこちら
   clearedCount() { return STAGES.filter(s => this.stageRec(s.id).cleared).length; },
+  // 突破した章のうち、いちばん奥の章の番号（第31章から先を並べるのに使う）
+  endlessReach() {
+    let n = 0;
+    for (const id of Object.keys(this.perm.stages || {})) {
+      const m = /^ch(\d+)$/.exec(id);
+      if (m && this.perm.stages[id].cleared) n = Math.max(n, +m[1]);
+    }
+    return n;
+  },
   // **そこまで進んだ数（突破＋スキップ）。** 進行・値段・転生・深さはこちら
   progressCount() { return stageProgressCount(this.perm); },
   stagePassed(id) { return stagePassedRec(this.stageRec(id)); },
@@ -359,6 +372,22 @@ const Game = {
     if (perfect && firstPerfect) {
       addPack(Pack.forStage(id), 2);
     }
+    // **第30章を初めて突破したら、転生がアセンションに変わる。**（2026-09-26・ユーザー方針。src/ascension.js）
+    //   第31章が開き、恒久の土台は第30章に合わせる。以後は何も戻らない
+    if (def.idx === MAIN_CHAPTERS - 1 && Asc.unlock(this.perm)) got.ascOpened = true;
+    // 第31章から先：経験値でレベルを上げ、上がったぶんのパックを配る。次の章を並べる
+    if (Asc.on(this.perm)) {
+      ensureStages(Math.max(MAIN_CHAPTERS + 1, def.idx + 2));
+      if (!got.next) {
+        got.next = STAGES[def.idx + 1] || null;
+        if (got.next && this.perm.currentStage === id) this.perm.currentStage = got.next.id;
+      }
+      const g = Asc.gain(this.perm, def.idx + 1, first);
+      if (g) {
+        got.asc = g;
+        for (const k in g.packs) addPack(k, g.packs[k]);
+      }
+    }
     this.save();
     return got;
   },
@@ -498,13 +527,54 @@ const Game = {
     return;                      // **何もしない**
   },
 
+  // **3択で引いたカードは、その武器の全部のユニットに掛ける。**（2026-09-26・ユーザー報告
+  //   「3択で選んだカードの効果が全ての武器に適応されていない…弾幕結界を取得したガトリングで、
+  //    それが適応された挙動をしているのは複数置いてる中で一基のみでした」）
+  //
+  //   **どう壊れていたか**：カードの中身は `run.wp('gatling')` で武器を取って書き換える形で、
+  //   `run.wp` は**その武器の最初の1基**しか返さなかった（1種1体だった頃の名残）。武器ごとのカード76枚ぜんぶが1基にしか効いていなかった。
+  //   さらに、ウェーブの合間に置く・動かす・スキルを取ると applyMods が全ユニットの数値を土台から組み直し、
+  //   **それまでに引いたカードの効果が全ユニットから消えていた**（カードで増やしたライフも消えていた）。
+  //   全体強化（run.units を回すもの）も、引いた時点で盤にいたユニットにしか乗っていなかった。
+  //
+  //   いまは：引いた順に run.cardLog に積み、**ラン単位の値（ライフ・コイン倍率など）は1回だけ**、
+  //   **ユニットの値は1基ずつ**掛ける。組み直し（applyMods）のたびに、全ユニットへ引いた順に掛け直す
   applyCard(id, run) {
     const c = CARDS[id];
     if (!c || !c.apply) return;
+    (run.cardLog || (run.cardLog = [])).push(id);
+    this.applyCardRun(id, run);
+    for (const u of run.units) this.applyCardUnit(id, run, u);
+  },
+
+  // 凸（ランク）を通してカードの中身を呼ぶ。rki の端数の繰り越しは acc（ランか1基ごと）に持つ
+  withRank(id, acc, fn) {
     this._rkMul = this.rankMul(id);
-    this._rkAcc = run._rkAcc || (run._rkAcc = {});
+    this._rkAcc = acc;
     this._rkKey = id;
-    try { c.apply(run); } finally { this._rkMul = 1; }
+    try { fn(); } finally { this._rkMul = 1; }
+  },
+
+  // ラン単位の値だけを掛ける（ユニットは見せない）
+  applyCardRun(id, run) {
+    const units = run.units, wp = run.wp, uo = run.unitsOf, lm = run.livesMax;
+    run.units = []; run.wp = () => null; run.unitsOf = () => [];
+    try {
+      this.withRank(id, run._rkAcc || (run._rkAcc = {}), () => CARDS[id].apply(run));
+    } finally {
+      run.units = units; run.wp = wp; run.unitsOf = uo;
+    }
+    // カードで増えたライフは覚えておく（applyMods がライフの上限を組み直しても消さない）
+    run.livesCard = (run.livesCard || 0) + (run.livesMax - lm);
+  },
+
+  // 1基だけに掛ける。ラン単位の値への書き込みは、この1基用の写しに落ちて捨てられる（二重に乗らない）
+  applyCardUnit(id, run, u) {
+    const p = Object.create(run);
+    p.units = [u];
+    p.wp = (w) => (u.id === w ? u : null);
+    p.unitsOf = (w) => (u.id === w ? [u] : []);
+    this.withRank(id, u._rkAcc || (u._rkAcc = {}), () => CARDS[id].apply(p));
   },
 
   ownedWeaponIds() { return WEAPON_IDS.filter(wid => this.own('wc_' + wid) > 0); },
@@ -958,9 +1028,16 @@ const Game = {
       Skill.applyTo(u, mods);
       // 組み直したので、カードの足し算の基準も取り直す（Game.addPct）
       u.sBase = null; u.sAdd = null;
+      // **カードが立てた印と値も捨てて、引いた順に掛け直す**（上の applyCard）。
+      //   戦闘中に動く値（熱・曳光弾の数）だけは残す
+      const d = u.dyn || {};
+      u.flags = {};
+      u.dyn = { heat: d.heat || 0, tracer: d.tracer || 0 };
+      u._rkAcc = {};
+      for (const id of (run.cardLog || [])) this.applyCardUnit(id, run, u);
     }
     const lost = run.livesMax > 0 ? (run.livesMax - run.lives) : 0;
-    run.livesMax = BAL.livesBase + mods.lives;
+    run.livesMax = BAL.livesBase + mods.lives + (run.livesCard || 0);
     run.lives = Math.max(0, run.livesMax - (run.wave > 0 ? lost : 0));
   },
 
@@ -968,6 +1045,7 @@ const Game = {
   beginBattle() {
     const run = this.run;
     if (!run) return;
+    run.cardLog = []; run.livesCard = 0;   // 引いたカードの記録（applyCard）も出撃ごとに空から
     this.applyMods();
     run.lives = run.livesMax;
     run.wave = 1;
@@ -1102,7 +1180,8 @@ const Game = {
   //   なので**転生できる条件も、転生で出る量も、`clearedCount()`（実際の突破）で見る。**
   //   進行や値段の桁は `progressCount()`（突破＋スキップ）のままでよい。
   //   そちらは「どこまで来たか」であって、報酬ではないため
-  canPrestige() { return this.clearedCount() >= BAL.prestigeMinStages; },
+  // **第30章を突破したら転生はできない。**アセンションに一本化（ユーザー 2026-09-26「転生は残さない」）
+  canPrestige() { return !Asc.on(this.perm) && this.clearedCount() >= BAL.prestigeMinStages; },
 
   prestige() {
     if (!this.canPrestige()) return null;
