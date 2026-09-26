@@ -556,7 +556,11 @@ async function endlessAsync(seed, opts) {
   opts = opts || {};
   const toCh = opts.toCh || 40, tries = opts.tries || 6, farm = opts.farm || 16;
   const yieldNow = () => new Promise(r => setTimeout(r, 0));
-  const was = BAL.ascEnabled;
+  const was = BAL.ascEnabled, wasTime = TIME_MIN;
+  //   **第31章から先は1章が3.5分（TIME_MIN）に収まらない。**敵の数を上限で切らないので1ウェーブ2,000体を超え、
+  //   同時に盤にいる数（enemyCap 900）で湧きが待たされる。本体には章の時間制限が無いので、上限を開けて測る。
+  //   それでも当たったら 'timeout' ＝ 打切（負けではない）として止める
+  TIME_MIN = opts.timeMin || 30;
   BAL.ascEnabled = true; BAL_PRISTINE.ascEnabled = true;   // runStage の入口で戻されないように
   try {
     const rows = await progressAsync([seed], { laps: 12 });
@@ -591,7 +595,7 @@ async function endlessAsync(seed, opts) {
           sec += r.sec; used++;
           await yieldNow();
           if (r.res === 'clear') { ok = true; break; }
-          if (r.res === 'slow') { out.stop = '打切（第' + n + '章）'; break; }
+          if (r.res === 'slow' || r.res === 'timeout') { out.stop = '打切（第' + n + '章・' + r.res + '・' + r.sec + '秒）'; break; }
         }
         if (out.stop) break;
       }
@@ -603,6 +607,7 @@ async function endlessAsync(seed, opts) {
     return out;
   } finally {
     BAL.ascEnabled = was; BAL_PRISTINE.ascEnabled = was;
+    TIME_MIN = wasTime;
     unseedRng();
   }
 }
