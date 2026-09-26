@@ -73,7 +73,7 @@ tools: Read, Write, Edit, Bash, PowerShell, Glob, Grep
 8. **版（`BUILD`）を上げたら `docs/PATCHNOTES.md` に書く。** push まで必ずやる。
 
 Python は `E:\Anaconda3\python.exe`（`python3` は Microsoft Store のスタブで使えない）。
-**Node は入っていない。**
+**Node が入っている（2026-09-26）。** 測定器は `node tools/simnode.js "<式>"` でブラウザなしに回せる（sim.html をそのまま読む。使い方は `tools/simnode.js` の冒頭）。
 
 資料の優先順位は `docs/DESIGN-MASTER-2026-09-20.md` ＞ `CLAUDE.md` ＞ `docs/PATCHNOTES.md`。
 

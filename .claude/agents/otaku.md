@@ -72,17 +72,39 @@ tools: Read, Glob, Grep, Bash, PowerShell
 ## 回すもの
 
 ```
-tools/sim.html をブラウザで開く（http://localhost:5173/tools/sim.html）
+tools/sim.html をブラウザで開く（http://localhost:5173/tools/sim.html）か、Node で回す（下記）
   campaignRun(st => LOADOUTS[st.id])   1周を通しで回す
   digest(r.allWaves)                   ウェーブをまとめる
   runStage(id, loadout, buys, opts)    1章だけ回す
-  REAL_MS = 4000                       1出撃に許す実時間。超えると 'slow' で打ち切り
+  REAL_MS = 30000                      1出撃に許す実時間。超えると 'slow' で打ち切り
 
-Stage.validateAll()（ブラウザ）        いまの種で30章の盤が壊れていないか（盤は MapGen がその場で作る）
+Stage.validateAll()                         いまの種で30章の盤が壊れていないか（盤は MapGen がその場で作る）
 ```
 
 **Python は `E:\Anaconda3\python.exe`。** `python3` は Microsoft Store のスタブで使えません。
-**Node は入っていません。** ビルドも無いので、JS は `<script>` を並べるだけです。
+**Node が入っている（2026-09-26・v24）。ブラウザなしで測定器を回せる。**
+`node` が見つからないときは `C:Program Files
+odejs
+ode.exe` を直接呼ぶ（Bash なら `export PATH="/c/Program Files/nodejs:$PATH"`）。
+
+```
+node tools/simnode.js "<式または文>"        最後の文の値を JSON で出す（await 可）
+node tools/simnode.js --file 測定.js        長いものはファイルに書いて渡す
+
+例：第1章・新しいセーブ・12本
+node tools/simnode.js "const out=[]; for (let s=1;s<=12;s++){ Game.newSave(); seedRng(s); const r = runStage('ch1', ['gatling'], 0, {}); out.push(r.res+':'+r.leaked) } out.join(' ')"
+例：通し1本（1本あたり約2分。並べたいときはシードごとに別のプロセスで同時に回す）
+node tools/simnode.js "const rows = await progressAsync([1], {laps: 12}); rows.map(r => r.line)"
+例：盤の検査
+node tools/simnode.js "Stage.validateAll()"
+```
+
+- **sim.html をそのまま読んでいる**（本体の src/*.js と sim.html の中の測定コードを同じ順に読み込む）。測定器を二重に持たないので、sim.html を直せばこちらも同じものを測る
+- ブラウザと数字が合うことを確かめてある（第1章・新しいセーブ・12本：Node 12/12突破・撃破111〜118 ／ ブラウザ 12/12・107〜118。通し1本：8周・113分・第30章）
+- 1回の呼び出しは新しい環境から始まる（前の測定の BAL の差し替えやセーブは持ち越さない）
+- 置き方は **`PLACE_MODE = 'range'`（上手な置き方）で測る。**初心者の置き方で測るのは第1〜3章だけ（ユーザー決定 2026-09-26）
+
+ビルドは無い。本体の JS は `<script>` を並べるだけ。
 
 ### 測定器について知っておくこと
 
