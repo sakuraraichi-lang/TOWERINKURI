@@ -287,6 +287,8 @@ const UI = {
     };
     b.appendChild(row('autoWave', '次のウェーブへ自動で進む',
       '切ると、カードを選んだあと配置を直す時間が入ります'));
+    b.appendChild(row('showLives', 'ライフを数字で出す',
+      '戦闘中、盤の左上にライフの残りを数字で出します（切るとコアの輪だけ）'));
     // 自動化は開いてから出す（BAL.autoUnlock）
     if (Game.autoOpen('autoPlace')) b.appendChild(row('autoPlace', '自動設置',
       'この周でまだ触っていない章に、前の周の配置を置き直します'));
@@ -351,6 +353,8 @@ const UI = {
     } else if (Game.phase === 'battle') {
       left = 'W' + r.wave + '/' + BAL.wavesPerStage + '　突破';
     }
+    // ライフの数字（⚙でオン・オフ。初期はオフ＝コアの輪だけ）（2026-09-26・ユーザー「設定でオンオフ出来るようにしたらいい」）
+    if (Game.perm.showLives) left = (left ? left + '　' : '') + 'ライフ ' + Math.max(0, Math.ceil(r.lives)) + '/' + r.livesMax;
     if (this.el.hudLeft && this.el.hudLeft.textContent !== left) this.el.hudLeft.textContent = left;
     this.renderDmg(false);
     this.renderZoneTip();
@@ -394,7 +398,8 @@ const UI = {
       const have = Game.unitCount(wid);
       const cap = Game.unitCap(wid);
       const full = have >= cap || slotsLeft <= 0;
-      const b = Util.el('button', 'chip unit' + (this.placingType === wid ? ' on' : '') + (full ? ' full' : ''));
+      const b = Util.el('button', 'chip unit' + (this.placingType === wid ? ' on' : '') + (full ? ' full' : '') +
+        (this.isNew('w_' + wid) && this.WEAPON_TIP[wid] ? ' new' : ''));
       b.style.borderColor = def.color;
       b.innerHTML = '<i class="uico" style="color:' + def.color + '">' + def.icon + '</i>' +
         '<b style="color:' + def.color + '">' + def.short + '</b>' +
@@ -408,6 +413,11 @@ const UI = {
           return;
         }
         this.placingType = (this.placingType === wid) ? null : wid;
+        // 初めて手に取った武器には一言だけ添える（置くか、選び直すまで出す）
+        if (this.placingType && this.isNew('w_' + wid) && this.WEAPON_TIP[wid]) {
+          this.markSeen('w_' + wid);
+          this.tip = { wid: wid, t: def.name + '：' + this.WEAPON_TIP[wid] };
+        }
         this.renderTray();
         if (this.placingType) this.toastMsg(def.name + ' を置く地面をタップ', def.color);
       });
@@ -477,6 +487,7 @@ const UI = {
       Game.perm[key] = !Game.perm[key]; Game.save(); Snd.ui(); this.renderBattleCfg();
     });
     box.appendChild(tog('autoWave', '次のウェーブへ自動で進む'));
+    box.appendChild(tog('showLives', 'ライフを数字で出す'));
     // 減速・加速の説明の札（閉じたあとで、もう一度出せるように）
     box.appendChild(btn(Game.perm.zoneTipOff ? '' : 'on', '<i class="bc-chk">' + (Game.perm.zoneTipOff ? '' : Icons.get('check')) + '</i><span>減速・加速の説明を出す</span>', () => {
       Game.perm.zoneTipOff = !Game.perm.zoneTipOff; Game.save(); Snd.ui(); this._zoneKey = null; this.renderBattleCfg();
@@ -694,6 +705,39 @@ const UI = {
     { t: 'あとは眺めるだけ',            s: '倒すとコインが増える。負けても持ち帰れる' },
   ],
 
+  // ============ 初めてのときの一言（2026-09-26・ユーザー「少し導線を設置するだけでかなり良くなります」「短い一言でいいです」） ============
+  // チュートリアルは第3章まで（ユーザー決定）。それより先に出てくる武器と画面は、
+  // 初めて触ったときに一言だけ添え、まだ触っていないものには NEW の印を付ける。見たかどうかは perm.seen に持つ
+  isNew(key) { return !(Game.perm.seen && Game.perm.seen[key]); },
+  markSeen(key) {
+    if (!Game.perm.seen) Game.perm.seen = {};
+    if (Game.perm.seen[key]) return;
+    Game.perm.seen[key] = 1;
+    Game.save();
+  },
+  // 武器を初めて選んだときの一言。**どこに置くと働くか**だけを言う（ガトリングはチュートリアルで教える）
+  WEAPON_TIP: {
+    sniper:   '射程が長い。長くまっすぐな道を見通せる場所に',
+    missile:  '円の中へ降らせる。円は敵の通り道の上に',
+    tesla:    '射程が短い。道のすぐ脇に',
+    flame:    '射程が短く、壁を越えて焼ける。道の曲がり角に',
+    gas:      '毒の雲は壁を越える。敵が長く通る場所に',
+    cryo:     'まわりの敵を遅くする。火力の強い武器の近くに',
+    katana:   '間合いが短く、壁を越えて斬れる。道のすぐ脇に',
+    shuriken: '敵から敵へ跳ねる。敵が詰まる場所に',
+    tentacle: '敵を来た道へ引き戻す。コアの手前の道に',
+    bubble:   '円の中の敵を閉じ込める。円は火力の届く道に',
+    mortar:   '円の中へ重い砲弾。射程が長いので離れた道にも届く',
+  },
+  // 画面（下のタブ）を初めて開いたときの一言
+  TAB_TIP: {
+    skill: 'コインで強化を取る。取ると次の節が開く',
+    load:  '出撃に持っていく武器を選ぶ画面',
+    pack:  'パックを開けてカードを集める。カードは転生しても残る',
+    coll:  '集めたカードの一覧。同じカードを重ねると強くなる',
+    pres:  '転生すると章とコインは戻るが、土台がずっと強くなる',
+  },
+
   // 今のステップが済んだかを、盤面の状態から見る（押させるボタンは作らない）
   tutDone(i) {
     const run = Game.run;
@@ -721,7 +765,17 @@ const UI = {
     }
     // 2回目以降の出撃では出さない。**一度覚えたものを毎回見せない**
     if (!run || run.over || Game.perm.totalRuns > 1 || (Game.perm.tut || 0) >= this.TUT.length) {
-      p.classList.remove('on'); p.innerHTML = ''; return;
+      // チュートリアルが済んだあとは、初めて手に取った武器の一言だけをここに出す
+      const tp = this.tip;
+      if (tp && run && !run.over && this.placingType === tp.wid) {
+        const html = '<i>NEW</i><b>' + tp.t + '</b>';
+        if (p.innerHTML !== html) p.innerHTML = html;
+        p.classList.add('on');
+      } else {
+        if (tp && this.placingType !== tp.wid) this.tip = null;
+        p.classList.remove('on'); p.innerHTML = '';
+      }
+      return;
     }
 
     let i = Game.perm.tut || 0;
@@ -741,6 +795,7 @@ const UI = {
       const id = b.dataset.tab;
       const open = Game.tabOpen(id);
       b.classList.toggle('lock', !open);
+      b.classList.toggle('new', open && this.isNew('tab_' + id) && !!this.TAB_TIP[id]);
       b.classList.toggle('on', open && id === this.tab && !this.tabsOff);
     }
   },
@@ -765,6 +820,14 @@ const UI = {
       return;
     }
     p.classList.remove('empty');
+    // 初めて開いた画面には一言だけ出す（次に開いたときには消えている）
+    if (this.TAB_TIP[this.tab] && this.isNew('tab_' + this.tab) && !this.tabsOff && document.body.classList.contains('on-home')) {
+      this.markSeen('tab_' + this.tab);
+      this.renderTabs();
+      const h = Util.el('div', 'firsthint');
+      h.innerHTML = '<i>NEW</i>' + this.TAB_TIP[this.tab];
+      p.appendChild(h);
+    }
 
     if (this.tab === 'stage') this.panelStages(p);
     else if (this.tab === 'skill') this.panelSkill(p);
@@ -1578,20 +1641,54 @@ const UI = {
   },
 
   // 上に並ぶ枠。**今この出撃で何を積んだか**を見せる（空きは ＋）
+  // カード3択の上の段：**武器ごとに、この出撃で取ったカードの数**（2026-09-26・ユーザーの理想
+  //   「取ったカードを表示するのではなく、武器のアイコンを並べて、この武器に関するスキルを何個取ったかが何となくわかり、
+  //    触ったら何を取っていたか見れる」）。前は「最後に取った3枚＋空き1つ」で、1回目は4枠とも空だった
+  //   連携カードは関わる武器の両方に数える。武器に属さないカードは「汎用」にまとめる。触るとその下に一覧が開く
   runSlots() {
     const run = Game.run;
     const wrap = Util.el('div', 'chslots');
-    const ids = run ? Object.keys(run.cards || {}) : [];
-    const show = ids.slice(-3);
-    for (let i = 0; i < 4; i++) {
-      const id = show[i];
-      const s = Util.el('div', 'chslot' + (id ? ' on' : ' empty'));
-      if (id) {
-        s.innerHTML = this.cardIcon(CARDS[id]) + '<u>×' + run.cards[id] + '</u>';
-        s.style.color = BAL.rarity[CARDS[id].rarity].color;
-      } else s.textContent = '＋';
-      wrap.appendChild(s);
+    const got = run ? (run.cards || {}) : {};
+    const groups = Game.loadoutWeapons().map(wid => ({ id: wid, icon: WEAPONS[wid].icon, color: WEAPONS[wid].color, name: WEAPONS[wid].name, cards: [] }));
+    const other = { id: 'gen', icon: Icons.get('spark'), color: '#b9c4d6', name: '汎用', cards: [] };
+    for (const id of Object.keys(got)) {
+      const c = CARDS[id];
+      if (!c) continue;
+      const owners = c.kind === 'synergy' ? (c.requires || []) : (c.weapon ? [c.weapon] : []);
+      let placed = false;
+      for (const w of owners) { const g = groups.find(x => x.id === w); if (g) { g.cards.push(id); placed = true; } }
+      if (!placed) other.cards.push(id);
     }
+    const all = groups.concat([other]);
+    const list = Util.el('div', 'chlist');
+    let open = null;
+    const row = Util.el('div', 'chrow2');
+    for (const g of all) {
+      const n = g.cards.reduce((a, id) => a + got[id], 0);
+      const s = Util.el('button', 'chslot' + (n ? ' on' : ' empty'));
+      s.style.color = g.color;
+      s.innerHTML = '<i>' + g.icon + '</i><u>' + n + '</u>';
+      s.title = g.name + '：' + n + '枚';
+      s.addEventListener('click', (e) => {
+        e.stopPropagation();
+        open = (open === g.id) ? null : g.id;
+        row.querySelectorAll('.chslot').forEach(x => x.classList.remove('sel'));
+        list.innerHTML = '';
+        if (!open) return;
+        s.classList.add('sel');
+        list.appendChild(Util.el('div', 'chl-h', g.name + '　この出撃で取ったカード'));
+        if (!g.cards.length) list.appendChild(Util.el('div', 'chl-none', 'まだありません'));
+        for (const id of g.cards) {
+          const c = CARDS[id];
+          const it = Util.el('div', 'chl-it');
+          it.innerHTML = '<b style="color:' + BAL.rarity[c.rarity].color + '">' + c.name + '</b><em>×' + got[id] + '</em><span>' + this.shortDesc(c) + '</span>';
+          list.appendChild(it);
+        }
+      });
+      row.appendChild(s);
+    }
+    wrap.appendChild(row);
+    wrap.appendChild(list);
     return wrap;
   },
 

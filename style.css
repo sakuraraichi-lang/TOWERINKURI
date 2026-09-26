@@ -267,16 +267,28 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .chhead::before{left:8px;}
 .chhead::after{right:8px;}
 
-/* 上の枠。今この出撃で積んでいるものを並べる */
-.chslots{display:flex;gap:7px;justify-content:center;margin-bottom:12px;flex-wrap:wrap;}
-.chslot{position:relative;flex:0 0 54px;height:54px;display:grid;place-items:center;
-  font-size:18px;font-weight:900;
-  background:#0e1116;border:1px solid var(--line2);
+/* 上の段：武器ごとに、この出撃で取ったカードの数（2026-09-26）。触ると下に一覧 */
+.chslots{margin-bottom:12px;}
+.chrow2{display:flex;gap:6px;justify-content:center;flex-wrap:wrap;}
+.chslot{position:relative;flex:0 0 46px;height:46px;display:grid;place-items:center;padding:0;cursor:pointer;
+  font:inherit;background:#0e1116;border:1px solid var(--line2);
   clip-path:polygon(0 0,calc(100% - 8px) 0,100% 8px,100% 100%,8px 100%,0 calc(100% - 8px));}
-.chslot.empty{color:#2b3140;font-size:22px;}
-.chslot.on{border-color:var(--acc);box-shadow:0 0 12px rgba(255,138,31,.25);}
-.chslot u{position:absolute;right:3px;bottom:1px;text-decoration:none;
-  font-size:9px;color:var(--dim);}
+.chslot i{font-style:normal;display:grid;place-items:center;}
+.chslot i svg{width:22px;height:22px;}
+.chslot.empty{opacity:.38;}
+.chslot.on{border-color:currentColor;box-shadow:0 0 10px rgba(255,138,31,.2);}
+.chslot.sel{background:#1b1f28;box-shadow:0 0 0 1px currentColor inset;}
+.chslot u{position:absolute;right:4px;bottom:1px;text-decoration:none;font-size:11px;font-weight:900;color:var(--txt);
+  font-variant-numeric:tabular-nums;text-shadow:0 1px 2px #000;}
+.chlist:empty{display:none;}
+.chlist{margin-top:8px;padding:8px 10px;background:#0c0f14;border:1px solid var(--line2);max-height:140px;overflow-y:auto;}
+.chl-h{font-size:10px;color:var(--dim);margin-bottom:4px;}
+.chl-none{font-size:11px;color:var(--dim);}
+.chl-it{display:grid;grid-template-columns:1fr auto;column-gap:6px;font-size:11px;line-height:1.45;padding:3px 0;border-top:1px solid rgba(255,255,255,.05);}
+.chl-it:first-of-type{border-top:0;}
+.chl-it b{font-weight:800;}
+.chl-it em{font-style:normal;color:var(--dim);}
+.chl-it span{grid-column:1 / span 2;color:var(--txt2);font-size:10px;}
 
 /* **高さを固定する。** 文章量で高さが変わると、押すたびにボタンが動く */
 .chrow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;align-items:stretch;}
@@ -1481,3 +1493,11 @@ body:not(.tabsoff) .hlogo{display:none;}
   color:var(--dim);background:transparent;border:none;cursor:pointer;}
 #zoneTip .zt-x svg{width:13px;height:13px;}
 
+
+/* ============ 初めてのときの一言と NEW の印（2026-09-26） ============ */
+#tray .chip.unit{position:relative;}
+#tray .chip.unit.new::after,#tabs button.new::after{content:'';position:absolute;top:3px;right:3px;
+  width:7px;height:7px;border-radius:50%;background:var(--acc);box-shadow:0 0 6px var(--acc);}
+.firsthint{margin:0 0 8px;padding:7px 10px;font-size:11px;line-height:1.5;
+  background:rgba(255,138,31,.08);border-left:2px solid var(--acc);}
+.firsthint i{font-style:normal;font-size:9px;font-weight:800;letter-spacing:.12em;color:var(--acc);margin-right:7px;}
