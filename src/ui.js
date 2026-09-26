@@ -942,7 +942,7 @@ const UI = {
       return '<circle cx="' + p.x + '" cy="' + p.y + '" r="' + (TILE * 0.7) + '" fill="' + col + '"/>';
     };
     for (const t of st.spawns) out += dot(t, '#ff5566');                           // 出現口
-    out += dot(st.core, '#ffa32e');                                                // コア
+    for (const co of (st.cores || [st.core])) out += dot(co, '#ffa32e');           // コア（2つの盤は2つ）
     return out + '</svg>';
   },
 

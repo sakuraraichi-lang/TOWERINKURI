@@ -254,14 +254,17 @@ const MapGen = {
     for (const h of vec.hexes) set[key(h.c, h.r)] = h;
     const g0 = this.hexRange(0, 0, vec.w, vec.h, 0);
     const inBoard = (c, r) => { if (c < g0.c0 || c > g0.c1 || r < g0.r0 || r > g0.r1) return null; const h = this.hexAt(c, r); return (h.x < 0 || h.y < 0 || h.x > vec.w || h.y > vec.h) ? null : h; };
-    const coreH = this.hexPick(vec.core.x, vec.core.y);
+    // **コアが2つ以上ある盤は、どのコアの島も「家」にする**（2つの領域をわざわざ繋がない。完全に分断した盤のため）
+    const coreHs = (vec.cores || [vec.core]).map(co => this.hexPick(co.x, co.y));
     const add = [];
     for (let pass = 0; pass < 12; pass++) {
       // コアの島
       const home = {}, q = [];
-      const ck = key(coreH.c, coreH.r);
-      if (!set[ck]) return null;
-      home[ck] = 1; q.push(set[ck]);
+      for (const coreH of coreHs) {
+        const ck = key(coreH.c, coreH.r);
+        if (!set[ck]) return null;
+        if (!home[ck]) { home[ck] = 1; q.push(set[ck]); }
+      }
       for (let i = 0; i < q.length; i++) for (const [a, b] of this.hexNbr(q[i].c, q[i].r)) { const k = key(a, b); if (set[k] && !home[k]) { home[k] = 1; q.push(set[k]); } }
       const rest = vec.hexes.concat(add).filter(h => !home[key(h.c, h.r)]);
       if (!rest.length) break;
@@ -601,10 +604,12 @@ const MapGen = {
     this._zone = zone;
     g.zone = zone;      // 焼いた盤に仕掛けを持たせる（呼び出し側は MapGen._zone ではなくこれを読む・2026-09-26）
 
-    // コア
-    const cc = Math.max(0, Math.min(cols - 1, Math.floor(core.x / TILE)));
-    const cr = Math.max(0, Math.min(rows - 1, Math.floor(core.y / TILE)));
-    g[cr][cc] = 'C';
+    // コア（**2つ以上あってよい**。2026-09-26・ユーザー「HPを共有したコア二つ目」。core は1つか配列）
+    for (const co of (Array.isArray(core) ? core : [core])) {
+      const cc = Math.max(0, Math.min(cols - 1, Math.floor(co.x / TILE)));
+      const cr = Math.max(0, Math.min(rows - 1, Math.floor(co.y / TILE)));
+      g[cr][cc] = 'C';
+    }
 
     // **出現口は「壁に開いた穴」。** 1タイルではなく、辺に沿って holeW タイルぶん開ける
     for (const h of holes) {
@@ -1238,6 +1243,8 @@ const MapGen = {
     // 道の組み方：kind 'plain'（分岐1回）／'deep'（途中で2回分かれて2回合流）／'lad'（左右の腕の途中を横棒でつなぐ）
     //   2026-09-26：口の並べ方だけ変えた型は、反転すると同じに見える（ユーザー「上下左右を反転させたような…真新しさに欠けます」）。
     //   道の組み方そのものを変えた型を混ぜる
+    // 腕の振れ幅。**コア2つの盤は広げる**（道が盤の地面に届くように。1倍だと「使える地面」が45%に届かなかった）
+    const armMul = shape.twin ? (BAL.twinArmMul || 1.35) : 1;
     const diamond = (m, c, kind) => {
       const dx = (c[0] - m[0]) * W, dy = (c[1] - m[1]) * H, L = Math.hypot(dx, dy) || 1;
       const ux = dx / L, uy = dy / L, px = -uy, py = ux;
@@ -1245,12 +1252,12 @@ const MapGen = {
       if (kind === 'deep') {
         // 1回目の菱形（0.10〜0.45）と2回目（0.50〜0.85）。腕の幅は少し細め
         const a1 = P2(0.1 + jit(0.04), 0), j1 = P2(0.45 + jit(0.04), 0), a2 = P2(0.5 + jit(0.03), 0), j2 = P2(0.84 + jit(0.04), 0);
-        const w = () => 80 + rnd() * 35;
+        const w = () => (80 + rnd() * 35) * armMul;
         return [[m, a1], [a1, P2(0.28, w()), j1], [a1, P2(0.28, -w()), j1], [j1, a2],
                 [a2, P2(0.67, w()), j2], [a2, P2(0.67, -w()), j2], [j2, c]];
       }
       const f1 = 0.14 + jit(0.08), f2 = 0.66 + jit(0.1), fm = (f1 + f2) / 2;
-      const w1 = (95 + rnd() * 45), w2 = (95 + rnd() * 45);
+      const w1 = (95 + rnd() * 45) * armMul, w2 = (95 + rnd() * 45) * armMul;
       const a = P2(f1, 0), j = P2(f2, 0);
       const out = [[m, a], [a, P2(fm, w1), j], [a, P2(fm, -w2), j], [j, c]];
       if (kind === 'lad') out.push([P2(fm, w1), P2(fm, -w2)]);    // 横棒（左右の腕の真ん中をつなぐ）
@@ -1288,8 +1295,49 @@ const MapGen = {
       lad6: () => multi([edge('top', 0.3 + jit(0.04)), edge('top', 0.7 + jit(0.04)), edge('left', 0.15), edge('left', 0.5 + jit(0.05)),
                          edge('right', 0.15), edge('right', 0.5 + jit(0.05))], bot(), 'lad'),
     });
-    const poolOf = (n) => n === 1 ? POOL1 : n === 2 ? POOL2 : n === 3 ? POOL3 : n === 4 ? POOL4 : POOL6;
-    let coreHex, pattern = shape.forkPattern;
+    // **コア2つの型（第20〜30章・第35章から）。**（2026-09-26・ユーザー「HPを共有したコア二つ目…完全分断の広大なマップ」）
+    //   盤を上下の2つの領域に分け、それぞれにコアと口（口の数の半分ずつ）を置く。**領域どうしを繋ぐ道は掘らない**（完全に分断）。
+    //   上の領域は y 0〜0.42、下は 0.58〜1 に収める（腕の振れ幅を足しても真ん中の壁を越えない）
+    //   twinTop 上下の辺から／twinSide 左右の脇から（上は左、下は右）／twinMix 上下の辺と脇を混ぜる／
+    //   twinDeep twinTop を2回分かれる道で／twinLad twinSide をはしごの道で
+    const TWIN = ['twinTop', 'twinSide', 'twinMix', 'twinDeep', 'twinLad'];
+    const half = Math.max(1, Math.round(nHole / 2));
+    const spread = (n, lo, hi) => Array.from({ length: n }, (_, i) => n === 1 ? (lo + hi) / 2 : lo + (hi - lo) * i / (n - 1));
+    //   **分断の壁ぞいの道。**（ユーザー 2026-09-26「分断されてる壁が分厚すぎるので少し分断壁を薄くしないと視認性に問題」）
+    //   口とコアを斜めに結ぶだけだと、真ん中の帯に道が来ず、壁が5〜6タイルの厚さになった（コアを真ん中に寄せても5タイルまでしか薄くならない）。
+    //   各領域の1つ目の口から、真ん中の帯の手前まで降りて、帯に沿ってコアへ向かう道を1本足す（別のレーンになる）。
+    //   2つの領域の道が、薄い壁を挟んで並んで走る
+    const RIM = BAL.twinRimGap !== undefined ? BAL.twinRimGap : 0.045;   // 真ん中（0.5）から、壁ぞいの道までの距離（盤の高さに対する割合）
+    const twin = (topM, coreA, botM, coreB, kind) => {
+      const A = multi(topM, coreA, kind), B = multi(botM, coreB, kind);
+      const rimA = [[topM[0].inn[0], topM[0].inn[1]], [topM[0].inn[0], 0.5 - RIM], [coreA[0] - 0.1, 0.5 - RIM], coreA];
+      const rimB = [[botM[0].inn[0], botM[0].inn[1]], [botM[0].inn[0], 0.5 + RIM], [coreB[0] + 0.1, 0.5 + RIM], coreB];
+      return { mouths: A.mouths.concat(B.mouths), paths: A.paths.concat(B.paths, [rimA, rimB]), core: coreA, cores: [coreA, coreB] };
+    };
+    //   **口とコアは左右の反対側に置く**（斜めに渡らせる）。上の辺からまっすぐ下のコアへ降ろすと、
+    //   領域の高さ（盤の半分）しかなく、最短経路が下限20に届かなかった（23×36〜44・20枚ずつで、上下の辺からの型は合格0）
+    //   **口が3つずつ（口6つの章）は、3つを別々の辺に散らす**（同じ辺の片側に3つ並べると道が重なり、
+    //   盤の反対側が空いて「使える地面」が4割そこそこだった。23×37・口6で上の辺からの型は合格0/4）
+    //   上の領域の口 top(x)/left(y) を、下の領域では点対称（bottom(1-x)/right(1-y)）に置く
+    const mirror = (list) => list.map(([s, t]) => (s === 'top' ? ['bottom', 1 - t] : s === 'left' ? ['right', 1 - t] : s === 'bottom' ? ['top', 1 - t] : ['left', 1 - t]));
+    //   コアの縦位置（上の領域。下の領域は 1 − これ）。**真ん中に寄せるほど分断の壁が薄くなる**（ユーザー 2026-09-26「分断されてる壁が分厚すぎる…視認性に問題」）
+    const CY = BAL.twinCoreY || 0.4;
+    const twinOf = (list, kind, cy) => twin(list.map(([s, t]) => edge(s, t + jit(0.03))), [0.84, (cy || CY) + jit(0.02)],
+                                            mirror(list).map(([s, t]) => edge(s, t + jit(0.03))), [0.16, 1 - (cy || CY) + jit(0.02)], kind);
+    const twinTopT = (kind) => twinOf(half >= 3 ? [['top', 0.08], ['top', 0.42], ['left', 0.32]] : spread(half, 0.08, 0.42).map(x => ['top', x]), kind);
+    const twinSideT = (kind) => half >= 3
+      ? twinOf([['left', 0.08], ['left', 0.24], ['top', 0.22]], kind, CY - 0.04)
+      : twin(spread(half, 0.08, 0.32).map(y => edge('left', y + jit(0.02))), [0.82, CY - 0.04 + jit(0.03)],
+             spread(half, 0.68, 0.92).map(y => edge('right', y + jit(0.02))), [0.18, 1 - (CY - 0.04) + jit(0.03)], kind);
+    Object.assign(TPL, {
+      twinTop: () => twinTopT('plain'),
+      twinSide: () => twinSideT('plain'),
+      twinMix: () => twinOf(half >= 3 ? [['left', 0.12], ['left', 0.34], ['top', 0.3]] : [['top', 0.1], ['left', 0.26]], 'plain'),
+      twinDeep: () => twinTopT('deep'),
+      twinLad: () => half >= 3 ? twinTopT('lad') : twinOf([['top', 0.14], ['left', 0.3]], 'lad'),   // 口2つずつは上の辺と脇から（上の辺2つだと使える地面が4割そこそこで0/4）
+    });
+    const poolOf = (n) => shape.twin ? TWIN : n === 1 ? POOL1 : n === 2 ? POOL2 : n === 3 ? POOL3 : n === 4 ? POOL4 : POOL6;
+    let coreHex, coreHexes = null, pattern = shape.forkPattern;
     if (!pattern || poolOf(nHole).indexOf(pattern) < 0) { const pl = poolOf(nHole); pattern = pl[(rnd() * pl.length) | 0]; }
     // 真ん中のコアへ6方向（六角式に作らせる。同心の囲いで道を伸ばすので、真ん中のコアでも経路が下限に届く）
     if (pattern === 'hexring') {
@@ -1311,6 +1359,7 @@ const MapGen = {
       for (const pth of T.paths) poly(pth);
       const last = T.paths[T.paths.length - 1];
       coreHex = P(T.core || last[last.length - 1]);
+      if (T.cores) coreHexes = T.cores.map(P);
     } else if (nHole === 1) {
       const fromBottom = rnd() < 0.5;
       const y0 = fromBottom ? 1 : 0, y1 = fromBottom ? 0.1 : 0.9;
@@ -1339,16 +1388,28 @@ const MapGen = {
       const b = carve(0, 0.5, shape.loops || 1, { endAt: coreHex, mx: mxT });
       openMouth(b.mouthHex, false);
     }
-    const core = cells[key(coreHex.c, coreHex.r)] || this.hexAt(coreHex.c, coreHex.r);
-    for (const nb of this.hexNbr(core.c, core.r)) dig1(nb[0], nb[1]);   // コアの部屋
+    // コア（2つの型は2つ）。それぞれのまわりに部屋を開ける
+    const coreList = (coreHexes || [coreHex]).map(ch => cells[key(ch.c, ch.r)] || this.hexAt(ch.c, ch.r));
+    for (const co of coreList) { dig1(co.c, co.r); for (const nb of this.hexNbr(co.c, co.r)) dig1(nb[0], nb[1]); }   // コアの部屋
+    const core = coreList[0];
+    const cores = coreList.map(co => ({ x: co.x, y: co.y }));
 
     let hexes = [];
     for (const k in open) hexes.push(cells[k]);
+    // **コア2つの盤は、2つの領域が六角で繋がっていたら作り直す**（完全に分断する。真ん中に寄せると腕どうしが触れることがある）
+    if (coreList.length > 1) {
+      const seen = { [key(coreList[0].c, coreList[0].r)]: 1 }, q = [coreList[0]];
+      for (let i = 0; i < q.length; i++) for (const [a, b] of this.hexNbr(q[i].c, q[i].r)) {
+        const k = key(a, b);
+        if (open[k] && !seen[k]) { seen[k] = 1; q.push(cells[k]); }
+      }
+      if (coreList.slice(1).some(co => seen[key(co.c, co.r)])) return null;
+    }
     hexes = this.tagZones(hexes, rnd, d);
-    const g = this.bake([], { x: core.x, y: core.y }, holes, W, H, hexes);
+    const g = this.bake([], cores, holes, W, H, hexes);
     return {
       rows: g.map(r => r.join('')),
-      vec: { lanes: [], holes, core: { x: core.x, y: core.y }, w: W, h: H, hexes, hexR: R, pattern },
+      vec: { lanes: [], holes, core: { x: core.x, y: core.y }, cores: cores.length > 1 ? cores : undefined, w: W, h: H, hexes, hexR: R, pattern },
       zone: this._zone,
       shape, seed, style: 'fork', pattern,
     };
@@ -1761,15 +1822,16 @@ const MapGen = {
     const area = (cols * rows) / (15 * 21);            // 15×21 を 1 とした広さ
     const at = (c, r) => (c < 0 || r < 0 || c >= cols || r >= rows) ? ' ' : rowsArr[r][c];
     const walk = (c, r) => { const ch = at(c, r); return ch === '.' || ch === 'S' || ch === 'C'; };
-    let core = null; const spawns = [];
+    const cores = []; const spawns = [];
     for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) {
-      if (at(c, r) === 'C') core = { c, r };
+      if (at(c, r) === 'C') cores.push({ c, r });
       if (at(c, r) === 'S') spawns.push({ c, r });
     }
-    if (!core || !spawns.length) return null;
+    if (!cores.length || !spawns.length) return null;
     const INF = 1e9, dist = new Array(cols * rows).fill(INF), idx = (c, r) => r * cols + c;
     const link = hexes ? this.linker(hexes, cols, rows) : null;
-    const q = [core]; dist[idx(core.c, core.r)] = 0;
+    // コアが2つ以上なら、いちばん近いコアまでの距離（どのコアからも同時に広げる）
+    const q = cores.slice(); for (const co of cores) dist[idx(co.c, co.r)] = 0;
     for (let h = 0; h < q.length; h++) {
       const cur = q[h], d = dist[idx(cur.c, cur.r)];
       for (const [dc, dr] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {

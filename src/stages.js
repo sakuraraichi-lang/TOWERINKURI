@@ -166,6 +166,17 @@ const Stage = {
       base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, { style: 'fork', holes: nh, roadMax: BAL.forkRoadMax, forkPattern: perm[Math.max(0, rank) % perm.length] });
       // 六角式に作らせる型（hexring）は、通路の量の帯も六角式のもの（分岐式の上限だと6枚とも超えて落ちた）
       if (base.forkPattern === 'hexring') Object.assign(base, { roadMin: BAL.hexRoadMin, roadMax: BAL.hexRoadMax });
+      // **コア2つの章**（BAL.twinChapters）：上下2つの領域に分けた型を、コア2つの章どうしで重ならないように配る。盤は縦に長く
+      if (Stage.isTwin(idx + 1)) {
+        const tw = [];
+        for (let k = 1; k <= Math.max(STAGES.length, idx + 1); k++) if (Stage.isTwin(k)) tw.push(k);
+        const TW = ['twinTop', 'twinSide', 'twinMix', 'twinDeep', 'twinLad'];   // mapgen.js の TWIN と同じ
+        const tp = MapGen.rng((seed ^ 424243) >>> 0), tperm = TW.slice();
+        for (let i = tperm.length - 1; i > 0; i--) { const k = (tp() * (i + 1)) | 0; [tperm[i], tperm[k]] = [tperm[k], tperm[i]]; }
+        const tr = tw.indexOf(idx + 1);
+        Object.assign(base, { twin: true, forkPattern: tperm[Math.max(0, tr) % tperm.length], cols: BAL.twinCols || 23, rows: BAL.twinRows || 37,
+          roadMin: 60, roadMax: BAL.twinRoadMax || BAL.forkRoadMax });
+      }
     }
     if (BAL.hexFromDepth !== undefined && d >= BAL.hexFromDepth) {
       base = Object.assign({ cols: MapGen.COLS, rows: MapGen.ROWS }, base, {
@@ -214,6 +225,8 @@ const Stage = {
   //     joined … 六角の島を繋いだか ／ regen … 分岐式を作り直した回数 ／ before … 迂回路を足す前の盤
   _st: {},
   rec(stageId) { return this._st[stageId] || (this._st[stageId] = {}); },
+  // 章 n（1から）がコア2つの章か（BAL.twinChapters）
+  isTwin(n) { return (BAL.twinChapters || []).some(([a, b]) => n >= a && n <= b); },
   vecOf(stageId) { return (this._st[stageId] && this._st[stageId].vec) || null; },
 
   // 作り置きを捨てる。章を渡せばその章だけ、渡さなければ全部（種が変わったとき・転生のとき）
@@ -229,7 +242,8 @@ const Stage = {
 
     const grid = [];
     const spawns = [];
-    let core = null;
+    // **コアは2つ以上あってよい**（2026-09-26・ユーザー「HPを共有したコア二つ目」）。core は1つ目（前からの呼び出し用）
+    const cores = [];
     for (let r = 0; r < rows; r++) {
       const line = map[r];
       const row = [];
@@ -237,10 +251,11 @@ const Stage = {
         const ch = line[c] || ' ';
         row.push(ch);
         if (ch === 'S') spawns.push({ c, r });
-        if (ch === 'C') core = { c, r };
+        if (ch === 'C') cores.push({ c, r });
       }
       grid.push(row);
     }
+    const core = cores[0] || null;
 
     // **出現口を「穴」ごとにまとめる。**（ユーザー 2026-09-21）
     //   > 「この入り口（数マス分…壁に開いた穴）からゾロゾロと出てくる感じがいい」
@@ -290,13 +305,13 @@ const Stage = {
     // (c, r) から (nc, nr) へ1歩で行けるか（戦闘の押し合いも使う）
     const step = (c, r, nc, nr) => walkable(nc, nr) && (c === nc && r === nr || linked(r * cols + c, nr * cols + nc));
 
-    // コアからの幅優先探索。各通路タイルに「次に進むタイル」を持たせる
+    // コアからの幅優先探索。各通路タイルに「次に進むタイル」を持たせる（コアが2つ以上なら、いちばん近いコアへ）
     const INF = 1e9;
     const dist = new Array(cols * rows).fill(INF);
     const next = new Array(cols * rows).fill(null);
     const idx = (c, r) => r * cols + c;
-    const q = [core];
-    dist[idx(core.c, core.r)] = 0;
+    const q = cores.slice();
+    for (const co of cores) dist[idx(co.c, co.r)] = 0;
     const DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]];
     for (let head = 0; head < q.length; head++) {
       const cur = q[head];
@@ -317,7 +332,7 @@ const Stage = {
       let cur = sp, guard = 0;
       while (cur && guard++ < cols * rows) {
         out.push(idx(cur.c, cur.r));
-        if (cur.c === core.c && cur.r === core.r) break;
+        if (dist[idx(cur.c, cur.r)] === 0) break;          // どれかのコアに着いた
         cur = next[idx(cur.c, cur.r)];
       }
       return out;
@@ -329,7 +344,7 @@ const Stage = {
       this.rec(stageId).joined = 1;
       const hx = MapGen.joinHexes(vecH);
       if (hx) {
-        const g2 = MapGen.bake([], vecH.core, vecH.holes, vecH.w, vecH.h, hx);
+        const g2 = MapGen.bake([], vecH.cores || vecH.core, vecH.holes, vecH.w, vecH.h, hx);
         this.rec(stageId).rows = g2.map(r => r.join(''));
         this.rec(stageId).vec = Object.assign({}, vecH, { hexes: hx });
         this.rec(stageId).zone = g2.zone;
@@ -357,8 +372,7 @@ const Stage = {
       const hp = [];
       const push = (v, i) => { hp.push([v, i]); let k = hp.length - 1; while (k > 0) { const p = (k - 1) >> 1; if (hp[p][0] <= hp[k][0]) break; [hp[p], hp[k]] = [hp[k], hp[p]]; k = p; } };
       const pop = () => { const top = hp[0], last = hp.pop(); if (hp.length) { hp[0] = last; let k = 0; for (;;) { const l = 2 * k + 1, r2 = l + 1; let m = k; if (l < hp.length && hp[l][0] < hp[m][0]) m = l; if (r2 < hp.length && hp[r2][0] < hp[m][0]) m = r2; if (m === k) break; [hp[m], hp[k]] = [hp[k], hp[m]]; k = m; } } return top; };
-      const ci = idx(core.c, core.r);
-      d[ci] = 0; push(0, ci);
+      for (const co of cores) { const ci = idx(co.c, co.r); d[ci] = 0; push(0, ci); }
       while (hp.length) {
         const [v, i] = pop();
         if (v > d[i]) continue;
@@ -383,7 +397,7 @@ const Stage = {
       while (cur && guard++ < N) {
         const i = idx(cur.c, cur.r);
         out.push(i);
-        if (cur.c === core.c && cur.r === core.r) break;
+        if (dist[idx(cur.c, cur.r)] === 0) break;          // どれかのコアに着いた
         cur = nx[i];
       }
       return out;
@@ -484,7 +498,7 @@ const Stage = {
       if (hx) {
         // 足す前の盤と最短経路を覚えておく（縮んだら戻す。下の「迂回路の検査」）
         this.rec(stageId).before = { rows: map, vec: vec0, zone: this.rec(stageId).zone, minRoute: Math.min.apply(null, spawns.map(s => dist[idx(s.c, s.r)])) };
-        const g2 = MapGen.bake([], vec0.core, vec0.holes, vec0.w, vec0.h, hx);
+        const g2 = MapGen.bake([], vec0.cores || vec0.core, vec0.holes, vec0.w, vec0.h, hx);
         this.rec(stageId).rows = g2.map(r => r.join(''));
         this.rec(stageId).vec = Object.assign({}, vec0, { hexes: hx });
         this.rec(stageId).zone = g2.zone;
@@ -525,7 +539,7 @@ const Stage = {
       const kept = vec0.hexes.filter(hx => keepHex.has(hx));
       this.rec(stageId).pruned = { before: vec0.hexes.length, after: kept.length };
       if (kept.length < vec0.hexes.length) {
-        const g2 = MapGen.bake([], vec0.core, vec0.holes, vec0.w, vec0.h, kept);
+        const g2 = MapGen.bake([], vec0.cores || vec0.core, vec0.holes, vec0.w, vec0.h, kept);
         this.rec(stageId).rows = g2.map(r => r.join(''));
         this.rec(stageId).vec = Object.assign({}, vec0, { hexes: kept });
         this.rec(stageId).zone = g2.zone;
@@ -553,12 +567,20 @@ const Stage = {
       }
     }
 
+    // (c, r) にいちばん近いコア（直線距離。道の外に押し出された敵の行き先・コアの上にいる敵の行き先）
+    const nearCore = (c, r) => {
+      let best = core, bd = Infinity;
+      for (const co of cores) { const dd = (co.c - c) * (co.c - c) + (co.r - r) * (co.r - r); if (dd < bd) { bd = dd; best = co; } }
+      return best;
+    };
+
     const built = {
+      nearCore,
       lanes, mouthLanes, mouthOf,
       // 章ごとのマップの形（BAL.mapShape）。**戦闘側もここを読む**
       //   （道が N 方向に分かれるぶん、敵の数も増やさないと1本あたりが薄くなる）
       shape: (BAL.mapShape && BAL.mapShape[STAGE_BY_ID[stageId].idx + 1]) || null,
-      def, id: stageId, cols, rows, grid, spawns, mouths, core, dist, next, idx, walkable, step, routes, shield,
+      def, id: stageId, cols, rows, grid, spawns, mouths, core, cores, dist, next, idx, walkable, step, routes, shield,
       vec: this.rec(stageId).vec || null,        // 折れ線と幅。絵を滑らかに描くのに使う
       // 地形の仕掛け（0=なし 1=減速 2=加速。内部の名前は mud/slope のまま）。手で書いたマップには無い
       zone: this.rec(stageId).zone || null,
@@ -637,7 +659,7 @@ const Stage = {
       flowTo(c, r, lane) {
         const L = (lane !== undefined && lane !== null) ? lanes[lane] : null;
         const n = (L && L.next[idx(c, r)]) || next[idx(c, r)];
-        if (!n) return this.center(core.c, core.r);
+        if (!n) { const co = nearCore(c, r); return this.center(co.c, co.r); }   // 次が無い＝コアの上か、道の外。いちばん近いコアへ
         return this.center(n.c, n.r);
       },
       reachable: spawns.every(s => dist[idx(s.c, s.r)] < INF),

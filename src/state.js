@@ -983,6 +983,8 @@ const Game = {
       toSpawn: 0, spawnTimer: 0,
       enemies: [], bullets: [], fields: [], fx: [], nums: [],
       tower: { x: corePos.x, y: corePos.y, r: BAL.coreR },
+      // **コアが2つ以上の盤は、全部のコア。**ライフは共有（どれに漏れても run.lives が減る）
+      towers: (st.cores || [st.core]).map(co => { const p = st.center(co.c, co.r); return { x: p.x, y: p.y, r: BAL.coreR }; }),
       lives: 0, livesMax: 0,
       units: [],
       cards: {},

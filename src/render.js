@@ -718,8 +718,12 @@ const Render = {
     return 'rgba(' + ((n >> 16) & 255) + ',' + ((n >> 8) & 255) + ',' + (n & 255) + ',' + a + ')';
   },
 
+  // コアが2つ以上の盤は全部描く（ライフは共有なので、どれも同じ残りで光る）
   core(ctx, run) {
-    const t = run.tower;
+    for (const t of (run.towers || [run.tower])) this.coreOne(ctx, run, t);
+  },
+
+  coreOne(ctx, run, t) {
     // **コアの残りは run.lives / run.livesMax。**（2026-09-24・0924s で壊した）
     //   以前は t.hp / t.maxHp（コアには無い値）を読んでいて、結果が NaN になっていた。
     //   古い描き方は NaN を黙って無視していたが、0924s の光のグラデーションは NaN で例外を出し、

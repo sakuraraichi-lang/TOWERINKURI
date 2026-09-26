@@ -1135,7 +1135,8 @@ const Combat = {
       // 通行量の記録（どこに溜まるかを、次の準備フェーズで見せるため）
       if (sample && inside) run.traffic[st.idx(tc, tr)]++;
 
-      const goal = inside ? st.flowTo(tc, tr, e.lane) : { x: tw.x, y: tw.y };
+      // 道の外に押し出された敵は、いちばん近いコアへ
+      const goal = inside ? st.flowTo(tc, tr, e.lane) : (st.nearCore ? st.center(st.nearCore(tc, tr).c, st.nearCore(tc, tr).r) : { x: tw.x, y: tw.y });
       const a = Util.angle(e.x, e.y, goal.x, goal.y);
 
       if (e.stun <= 0) {
@@ -1169,8 +1170,8 @@ const Combat = {
         }
       }
 
-      // コアに触れた敵は、ライフを1つ持っていって消える（＝漏れ）
-      if (Util.dist(e.x, e.y, tw.x, tw.y) <= tw.r + e.r) {
+      // コアに触れた敵は、ライフを1つ持っていって消える（＝漏れ）。**コアが2つ以上なら、どれに触れても同じライフ**
+      if ((run.towers || [tw]).some(T => Util.dist(e.x, e.y, T.x, T.y) <= T.r + e.r)) {
         const cost = BAL.leakLives;
         run.lives -= cost;
         run.leaked++;
