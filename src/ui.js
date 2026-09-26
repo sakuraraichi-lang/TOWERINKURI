@@ -746,6 +746,12 @@ const UI = {
     pres:  '転生すると章とコインは戻るが、土台がずっと強くなる',
   },
 
+  // 画面の一言と、見たかどうかの鍵。**アセンション中の「転生」タブは別の画面なので、別の一言と別の鍵**（開いたらもう一度 NEW が付く）
+  tabTip(id) {
+    if (id === 'pres' && Asc.on(Game.perm)) return { key: 'tab_asc', text: 'アセンション：章を進めるとレベルが上がり、恒久の火力とパックがもらえる。何も失わない' };
+    return this.TAB_TIP[id] ? { key: 'tab_' + id, text: this.TAB_TIP[id] } : null;
+  },
+
   // 今のステップが済んだかを、盤面の状態から見る（押させるボタンは作らない）
   tutDone(i) {
     const run = Game.run;
@@ -805,7 +811,7 @@ const UI = {
       b.classList.toggle('lock', !open);
       // 第30章を突破したら「転生」は「アセンション」になる（src/ascension.js）
       if (id === 'pres') { const tl = b.querySelector('.tl'); if (tl) tl.textContent = Asc.on(Game.perm) ? 'アセンション' : '転生'; }
-      b.classList.toggle('new', open && this.isNew('tab_' + id) && !!this.TAB_TIP[id]);
+      b.classList.toggle('new', open && !!this.tabTip(id) && this.isNew(this.tabTip(id).key));
       b.classList.toggle('on', open && id === this.tab && !this.tabsOff);
     }
   },
@@ -831,11 +837,12 @@ const UI = {
     }
     p.classList.remove('empty');
     // 初めて開いた画面には一言だけ出す（次に開いたときには消えている）
-    if (this.TAB_TIP[this.tab] && this.isNew('tab_' + this.tab) && !this.tabsOff && document.body.classList.contains('on-home')) {
-      this.markSeen('tab_' + this.tab);
+    const tip = this.tabTip(this.tab);
+    if (tip && this.isNew(tip.key) && !this.tabsOff && document.body.classList.contains('on-home')) {
+      this.markSeen(tip.key);
       this.renderTabs();
       const h = Util.el('div', 'firsthint');
-      h.innerHTML = '<i>NEW</i>' + this.TAB_TIP[this.tab];
+      h.innerHTML = '<i>NEW</i>' + tip.text;
       p.appendChild(h);
     }
 
