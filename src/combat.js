@@ -414,17 +414,24 @@ const Combat = {
     return v;
   },
 
+  // **湧き口のバリアの中にいるか。**（2026-09-26・stages.js の shield）
+  //   バリアの中の敵は、ダメージも状態異常も受けない。**damage() を通らずに状態を掛ける所も、全部これを見る**
+  //   （触手の掴み・場の減速と毒・感電泡。見ていなかった掴みが、敵をバリアの中へ引き戻し続けて
+  //    ウェーブが終わらなくなっていた。src/combat.js の grab）
+  inShield(run, e) {
+    const sh = run.stage && run.stage.shield;
+    if (!sh) return false;
+    const tc = (e.x / TILE) | 0, tr = (e.y / TILE) | 0;
+    return tc >= 0 && tr >= 0 && tc < run.stage.cols && tr < run.stage.rows && !!sh[tr * run.stage.cols + tc];
+  },
+
   damage(run, e, amount, opts) {
     if (e.dead) return 0;
     // **湧き口のバリアの中の敵は、ダメージも状態異常も受けない。**（2026-09-26・stages.js の shield）
     //   穴の隣に砲を固めて出た瞬間に倒す置き方を止めるため
-    const sh = run.stage && run.stage.shield;
-    if (sh) {
-      const tc = (e.x / TILE) | 0, tr = (e.y / TILE) | 0;
-      if (tc >= 0 && tr >= 0 && tc < run.stage.cols && tr < run.stage.rows && sh[tr * run.stage.cols + tc]) {
-        e.shieldT = 0.15;              // 弾かれた光（render.js）
-        return 0;
-      }
+    if (this.inShield(run, e)) {
+      e.shieldT = 0.15;              // 弾かれた光（render.js）
+      return 0;
     }
     opts = opts || {};
     let dmg = amount * this.vuln(run, e);
@@ -468,7 +475,7 @@ const Combat = {
       if (ch) e.chill = Math.max(e.chill, d);
     }
 
-    if (opts.stun) { e.stun = Math.max(e.stun, opts.stun * sc + st.stunDur); e.stunBy = by; }
+    if (opts.stun && (e.ccUsed || 0) < BAL.ccMaxSec) { e.stun = Math.max(e.stun, opts.stun * sc + st.stunDur); e.stunBy = by; }
 
     let bn = opts.burn || 0, bd = opts.burnDur || 0;
     if (st.burnGrant > 0 && !opts.dot) {            // 熾火：どの武器でも燃える
@@ -692,7 +699,10 @@ const Combat = {
     }
     for (const t of targets) {
       if (!t || t.dead) continue;
-      t.grabT = Math.max(t.grabT, dur * this.statusScale(t));
+      // バリアの中の敵は掴めない（掴んで引き戻すとバリアの中へ戻し続け、ウェーブが終わらなくなった）
+      if (this.inShield(run, t)) { t.shieldT = 0.15; continue; }
+      // 止めておける合計の秒数を使い切った敵は、もう掴めない（BAL.ccMaxSec）。削りだけ入る
+      if ((t.ccUsed || 0) < BAL.ccMaxSec) t.grabT = Math.max(t.grabT, dur * this.statusScale(t));
       t.grabV = power;
       this.damage(run, t, dmg, { color: '#ffb0e8' });
       this.fx(run, { type: 'tentacle', x1: w.x, y1: w.y, e: t, color: '#c85ab0',
@@ -1032,6 +1042,7 @@ const Combat = {
         for (const e of near) {
           if (e.dead) continue;
           if (Util.dist(f.x, f.y, e.x, e.y) > f.r + e.r) continue;
+          if (this.inShield(run, e)) continue;   // バリアの中は状態異常も受けない
           if (f.vuln) { e.fvuln = f.vuln; e.fvulnT = 0.4; }
           // 場の減速にも遺物の軸を乗せる。**ここは damage() を通らないので、
           // 書き忘れると「毒の雲だけ遺物が効かない」ことになる**
@@ -1067,6 +1078,8 @@ const Combat = {
       if (e.dead) { run.enemies.splice(i, 1); continue; }
       if (e.shock > 0) e.shock -= dt;
       if (e.chill > 0) e.chill -= dt;
+      // 掴み・足止めで止められていた時間を数える（BAL.ccMaxSec で打ち止め）
+      if (e.stun > 0 || e.grabT > 0) e.ccUsed = (e.ccUsed || 0) + dt;
       if (e.stun > 0) e.stun -= dt;
       if (e.grabT > 0) e.grabT -= dt;
       if (e.spotT > 0) e.spotT -= dt;
@@ -1326,7 +1339,7 @@ const Combat = {
         if (b.src && b.src.flags.charged) {
           this.chainLightning(b.src, run, e, b.src.dyn.chargedChain || 2, b.dmg * 0.55);
         }
-        if (b.src && b.src.flags.staticFoam && b.wid === 'bubble' && !e.dead) {
+        if (b.src && b.src.flags.staticFoam && b.wid === 'bubble' && !e.dead && !this.inShield(run, e)) {
           e.shock = Math.max(e.shock, b.src.s.shockDur);
         }
 

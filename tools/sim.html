@@ -606,7 +606,14 @@ async function endlessAsync(seed, opts) {
               out.diag = { wave: run.wave, phase: run.phase, toSpawn: run.toSpawn, left: es.length,
                            types: es.reduce((a, e) => (a[e.tname || '?'] = (a[e.tname || '?'] || 0) + 1, a), {}),
                            tiles: Object.entries(byTile).sort((a, b) => b[1] - a[1]).slice(0, 10),
-                           spd0: es.filter(e => !(e.spd > 0)).length, boss: es.filter(e => e.boss).length };
+                           spd0: es.filter(e => !(e.spd > 0)).length, boss: es.filter(e => e.boss).length,
+                           // 1体ずつの状態（止まっている理由を見るため）と、1秒進めたときの動き
+                           each: es.slice(0, 6).map(e => ({ x: +e.x.toFixed(1), y: +e.y.toFixed(1), lane: e.lane, stun: +(e.stun || 0).toFixed(2),
+                             grab: +(e.grabT || 0).toFixed(2), slow: e.slow, cc: +(e.ccUsed || 0).toFixed(1), shield: Combat.inShield(run, e),
+                             hp: (e.hp / e.maxHp).toFixed(3), r: e.r, spd: e.spd })) };
+              const before = es.slice(0, 6).map(e => [e.x, e.y]);
+              for (let k = 0; k < 60; k++) Combat.update(run, 1 / 60);
+              out.diag.moved = es.slice(0, 6).map((e, j) => Math.round(Util.dist(before[j][0], before[j][1], e.x, e.y)) + 'px' + (e.dead ? '（倒れた）' : ''));
             }
             break;
           }
