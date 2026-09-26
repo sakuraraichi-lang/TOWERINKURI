@@ -287,6 +287,7 @@ const CardFX = {
       });
       this._flyOut(P, slots, ids.map(id => CARDS[id].rarity), 160);
       hint.textContent = 'タップして捲る';
+      hint.classList.add('mid');   // カードの列のすぐ下へ（下がってきたパックの紋章に重なって読めなかった・2026-09-26 テストプレイ）
     };
     // 次に捲るのは、まだ伏せてある一番左
     const nextIdx = () => slots.findIndex(s => !s.done);

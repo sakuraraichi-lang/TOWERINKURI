@@ -869,6 +869,7 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
   animation:raysspin 8s linear infinite;}
 .pfx-hint{position:absolute;left:0;right:0;bottom:16%;text-align:center;font-size:13px;font-weight:700;color:rgba(255,255,255,.75);
   animation:hintblink 1.2s ease-in-out infinite;pointer-events:none;}
+.pfx-hint.mid{bottom:auto;top:58%;}
 .pfx-done{position:absolute;left:50%;bottom:7%;transform:translateX(-50%);min-width:180px;padding:12px 24px;border:0;border-radius:12px;
   font-size:16px;font-weight:900;color:#1a1200;background:linear-gradient(90deg,#ffd24a,#ff8a1f);box-shadow:0 0 24px rgba(255,160,40,.6);cursor:pointer;}
 .pfx-fx{position:absolute;inset:0;pointer-events:none;}
@@ -1411,6 +1412,7 @@ body:not(.tabsoff) .hlogo{display:none;}
   overscroll-behavior:contain;scrollbar-width:none;align-items:stretch;}
 #tray::-webkit-scrollbar{display:none;}
 #tray.on{display:flex;}
+#tray.more{-webkit-mask-image:linear-gradient(90deg,#000 78%,transparent);mask-image:linear-gradient(90deg,#000 78%,transparent);}
 #tray .chip.unit{flex:0 0 auto;min-width:48px;padding:3px 7px;display:flex;flex-direction:column;align-items:center;
   justify-content:center;gap:0;line-height:1.05;font-size:11px;font-weight:800;cursor:pointer;
   background:rgba(14,17,23,.92);border:1.5px solid var(--line2);}

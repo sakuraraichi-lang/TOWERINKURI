@@ -472,7 +472,8 @@ const Combat = {
 
     if (!e.dead && opts.exec && e.hp > 0 && e.hp / e.maxHp <= opts.exec) e.hp = 0;
 
-    if (run.nums.length < 70 && dmg > 0) {
+    // 同時に出す数字は40まで（2026-09-26：数字を画面で12pxに大きくしたので、70だと密集した所で埋まる）
+    if (run.nums.length < 40 && dmg > 0) {
       run.nums.push({ x: e.x + Util.rand(-6, 6), y: e.y - e.r, t: 0, life: 0.6,
         txt: Util.fmt(dmg), crit: crit, color: opts.color || '#fff' });
     }

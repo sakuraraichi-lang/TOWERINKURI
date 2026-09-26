@@ -413,6 +413,11 @@ const UI = {
       });
       t.appendChild(b);
     }
+    // **横にはみ出しているときだけ、右端をぼかして続きがあると見せる。**（2026-09-26 テストプレイ：
+    //   武器が4種以上だと、4つ目が「準備完了」の陰に半分隠れて気づきにくかった）
+    const more = () => t.classList.toggle('more', t.scrollWidth > t.clientWidth + t.scrollLeft + 2);
+    if (!t._moreBound) { t._moreBound = true; t.addEventListener('scroll', more, { passive: true }); }
+    requestAnimationFrame(more);
   },
 
   // ================= カットイン =================

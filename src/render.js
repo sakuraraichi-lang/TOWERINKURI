@@ -1734,12 +1734,21 @@ const Render = {
     }
   },
 
+  // ダメージの数字。**画面の上での大きさを一定にする**（2026-09-26・オタクくんのテストプレイ）
+  //   前は盤の座標で 11px（会心 15px）だった。スマホでは盤全体を約0.42倍に縮めて映すので、画面では約4.6pxになり読めなかった。
+  //   盤の縮み（this.scale）で割って、画面で 12px（会心 16px）にする。重なっても読めるように暗い縁を付ける
   numbers(ctx, run) {
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    const s = Math.max(0.2, this.scale || 1);
+    const fn = Math.round(12 / s), fc = Math.round(16 / s);
+    ctx.lineJoin = 'round';
     for (const n of run.nums) {
       const k = n.t / n.life;
       ctx.globalAlpha = 1 - k * k;
-      ctx.font = (n.crit ? 'bold 15px ' : '11px ') + 'system-ui,sans-serif';
+      ctx.font = (n.crit ? 'bold ' + fc + 'px ' : '600 ' + fn + 'px ') + 'system-ui,sans-serif';
+      ctx.lineWidth = 3 / s;
+      ctx.strokeStyle = 'rgba(0,0,0,0.75)';
+      ctx.strokeText(n.txt, n.x, n.y);
       ctx.fillStyle = n.crit ? '#ffb43c' : n.color;
       ctx.fillText(n.txt, n.x, n.y);
     }
