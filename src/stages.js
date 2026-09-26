@@ -456,7 +456,7 @@ const Stage = {
         // レーンに沿って進む場：レーンのまわりは安く、外は高い（押し出されてもレーンに戻る）
         const band = around(route);
         const lf = dijkstra((j) => band[j] ? 1 : BAL.laneOffCost);
-        lanes.push({ mouth: mi, route, next: nextOf(lf) });
+        lanes.push({ mouth: mi, route, next: nextOf(lf), dist: lf });   // dist … このレーンに沿ったコアまでの重み付き距離（詰まりの検知が「前に進んだか」を見る）
         mine.push(lanes.length - 1);
         for (const i of route) taken.push(i);
       }

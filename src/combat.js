@@ -94,6 +94,7 @@ const Crowd = {
   },
 
   pair(a, b) {
+    if (a.ghostT > 0 || b.ghostT > 0) return;   // 詰まりから抜け出している最中は押し合わない（combat.js の詰まりの検知）
     const dx = a.x - b.x, dy = a.y - b.y, rr = a.r + b.r, d2 = dx * dx + dy * dy;
     if (d2 >= rr * rr || d2 < 0.01) return;
     const d = Math.sqrt(d2), f = (rr - d) * BAL.crowdPush;
@@ -1134,6 +1135,21 @@ const Combat = {
 
       // 通行量の記録（どこに溜まるかを、次の準備フェーズで見せるため）
       if (sample && inside) run.traffic[st.idx(tc, tr)]++;
+
+      // **詰まりの検知。**（2026-09-26）レーンに沿って BAL.stuckSec 秒前に進んでいなければ、レーンを捨てて最短経路へ、
+      //   少しのあいだ押し合いも受けない（e.ghostT）。
+      //   **どう壊れていたか**：レーンは帯の外では自分の帯へ戻ろうとするので、別のレーンと逆向きになるタイルの組がどの章にも数千ある。
+      //   細い所で逆向きの2体が正面から当たると、押し合い（Crowd）が前進をちょうど打ち消して、死なず・漏れず止まり続けた
+      //   （第35章から先の測定で、ゲーム内30分たってもウェーブが終わらない。湧き口の隣で、満タンのHP・足止めなしの敵が1秒に0〜4px）
+      if (!e.boss && e.stun <= 0 && e.grabT <= 0 && inside) {
+        const Ln = (e.lane !== null && e.lane !== undefined && st.lanes) ? st.lanes[e.lane] : null;
+        const prog = (Ln && Ln.dist) ? Ln.dist[st.idx(tc, tr)] : e.dist;
+        if (e.best === undefined || prog < e.best) { e.best = prog; e.stuckT = 0; }
+        else if ((e.stuckT = (e.stuckT || 0) + dt) > BAL.stuckSec) {
+          e.lane = null; e.best = undefined; e.stuckT = 0; e.ghostT = BAL.stuckGhostSec;
+        }
+      }
+      if (e.ghostT > 0) e.ghostT -= dt;
 
       // 道の外に押し出された敵は、いちばん近いコアへ
       const goal = inside ? st.flowTo(tc, tr, e.lane) : (st.nearCore ? st.center(st.nearCore(tc, tr).c, st.nearCore(tc, tr).r) : { x: tw.x, y: tw.y });
