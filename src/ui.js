@@ -369,6 +369,12 @@ const UI = {
       left = 'W' + r.wave + '/' + BAL.wavesPerStage + '　突破';
     }
     if (this.el.hudLeft && this.el.hudLeft.textContent !== left) this.el.hudLeft.textContent = left;
+    // ボスを1体倒すたびに「あと何体」を出す（最後の1体は、そのまま突破の画面になる）
+    if ((r.bossKills || 0) !== (this._bossKills || 0)) {
+      this._bossKills = r.bossKills || 0;
+      const rest = r.enemies.filter(e => e.boss && !e.dead).length;
+      if (this._bossKills > 0 && rest > 0) this.cutin('BOSS DOWN', 'あと ' + rest + '体', 'last');
+    }
     // **ライフのバー。初期は常に出し、⚙で消せる**（2026-09-28・ユーザー「HPバーはデフォルトで常時表示で、設定から非表示にできる形のが良い」。
     //   0926c で上の帯ごと外し、0926i で「数字を出す（初期はオフ）」にしていた）
     const lb = document.getElementById('hudLife');
@@ -477,7 +483,7 @@ const UI = {
     const last = n >= BAL.wavesPerStage;
     const boss = run && Combat.isBossWave(run);
     this.cutin('WAVE ' + n + '<em> / ' + BAL.wavesPerStage + '</em>',
-      boss ? 'ボスが現れる' : last ? '最終ウェーブ' : '', last ? 'last' : 'wave');
+      boss ? 'ボスが来る ─ コアに届く前に倒せ' : last ? '最終ウェーブ' : '', last ? 'last' : 'wave');
   },
 
   // ================= 戦闘中の ⚙（一時停止） =================

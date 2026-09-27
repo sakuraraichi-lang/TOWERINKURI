@@ -187,6 +187,8 @@ const Combat = {
   //   敵の指数を1本増やすため、通算ウェーブの累乗（waveCountGrowth）を足してある。
   //   1.0 にすれば以前とまったく同じ（線形のみ）に戻る
   waveCount(run) {
+    // **ボスのウェーブは雑魚を出さない**（2026-09-28・ユーザー「雑魚は出ずに、それぞれの出現口からいよいよヤバそうな奴が出てきます」）
+    if (this.isBossWave(run)) return 0;
     const g = this.gw(run);
     const base = (BAL.waveCountBase + g * BAL.waveCountPerWave)
                * Math.pow(BAL.waveCountGrowth || 1, g - 1);
@@ -229,49 +231,48 @@ const Combat = {
 
   isLastWave(run) { return run.wave >= BAL.wavesPerStage; },
 
-  // このウェーブにボスが出るか。**節目の章の、最後のウェーブだけ。**
+  // このウェーブにボスが出るか。**節目の章（BAL.bossChapters と、第31章から先の5章ごと）の、最後のウェーブだけ。**
   isBossWave(run) {
-    return this.isLastWave(run) && BAL.bossChapters.indexOf(run.stageIdx + 1) >= 0;
+    if (!this.isLastWave(run)) return false;
+    const ch = run.stageIdx + 1;
+    return BAL.bossChapters.indexOf(ch) >= 0 || (ch > MAIN_CHAPTERS && ch % 5 === 0);
   },
 
-  // **ボスは動かない。雑魚を出す。**（ユーザー決定 2026-09-21）
-  //   > 「ラスボス含め、ボスは動かない+雑魚を出す、DPSチェックタワーを出す、
-  //   >   みたいなものが理想」
+  // **ボスの作り直し。**（2026-09-28・ユーザー）
+  //   > 「ボスの存在が意味不明・適切な場所に武器を置いてないと詰む・なんかどっかにぼったちしてて驚異ですらない」
+  //   > 「ボスウェーブでは実質時間制限付きのDPSチェックに・雑魚は出ずに、それぞれの出現口からいよいよヤバそうな奴が出てきます・
+  //   >   コアにゆっくりとゆっくりと近づいてきます・倒せなかった場合強制的に敗北します」
+  //   > 「今のボスよりも硬く、時間がかからなければいけない分、歩行速度はかなり遅めにして、ギリギリ倒せた！も演出できると良い」
+  //   > 「正しくやれば突破出来る程度の存在…定位置にいるからなんか置いとけばそのうち倒せてるボスとすら認識出来ないやつは卒業すべき」
   //
-  //   **前のボスを外した理由がここで解ける。** 以前のボスは歩いてコアへ向かい、
-  //   実測で5ステージすべて撃破0、**毎回漏れてライフを5持っていくだけ**だった
-  //   （コイン報酬は一度も支払われていない）。倒せない1体に必ず税金を取られる形。
-  //   **動かないなら、そもそも漏れない。** 倒せなければウェーブが終わらないので、
-  //   罰は「税金」ではなく「時間と、その間に湧き続ける雑魚」になる。
-  //   これがDPSチェックの正しい形
+  //   いまの形：ボスのウェーブは雑魚を出さない（waveCount が 0）。**口ごとに1体**、口のレーンに沿って BAL.bossSpeed でコアへ歩く。
+  //   **コアに着いたら、その場で負け**（残りのライフを全部持っていく）。止める効果（足止め・掴み・減速）は効かない
+  //   ＝ 道の長さ ÷ 歩く速さ が制限時間。その間に削り切れるかを問う。
+  //   前の形（2026-09-21〜）：動かない1体を経路の途中に据え、2.2秒ごとに雑魚を出す。置き場所が射線から外れると永久に倒せず、
+  //   入っていれば「何か置いとけば倒せる」だけだった
   spawnBoss(run) {
     const st = run.stage;
     const g = this.gw(run);
-    const si = (Math.random() * st.spawns.length) | 0;
-    // **経路の途中に据える。出現口には置かない。**
-    //   最初は出現口のすぐ内側に置いたが、そこは誰の射線にも入らない。
-    //   動かない敵が誰にも撃たれない場所にいると、**永久に倒せない**
-    //   （実測：HPを26倍から6倍まで下げても撃破0、ウェーブが終わらず時間切れ）。
-    //   守りが並ぶのは道の途中なので、そこへ置く
-    const route = st.routes[si] || [];
-    const at = route.length ? route[Math.floor(route.length * BAL.bossAt)] : null;
-    const sp = st.spawns[si];
-    const p = at !== null && at !== undefined
-      ? { x: (at % st.cols) * TILE + TILE / 2, y: ((at / st.cols) | 0) * TILE + TILE / 2 }
-      : st.center(sp.c, sp.r);
     const t = ENEMY_TYPES.grunt;
     const chMul = this.chapterWeight(run);
     const base = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1)
                * Math.pow(BAL.stageHpMul, run.stageIdx) * chMul;
-    const e = this.makeEnemy(run, t, g, p.x, p.y, si, base * BAL.bossHp);
-    e.spd = 0;                       // **動かない**
-    e.r = 26;
-    e.color = '#ffb347';
-    e.tname = 'boss';
-    e.boss = true;
-    e.addT = BAL.bossAddSec;
-    e.coin = e.coin * BAL.bossCoin;
-    run.enemies.push(e);
+    const mouths = (st.mouths && st.mouths.length) ? st.mouths : st.spawns.map((s, i) => [i]);
+    for (const m of mouths) {
+      const si = m[(m.length / 2) | 0];          // 穴の真ん中から
+      const sp = st.spawns[si];
+      const p = st.center(sp.c, sp.r);
+      const e = this.makeEnemy(run, t, g, p.x, p.y, si, base * BAL.bossHp);
+      e.lane = this.pickLane(run, si);
+      e.spd = BAL.bossSpeed;
+      e.r = BAL.bossR;
+      e.color = '#ff4d6a';
+      e.tname = 'boss';
+      e.boss = true;
+      e.ccUsed = Infinity;                       // 足止め・掴みは効かない（BAL.ccMaxSec を使い切った扱い）
+      e.coin = e.coin * BAL.bossCoin;
+      run.enemies.push(e);
+    }
     run.hasBoss = true;
   },
 
@@ -470,7 +471,8 @@ const Combat = {
       ch = true;
     }
     if (sl > 0) {
-      e.slow = Math.max(e.slow, Math.min(BAL.slowMax, sl + st.slowAdd));
+      // ボスは遅くならない（凍った印・被ダメージの増えは乗る）。遅くできると制限時間が伸びて DPS チェックでなくなる
+      if (!e.boss) e.slow = Math.max(e.slow, Math.min(BAL.slowMax, sl + st.slowAdd));
       const d = (slD || 1) + st.chillDur;
       e.slowT = Math.max(e.slowT, d);
       if (ch) e.chill = Math.max(e.chill, d);
@@ -503,6 +505,13 @@ const Combat = {
 
   kill(run, e, opts) {
     e.dead = true;
+    // **ボスを倒した。**大きく弾けて揺れる。数は画面側（UI.renderHud）が見てカットインを出す
+    if (e.boss) {
+      run.bossKills = (run.bossKills || 0) + 1;
+      this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 5, color: '#ff4d6a', life: 0.6 });
+      this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 3, color: '#fff3c8', life: 0.4 });
+      this.shake(run, 16, true);
+    }
     // **倒すと割れる。** 過剰ダメージで一掃する編成が、そのぶん数を増やす
     if (e.split > 0 && run.enemies.length + e.split <= BAL.enemyCap) {
       const t = ENEMY_TYPES[e.tname] || ENEMY_TYPES.grunt;
@@ -1047,7 +1056,7 @@ const Combat = {
           if (f.vuln) { e.fvuln = f.vuln; e.fvulnT = 0.4; }
           // 場の減速にも遺物の軸を乗せる。**ここは damage() を通らないので、
           // 書き忘れると「毒の雲だけ遺物が効かない」ことになる**
-          if (f.slow) {
+          if (f.slow && !e.boss) {
             e.slow = Math.max(e.slow, Math.min(BAL.slowMax, f.slow + run.st.slowAdd));
             e.slowT = Math.max(e.slowT, 0.5 + run.st.chillDur);
           }
@@ -1112,20 +1121,7 @@ const Combat = {
         this.damage(run, e, e.maxHp * BAL.stunDps * dt, { color: '#bea0ff', dot: true, by: e.stunBy });
         if (e.dead) continue;
       }
-      // **ボスは雑魚を出し続ける。** 倒すまで手が空かない、が罰になる
-      if (e.boss) {
-        e.addT -= dt;
-        if (e.addT <= 0) {
-          e.addT = BAL.bossAddSec;
-          if (run.enemies.length < BAL.enemyCap) {
-            const g2 = this.gw(run);
-            const t2 = this.pickType(g2);
-            const add = this.makeEnemy(run, t2, g2, e.x + Util.rand(-18, 18), e.y + Util.rand(-18, 18), e.si);
-            add.lane = e.lane;
-            run.enemies.push(add);
-          }
-        }
-      }
+      // （ボスが雑魚を出し続ける形は 2026-09-28 に撤去した。ボスのウェーブは雑魚が出ない・spawnBoss）
       // **再生。燃えている間は止まる**（炎上を積む意味をここで作る）
       if (e.regen > 0 && e.burnT <= 0 && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.regen * dt);
 
@@ -1141,7 +1137,7 @@ const Combat = {
       //   **どう壊れていたか**：レーンは帯の外では自分の帯へ戻ろうとするので、別のレーンと逆向きになるタイルの組がどの章にも数千ある。
       //   細い所で逆向きの2体が正面から当たると、押し合い（Crowd）が前進をちょうど打ち消して、死なず・漏れず止まり続けた
       //   （第35章から先の測定で、ゲーム内30分たってもウェーブが終わらない。湧き口の隣で、満タンのHP・足止めなしの敵が1秒に0〜4px）
-      if (!e.boss && e.stun <= 0 && e.grabT <= 0 && inside) {
+      if (e.stun <= 0 && e.grabT <= 0 && inside) {      // ボスも歩くので見る（2026-09-28）
         const Ln = (e.lane !== null && e.lane !== undefined && st.lanes) ? st.lanes[e.lane] : null;
         const prog = (Ln && Ln.dist) ? Ln.dist[st.idx(tc, tr)] : e.dist;
         if (e.best === undefined || prog < e.best) { e.best = prog; e.stuckT = 0; }
@@ -1188,7 +1184,8 @@ const Combat = {
 
       // コアに触れた敵は、ライフを1つ持っていって消える（＝漏れ）。**コアが2つ以上なら、どれに触れても同じライフ**
       if ((run.towers || [tw]).some(T => Util.dist(e.x, e.y, T.x, T.y) <= T.r + e.r)) {
-        const cost = BAL.leakLives;
+        // **ボスがコアに着いたら、その場で負け**（残りのライフを全部持っていく・2026-09-28 ユーザー「倒せなかった場合強制的に敗北」）
+        const cost = e.boss ? Math.max(run.lives, BAL.leakLives) : BAL.leakLives;
         run.lives -= cost;
         run.leaked++;
         run.livesLost += cost;

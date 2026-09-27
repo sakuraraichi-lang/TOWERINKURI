@@ -1338,11 +1338,21 @@ const Render = {
 
       // ボス：残りHPを輪で見せる。**DPSチェックなので、減り方が見えないと意味がない**
       if (e.boss) {
+        // **脈打つ赤い気配。コアに近いほど速く・強く。**（2026-09-28・ボスの作り直し。歩いて来る脅威に見せる）
+        //   e.dist はコアまでの残りのタイル数。10タイルを切ると急かす
+        const near = Util.clamp(1 - (e.dist || 0) / 10, 0, 1);
+        const beat = 0.5 + 0.5 * Math.sin(run.time * (3 + near * 9));
+        ctx.save();
+        ctx.rotate(-(e.ang || 0));
+        ctx.strokeStyle = 'rgba(255,60,80,' + (0.25 + 0.45 * beat * (0.5 + near * 0.5)).toFixed(2) + ')';
+        ctx.lineWidth = 3 + near * 3;
+        ctx.beginPath(); ctx.arc(0, 0, e.r + 12 + beat * (6 + near * 8), 0, Math.PI * 2); ctx.stroke();
         const f = Math.max(0, e.hp / e.maxHp);
-        ctx.strokeStyle = 'rgba(0,0,0,0.5)'; ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.arc(0, 0, e.r + 7, 0, Math.PI * 2); ctx.stroke();
-        ctx.strokeStyle = '#ffb347'; ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.arc(0, 0, e.r + 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); ctx.stroke();
+        ctx.strokeStyle = 'rgba(0,0,0,0.55)'; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.arc(0, 0, e.r + 6, 0, Math.PI * 2); ctx.stroke();
+        ctx.strokeStyle = f < 0.25 ? '#ff5a5a' : '#ffb347'; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.arc(0, 0, e.r + 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); ctx.stroke();
+        ctx.restore();
       }
       // 装甲：厚い縁。**残っている装甲が見えるように**
       if (e.armor > 0) {
