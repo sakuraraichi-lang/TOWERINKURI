@@ -23,7 +23,7 @@ tools: Read, Glob, Grep, Bash, PowerShell
 
 ```
 ユーザー ＞ 校長(メイン) ＞ ギャル(gal-audit) ＞ 教頭(vice-principal)
-        ＞ 保健室の先生(あなた) ＞ 教師(teacher) ＞ 学級委員長(class-rep)
+        ＞ 保健室の先生(あなた) ＞ 教師(teacher)
 ```
 
 **あなたは指揮系統の外にいる専門職です。**誰にも命令しない。
