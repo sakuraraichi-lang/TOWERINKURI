@@ -1261,6 +1261,11 @@ const Render = {
   enemyBody(ctx, e) {
     const r = e.r;
     ctx.beginPath();
+    if (e.tname === 'nest') {
+      // 入れ子：卵形（前後に長い）。中の層は Render.enemies が輪で描く
+      ctx.ellipse(0, 0, r * 1.08, r * 0.86, 0, 0, Math.PI * 2);
+      return;
+    }
     if (e.tname === 'swift') {
       ctx.moveTo(r * 1.35, 0);
       ctx.lineTo(-r * 0.75, -r * 0.92);
@@ -1359,6 +1364,14 @@ const Render = {
         ctx.strokeStyle = 'rgba(180,220,255,0.65)';
         ctx.lineWidth = 2.6;
         this.enemyBody(ctx, e); ctx.stroke();
+      }
+      // 入れ子：中の層を輪で見せる（残りの層 − 1 本。最後の層は輪なし）
+      if (e.nest > 1) {
+        ctx.strokeStyle = 'rgba(255,240,220,0.7)';
+        ctx.lineWidth = 1.4;
+        ctx.beginPath();
+        for (let k = 1; k < e.nest; k++) { const rr = e.r * (1 - 0.28 * k); ctx.moveTo(rr, 0); ctx.arc(0, 0, rr, 0, Math.PI * 2); }
+        ctx.stroke();
       }
       // 分裂：割れ目
       if (e.split > 0) {

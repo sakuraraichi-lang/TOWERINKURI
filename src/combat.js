@@ -21,6 +21,9 @@
 //                   遺物の「熾火核」やカードの炎上がここで効く
 //     分裂 split  … 倒すと2体に割れる。**過剰damage が無駄になる。**
 //                   削り切る前提の編成だと数が増えて崩れる
+//     入れ子 nest … 倒すと、同じ場所から一回り小さい中身が1体出てくる（nest 層まで）。**1発では剥がしきれない。**
+//                   中身は倒した弾の貫通では抜けない（弾が当たる相手を決めたあとに出てくる）。手数と射界の長さで剥がす
+//                   （2026-09-28・ユーザー「マトリョーシカのような敵種は面白いのでこれの採用はありかも」）
 //
 //   weight は出やすさ。合計で正規化される（Util.weighted）
 const ENEMY_TYPES = {
@@ -35,6 +38,8 @@ const ENEMY_TYPES = {
   regen:  { name: 'regen',  hp: 1.3, spd: 0.85, r: 11, coin: 1.8,  color: '#7fe3a0', from: 36, weight: 14, regen: 0.055 },
   // 倒すと split 体に割れる（割れた子はもう割れない）
   split:  { name: 'split',  hp: 2.2, spd: 0.90, r: 13, coin: 2.0,  color: '#d08aff', from: 46, weight: 12, split: 2 },
+  // 倒すと中身が1体出てくる（nest 層まで。中身は BAL.nestHp 倍のHPで、少し小さく少し速い）
+  nest:   { name: 'nest',   hp: 1.6, spd: 0.75, r: 17, coin: 1.2,  color: '#ff9a5c', from: 61, weight: 12, nest: 3 },
 };
 
 // 敵同士の押し合い（2026-09-19 取り込み）
@@ -347,6 +352,7 @@ const Combat = {
       armor: t.armor ? base * t.armor : 0,
       regen: t.regen ? hp * t.regen : 0,
       split: gen ? 0 : (t.split || 0),   // 割れた子はもう割れない
+      nest: t.nest || 0,                 // 入れ子の残りの層（中身は1つ少ない・kill で出す）
       gen: gen || 0,
 
       pushX: 0, pushY: 0,
@@ -511,6 +517,19 @@ const Combat = {
       this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 5, color: '#ff4d6a', life: 0.6 });
       this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 3, color: '#fff3c8', life: 0.4 });
       this.shake(run, 16, true);
+    }
+    // **入れ子：倒すと、同じ場所から中身が1体出てくる。**（2026-09-28）最後の層（nest 1）は何も出さない
+    if (e.nest > 1 && run.enemies.length < BAL.enemyCap) {
+      const t = ENEMY_TYPES.nest;
+      const c = this.makeEnemy(run, t, this.gw(run), e.x, e.y, e.si, e.maxHp * BAL.nestHp, (e.gen || 0) + 1);
+      c.nest = e.nest - 1;
+      c.lane = e.lane;
+      c.r = Math.max(8, e.r * 0.8);
+      c.spd = e.spd * 1.15;
+      c.coin = e.coin * 0.7;
+      c.dist = e.dist;
+      run.enemies.push(c);
+      this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 1.8, color: '#ffd2a8', life: 0.25 });
     }
     // **倒すと割れる。** 過剰ダメージで一掃する編成が、そのぶん数を増やす
     if (e.split > 0 && run.enemies.length + e.split <= BAL.enemyCap) {
