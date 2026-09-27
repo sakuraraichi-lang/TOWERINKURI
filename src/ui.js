@@ -295,8 +295,15 @@ const UI = {
     };
     b.appendChild(row('autoWave', '次のウェーブへ自動で進む',
       '切ると、カードを選んだあと配置を直す時間が入ります'));
-    b.appendChild(row('showLives', 'ライフを数字で出す',
-      '戦闘中、盤の左上にライフの残りを数字で出します（切るとコアの輪だけ）'));
+    {
+      // ライフのバー（初期は出す。hideLifeBar で消す）
+      const on = !Game.perm.hideLifeBar;
+      const el = Util.el('label', 'cfgrow' + (on ? ' on' : ''));
+      el.innerHTML = '<span class="box">' + (on ? Icons.get('check') : '') + '</span>' +
+        '<span><b>ライフのバーを出す</b><span>戦闘中、盤の左上にライフの残りをバーと数字で出します（切るとコアの輪だけ）</span></span>';
+      el.addEventListener('click', () => { Game.perm.hideLifeBar = !Game.perm.hideLifeBar; Game.save(); Snd.ui(); this.renderCfg(); });
+      b.appendChild(el);
+    }
     // 自動化は開いてから出す（BAL.autoUnlock）
     if (Game.autoOpen('autoPlace')) b.appendChild(row('autoPlace', '自動設置',
       'この周でまだ触っていない章に、前の周の配置を置き直します'));
@@ -361,9 +368,23 @@ const UI = {
     } else if (Game.phase === 'battle') {
       left = 'W' + r.wave + '/' + BAL.wavesPerStage + '　突破';
     }
-    // ライフの数字（⚙でオン・オフ。初期はオフ＝コアの輪だけ）（2026-09-26・ユーザー「設定でオンオフ出来るようにしたらいい」）
-    if (Game.perm.showLives) left = (left ? left + '　' : '') + 'ライフ ' + Math.max(0, Math.ceil(r.lives)) + '/' + r.livesMax;
     if (this.el.hudLeft && this.el.hudLeft.textContent !== left) this.el.hudLeft.textContent = left;
+    // **ライフのバー。初期は常に出し、⚙で消せる**（2026-09-28・ユーザー「HPバーはデフォルトで常時表示で、設定から非表示にできる形のが良い」。
+    //   0926c で上の帯ごと外し、0926i で「数字を出す（初期はオフ）」にしていた）
+    const lb = document.getElementById('hudLife');
+    if (lb) {
+      const show = !Game.perm.hideLifeBar;
+      lb.style.display = show ? '' : 'none';
+      if (show) {
+        const k = r.livesMax > 0 ? Util.clamp(r.lives / r.livesMax, 0, 1) : 1;
+        const t = Math.max(0, Math.ceil(r.lives)) + ' / ' + r.livesMax;
+        const bar = lb.firstChild, txt = lb.lastChild;
+        const tf = 'scaleX(' + k.toFixed(3) + ')';
+        if (bar.style.transform !== tf) bar.style.transform = tf;
+        if (txt.textContent !== t) txt.textContent = t;
+        lb.classList.toggle('low', k < 0.34);
+      }
+    }
     this.renderDmg(false);
     this.renderZoneTip();
   },
@@ -495,7 +516,9 @@ const UI = {
       Game.perm[key] = !Game.perm[key]; Game.save(); Snd.ui(); this.renderBattleCfg();
     });
     box.appendChild(tog('autoWave', '次のウェーブへ自動で進む'));
-    box.appendChild(tog('showLives', 'ライフを数字で出す'));
+    box.appendChild(btn(Game.perm.hideLifeBar ? '' : 'on', '<i class="bc-chk">' + (Game.perm.hideLifeBar ? '' : Icons.get('check')) + '</i><span>ライフのバーを出す</span>', () => {
+      Game.perm.hideLifeBar = !Game.perm.hideLifeBar; Game.save(); Snd.ui(); this.renderBattleCfg(); this.renderHud();
+    }));
     // 減速・加速の説明の札（閉じたあとで、もう一度出せるように）
     box.appendChild(btn(Game.perm.zoneTipOff ? '' : 'on', '<i class="bc-chk">' + (Game.perm.zoneTipOff ? '' : Icons.get('check')) + '</i><span>減速・加速の説明を出す</span>', () => {
       Game.perm.zoneTipOff = !Game.perm.zoneTipOff; Game.save(); Snd.ui(); this._zoneKey = null; this.renderBattleCfg();
@@ -1215,11 +1238,15 @@ const UI = {
     // **いつでも閉じられるように。**（ユーザー 2026-09-25「武器を所有してない状態で武器を選ぶを押すと戻れなくなります」）
     //   持っている武器がほかの枠で使用中だと全部押せず、外側もほとんど見えないので、閉じる手段が画面の下の
     //   「この枠を空ける」しか無かった。上に貼り付く ✕ と、下の「閉じる」を置く
+    //   **✕ は見出しの中の右端に置く。**（2026-09-28・ユーザー「スマホの枠から閉じるための❌が飛び出ている」）
+    //   前は見出しの外に浮かせていて、見出しの枠線と角の縞に重なり、枠から飛び出して見えた。閉じるは下にも「閉じる」がある
     const x = Util.el('button', 'wp-x');
     x.innerHTML = Icons.get('close');
     x.addEventListener('click', () => this.closeModal());
-    body.appendChild(x);
-    body.appendChild(this.choiceHead('武器を選ぶ', (slot + 1) + '種目の枠に入れる武器'));
+    const head = this.choiceHead('武器を選ぶ', (slot + 1) + '種目の枠に入れる武器');
+    head.classList.add('hasx');
+    head.appendChild(x);
+    body.appendChild(head);
     const free = WEAPON_IDS.filter(wid => Game.own('wc_' + wid) > 0 && !Game.perm.loadout.includes('wc_' + wid));
     if (!free.length) body.appendChild(Util.el('div', 'rs-tip',
       '入れられる武器がありません。武器は章の突破とパックで手に入ります'));

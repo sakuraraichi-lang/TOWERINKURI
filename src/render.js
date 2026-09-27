@@ -5,6 +5,8 @@
 
 // 線の弾のまとめ先。**毎フレーム作り直さない**（1フレームに何百回も通る）
 const _bulGroups = new Map();
+// 毒・閉じ込めの印をまとめて塗るための置き場（Render.enemies。毎フレーム使い回して確保を避ける）
+const _poisonBuf = [], _stunBuf = [], _fieldBuf = [];
 
 const _spins = [];        // 手裏剣のまとめ描き用（毎フレーム作り直さない）
 const _spinPts = new Float32Array(16);
@@ -672,43 +674,109 @@ const Render = {
     //   枚数で薄める。半径にも天井を置く
     const glare = this.glareScale(run);
     const RMAX = BAL.fxFieldMax || 170;
-    for (const f of run.fields) {
+    // **ほぼ同じ場所に重なった同じ種類の場は、1枚にまとめて描く。**（2026-09-28・重さの対策）
+    //   酸の泡は同じ着弾円に何度も落ちるので、場70個のほとんどが数か所に積み重なっていた。
+    //   同じ所を何十回も半透明で塗るのが重かった（実測：場を描かないと 45.5 → 59.0fps・敵319体を止めた同じ盤）。
+    //   **ダメージは1つずつ今までどおり**（描くのをまとめるだけ）。重なった数だけ濃くする
+    const drawn = _fieldBuf; drawn.length = 0;
+    for (let i = run.fields.length - 1; i >= 0; i--) {     // 新しいものを代表にする
+      const f = run.fields[i];
+      let host = null;
+      for (const d of drawn) {
+        if (d.f.kind === f.kind && d.f.color === f.color && Util.dist(d.f.x, d.f.y, f.x, f.y) < Math.min(d.f.r, f.r) * 0.5) { host = d; break; }
+      }
+      if (host) host.n++; else drawn.push({ f, n: 1 });
+    }
+    // **雲（火以外）は解像度を落とした別の画面に描いて、1回で盤へ重ねる。**（2026-09-28・重さの対策）
+    //   雲はもともとぼけた絵なので、1/3 の解像度でも見た目は変わらない。塗る面積が約1/9になる。
+    //   火（加算で重ねる）はこれまでどおり盤へ直接。縁の線は下で盤へ直接（くっきり出す）
+    const cv = ctx.canvas, Q = BAL.fxFieldRes || 0.34;
+    const L = this._fieldLayer || (this._fieldLayer = document.createElement('canvas'));
+    const lw = Math.max(1, Math.round(cv.width * Q)), lh = Math.max(1, Math.round(cv.height * Q));
+    if (L.width !== lw) L.width = lw;
+    if (L.height !== lh) L.height = lh;
+    const lc = L.getContext('2d');
+    lc.setTransform(1, 0, 0, 1, 0, 0);
+    lc.clearRect(0, 0, lw, lh);
+    const m = ctx.getTransform();
+    lc.setTransform(m.a * Q, m.b * Q, m.c * Q, m.d * Q, m.e * Q, m.f * Q);
+    let layered = 0;
+    for (const d of drawn) {
+      const f = d.f;
       const k = f.t / f.dur;
       const fire = f.kind === 'fire';
-      const fade = (1 - k * 0.65) * (fire ? glare : 1);
-      ctx.globalCompositeOperation = fire ? 'lighter' : 'source-over';
-      const lobes = 6;
-      for (let i = 0; i < lobes; i++) {
-        const base = i * 2.399;                       // 黄金角。種を持たなくても散る
-        // 種類ごとの動き
-        const spin = fire ? 0 : f.t * 0.5;
-        const a = base + spin;
-        // 半径に天井。**巨大な場が重なると、加算で盤ごと白くなる**
-        const FR = Math.min(f.r, RMAX);
-        const rad = FR * (0.34 + 0.30 * ((i * 37) % 11) / 11);
-        const dist = FR * (0.18 + 0.36 * ((i * 53) % 7) / 7) * (fire ? 1 : 1 + k * 0.25);
-        const wob = fire ? Math.sin(f.t * 9 + i) * FR * 0.10 : 0;
-        const x = f.x + Math.cos(a) * dist;
-        const y = f.y + Math.sin(a) * dist - (fire ? Math.abs(wob) : 0);
-        const g = ctx.createRadialGradient(x, y, 0, x, y, rad + Math.abs(wob));
-        const al = (fire ? 0.30 : 0.22) * fade;
-        g.addColorStop(0, this.tint(f.color, al));
-        g.addColorStop(1, this.tint(f.color, 0));
-        ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(x, y, rad + Math.abs(wob), 0, Math.PI * 2); ctx.fill();
+      const fade = Math.min(1, (1 - k * 0.65) * (fire ? glare : 1) * (1 + 0.25 * (Math.min(d.n, 5) - 1)));
+      if (!fire) {
+        const FR = Math.min(f.r, RMAX), R = FR * (1 + k * 0.2);
+        lc.globalAlpha = Math.max(0, Math.min(1, fade));
+        lc.save(); lc.translate(f.x, f.y); lc.rotate(f.t * 0.5);
+        lc.drawImage(this.cloudSprite(f.color, false), -R, -R, R * 2, R * 2);
+        lc.restore();
+        layered++;
+        continue;
       }
-      // 縁。**どこまでが場なのかは、遊ぶうえで必要な情報**なので必ず出す
-      ctx.globalCompositeOperation = 'source-over';
-      ctx.globalAlpha = 0.45 * (1 - k);
-      ctx.strokeStyle = f.color;
-      ctx.lineWidth = 1.5;
-      ctx.setLineDash(fire ? [] : [5, 4]);
-      ctx.lineDashOffset = -f.t * 12;
-      ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.stroke();
-      ctx.setLineDash([]);
+      ctx.globalCompositeOperation = 'lighter';
+      // **雲は作り置きの絵を貼るだけにする。**（2026-09-28・ユーザー「泡と毒ガスが極端に重い…酸泡や泡と毒ガスの連携が地獄のように重い」）
+      //   前は場1つにつき、毎フレーム放射グラデーションを6枚作って塗っていた。酸の泡・毒の雲が重なると場は70個（上限）に届き、
+      //   1フレームに420枚のグラデーションを塗っていた（実測：泡と毒ガスの盤だけ 10秒で462コマ＝約46fps。ほかの編成は60fps）。
+      //   いまは色ごとに6つの塊を描いた絵を1枚作っておき、回す・広げる・薄めるだけ（1つの場につき描画1回）
+      const FR = Math.min(f.r, RMAX);   // 半径に天井。**巨大な場が重なると、加算で盤ごと白くなる**
+      const spr = this.cloudSprite(f.color, fire);
+      const R = FR * (fire ? 1 + 0.06 * Math.sin(f.t * 9) : 1 + k * 0.2);   // 炎はゆらぎ、雲は広がる
+      ctx.globalAlpha = Math.max(0, Math.min(1, fade));
+      ctx.save();
+      ctx.translate(f.x, f.y);
+      ctx.drawImage(spr, -R, -R, R * 2, R * 2);
+      ctx.restore();
       ctx.globalAlpha = 1;
     }
+    ctx.globalCompositeOperation = 'source-over';
+    // 雲の画面を盤へ重ねる（1回）
+    if (layered) {
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.globalAlpha = 1;
+      ctx.drawImage(L, 0, 0, cv.width, cv.height);
+      ctx.restore();
+    }
+    // 縁。**どこまでが場なのかは、遊ぶうえで必要な情報**なので必ず出す（盤へ直接・くっきり）
+    //   **実線にした。**前は雲の縁を流れる点線（setLineDash）で描いていて、場が数十あると点線だけで重かった
+    //   （実測：敵308・場71を止めた同じ盤で、点線 54.3fps → 実線 59.5fps）
+    ctx.lineWidth = 1.5;
+    for (const d of drawn) {
+      const f = d.f, k = f.t / f.dur;
+      ctx.globalAlpha = 0.45 * (1 - k);
+      ctx.strokeStyle = f.color;
+      ctx.beginPath(); ctx.arc(f.x, f.y, f.r, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
     ctx.restore();
+  },
+
+  // 場（雲・炎の海）の絵。色と種類ごとに1枚だけ作る。半径1の場を 128px 四方に描き、貼るときに半径へ伸ばす。
+  //   塊の並びは前の描き方（黄金角で散らした6つ）と同じ
+  cloudSprite(color, fire) {
+    const key = color + (fire ? '|f' : '|g');
+    this._clouds = this._clouds || {};
+    if (this._clouds[key]) return this._clouds[key];
+    const S = 128, h = S / 2;
+    const cv = document.createElement('canvas');
+    cv.width = S; cv.height = S;
+    const c = cv.getContext('2d');
+    const U = h / 1.05;                  // 場の半径1 ＝ U px（塊のはみ出しぶん少し小さく）
+    for (let i = 0; i < 6; i++) {
+      const a = i * 2.399;
+      const rad = U * (0.34 + 0.30 * ((i * 37) % 11) / 11);
+      const dist = U * (0.18 + 0.36 * ((i * 53) % 7) / 7);
+      const x = h + Math.cos(a) * dist, y = h + Math.sin(a) * dist;
+      const g = c.createRadialGradient(x, y, 0, x, y, rad);
+      g.addColorStop(0, this.tint(color, fire ? 0.30 : 0.22));
+      g.addColorStop(1, this.tint(color, 0));
+      c.fillStyle = g;
+      c.beginPath(); c.arc(x, y, rad, 0, Math.PI * 2); c.fill();
+    }
+    this._clouds[key] = cv;
+    return cv;
   },
 
   // '#rrggbb' を rgba に。場の塊を柔らかく落とすのに使う
@@ -1239,12 +1307,22 @@ const Render = {
   },
 
   enemies(ctx, run) {
+    // **1体ずつ塗っていたものを、まとめて塗る。**（2026-09-28・ユーザー「泡と毒ガスが極端に重い」）
+    //   敵が数百体いると、影・毒の泡・閉じ込めの輪を1体ずつ塗る回数が効いてくる（毒の泡は1体3回・400体で1,200回）。
+    //   足元の影は全員ぶんを1回、毒の泡は薄さ3段で3回、閉じ込めの輪は1回で塗る（下の _poison / _stun）
+    ctx.fillStyle = 'rgba(0,0,0,0.35)';
+    ctx.beginPath();
+    for (const e of run.enemies) {
+      const cx = e.x + 1.5, cy = e.y + e.r * 0.55;
+      ctx.moveTo(cx + e.r * 0.95, cy);
+      ctx.ellipse(cx, cy, e.r * 0.95, e.r * 0.42, 0, 0, Math.PI * 2);
+    }
+    ctx.fill();
+    const poison = _poisonBuf, stun = _stunBuf;
+    poison.length = 0; stun.length = 0;
     for (const e of run.enemies) {
       ctx.save();
       ctx.translate(e.x, e.y);
-      // 足元の影（回さない）
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      ctx.beginPath(); ctx.ellipse(1.5, e.r * 0.55, e.r * 0.95, e.r * 0.42, 0, 0, Math.PI * 2); ctx.fill();
       ctx.rotate(e.ang || 0);
       // **体は作り置きの絵**（グラデーション・つや・輪郭・目）。数百体でも貼るだけ
       //   輪郭は、押し合って重なったときに何体いるか読めるようにするため（以前からの理由）
@@ -1290,11 +1368,8 @@ const Render = {
       }
       ctx.restore();
 
-      if (e.stun > 0) {   // 泡に閉じ込められている
-        ctx.strokeStyle = 'rgba(160,220,255,0.9)'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 6, 0, Math.PI * 2); ctx.stroke();
-        ctx.fillStyle = 'rgba(140,216,255,0.16)';
-        ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 6, 0, Math.PI * 2); ctx.fill();
+      if (e.stun > 0) {   // 泡に閉じ込められている（輪はあとでまとめて塗る）
+        stun.push(e);
       } else if (e.shock > 0) {
         ctx.strokeStyle = 'rgba(190,160,255,0.85)'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 3, 0, Math.PI * 2); ctx.stroke();
@@ -1342,18 +1417,7 @@ const Render = {
       }
       // **毒を受けている敵。**（ユーザー要望6・2026-09-22）
       //   泡が立ちのぼる。`poisonT` は雲を出たあとも続く（BAL.poisonDur）
-      if (e.poisonT > 0) {
-        const t = run.time * 2.2 + e.y * 0.07;
-        ctx.fillStyle = 'rgba(198,255,122,0.8)';
-        for (let i = 0; i < 3; i++) {
-          const q = (t + i * 0.37) % 1;
-          const bx = e.x + Math.sin((t + i) * 3.1) * e.r * 0.6;
-          const by = e.y - q * (e.r * 2.2);
-          ctx.globalAlpha = (1 - q) * 0.8;
-          ctx.beginPath(); ctx.arc(bx, by, 1.6 + (1 - q) * 1.6, 0, 7); ctx.fill();
-        }
-        ctx.globalAlpha = 1;
-      }
+      if (e.poisonT > 0) poison.push(e);   // 泡はあとでまとめて塗る
       // **加速・減速しているのが見える。**（ユーザー要望4・2026-09-22）
       //   > 「加速する時に敵が加速してそうな軽いエフェクト、減速も同様に」
       //   前はマスの色が変わるだけで、**敵の側には何も出ていなかった**。
@@ -1388,6 +1452,35 @@ const Render = {
         ctx.fillStyle = '#7ef08a';
         ctx.fillRect(e.x - bw / 2, e.y - e.r - 7, bw * Util.clamp(e.hp / e.maxHp, 0, 1), bh);
       }
+    }
+    // 泡に閉じ込められている敵の輪（まとめて1回ずつ）
+    if (stun.length) {
+      ctx.beginPath();
+      for (const e of stun) { ctx.moveTo(e.x + e.r + 6, e.y); ctx.arc(e.x, e.y, e.r + 6, 0, Math.PI * 2); }
+      ctx.fillStyle = 'rgba(140,216,255,0.16)'; ctx.fill();
+      ctx.strokeStyle = 'rgba(160,220,255,0.9)'; ctx.lineWidth = 2; ctx.stroke();
+    }
+    // **毒を受けている敵の泡。**（ユーザー要望6・2026-09-22）泡が立ちのぼる。`poisonT` は雲を出たあとも続く（BAL.poisonDur）
+    //   前は泡1つごとに薄さを変えて塗っていた。いまは上るほど薄くなるのを3段に分けて、段ごとに全員ぶんを1回で塗る
+    if (poison.length) {
+      ctx.fillStyle = 'rgba(198,255,122,0.8)';
+      for (let band = 0; band < 3; band++) {
+        ctx.globalAlpha = 0.8 * (1 - (band + 0.5) / 3);
+        ctx.beginPath();
+        for (const e of poison) {
+          const t = run.time * 2.2 + e.y * 0.07;
+          for (let i = 0; i < 3; i++) {
+            const q = (t + i * 0.37) % 1;
+            if (((q * 3) | 0) !== band) continue;
+            const bx = e.x + Math.sin((t + i) * 3.1) * e.r * 0.6;
+            const by = e.y - q * (e.r * 2.2);
+            const rr = 1.6 + (1 - q) * 1.6;
+            ctx.moveTo(bx + rr, by); ctx.arc(bx, by, rr, 0, 7);
+          }
+        }
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1;
     }
   },
 

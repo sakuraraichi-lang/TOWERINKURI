@@ -1508,3 +1508,18 @@ body:not(.tabsoff) .hlogo{display:none;}
 .asc-exp i{display:block;height:100%;background:linear-gradient(90deg,#ffd24a,var(--acc));box-shadow:0 0 8px var(--acc);}
 .asc-bar span{display:block;margin-top:5px;font-size:10px;color:var(--dim);}
 .pz-stats b{word-break:break-all;}
+
+/* ============ ライフのバー（盤の左上・初期は出す。⚙で消せる・2026-09-28） ============ */
+.bhud .hlife{position:relative;flex:0 0 auto;width:92px;height:14px;
+  background:rgba(10,12,17,.8);border:1px solid var(--line2);overflow:hidden;}
+.bhud .hlife i{position:absolute;inset:0;transform-origin:left;
+  background:linear-gradient(90deg,#2f9e63,#7ee3a0);transition:transform .18s;}
+.bhud .hlife.low i{background:linear-gradient(90deg,#b8323a,#ff6a5a);}
+.bhud .hlife span{position:absolute;inset:0;display:grid;place-items:center;
+  font-size:9px;font-weight:800;color:#fff;text-shadow:0 1px 2px #000;font-variant-numeric:tabular-nums;}
+
+/* ============ 武器を選ぶ：✕は見出しの中・札の下の文字を離す（2026-09-28・ユーザー「スマホの枠から❌が飛び出ている」） ============ */
+.chhead.hasx::after{display:none;}
+.chhead .wp-x{position:absolute;top:50%;right:6px;transform:translateY(-50%);float:none;margin:0;width:32px;height:32px;}
+.wp-card{gap:0;}
+.wp-card .wp-tag{margin-top:12px;}   /* 札の下にはみ出すレア度の札と重ならないように */
