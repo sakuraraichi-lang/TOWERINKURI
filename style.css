@@ -1776,3 +1776,49 @@ body:not(.tabsoff) .hlogo{display:none;}
   box-shadow:var(--key-bevel),var(--key-lift);transition:transform .08s ease-out,box-shadow .08s ease-out;}
 .sbuy:active:not(:disabled){transform:translateY(2px);box-shadow:var(--key-press);}
 .sbuy:disabled{color:var(--dim);border-color:var(--key-edge);box-shadow:var(--key-press);}
+
+/* ---- 物理スイッチ 3回目：出てくる箱は「機械の前面パネル」（2026-09-28） ----
+   角は丸く、陽極酸化した暗い金属に細いヘアライン、縁は面取り、四隅にネジ。
+   見出しはシルク印刷のラベル板（両脇の斜めの縞はネジに替えた）。窓は凹んだ表示窓 */
+:root{
+  --screw:radial-gradient(circle,#8a8e98 0 1.6px,#4a4d55 2.2px,#16171b 3.1px,transparent 3.7px);
+  --plate:repeating-linear-gradient(0deg,rgba(255,255,255,.014) 0 1px,transparent 1px 3px),linear-gradient(180deg,#1c1f25,#121418);
+}
+.mbox{clip-path:none;border-radius:14px;border:1px solid #2e3139;
+  background:var(--screw) 10px 10px/8px 8px no-repeat,var(--screw) calc(100% - 10px) 10px/8px 8px no-repeat,
+             var(--screw) 10px calc(100% - 10px)/8px 8px no-repeat,var(--screw) calc(100% - 10px) calc(100% - 10px)/8px 8px no-repeat,var(--plate);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09),inset 0 -2px 0 rgba(0,0,0,.5),0 18px 50px rgba(0,0,0,.75);}
+#modal.rsmodal .mbox{border-radius:14px;
+  background:var(--screw) 10px 10px/8px 8px no-repeat,var(--screw) calc(100% - 10px) 10px/8px 8px no-repeat,
+             var(--screw) 10px calc(100% - 10px)/8px 8px no-repeat,var(--screw) calc(100% - 10px) calc(100% - 10px)/8px 8px no-repeat,
+             radial-gradient(ellipse at 50% 0%,rgba(255,140,40,.14) 0%,transparent 55%),var(--plate);}
+/* 3択の見出し：ラベル板。両脇はネジ */
+.chhead{clip-path:none;border-radius:8px;border:1px solid #3a2a14;
+  background:linear-gradient(180deg,#0d0e11,#16181d);box-shadow:inset 0 2px 5px rgba(0,0,0,.8),0 1px 0 rgba(255,255,255,.06);}
+.chhead::before,.chhead::after{top:50%;bottom:auto;width:9px;height:9px;margin-top:-4.5px;opacity:1;background:var(--screw) center/9px 9px no-repeat;}
+.chhead b{font-family:ui-monospace,Consolas,monospace;letter-spacing:.24em;}
+/* 武器ごとの枠：小さなキー */
+.chslot{clip-path:none;border-radius:7px;background:var(--key-face);box-shadow:var(--key-bevel),var(--key-lift);
+  transition:transform .08s ease-out,box-shadow .08s ease-out;}
+.chslot.sel,.chslot:active{transform:translateY(2px);box-shadow:var(--key-press),0 0 0 1px currentColor inset;}
+/* 一覧の窓：凹んだ表示窓 */
+.chlist{border-radius:7px;border:1px solid #23252b;background:#07080a;box-shadow:inset 0 2px 6px rgba(0,0,0,.9);}
+/* 置いた武器の調整パネル：前面パネル。つまみはフェーダー（溝のレールと角いキャップ）、向きの6つはキー */
+#upop{clip-path:none;border-radius:11px;border:1px solid #3a2c18;background:var(--plate);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 8px 24px rgba(0,0,0,.75);}
+#upop .uhandle{border-radius:10px 10px 0 0;}
+#upop .ubar input[type=range]::-webkit-slider-runnable-track{height:6px;border-radius:3px;background:#050608;box-shadow:inset 0 1px 3px rgba(0,0,0,.9),0 1px 0 rgba(255,255,255,.06);}
+#upop .ubar input[type=range]::-webkit-slider-thumb{width:16px;height:26px;margin-top:-10px;border-radius:3px;border:1px solid #111;
+  background:linear-gradient(180deg,#5a5e68 0%,#2c2f36 45%,#ff9a2e 46%,#ff9a2e 54%,#2c2f36 55%,#1d1f24 100%);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 2px 3px rgba(0,0,0,.7);}
+#upop .ubar input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:#050608;}
+#upop .ubar input[type=range]::-moz-range-thumb{width:14px;height:24px;border-radius:3px;border:1px solid #111;
+  background:linear-gradient(180deg,#5a5e68 0%,#2c2f36 45%,#ff9a2e 46%,#ff9a2e 54%,#2c2f36 55%,#1d1f24 100%);}
+#upop .udir,#upop .chip{background:var(--key-face);border:1px solid var(--key-edge);border-radius:6px;
+  box-shadow:var(--key-bevel),0 2px 0 #050608;transition:transform .08s ease-out,box-shadow .08s ease-out;}
+#upop .udir:active,#upop .chip:active{transform:translateY(2px);box-shadow:var(--key-press);}
+#upop .udir.on{color:var(--acc);background:linear-gradient(180deg,#1d1f25,#262930);border-color:#6a3408;transform:translateY(2px);
+  box-shadow:var(--key-press),0 0 8px rgba(255,138,31,.35);}
+#upop .chip.danger{border-color:#6a1020;color:#ffb7bf;}
+/* チュートリアルの札：ラベル板 */
+#tut{clip-path:none;border-radius:9px;border:1px solid #3a2a14;background:var(--plate);}
