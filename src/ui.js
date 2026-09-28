@@ -47,7 +47,7 @@ const UI = {
       if (!b) return;
       Snd.resume(); Snd.ui();
       if (!Game.tabOpen(b.dataset.tab)) {
-        this.toastMsg(this.lockWhy(b.dataset.tab), '#ff8080');
+        this.toastMsg(this.lockWhy(b.dataset.tab), '#ff8080', 'lock');
         return;
       }
       // **同じタブをもう一度押すと閉じる。** 閉じているあいだはステージだけが見える
@@ -416,7 +416,7 @@ const UI = {
     Game.perm.perf = !Game.perm.perf;
     if (!Game.perm.perf && this.el.perf) this.el.perf.textContent = '';
     Game.save();
-    this.toastMsg(Game.perm.perf ? '処理の重さを表示' : '非表示', '#ff8a1f');
+    this.toastMsg(Game.perm.perf ? '処理の重さを表示' : '非表示', '#ff8a1f', 'sys');
   },
 
   // ================= HUD =================
@@ -523,7 +523,7 @@ const UI = {
         if (full) {
           this.toastMsg(slotsLeft <= 0
             ? '盤に置ける数がいっぱいです（' + Game.slotsTotal() + '基）'
-            : def.name + ' はこれ以上置けません', '#ff8080');
+            : def.name + ' はこれ以上置けません', '#ff8080', 'limit');
           return;
         }
         this.placingType = (this.placingType === wid) ? null : wid;
@@ -533,7 +533,7 @@ const UI = {
           this.tip = { wid: wid, t: def.name + '：' + this.WEAPON_TIP[wid] };
         }
         this.renderTray();
-        if (this.placingType) this.toastMsg(def.name + ' を置く地面をタップ', def.color);
+        if (this.placingType) this.toastMsg(def.name + ' を置く地面をタップ', def.color, 'place');
       });
       t.appendChild(b);
     }
@@ -1078,7 +1078,7 @@ const UI = {
           UI.pick = STAGES.findIndex(x => x.id === s.id);
           Game.save();
           this.renderHome();
-          this.toastMsg(s.name + ' を選択', '#ff8a1f');
+          this.toastMsg(s.name + ' を選択', '#ff8a1f', 'select');
         });
         row.appendChild(b);
       }
@@ -1317,7 +1317,7 @@ const UI = {
       if (!r.n) return;
       Game.applyMods();
       Game.save();
-      this.toastMsg(r.n + '件 購入　コイン ' + Util.fmt(r.spent), '#ff8a1f');
+      this.toastMsg(r.n + '件 購入　コイン ' + Util.fmt(r.spent), '#ff8a1f', 'buy');
       this.refreshTree();
     });
     t.appendChild(b);
@@ -1915,7 +1915,7 @@ const UI = {
         this._draftTake(slots, face, c);
         setTimeout(() => {
           this.closeModal();
-          this.toastMsg((demo ? '見本: ' : '取得: ') + c.name, BAL.rarity[c.rarity].color);
+          this.toastMsg((demo ? '見本: ' : '取得: ') + c.name, BAL.rarity[c.rarity].color, 'card');
           if (demo) return;
           if (run.pendingPicks > 0) this.showDraft();
           else Game.paused = false;
@@ -2087,13 +2087,61 @@ const UI = {
     if (!this.draftOpen) Game.paused = false;
   },
 
-  toastMsg(txt, color) {
+  // 通知（トースト）。画面の右端から滑り込む細いプレート：左に種類の色のランプ、英日の2段（// 英字の種類 ／ 日本語の文）。
+  //   kind が種類（下の TOAST_KINDS）。色は種類ごとに決まる（own の種類だけ、呼び出し側の color＝レア度の色・武器の色を使う）
+  //   出た瞬間に小さな六角の衝撃波。**続けて出ても1枚のプレートを差し替える**（重ならない・溜まらない。出ている間の差し替えは滑り込まずに文字だけ点滅）
+  //   戦闘中は盤の上端（左上の HUD の下）に出す。盤の真ん中には出さない・触れない（pointer-events:none）
+  //   文言・出す場面は変えていない。種類が分からないもの（kind なし）は SYSTEM
+  TOAST_KINDS: {
+    weapon: ['NEW WEAPON', '#ffb43c', 2.6],
+    card:   ['CARD GET', '#ffffff', 1.8, true],
+    wave:   ['WAVE CLEARED', '#7ee3a0', 1.3],
+    auto:   ['AUTO BUY', '#ff8a1f', 1.6],
+    buy:    ['PURCHASED', '#ff8a1f', 1.6],
+    skip:   ['BYPASSED', '#7fb2ff', 1.9],
+    select: ['SELECTED', '#ff8a1f', 1.3],
+    place:  ['PLACE', '#ffffff', 1.6, true],
+    warn:   ['WARNING', '#ff5566', 1.9],
+    lock:   ['LOCKED', '#ff5566', 1.9],
+    limit:  ['LIMIT', '#ff5566', 1.9],
+    error:  ['ERROR', '#ff4a66', 2.2],
+    demo:   ['DEMO', '#ffc24a', 2.2],
+    sys:    ['SYSTEM', '#9fb2c4', 1.5],
+  },
+  toastMsg(txt, color, kind) {
     const t = this.el.toast;
-    t.textContent = txt;
-    t.style.color = color || '#fff';
-    t.classList.remove('on');
+    if (!t) return;
+    const k = this.TOAST_KINDS[kind] || this.TOAST_KINDS.sys;
+    const c = (k[3] && color) ? color : k[1];
+    const hold = k[2];
+    const was = t.classList.contains('on');
+    t.innerHTML = '';
+    const tp = Util.el('div', 'tp');
+    tp.appendChild(Util.el('i', 'tp-lamp'));
+    const body = Util.el('div', 'tp-body');
+    body.appendChild(Util.el('em', 'tp-k', '// ' + k[0]));
+    body.appendChild(Util.el('b', 'tp-t', txt));
+    tp.appendChild(body);
+    t.appendChild(tp);
+    t.style.setProperty('--tc', c);
+    t.style.setProperty('--hold', hold + 's');
+    t.classList.remove('on', 'swap');
     void t.offsetWidth;
     t.classList.add('on');
+    if (was) t.classList.add('swap');
+    // 動きが終わったら片付ける（CSS の動きが止まる端末でも出しっぱなしにしない）
+    clearTimeout(this._toastT);
+    this._toastT = setTimeout(() => { t.classList.remove('on', 'swap'); t.innerHTML = ''; }, (hold + 0.3 + 0.15) * 1000);
+    // 滑り込みが終わったところ（ランプ）から小さな六角の衝撃波
+    clearTimeout(this._toastFx);
+    if (!was && typeof CardFX !== 'undefined') {
+      this._toastFx = setTimeout(() => {
+        const l = t.querySelector('.tp-lamp');
+        if (!l || !t.classList.contains('on')) return;
+        const r = l.getBoundingClientRect();
+        CardFX.hexShock(document.body, r.left + r.width / 2, r.top + r.height / 2, c, 'sm');
+      }, 260);
+    }
   },
 
   // ================= 結果 =================

@@ -93,7 +93,7 @@ const Main = {
       const r = Skill.buyAll(Game.meta, Game.perm);
       if (r.n) {
         Game.applyMods();
-        UI.toastMsg('自動購入 ' + r.n + '件　コイン ' + Util.fmt(r.spent), '#ff8a1f');
+        UI.toastMsg('自動購入 ' + r.n + '件　コイン ' + Util.fmt(r.spent), '#ff8a1f', 'auto');
       }
     }
     UI.setScreen('battle');
@@ -117,7 +117,7 @@ const Main = {
 
   beginBattle() {
     if (Game.loadoutWeapons().length === 0) {
-      UI.toastMsg('武器を1つ以上編成してください', '#ff8080');
+      UI.toastMsg('武器を1つ以上編成してください', '#ff8080', 'warn');
       UI.tab = 'load'; UI.renderTabs(); UI.renderPanel();
       return;
     }
@@ -162,7 +162,7 @@ const Main = {
     Game.save();
     UI.renderHome();
     UI.renderPanel();
-    UI.toastMsg(res.count + '章をまとめて通過（報酬なし）', '#ffb43c');
+    UI.toastMsg(res.count + '章をまとめて通過（報酬なし）', '#ffb43c', 'skip');
   },
 
   finish(ok) {
@@ -183,7 +183,7 @@ const Main = {
   //   「配置を変える」 → また光る → タップで移動
   bindPlacement(cv) {
     const unitAt = (c, r) => Game.unitAt(c, r);
-    const no = (msg) => { Snd.deny(); UI.toastMsg(msg, '#ff8080'); };
+    const no = (msg) => { Snd.deny(); UI.toastMsg(msg, '#ff8080', 'warn'); };
 
     // なぞった量。**9px以上動いたらタップではなく「見る場所を動かした」と見なす**
     let down = null;
@@ -306,7 +306,7 @@ const Main = {
           run.lives = Math.min(run.livesMax, run.lives + run.mods.regen);
           run.pendingPicks += run.mods.picks;
           Snd.waveClear();
-          UI.toastMsg('ウェーブ ' + run.wave + ' 突破', '#7ee3a0');
+          UI.toastMsg('ウェーブ ' + run.wave + ' 突破', '#7ee3a0', 'wave');
           UI.renderTray();
           break;
         }

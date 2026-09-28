@@ -73,6 +73,24 @@ const DebugRoom = {
         ['BOSS DOWN（あと2体）', () => UI.cutinBossDown(2)],
         ['ボス戦の見本（第10章・2体）', () => me.bossBattle()],
       ]],
+      ['通知（トースト）', [
+        ['新しい武器', () => UI.toastMsg('新しい武器 ガトリング', '#ffb43c', 'weapon')],
+        ['ウェーブ突破', () => UI.toastMsg('ウェーブ 3 突破', '#7ee3a0', 'wave')],
+        ['カード取得（レア）', () => UI.toastMsg('取得: 見本のカード', BAL.rarity.rare.color, 'card')],
+        ['カード取得（レジェンド）', () => UI.toastMsg('取得: 見本のカード', BAL.rarity.legendary.color, 'card')],
+        ['自動購入', () => UI.toastMsg('自動購入 6件　コイン 12.4K', '#ff8a1f', 'auto')],
+        ['まとめて購入', () => UI.toastMsg('4件 購入　コイン 8.1K', '#ff8a1f', 'buy')],
+        ['スキップ（一括通過）', () => UI.toastMsg('5章をまとめて通過（報酬なし）', '#ffb43c', 'skip')],
+        ['ステージ選択', () => UI.toastMsg('第7章 を選択', '#ff8a1f', 'select')],
+        ['置く地面をタップ', () => UI.toastMsg('刀 を置く地面をタップ', '#ff5a3c', 'place')],
+        ['注意（編成なし）', () => UI.toastMsg('武器を1つ以上編成してください', '#ff8080', 'warn')],
+        ['ロック（開いていない）', () => UI.toastMsg('第10章を突破すると開きます', '#ff8080', 'lock')],
+        ['置ける数がいっぱい', () => UI.toastMsg('盤に置ける数がいっぱいです（12基）', '#ff8080', 'limit')],
+        ['システム', () => UI.toastMsg('処理の重さを表示', '#ff8a1f', 'sys')],
+        ['エラー', () => UI.toastMsg('出せませんでした：見本', '#ff4a66', 'error')],
+        ['連続で6個（差し替わる）', () => ['weapon', 'wave', 'buy', 'warn', 'card', 'lock'].forEach((k, i) => setTimeout(() =>
+          UI.toastMsg(['新しい武器 ガトリング', 'ウェーブ ' + (i + 1) + ' 突破', '3件 購入　コイン 900', '盤に置ける数がいっぱいです', '取得: 見本のカード', '開いていません'][i], '#ffc24a', k), i * 260))],
+      ]],
       ['場面・画面', [
         ['再起動の場面（部屋）', () => Scenes.reboot(null)],
         ['指揮官の記録', () => UI.openProfile(true)],
@@ -147,7 +165,7 @@ const DebugRoom = {
         const el = (now - tOut) / 1000;
         bosses.forEach((b, i) => { if (!b.dead && el >= 0.8 + i * 2.6) Combat.damage(run, b, b.maxHp * 2, { by: 'debug' }); });
       }
-      if (sig === 'stageclear' || sig === 'waveclear') { done = true; UI.toastMsg('ボス戦の見本：全部倒してウェーブ終了（見本・記録なし）', '#ffc24a'); doneAt = now; }
+      if (sig === 'stageclear' || sig === 'waveclear') { done = true; UI.toastMsg('ボス戦の見本：全部倒してウェーブ終了（見本・記録なし）', '#ffc24a', 'demo'); doneAt = now; }
       if (now - t0 > 60000) { done = true; doneAt = now; }
     }, 16);
   },
@@ -174,7 +192,7 @@ const DebugRoom = {
       for (const [label, fn] of keys) {
         const b = Util.el('button', 'dbg-key', label);
         b.addEventListener('click', () => {
-          try { Snd.ui(); fn(); } catch (e) { console.error('演出の確認室：' + label, e); UI.toastMsg('出せませんでした：' + label, '#ff4a66'); }
+          try { Snd.ui(); fn(); } catch (e) { console.error('演出の確認室：' + label, e); UI.toastMsg('出せませんでした：' + label, '#ff4a66', 'error'); }
         });
         row.appendChild(b);
       }

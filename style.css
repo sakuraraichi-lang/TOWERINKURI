@@ -74,12 +74,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
 .ctl.go{border-color:var(--acc);color:var(--acc);}
 .ctl:active{transform:translateY(1px);}
 
-#toast{position:absolute;left:50%;top:44%;transform:translateX(-50%);
-       font-size:15px;font-weight:800;text-shadow:0 2px 6px #000;opacity:0;}
-#toast.on{animation:toast 1.5s ease-out forwards;}
-@keyframes toast{0%{opacity:0;transform:translate(-50%,10px) scale(.9);}
-                 18%{opacity:1;transform:translate(-50%,0) scale(1);}
-                 75%{opacity:1;}100%{opacity:0;transform:translate(-50%,-22px);}}
+/* 通知（#toast）は末尾の「通知の作り直し（0929r）」に移した */
 
 /* ホームの設定ボタンと、その中身 */
 .cfgbtn{font-size:15px;color:var(--dim);padding:2px 6px;line-height:1;}
@@ -2246,3 +2241,29 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
   25%{text-shadow:-5px 0 rgba(255,60,60,.8),5px 0 rgba(60,200,255,.8),0 0 10px #ff7a18;transform:translateX(5px);opacity:.55;}
   50%{text-shadow:3px 0 rgba(255,60,60,.7),-3px 0 rgba(60,200,255,.7),0 0 10px #ff7a18;transform:none;opacity:1;}
   75%{text-shadow:-2px 0 rgba(255,60,60,.6),2px 0 rgba(60,200,255,.6),0 0 10px #ff7a18;opacity:.7;}}
+
+/* ===== 通知の作り直し（0929r・ui.js の toastMsg） =====
+   画面の右端から滑り込む細いプレート。左に種類の色のランプ（斜めに切った角）、英日の2段：VFD の小さな窓に「// NEW WEAPON」、下に日本語の文。
+   滑り込みが終わるところで小さな六角の衝撃波（JS）。続けて出たときは1枚を差し替える（.swap は滑り込まず、文字だけ点滅）。
+   戦闘中は盤の上端（左上の HUD の下）。触れない（pointer-events:none）。#toast は盤の中ではなく画面の直下（ホームでも見える）。
+   出して消す：動きの終わり（tpOut）は透明・右端の外。JS が動きの長さ＋余裕で .on を外して中身も片付ける。始まりの状態（右端の外・透明）は動きの中だけ */
+#toast{position:fixed;right:0;top:calc(env(safe-area-inset-top,0px) + 46px);z-index:50;display:none;pointer-events:none;
+  max-width:min(92vw,380px);--tc:#fff;--hold:1.5s;}
+#toast.on{display:block;animation:tpIn .3s cubic-bezier(.2,.8,.2,1) both,tpOut .3s cubic-bezier(.6,0,.9,.4) var(--hold) forwards;}
+#toast.on.swap{animation:tpSwap .16s ease-out both,tpOut .3s cubic-bezier(.6,0,.9,.4) var(--hold) forwards;}
+@keyframes tpIn{0%{opacity:0;transform:translateX(105%);}55%{opacity:1;transform:translateX(-7px);}100%{opacity:1;transform:none;}}
+@keyframes tpSwap{0%{opacity:.25;transform:translateX(8px);}100%{opacity:1;transform:none;}}
+@keyframes tpOut{0%{opacity:1;transform:none;}100%{opacity:0;transform:translateX(105%);}}
+#toast .tp{position:relative;display:flex;align-items:stretch;min-height:40px;border:1px solid #2e3139;border-right:0;border-radius:9px 0 0 9px;overflow:hidden;
+  background:var(--plate);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09),inset 0 -2px 0 rgba(0,0,0,.45),0 8px 22px rgba(0,0,0,.7),0 0 20px color-mix(in srgb,var(--tc) 24%,transparent);}
+/* 右端の一つだけネジ（画面の縁の外へ続く板に見せる） */
+#toast .tp::after{content:'';position:absolute;right:7px;top:50%;width:8px;height:8px;margin-top:-4px;background:var(--screw) center/8px 8px no-repeat;opacity:.9;}
+#toast .tp-lamp{flex:0 0 15px;background:linear-gradient(90deg,var(--tc),color-mix(in srgb,var(--tc) 60%,#000));
+  clip-path:polygon(0 0,100% 0,62% 100%,0 100%);box-shadow:0 0 14px var(--tc);}
+#toast .tp-body{display:flex;flex-direction:column;align-items:flex-start;gap:4px;padding:6px 24px 7px 4px;min-width:0;}
+#toast .tp-k{align-self:flex-start;font:700 9px/1 var(--font-num);font-style:normal;letter-spacing:.2em;white-space:nowrap;color:var(--tc);
+  padding:3px 6px 3px 7px;border-radius:3px;background:#07080a;box-shadow:inset 0 1px 3px rgba(0,0,0,.9),0 1px 0 rgba(255,255,255,.06);
+  text-shadow:0 0 6px var(--tc);animation:rsSys .4s steps(16) .1s backwards;}
+#toast .tp-t{font-size:13px;font-weight:800;line-height:1.35;color:#f2f4f8;text-shadow:0 1px 3px #000;overflow-wrap:anywhere;}
+#toast.swap .tp-k{animation:none;}

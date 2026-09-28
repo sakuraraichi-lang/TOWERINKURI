@@ -423,7 +423,7 @@ const CardFX = {
         // 表が見えた瞬間（回転の半ばを過ぎたところ）
         setTimeout(() => {
           this._land(P, s.slot, c, g, idx);
-          if (c.kind === 'weapon' && isNew[idx]) UI.toastMsg('新しい武器 ' + c.name, '#ffb43c');
+          if (c.kind === 'weapon' && isNew[idx]) UI.toastMsg('新しい武器 ' + c.name, '#ffb43c', 'weapon');
           const t0 = Game.totuOf(st.n0), t1 = Game.totuOf(st.n1);
           let wait = g >= 3 ? 1100 : g >= 2 ? 700 : 250;
           if (t1 > t0 && !c.noRank) {
