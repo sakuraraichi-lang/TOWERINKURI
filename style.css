@@ -1657,3 +1657,90 @@ body:not(.tabsoff) .hlogo{display:none;}
              linear-gradient(115deg,rgba(255,255,255,0) 55%,rgba(255,255,255,.06) 62%,rgba(255,255,255,0) 70%);}
 .rbscene.pull .rb-screen::after{opacity:1;}
 .rbscene.dive .rb-screen::after{opacity:0;}
+
+/* =====================================================================
+   デザイン言語：電子機器の物理スイッチ ＋ 近未来の磨き（企画書 §21・§22・ユーザー 2026-09-28）
+   ─ ボタンは「キートップ」：上面の面取りの光と、下の厚み（影）がある。押すと沈む
+   ─ オン・オフは「スライドスイッチ＋LED」：オンで橙の LED が灯る（チェックの四角はやめた）
+   ─ タブは「トレイにはまったキーの列」：選ばれたキーは押し込まれたまま、LED が灯る
+   ─ 数（コイン）は「蛍光表示管（VFD）の窓」：ガラスの奥で琥珀色の字が光る
+   ─ 近未来の磨き：動きは滑らかに（短いイージング）、光はにじませすぎない
+   **新しいボタンを作るときは、この部品（--key-*）から作る。画面ごとに別の形を作らない**
+   ===================================================================== */
+:root{
+  --key-face:linear-gradient(180deg,#343842 0%,#22252d 52%,#191b21 100%);
+  --key-edge:#050608;
+  --key-bevel:inset 0 1px 0 rgba(255,255,255,.16),inset 0 -2px 0 rgba(0,0,0,.45);
+  --key-lift:0 3px 0 #050608,0 5px 10px rgba(0,0,0,.55);
+  --key-press:0 1px 0 #050608,inset 0 2px 5px rgba(0,0,0,.55);
+  --key-hot:linear-gradient(180deg,#ffb25c 0%,#ff8a1f 48%,#e86a08 100%);
+  --key-hot-lift:0 4px 0 #7a3100,0 7px 16px rgba(255,120,20,.35);
+  --led-off:#2a2c31;
+  --led-on:#ff9a2e;
+  --vfd:#ffc062;
+}
+
+/* ---- キートップ（ふつう） ---- */
+#tabs button,.bctl,.bspd,.bc-btn,.cfgbtn{
+  background:var(--key-face);border:1px solid var(--key-edge);border-radius:7px;clip-path:none;
+  box-shadow:var(--key-bevel),var(--key-lift);
+  transition:transform .08s ease-out,box-shadow .08s ease-out,color .15s,background .15s;}
+#tabs button:active,.bctl:active,.bspd:active,.bc-btn:active,.cfgbtn:active{transform:translateY(2px);box-shadow:var(--key-press);}
+
+/* ---- キートップ（主役・橙に光る） ---- */
+.bigstart,.readybtn,.rs-go,.bc-btn.go{
+  background:var(--key-hot);border:1px solid #8a3a00;border-radius:10px;clip-path:none;color:#2a1200;
+  box-shadow:inset 0 1px 0 rgba(255,240,210,.7),inset 0 -3px 0 rgba(120,40,0,.35),var(--key-hot-lift);
+  transition:transform .08s ease-out,box-shadow .08s ease-out;}
+.bigstart:active:not(:disabled),.readybtn:active,.rs-go:active,.bc-btn.go:active{
+  transform:translateY(3px);box-shadow:inset 0 1px 0 rgba(255,240,210,.5),0 1px 0 #7a3100,0 2px 6px rgba(255,120,20,.3);}
+.bigstart{border-radius:12px;}
+.bigstart:disabled{background:var(--key-face);border-color:var(--key-edge);box-shadow:var(--key-bevel),var(--key-lift);}
+.readybtn.danger{background:linear-gradient(180deg,#ff8a9a 0%,#e5485f 50%,#b82a40 100%);border-color:#6a1020;color:#fff;
+  box-shadow:inset 0 1px 0 rgba(255,220,225,.6),inset 0 -3px 0 rgba(80,0,10,.35),0 4px 0 #5a0c18,0 7px 16px rgba(220,50,70,.35);}
+.pz-go{border-radius:10px;clip-path:none;border:1px solid #6a1020;
+  background:linear-gradient(180deg,#ff7d5c 0%,#ff4d4d 50%,#d42a48 100%);
+  box-shadow:inset 0 1px 0 rgba(255,225,215,.6),inset 0 -3px 0 rgba(80,0,10,.35),0 4px 0 #5a0c18,0 8px 18px rgba(255,60,80,.3);
+  transition:transform .08s ease-out,box-shadow .08s ease-out;}
+.pz-go:active:not(:disabled){transform:translateY(3px);box-shadow:0 1px 0 #5a0c18;}
+.pz-go:disabled{background:var(--key-face);border-color:var(--key-edge);box-shadow:var(--key-bevel),var(--key-lift);}
+
+/* ---- 下のタブ：トレイにはまったキーの列。選ばれたキーは押し込まれ、LED が灯る ---- */
+#tabs{gap:5px;padding:7px 6px calc(8px + var(--safe-b));
+  background:linear-gradient(180deg,#0a0b0e,#060708);box-shadow:inset 0 2px 6px rgba(0,0,0,.8);}
+#tabs::before{opacity:.35;}
+#tabs button{padding:9px 4px 7px;color:#8e929b;}
+#tabs button::before{content:'';position:absolute;left:7px;top:6px;width:5px;height:5px;border-radius:50%;background:var(--led-off);
+  box-shadow:inset 0 1px 1px rgba(0,0,0,.6);transition:background .2s,box-shadow .2s;}
+#tabs button.on{color:var(--acc);clip-path:none;border-color:var(--key-edge);background:linear-gradient(180deg,#1d1f25,#23262d);
+  transform:translateY(2px);box-shadow:var(--key-press);}
+#tabs button.on::before{background:var(--led-on);box-shadow:0 0 6px var(--led-on),0 0 12px rgba(255,140,40,.6);}
+
+/* ---- オン・オフ：スライドスイッチと LED ---- */
+.cfgrow .box,.bc-chk{position:relative;width:34px;height:18px;flex:0 0 34px;border-radius:9px;
+  background:#07080a;border:1px solid #2c2f37;box-shadow:inset 0 2px 4px rgba(0,0,0,.8);}
+.cfgrow .box svg,.bc-chk svg{display:none;}
+.cfgrow .box::after,.bc-chk::after{content:'';position:absolute;top:1px;left:1px;width:14px;height:14px;border-radius:50%;
+  background:linear-gradient(180deg,#5a5e68,#2c2f36);box-shadow:inset 0 1px 0 rgba(255,255,255,.25),0 1px 2px rgba(0,0,0,.7);
+  transition:left .16s cubic-bezier(.3,.7,.2,1),background .16s;}
+.cfgrow .box::before,.bc-chk::before{content:'';position:absolute;right:5px;top:6px;width:4px;height:4px;border-radius:50%;background:var(--led-off);}
+.cfgrow.on .box,.bc-btn.on .bc-chk{background:#140a02;border-color:#6a3408;}
+.cfgrow.on .box::after,.bc-btn.on .bc-chk::after{left:17px;background:linear-gradient(180deg,#ffd2a0,#ff8a1f);}
+.cfgrow.on .box::before,.bc-btn.on .bc-chk::before{left:6px;right:auto;background:var(--led-on);box-shadow:0 0 5px var(--led-on);}
+
+/* ---- 数：蛍光表示管（VFD）の窓 ---- */
+.hpill{clip-path:none;border-radius:6px;border:1px solid #2a2418;
+  background:linear-gradient(180deg,#0b0a07,#15120c);box-shadow:inset 0 2px 6px rgba(0,0,0,.9),inset 0 0 0 1px rgba(255,190,90,.06),0 1px 0 rgba(255,255,255,.05);
+  color:var(--vfd);font-family:ui-monospace,Consolas,'Courier New',monospace;letter-spacing:.06em;
+  text-shadow:0 0 4px rgba(255,170,60,.85),0 0 10px rgba(255,140,40,.4);}
+/* ⚙ の設定は、ホームを押し下げずに上から垂れ下がる操作盤にする（押し下げるとホームの中身が重なっていた） */
+#cfgBox.on{position:fixed;left:10px;right:10px;top:calc(62px + env(safe-area-inset-top,0px));z-index:60;max-height:70vh;overflow:auto;
+  border-radius:10px;border:1px solid #2c2f37;background:linear-gradient(180deg,#1a1d23,#121418);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 10px 30px rgba(0,0,0,.7);animation:cfgdrop .16s cubic-bezier(.3,.7,.2,1);}
+@keyframes cfgdrop{from{transform:translateY(-8px);opacity:0;}to{transform:none;opacity:1;}}
+/* 置く武器を選ぶ札もキートップに。縁の色は武器の色（style で入る）。選んでいるキーは押し込まれて光る */
+#tray .chip.unit{background:var(--key-face);border-width:1px;border-style:solid;border-radius:7px;clip-path:none;
+  box-shadow:var(--key-bevel),var(--key-lift);transition:transform .08s ease-out,box-shadow .08s ease-out;}
+#tray .chip.unit:active{transform:translateY(2px);box-shadow:var(--key-press);}
+#tray .chip.unit.on{background:linear-gradient(180deg,#2a1406,#3a1c08);transform:translateY(2px);
+  box-shadow:var(--key-press),0 0 12px rgba(255,138,31,.45);}
