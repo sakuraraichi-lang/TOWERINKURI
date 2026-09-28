@@ -1662,7 +1662,8 @@ const UI = {
       this.closeModal();
       UI.pick = 0;
       Main.toHome();
-      if (res) this.showPrestigeResult(res);
+      // いったん現実の部屋へ視点を引いてから、報酬へ（企画書 §28・約3秒・触れば飛ばせる）
+      if (res) Scenes.reboot(() => this.showPrestigeResult(res));
     });
     const no = Util.el('button', 'rs-sub');
     no.innerHTML = Icons.get('close') + 'やめる';
