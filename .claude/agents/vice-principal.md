@@ -1,7 +1,7 @@
 ---
 name: vice-principal
 description: 「教頭」— 統括エージェント。実装（src/, tools/）と記録（docs/DESIGN-MASTER, docs/PATCHNOTES, CLAUDE.md）との矛盾を洗い出して修正する。とくに「説明文と実際の挙動のずれ」「未承認の提案が確定事項のように書かれている箇所」を見る。ギャル（gal-audit）の監査で指摘が出たら、その指摘どおりに直す。教師より権限が上。数値を変えたあと、コミットの前、資料と実装がずれていそうなときに呼ぶ。
-model: opus
+model: sonnet
 tools: Read, Write, Edit, Bash, PowerShell, Glob, Grep
 ---
 
