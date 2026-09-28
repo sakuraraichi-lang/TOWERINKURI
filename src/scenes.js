@@ -114,16 +114,28 @@ const Scenes = {
     timer = setTimeout(step, 700);
   },
 
-  // 再起動の場面。終わったら（または触って飛ばしたら）done を呼ぶ
-  reboot(done) {
+  // 部屋の絵を先に描いておく（再起動の確認を開いたとき・UI.confirmPrestige）。
+  //   描くのに PC で約100ミリ秒（1回測定）かかり、スマホではもっとかかるので、場面の出だしで引っかからないように
+  prepare() {
     const pick = this._pick(this.NEWS, 3);
     const ad = this._pick(this.ADS, 2);
+    const cv = document.createElement('canvas');
+    cv.className = 'rb-room';
+    Room.paint(cv, { ad: ad[0], paper: pick[1], phone: ad[1], memo: ['牛乳', '電池', '火曜 ゴミ'] });
+    this._prep = { pick, cv };
+  },
+
+  // 再起動の場面。終わったら（または触って飛ばしたら）done を呼ぶ
+  reboot(done) {
+    if (!this._prep) this.prepare();
+    const { pick, cv } = this._prep;
+    this._prep = null;
     const el = Util.el('div', 'rbscene');
-    el.innerHTML = '<div class="rb-box"><canvas class="rb-room"></canvas>' +
+    el.innerHTML = '<div class="rb-box">' +
       '<div class="rb-screen"><div class="rb-game"><b>エクスメントマキナ</b></div><div class="rb-news"><b>NEWS</b><span>' + pick[2] + '</span></div><i class="rb-scan"></i></div></div>' +
       '<div class="rb-skip">タップで飛ばす</div>';
-    // 現実の部屋は写実寄りに、その場で1枚描く（src/room.js・ユーザー 2026-09-28「リアル寄りの生成に」）
-    Room.paint(el.querySelector('.rb-room'), { ad: ad[0], paper: pick[1], phone: ad[1], memo: ['牛乳', '電池', '火曜 ゴミ'] });
+    // 現実の部屋は写実寄り（src/room.js・ユーザー 2026-09-28「リアル寄りの生成に」・参考画像の暗さと汚れ）
+    el.querySelector('.rb-box').prepend(cv);
     document.body.appendChild(el);
     let ended = false;
     const end = () => {

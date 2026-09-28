@@ -33,11 +33,13 @@ const Room = {
     this.pc();
     this.tv();
     this.desk();
+    this.stains();
     this.mug();
     this.phone();
     this.paper(txt.paper);
     this.smartphone(txt.phone);
     this.light();
+    this.grade();
     this.grain();
   },
 
@@ -64,6 +66,28 @@ const Room = {
     path(); c.fillStyle = '#000'; c.fill();
     c.restore();
   },
+  // 使い込まれた汚れ：暗いしみ・埃の点・細い傷を、形の中だけに置く（参考画像の質感・2026-09-28）
+  grime(path, x, y, w, h, k) {
+    const c = this.c;
+    c.save(); path(); c.clip();
+    for (let i = 0; i < 50 * k; i++) {
+      const px = x + this.rnd() * w, py = y + this.rnd() * h, r = 3 + this.rnd() * 20;
+      c.fillStyle = this.rad(px, py, 0, r, [[0, 'rgba(0,0,0,' + (0.05 + this.rnd() * 0.12).toFixed(3) + ')'], [1, 'rgba(0,0,0,0)']]);
+      c.fillRect(px - r, py - r, r * 2, r * 2);
+    }
+    for (let i = 0; i < 55 * k; i++) {
+      c.fillStyle = 'rgba(230,225,210,' + (0.03 + this.rnd() * 0.08).toFixed(3) + ')';
+      const q = 0.4 + this.rnd() * 1.1;
+      c.fillRect(x + this.rnd() * w, y + this.rnd() * h, q, q);
+    }
+    c.lineWidth = 0.5;
+    for (let i = 0; i < 26 * k; i++) {
+      const px = x + this.rnd() * w, py = y + this.rnd() * h, a = this.rnd() * Math.PI, L = 4 + this.rnd() * 24;
+      c.strokeStyle = 'rgba(255,250,235,' + (0.04 + this.rnd() * 0.09).toFixed(3) + ')';
+      c.beginPath(); c.moveTo(px, py); c.lineTo(px + Math.cos(a) * L, py + Math.sin(a) * L); c.stroke();
+    }
+    c.restore();
+  },
   // 文字を幅で折り返す
   wrap(text, x, y, maxW, lh, maxLines) {
     const c = this.c; let line = '', n = 0;
@@ -77,11 +101,13 @@ const Room = {
   // ---- 壁：くすんだ壁紙。細い縦縞と、ところどころのむら ----
   wall() {
     const c = this.c, W = this.W;
-    c.fillStyle = this.lin(0, 0, 0, 470, [[0, '#23212a'], [0.6, '#1b1a20'], [1, '#141317']]);
+    c.fillStyle = this.lin(0, 0, 0, 470, [[0, '#1b1a1d'], [0.6, '#151417'], [1, '#0f0e10']]);
     c.fillRect(0, 0, W, 470);
-    c.globalAlpha = 0.05;
-    for (let x = 0; x < W; x += 9) { c.fillStyle = (x / 9) % 2 ? '#fff' : '#000'; c.fillRect(x, 0, 1, 470); }
-    c.globalAlpha = 1;
+    // 板張りの継ぎ目：暗い溝と、その横のわずかな光
+    for (let x = 6; x < W; x += 26) {
+      c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillRect(x, 0, 1.4, 470);
+      c.fillStyle = 'rgba(255,255,255,0.035)'; c.fillRect(x + 1.4, 0, 1, 470);
+    }
     for (let i = 0; i < 26; i++) {                 // 壁紙のむら
       const x = this.rnd() * W, y = this.rnd() * 460, r = 30 + this.rnd() * 90;
       c.fillStyle = this.rad(x, y, 0, r, [[0, 'rgba(0,0,0,' + (0.04 + this.rnd() * 0.06).toFixed(3) + ')'], [1, 'rgba(0,0,0,0)']]);
@@ -97,7 +123,7 @@ const Room = {
     const x = -24, y = 58, w = 122, h = 400;
     this.shadow(() => this.rr(x, y, w, h, 10), 26, 0.7, 14, 8);
     this.rr(x, y, w, h, 10);
-    c.fillStyle = this.lin(x, 0, x + w, 0, [[0, '#2a2721'], [0.5, '#6d6655'], [0.86, '#a39a82'], [1, '#c9c2ae']]);
+    c.fillStyle = this.lin(x, 0, x + w, 0, [[0, '#1d1c1a'], [0.5, '#46443f'], [0.86, '#65625b'], [1, '#86837b']]);
     c.fill();
     c.save(); this.rr(x, y, w, h, 10); c.clip();
     c.fillStyle = this.lin(0, y, 0, y + h, [[0, 'rgba(255,255,255,0.10)'], [0.3, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0.45)']]);
@@ -117,6 +143,7 @@ const Room = {
       c.fill();
     };
     handle(y + 60, 58); handle(y + 150, 110);
+    this.grime(() => this.rr(x, y, w, h, 10), x, y, w, h, 1.4);
     // 磁石
     const mag = (mx, my, col) => {
       this.shadow(() => { c.beginPath(); c.arc(mx, my, 5, 0, 7); }, 3, 0.6, 1.5, 2);
@@ -140,14 +167,15 @@ const Room = {
     c.save(); c.translate(232, 70); c.rotate(0.04);
     const w = 108, h = 150;
     this.shadow(() => { c.beginPath(); c.rect(0, 0, w, h); }, 8, 0.6, 3, 4);
-    c.fillStyle = this.lin(0, 0, w, h, [[0, '#cbbf9f'], [1, '#9c9175']]); c.fillRect(0, 0, w, h);
-    c.fillStyle = this.lin(0, 8, 0, 70, [[0, '#d9612a'], [1, '#a8401a']]); c.fillRect(8, 8, w - 16, 62);
+    c.fillStyle = this.lin(0, 0, w, h, [[0, '#aaa391'], [1, '#7a7465']]); c.fillRect(0, 0, w, h);
+    c.fillStyle = this.lin(0, 8, 0, 70, [[0, '#a3352a'], [1, '#6e2219']]); c.fillRect(8, 8, w - 16, 62);
     c.fillStyle = '#fff6e6'; c.font = '900 26px sans-serif'; c.textAlign = 'center';
     c.fillText('NEW!', w / 2, 50);
     c.textAlign = 'left'; c.fillStyle = '#2a2418'; c.font = '800 10px sans-serif';
     this.wrap(ad, 9, 88, w - 18, 13, 4);
     // 紙の波打ちとテープ
     c.fillStyle = this.lin(0, 0, w, 0, [[0, 'rgba(0,0,0,0.12)'], [0.5, 'rgba(255,255,255,0.05)'], [1, 'rgba(0,0,0,0.18)']]); c.fillRect(0, 0, w, h);
+    this.grime(() => { c.beginPath(); c.rect(0, 0, w, h); }, 0, 0, w, h, 0.7);
     c.fillStyle = 'rgba(230,225,200,0.55)';
     c.save(); c.translate(-4, -2); c.rotate(-0.6); c.fillRect(0, 0, 22, 8); c.restore();
     c.save(); c.translate(w - 14, -8); c.rotate(0.6); c.fillRect(0, 0, 22, 8); c.restore();
@@ -160,7 +188,7 @@ const Room = {
     const x = 288, y = 262, w = 80, h = 196;
     this.shadow(() => this.rr(x, y, w, h, 4), 22, 0.75, 12, 6);
     this.rr(x, y, w, h, 4);
-    c.fillStyle = this.lin(x, 0, x + w, 0, [[0, '#b8ad92'], [0.45, '#a39a80'], [1, '#5e5747']]); c.fill();
+    c.fillStyle = this.lin(x, 0, x + w, 0, [[0, '#7d776a'], [0.45, '#6a6457'], [1, '#34312b']]); c.fill();
     c.save(); this.rr(x, y, w, h, 4); c.clip();
     c.fillStyle = this.lin(0, y, 0, y + h, [[0, 'rgba(255,255,240,0.12)'], [1, 'rgba(0,0,0,0.35)']]); c.fillRect(x, y, w, h);
     const bay = (by, hh) => {
@@ -176,6 +204,7 @@ const Room = {
     // 通気口
     c.fillStyle = 'rgba(0,0,0,0.35)'; for (let i = 0; i < 9; i++) c.fillRect(x + 12, y + 120 + i * 6, w - 24, 2);
     c.restore();
+    this.grime(() => this.rr(x, y, w, h, 4), x, y, w, h, 1.2);
     // 電源と灯
     c.beginPath(); c.arc(x + 20, y + 176, 5, 0, 7); c.fillStyle = this.rad(x + 18.5, y + 174.5, 0.5, 6, [[0, '#d9d0b6'], [1, '#6c6554']]); c.fill();
     c.save(); c.shadowColor = '#7dff8a'; c.shadowBlur = 8 * this.dpr;
@@ -189,12 +218,13 @@ const Room = {
     this.shadow(() => this.rr(x, y, w, h, 20), 34, 0.85, 16, 10);
     // 箱
     this.rr(x, y, w, h, 20);
-    c.fillStyle = this.lin(0, y, 0, y + h, [[0, '#3b3c43'], [0.08, '#2b2c32'], [0.7, '#1c1d22'], [1, '#121216']]); c.fill();
+    c.fillStyle = this.lin(0, y, 0, y + h, [[0, '#3c3a36'], [0.08, '#2d2b28'], [0.7, '#1e1d1b'], [1, '#121110']]); c.fill();
     c.save(); this.rr(x, y, w, h, 20); c.clip();
     c.fillStyle = this.lin(x, 0, x + w, 0, [[0, 'rgba(0,0,0,0.35)'], [0.2, 'rgba(0,0,0,0)'], [0.85, 'rgba(0,0,0,0)'], [1, 'rgba(0,0,0,0.4)']]); c.fillRect(x, y, w, h);
     // 上の縁のつや
     c.fillStyle = this.lin(0, y, 0, y + 10, [[0, 'rgba(255,255,255,0.18)'], [1, 'rgba(255,255,255,0)']]); c.fillRect(x, y, w, 10);
     c.restore();
+    this.grime(() => this.rr(x, y, w, h, 20), x, y, w, h, 1.8);
     // 画面のまわりの枠（内側へ落ち込む）
     this.rr(x + 12, y + 12, 205, 170, 22);
     c.fillStyle = this.lin(0, y + 12, 0, y + 182, [[0, '#0d0d10'], [1, '#1f2026']]); c.fill();
@@ -228,7 +258,7 @@ const Room = {
     const c = this.c, W = this.W, top = 456;
     c.save();
     c.beginPath(); c.rect(0, top, W, this.H - top); c.clip();
-    c.fillStyle = this.lin(0, top, 0, this.H, [[0, '#4a2f1d'], [0.25, '#3a2416'], [1, '#170e08']]); c.fillRect(0, top, W, this.H - top);
+    c.fillStyle = this.lin(0, top, 0, this.H, [[0, '#2e1f15'], [0.25, '#22160e'], [1, '#0c0705']]); c.fillRect(0, top, W, this.H - top);
     // 木目：ゆらぐ細い線を重ねる
     for (let i = 0; i < 170; i++) {
       const yy = top + Math.pow(i / 170, 1.35) * (this.H - top);
@@ -265,7 +295,7 @@ const Room = {
     // 本体
     c.beginPath(); c.moveTo(x + 8, y + 80); c.quadraticCurveTo(x + 12, y + 26, x + 62, y + 24); c.quadraticCurveTo(x + 112, y + 26, x + 118, y + 80); c.closePath();
     c.fillStyle = this.lin(0, y + 24, 0, y + 84, [[0, '#26262b'], [0.5, '#0f0f12'], [1, '#050506']]); c.fill();
-    c.strokeStyle = 'rgba(170,190,255,0.22)'; c.lineWidth = 1.2;
+    c.strokeStyle = 'rgba(170,190,255,0.45)'; c.lineWidth = 1.4;
     c.beginPath(); c.moveTo(x + 22, y + 44); c.quadraticCurveTo(x + 40, y + 30, x + 62, y + 29); c.stroke();
     // ダイヤル
     const dx = x + 63, dy = y + 57;
@@ -282,8 +312,9 @@ const Room = {
     c.moveTo(x + 2, y + 18); c.quadraticCurveTo(x + 62, y - 6, x + 124, y + 18);
     c.lineTo(x + 118, y + 30); c.quadraticCurveTo(x + 62, y + 10, x + 8, y + 30); c.closePath();
     c.fillStyle = this.lin(0, y, 0, y + 30, [[0, '#2e2f35'], [0.4, '#141417'], [1, '#050506']]); c.fill();
-    c.strokeStyle = 'rgba(200,215,255,0.35)'; c.lineWidth = 1.4;
+    c.strokeStyle = 'rgba(200,215,255,0.6)'; c.lineWidth = 1.6;
     c.beginPath(); c.moveTo(x + 18, y + 14); c.quadraticCurveTo(x + 62, y - 1, x + 104, y + 12); c.stroke();
+    this.grime(() => { c.beginPath(); c.moveTo(x + 8, y + 80); c.quadraticCurveTo(x + 12, y + 26, x + 62, y + 24); c.quadraticCurveTo(x + 112, y + 26, x + 118, y + 80); c.closePath(); }, x, y + 20, 120, 64, 0.6);
     // 巻いたコード
     c.strokeStyle = '#0c0c0e'; c.lineWidth = 2.2;
     c.beginPath();
@@ -301,7 +332,7 @@ const Room = {
     c.save(); c.translate(26, 624); c.rotate(-0.13);
     const w = 206, h = 136;
     this.shadow(() => { c.beginPath(); c.rect(0, 0, w, h); }, 10, 0.75, 4, 6);
-    c.fillStyle = this.lin(0, 0, w, h, [[0, '#d6cfbc'], [0.55, '#c3bca8'], [1, '#9e9885']]); c.fillRect(0, 0, w, h);
+    c.fillStyle = this.lin(0, 0, w, h, [[0, '#b0aa9b'], [0.55, '#9b9588'], [1, '#716c62']]); c.fillRect(0, 0, w, h);
     c.fillStyle = this.lin(w * 0.48, 0, w * 0.56, 0, [[0, 'rgba(0,0,0,0)'], [0.5, 'rgba(0,0,0,0.16)'], [1, 'rgba(255,255,255,0.06)']]); c.fillRect(0, 0, w, h);
     c.fillStyle = '#26221a'; c.fillRect(8, 8, w - 16, 3);
     c.font = '900 14px "Hiragino Mincho ProN","Yu Mincho","MS Mincho",serif';
@@ -313,6 +344,7 @@ const Room = {
       const v = 0.5 + 0.5 * Math.sin(xx * 0.08 + yy * 0.05) * Math.cos(yy * 0.09);
       c.beginPath(); c.arc(9 + xx + 1.5, 66 + yy + 1.5, 0.3 + v * 1.1, 0, 7); c.fill();
     }
+    this.grime(() => { c.beginPath(); c.rect(0, 0, w, h); }, 0, 0, w, h, 0.6);
     // 本文の段
     c.fillStyle = 'rgba(40,36,28,0.55)';
     for (let col = 0; col < 2; col++) for (let i = 0; i < 12; i++) c.fillRect(98 + col * 52, 68 + i * 5, 46 - (i % 5 === 4 ? 18 : 0), 1.6);
@@ -345,6 +377,45 @@ const Room = {
     c.restore();
   },
 
+  // ---- 机のしみ：マグの輪じみと、こぼれた滴（暮らしの跡） ----
+  stains() {
+    const c = this.c;
+    c.save();
+    c.strokeStyle = 'rgba(28,14,6,0.6)'; c.lineWidth = 2.4;
+    c.beginPath(); c.ellipse(232, 574, 25, 8, -0.05, 0.2, Math.PI * 1.85); c.stroke();
+    c.strokeStyle = 'rgba(28,14,6,0.25)'; c.lineWidth = 5;
+    c.beginPath(); c.ellipse(232, 574, 23, 7, -0.05, 0, 7); c.stroke();
+    for (const [dx, dy, r] of [[178, 566, 2.4], [186, 572, 1.5], [262, 590, 1.8], [170, 578, 1.1]]) {
+      c.fillStyle = 'rgba(24,12,5,0.55)'; c.beginPath(); c.ellipse(dx, dy, r * 1.4, r, 0, 0, 7); c.fill();
+      c.fillStyle = 'rgba(255,230,200,0.12)'; c.beginPath(); c.arc(dx - r * 0.4, dy - r * 0.3, r * 0.35, 0, 7); c.fill();
+    }
+    c.restore();
+  },
+
+  // ---- 色の仕上げ：くすませ、闇に沈め、テレビのまわりだけを浮かせる（参考画像の明暗） ----
+  grade() {
+    const c = this.c, W = this.W, H = this.H;
+    c.save();
+    c.globalCompositeOperation = 'saturation'; c.globalAlpha = 0.5;
+    c.fillStyle = '#808080'; c.fillRect(0, 0, W, H);
+    c.globalAlpha = 1; c.globalCompositeOperation = 'multiply';
+    c.fillStyle = this.rad(188, 340, 40, 640, [[0, 'rgb(255,255,255)'], [0.4, 'rgb(150,146,140)'], [1, 'rgb(18,17,17)']]);
+    c.fillRect(0, 0, W, H);
+    c.fillStyle = this.lin(0, 600, 0, H, [[0, 'rgb(255,255,255)'], [1, 'rgb(120,116,110)']]);
+    c.fillRect(0, 600, W, H - 600);
+    c.restore();
+    // テレビの画面の冷たい光が、真下の机にこぼれる
+    c.save(); c.globalCompositeOperation = 'screen';
+    c.fillStyle = this.rad(188, 468, 0, 150, [[0, 'rgba(70,95,150,0.24)'], [1, 'rgba(0,0,0,0)']]); c.fillRect(0, 380, W, 260);
+    c.restore();
+    // 宙に浮く埃（ぼけた光の粒）
+    for (let i = 0; i < 12; i++) {
+      const x = this.rnd() * W, y = 420 + this.rnd() * 340, r = 1.5 + this.rnd() * 3;
+      c.fillStyle = this.rad(x, y, 0, r, [[0, 'rgba(255,245,230,0.35)'], [1, 'rgba(255,245,230,0)']]);
+      c.fillRect(x - r, y - r, r * 2, r * 2);
+    }
+  },
+
   // ---- 光：テレビの青白い光を足し、四隅を落とす ----
   light() {
     const c = this.c, W = this.W, H = this.H;
@@ -367,7 +438,7 @@ const Room = {
     if (!this._grain) {
       const g = document.createElement('canvas'); g.width = g.height = 160;
       const gx = g.getContext('2d'), id = gx.createImageData(160, 160);
-      for (let i = 0; i < id.data.length; i += 4) { const v = (Math.random() * 255) | 0; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = 22; }
+      for (let i = 0; i < id.data.length; i += 4) { const v = (Math.random() * 255) | 0; id.data[i] = id.data[i + 1] = id.data[i + 2] = v; id.data[i + 3] = 34; }
       gx.putImageData(id, 0, 0);
       this._grain = g;
     }

@@ -1672,6 +1672,8 @@ const UI = {
     body.appendChild(ok); body.appendChild(subs);
     this.openModal(body);
     this.el.modal.classList.add('rsmodal');
+    // 再起動の場面の部屋の絵を、確認を読んでいるあいだに描いておく
+    setTimeout(() => { try { Scenes.prepare(); } catch (e) {} }, 60);
   },
 
   showPrestigeResult(res) {
