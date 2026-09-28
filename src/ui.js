@@ -1909,6 +1909,13 @@ const UI = {
     box.appendChild(body);
     m.appendChild(box);
     m.classList.add('on');
+    // 結果の帯の大きな文字（DEFEAT・CLEAR・REBOOT など）も1字ずつの動きに（企画書 §17・2026-09-28）
+    const ban = box.querySelector('.rs-ban b');
+    if (ban && !ban.children.length) {
+      ban.innerHTML = Array.from(ban.textContent).map((ch, i) =>
+        '<i class="cc" style="--d:' + (0.05 + i * 0.045).toFixed(3) + 's;--x:' + ((Math.random() - 0.5) * 40 | 0) + 'px">' + ch + '</i>').join('');
+      ban.classList.add('split');
+    }
     m.dataset.noclose = noClose ? '1' : '';
   },
 
