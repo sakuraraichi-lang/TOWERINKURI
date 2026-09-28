@@ -176,6 +176,10 @@ const CardFX = {
         if (i >= 3) this.bigShake();
       }
     }, i * stepMs));
+    // **レジェンダリーだけ、表示の法則が一瞬破られる。**（企画書 §20「放送停止画面 → グリッチ → 虹色」・2026-09-28）
+    //   一番豪華な演出ではなく「いつもの画面が一瞬だけ別のものに乗っ取られる」。長さは約1.4秒・レジェンダリーのときだけ
+    const legend = best >= 3;
+    if (legend) setTimeout(() => this.legendBreak(ov), steps0.length * stepMs + 120);
     setTimeout(() => {
       ov.classList.remove('charge');
       ov.classList.add('peel');
@@ -190,7 +194,24 @@ const CardFX = {
       // 口を下へずらしてから、カードを飛び出させる
       setTimeout(() => ov.classList.add('lower'), 520);
       setTimeout(onOut, 900);
-    }, steps0.length * stepMs + 250);
+    }, steps0.length * stepMs + 250 + (legend ? 1450 : 0));
+  },
+
+  // 放送停止（カラーバー）→ グリッチ → 虹。ov の上に全面で重ね、終わったら消す
+  legendBreak(ov) {
+    const el = Util.el('div', 'lgb');
+    el.innerHTML = '<div class="lgb-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>' +
+      '<div class="lgb-low"><i></i><i></i><i></i><i></i></div>' +
+      '<div class="lgb-msg"><b>PLEASE STAND BY</b><span>しばらくお待ちください</span></div>' +
+      '<div class="lgb-rb"></div>';
+    ov.appendChild(el);
+    try { Snd.tone({ type: 'sine', f0: 1000, f1: 1000, dur: 0.55, vol: 0.07 }); } catch (e) {}   // 放送休止の「ピー」
+    setTimeout(() => {
+      el.classList.add('glitch');
+      try { Snd.noise({ dur: 0.38, vol: 0.12, f: 2400, q: 0.6 }); } catch (e) {}
+    }, 560);
+    setTimeout(() => { el.classList.add('rainbow'); this.bigShake(); }, 960);
+    setTimeout(() => el.remove(), 1480);
   },
 
   bigShake() {
