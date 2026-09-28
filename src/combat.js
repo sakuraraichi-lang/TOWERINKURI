@@ -267,7 +267,7 @@ const Combat = {
       const si = m[(m.length / 2) | 0];          // 穴の真ん中から
       const sp = st.spawns[si];
       const p = st.center(sp.c, sp.r);
-      const e = this.makeEnemy(run, t, g, p.x, p.y, si, base * BAL.bossHp);
+      const e = this.makeEnemy(run, t, g, p.x, p.y, si, base * BAL.bossHp * ((BAL.bossHpBy || {})[run.stageIdx + 1] || 1));
       e.lane = this.pickLane(run, si);
       e.spd = BAL.bossSpeed;
       e.r = BAL.bossR;
@@ -1132,11 +1132,13 @@ const Combat = {
       //
       //   **最大HPに対する割合／秒。** 固定値にすると章が進んだ瞬間に意味が消える
       //   （敵のHPは30章で1e14倍になる）。装甲と同じ考え方
-      if (e.shock > 0 && BAL.shockDps) {
+      //   **ボスには効かせない。**（2026-09-28）ボスはHPを制限時間内に削り切れるかを問う敵なので、割合で削るとHPが意味を持たない。
+      //   倍率×8でも第15章から先のボスは口を出てすぐ倒れ、受けたダメージの 0〜93%（6本）が感電のスリップだった
+      if (e.shock > 0 && BAL.shockDps && !e.boss) {
         this.damage(run, e, e.maxHp * BAL.shockDps * dt, { color: '#c9b3ff', dot: true, by: e.shockBy });
         if (e.dead) continue;
       }
-      if (e.stun > 0 && BAL.stunDps) {
+      if (e.stun > 0 && BAL.stunDps && !e.boss) {
         this.damage(run, e, e.maxHp * BAL.stunDps * dt, { color: '#bea0ff', dot: true, by: e.stunBy });
         if (e.dead) continue;
       }
