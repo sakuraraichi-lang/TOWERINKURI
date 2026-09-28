@@ -482,8 +482,19 @@ const UI = {
     const c = this.el.cutin;
     if (!c) return;
     c.className = '';
+    // **文字を1つずつの動きにする。**（企画書 §17「文字の出現・移動・拡散・消失・複数文字の連鎖」・2026-09-28）
+    //   散らばった位置からぼけて飛び込み、1字ずつ所定の位置に収まる。抜けるときは1字ずつ散っていく。
+    //   タグ（<em> など）はそのまま残し、文字だけを包む
+    let n = 0;
+    const split = String(title).split(/(<[^>]+>)/).map(t => t.startsWith('<') ? t :
+      Array.from(t).map(ch => ch === ' ' ? ' ' :
+        '<i class="cc" style="--d:' + (n++ * 0.035).toFixed(3) + 's;--x:' + ((Math.random() - 0.5) * 120 | 0) + 'px;--y:' +
+        ((Math.random() - 0.5) * 70 | 0) + 'px;--r:' + ((Math.random() - 0.5) * 60 | 0) + 'deg">' + ch + '</i>').join('')).join('');
+    // 帯の下を流れる小さなシステムの行（情報の集中）
+    const hex = () => '0x' + ((Math.random() * 65536) | 0).toString(16).toUpperCase().padStart(4, '0');
+    const sys = 'SYS//' + String(title).replace(/<[^>]+>/g, '').replace(/\s+/g, '_').toUpperCase() + '  ' + hex() + '  ' + hex() + '  OK';
     c.innerHTML = '<div class="ci ci-' + (kind || 'wave') + '"><i class="ci-band"></i>' +
-      '<b>' + title + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '</div>';
+      '<b>' + split + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '<i class="ci-sys">' + sys + '</i></div>';
     void c.offsetWidth;
     c.className = 'on';
   },

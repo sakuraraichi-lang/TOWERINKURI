@@ -1846,3 +1846,18 @@ body:not(.tabsoff) .hlogo{display:none;}
 .rbt-phone b{font:700 4.2cqw/1 sans-serif;text-shadow:0 0 6px rgba(160,190,255,.5);}
 .rbt-phone div{font:700 2.3cqw/1.35 sans-serif;padding:1.4cqw;border-radius:1.4cqw;background:rgba(220,230,255,.12);text-shadow:0 0 4px rgba(160,190,255,.4);}
 .rbt-phone i{display:block;font-style:normal;font-size:1.7cqw;color:#9fb3dd;margin-bottom:.6cqw;}
+
+/* ===== カットインの文字（企画書 §17・2026-09-28） =====
+   1字ずつ、散らばった位置からぼけて飛び込み、収まる。抜けるとき（約1.1秒後）は1字ずつ散る */
+#cutin .ci{animation:ciHold 1.45s linear forwards;}
+@keyframes ciHold{0%,100%{opacity:1;}}
+#cutin .ci b .cc{display:inline-block;font-style:normal;
+  animation:ccIn .46s cubic-bezier(.2,.8,.2,1) var(--d) both,ccOut .32s cubic-bezier(.6,0,.9,.4) calc(1.08s + var(--d)) forwards;}
+@keyframes ccIn{0%{opacity:0;transform:translate(var(--x),var(--y)) rotate(var(--r)) scale(1.9);filter:blur(5px);}
+  55%{opacity:1;filter:blur(0);}100%{opacity:1;transform:none;filter:none;}}
+@keyframes ccOut{0%{opacity:1;transform:none;}100%{opacity:0;transform:translate(calc(var(--x) * -.6),calc(var(--y) * -.6)) rotate(calc(var(--r) * -1)) scale(.6);filter:blur(3px);}}
+#cutin .ci span{animation:ciSub 1.45s ease-out forwards;}
+@keyframes ciSub{0%,18%{opacity:0;transform:translateY(6px);}30%,78%{opacity:1;transform:none;}100%{opacity:0;}}
+#cutin .ci-sys{position:relative;margin-top:6px;font:700 9px/1 ui-monospace,Consolas,monospace;letter-spacing:.18em;color:rgba(255,190,120,.7);
+  white-space:nowrap;overflow:hidden;max-width:86vw;animation:ciSys 1.45s steps(24) forwards;}
+@keyframes ciSys{0%{clip-path:inset(0 100% 0 0);opacity:.9;}45%{clip-path:inset(0 0 0 0);}80%{opacity:.9;}100%{clip-path:inset(0 0 0 0);opacity:0;}}
