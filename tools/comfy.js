@@ -28,6 +28,31 @@ async function j(url, opt) {
   return r.json();
 }
 
+// 元の画像から描き直す（img2img）：元の構図を保ったまま、光や時間帯だけを変えたいとき。denoise が小さいほど元に近い
+function workflowFrom(prompt, imgName, seed, steps, denoise, prefix) {
+  return {
+    '1': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: CKPT } },
+    '2': { class_type: 'CLIPTextEncode', inputs: { text: prompt, clip: ['1', 1] } },
+    '3': { class_type: 'ConditioningZeroOut', inputs: { conditioning: ['2', 0] } },
+    '8': { class_type: 'LoadImage', inputs: { image: imgName } },
+    '9': { class_type: 'VAEEncode', inputs: { pixels: ['8', 0], vae: ['1', 2] } },
+    '5': { class_type: 'KSampler', inputs: { model: ['1', 0], positive: ['2', 0], negative: ['3', 0], latent_image: ['9', 0],
+      seed, steps, cfg: 1, sampler_name: 'euler', scheduler: 'simple', denoise } },
+    '6': { class_type: 'VAEDecode', inputs: { samples: ['5', 0], vae: ['1', 2] } },
+    '7': { class_type: 'SaveImage', inputs: { images: ['6', 0], filename_prefix: prefix } },
+  };
+}
+
+// ComfyUI の input へ画像を送る（img2img の元）
+async function upload(file) {
+  const fd = new FormData();
+  fd.append('image', new Blob([fs.readFileSync(file)]), path.basename(file));
+  fd.append('overwrite', 'true');
+  const r = await fetch(HOST + '/upload/image', { method: 'POST', body: fd });
+  if (!r.ok) throw new Error('upload → ' + r.status);
+  return (await r.json()).name;
+}
+
 function workflow(prompt, w, h, seed, steps, prefix) {
   return {
     '1': { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: CKPT } },
@@ -41,10 +66,11 @@ function workflow(prompt, w, h, seed, steps, prefix) {
   };
 }
 
-async function generate(prompt, w, h, seed, steps, out) {
+async function generate(prompt, w, h, seed, steps, out, from) {
   const t0 = Date.now();
+  const wf = from ? workflowFrom(prompt, from.name, seed, steps, from.denoise, 'inkuriment/gen') : workflow(prompt, w, h, seed, steps, 'inkuriment/gen');
   const { prompt_id } = await j('/prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ prompt: workflow(prompt, w, h, seed, steps, 'inkuriment/gen'), client_id: 'inkuriment-tools' }) });
+    body: JSON.stringify({ prompt: wf, client_id: 'inkuriment-tools' }) });
   for (;;) {
     await new Promise(r => setTimeout(r, 1500));
     const hist = await j('/history/' + prompt_id);
@@ -74,9 +100,11 @@ async function generate(prompt, w, h, seed, steps, out) {
   if (!prompt) { console.error('--prompt が要る'); process.exit(1); }
   const w = +arg('w', 1024), h = +arg('h', 1024), seed = +arg('seed', 1), n = +arg('n', 1), steps = +arg('steps', 4);
   const out = arg('out', 'gen.png');
+  // --from 元の画像 --denoise 0.6：元の構図を保って描き直す（img2img）
+  const from = arg('from') ? { name: await upload(arg('from')), denoise: +arg('denoise', 0.6) } : null;
   for (let i = 0; i < n; i++) {
     const o = n > 1 ? out.replace(/(\.\w+)$/, '_' + (i + 1) + '$1') : out;
-    const r = await generate(prompt, w, h, seed + i, steps, o);
+    const r = await generate(prompt, w, h, seed + i, steps, o, from);
     console.log('保存: ' + r.out + '（' + Math.round(r.bytes / 1024) + 'KB・' + r.sec + '秒）');
   }
 })().catch(e => { console.error('失敗: ' + e.message); process.exit(1); });
