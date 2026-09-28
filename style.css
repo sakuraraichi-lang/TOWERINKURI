@@ -1906,9 +1906,10 @@ body:not(.tabsoff) #home #panel{animation:panelIn .2s cubic-bezier(.2,.8,.2,1);}
 /* ===== 字体（企画書 §22・2026-09-29） =====
    数字と表示器（VFD の窓・システムの行・ラベル）は Share Tech Mono（上の置き換え）。
    見せる見出し（題字・カットイン・結果の帯・ラベル板・パネルの見出し）は DotGothic16。本文とカードの説明は端末の字体のまま（§23 読みやすさ優先） */
+/* **ウェーブの帯（#cutin）はドット字体にしない**（2026-09-29 ユーザー「レトロモチーフとはいえ8bitゲームではなく、最新の演出感が好き…初音ミクのMVのような迫力」）。元の太い字体のまま */
 :root{--font-dot:"DotGothic16",system-ui,sans-serif;--font-num:"Share Tech Mono",ui-monospace,Consolas,monospace;}
-.ttl-name,.hlogo-word,#cutin .ci b,.rs-ban b,.chhead b,.lo-hero > div:first-child b,.pz-title b,.htitle{font-family:var(--font-dot);font-weight:400;}
-.hpill,.lo-num b,.tpoints b,#cutin .ci b em{font-family:var(--font-num);}
+.ttl-name,.hlogo-word,.rs-ban b,.chhead b,.lo-hero > div:first-child b,.pz-title b,.htitle{font-family:var(--font-dot);font-weight:400;}
+.hpill,.lo-num b,.tpoints b{font-family:var(--font-num);}
 
 /* ===== パックの絵（2026-09-29・assets/packs/*.png・300×430・透明な背景） =====
    開封画面と一覧は、同じ画像を「上の帯（13%）」と「本体」に分けて貼る。帯を剥がす動きはそのまま */
@@ -1949,3 +1950,51 @@ body:not(.tabsoff) #home #panel{animation:panelIn .2s cubic-bezier(.2,.8,.2,1);}
 .synview{display:flex;flex-direction:column;align-items:center;gap:14px;padding:6px 0 2px;}
 .synview .cf{width:min(62vw,240px);}
 .synview .synclose{width:min(62vw,240px);flex:0 0 auto;}
+
+/* ===== パックの開封：データの包みを復号する場面（2026-09-29・ユーザー「世界観に合わせながら作り直しましょう」） =====
+   ハニカムの格子・データの雨・六角の錠の輪（3重）・上の表示（DATA PACKAGE／DECRYPTING 000%／SIGNAL）・開く瞬間の六角の衝撃波。
+   集中線はレジェンダリーのときだけ（虹）。長さは前と同じ */
+.pfx:not(.best-legendary) .pfx-rays{display:none;}
+.pfx-sys{position:absolute;inset:0;pointer-events:none;overflow:hidden;}
+.pfx-grid{position:absolute;inset:-60px;opacity:.1;animation:pfxgrid 30s linear infinite;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='52' height='90' viewBox='0 0 52 90'%3E%3Cpath d='M26 0l26 15v30L26 60 0 45V15zM26 60v30M0 45l-26 15M52 45l26 15' fill='none' stroke='%23ff9a3c' stroke-width='1'/%3E%3C/svg%3E") 0 0/52px 90px;
+  -webkit-mask:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 75%);mask:radial-gradient(ellipse at 50% 45%,#000 20%,transparent 75%);}
+@keyframes pfxgrid{to{transform:translate(52px,90px);}}
+.pfx-rain{position:absolute;inset:0;opacity:.18;animation:pfxrain 1.6s linear infinite;
+  background:repeating-linear-gradient(180deg,color-mix(in srgb,var(--pc) 70%,transparent) 0 2px,transparent 2px 38px) 0 0/3px 38px,
+             repeating-linear-gradient(180deg,color-mix(in srgb,var(--pc) 50%,transparent) 0 1px,transparent 1px 57px) 19px 0/3px 57px;
+  -webkit-mask:linear-gradient(90deg,transparent,#000 20%,#000 80%,transparent),linear-gradient(180deg,transparent,#000 30%,#000 70%,transparent);mask-composite:intersect;}
+@keyframes pfxrain{to{background-position:0 38px,19px 57px;}}
+.pfx-rings{position:absolute;left:50%;top:45%;width:clamp(300px,92vw,460px);height:auto;aspect-ratio:1;transform:translate(-50%,-50%);overflow:visible;transition:transform .5s cubic-bezier(.3,.7,.2,1),opacity .4s;}
+.pfx-rings polygon{fill:none;stroke:var(--best);stroke-linecap:square;transform-origin:0 0;transition:stroke .25s;
+  filter:drop-shadow(0 0 3px var(--best));}
+.pfx-rings .ra{stroke-width:1.6;stroke-dasharray:18 10 4 10;animation:pfxspin 9s linear infinite;opacity:.8;}
+.pfx-rings .rb{stroke-width:1;stroke-dasharray:2 6;animation:pfxspin 14s linear infinite reverse;opacity:.6;}
+.pfx-rings .rc{stroke-width:2.2;stroke-dasharray:40 30;animation:pfxspin 20s linear infinite;opacity:.45;}
+@keyframes pfxspin{to{transform:rotate(360deg);}}
+/* 溜め：輪が締まって速く回る */
+.pfx.charge .pfx-rings{transform:translate(-50%,-50%) scale(.84);}
+.pfx.charge .pfx-rings .ra{animation-duration:1.4s;}
+.pfx.charge .pfx-rings .rb{animation-duration:2s;}
+.pfx.charge .pfx-rings .rc{animation-duration:2.8s;opacity:.8;}
+/* 開く：輪がほどけて広がり、消える */
+.pfx.peel .pfx-rings{transform:translate(-50%,-50%) scale(1.5);opacity:0;transition-duration:.6s;}
+/* 上の表示 */
+.pfx-hud{position:absolute;left:0;right:0;top:calc(9% + env(safe-area-inset-top,0px));display:flex;flex-direction:column;align-items:center;gap:6px;pointer-events:none;
+  font-family:"Share Tech Mono",ui-monospace,Consolas,monospace;color:#ffd9ae;transition:opacity .35s;}
+.pfx-hud-t{display:flex;flex-direction:column;align-items:center;gap:2px;}
+.pfx-hud-t b{font-size:10px;letter-spacing:.5em;color:rgba(255,200,150,.6);font-weight:400;}
+.pfx-hud-t span{font-size:20px;font-weight:900;letter-spacing:.12em;color:#fff;text-shadow:0 0 10px var(--pc);}
+.pfx-hud-c{display:flex;align-items:baseline;gap:6px;margin-top:4px;}
+.pfx-hud-c em{font-style:normal;font-size:10px;letter-spacing:.3em;color:rgba(255,200,150,.7);}
+.pfx-hud-c b{font-size:30px;font-weight:400;letter-spacing:.06em;color:var(--vfd,#ffc062);text-shadow:0 0 6px rgba(255,170,60,.9),0 0 16px rgba(255,140,40,.5);}
+.pfx-hud-c i{font-style:normal;font-size:14px;color:rgba(255,200,150,.7);}
+.pfx-sig{font-size:12px;letter-spacing:.3em;color:rgba(255,200,150,.5);transition:color .2s;}
+.pfx-code{height:6.6em;overflow:hidden;font-size:9px;line-height:1.1;letter-spacing:.14em;color:color-mix(in srgb,var(--best) 70%,#fff);opacity:.55;text-align:center;}
+.pfx.granted .pfx-hud-c em{color:#fff;text-shadow:0 0 8px var(--best);}
+.pfx.lower .pfx-hud{opacity:0;}
+/* 開く瞬間：六角の衝撃波 */
+.pfx-shock{position:absolute;left:50%;top:45%;width:120px;height:120px;margin:-60px 0 0 -60px;opacity:0;pointer-events:none;
+  clip-path:polygon(25% 3%,75% 3%,100% 50%,75% 97%,25% 97%,0 50%);background:radial-gradient(circle,transparent 58%,var(--best) 62%,transparent 70%);}
+.pfx.granted .pfx-shock{animation:pfxshock .7s cubic-bezier(.2,.7,.2,1) forwards;}
+@keyframes pfxshock{0%{opacity:1;transform:scale(.4);}100%{opacity:0;transform:scale(6);}}

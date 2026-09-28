@@ -149,9 +149,20 @@ const CardFX = {
     const bestRar = BAL.rarityOrder[best] || 'common';
     const ov = Util.el('div', 'pfx best-' + bestRar + (cls ? ' ' + cls : ''));
     ov.style.setProperty('--pc', pk.color);
-    ov.style.setProperty('--best', BAL.rarity[bestRar].color);
+    // 最初はパックの色。**中身のレア度の色は、タップしてから段階的に上がる**（錠の輪が最初から見えているので、ここで中身の色を入れると開ける前に分かる）
+    ov.style.setProperty('--best', pk.color);
     if (PACK_IMG[pk.id]) { ov.classList.add('img'); ov.style.setProperty('--pimg', 'url(' + PACK_IMG[pk.id] + ')'); }
+    // **開封は「システムの中でデータの包みを復号する」場面**（2026-09-29 ユーザー「色のついた集中線がクルクルしてるだけで、
+    //   レジェンダリー以外チープすぎます、ここのアニメーションを世界観に合わせながら作り直しましょう」）
+    //   ハニカムの格子とデータの雨の空間に、パックを六角の錠の輪が3重に囲む。上に「DATA PACKAGE」、タップで復号の数字が駆け上がる
+    const ring = (r, cls) => { let p = ''; for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i + Math.PI / 6; p += (i ? ' ' : '') + (Math.cos(a) * r).toFixed(1) + ',' + (Math.sin(a) * r).toFixed(1); } return '<polygon class="' + cls + '" points="' + p + '"/>'; };
     ov.innerHTML =
+      '<div class="pfx-sys"><i class="pfx-grid"></i><i class="pfx-rain"></i>' +
+        '<svg class="pfx-rings" viewBox="-100 -100 200 200">' + ring(64, 'ra') + ring(78, 'rb') + ring(92, 'rc') + '</svg></div>' +
+      '<div class="pfx-hud"><div class="pfx-hud-t"><b>DATA PACKAGE</b><span>' + pk.name + '</span></div>' +
+        '<div class="pfx-hud-c"><em class="pfx-lbl">SEALED</em><b class="pfx-pct">000</b><i>%</i></div>' +
+        '<div class="pfx-sig">SIGNAL ▸ ----</div><div class="pfx-code"></div></div>' +
+      '<i class="pfx-shock"></i>' +
       '<div class="pfx-rays"></div>' +
       '<div class="pfx-pack"><div class="pfx-mouth"></div><div class="pfx-strip"></div><div class="pfx-seam"></div>' +
         '<div class="pfx-body"><i class="pfx-rv a"></i><i class="pfx-rv b"></i><i class="pfx-rv c"></i><i class="pfx-rv d"></i>' +
@@ -183,6 +194,28 @@ const CardFX = {
     //   1段ごとに音が上がり、粒が弾ける。レジェンドまで上がると画面が揺れる
     const steps0 = BAL.rarityOrder.slice(0, best + 1);
     const stepMs = best >= 3 ? 330 : 300;
+    // **復号の表示**：数字が 000→100% と駆け上がり、16進の記号の行が流れ、レア度が上がるたびに SIGNAL が書き換わる
+    const chargeMs = steps0.length * stepMs + 250;
+    const pctEl = ov.querySelector('.pfx-pct'), lblEl = ov.querySelector('.pfx-lbl'), sigEl = ov.querySelector('.pfx-sig'), codeEl = ov.querySelector('.pfx-code');
+    if (lblEl) lblEl.textContent = 'DECRYPTING';
+    const t0 = performance.now();
+    const hex = () => ((Math.random() * 65536) | 0).toString(16).toUpperCase().padStart(4, '0');
+    const tick = () => {
+      if (!ov.isConnected) return;
+      const k = Math.min(1, (performance.now() - t0) / chargeMs);
+      if (pctEl) pctEl.textContent = String(Math.floor(100 * (1 - Math.pow(1 - k, 1.6)))).padStart(3, '0');
+      if (k < 1) requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+    const codeTimer = setInterval(() => {
+      if (!codeEl || !ov.isConnected) { clearInterval(codeTimer); return; }
+      const ln = Util.el('div', '', '0x' + hex() + ' ' + hex() + ' ' + hex() + '  ' + ['AUTH', 'SYNC', 'KEY', 'SEG', 'ACK'][(Math.random() * 5) | 0]);
+      codeEl.appendChild(ln);
+      while (codeEl.children.length > 6) codeEl.firstChild.remove();
+    }, 70);
+    setTimeout(() => clearInterval(codeTimer), chargeMs + 200);
+    steps0.forEach((r, i) => setTimeout(() => { if (sigEl) { sigEl.textContent = 'SIGNAL ▸ ' + this.RAR_EN[r]; sigEl.style.color = BAL.rarity[r].color; } }, i * stepMs));
+    setTimeout(() => { if (lblEl) lblEl.textContent = 'ACCESS GRANTED'; if (pctEl) pctEl.textContent = '100'; ov.classList.add('granted'); }, chargeMs + (best >= 3 ? 1450 : 0));
     steps0.forEach((r, i) => setTimeout(() => {
       ov.style.setProperty('--best', BAL.rarity[r].color);
       ov.classList.remove('lv0', 'lv1', 'lv2', 'lv3'); ov.classList.add('lv' + i);
