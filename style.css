@@ -1822,3 +1822,11 @@ body:not(.tabsoff) .hlogo{display:none;}
 #upop .chip.danger{border-color:#6a1020;color:#ffb7bf;}
 /* チュートリアルの札：ラベル板 */
 #tut{clip-path:none;border-radius:9px;border:1px solid #3a2a14;background:var(--plate);}
+/* 数を見せる枠は、どの画面も VFD の窓（編成の「種類」「盤に置ける」・スキルの所持コイン） */
+.lo-num,.tpoints{clip-path:none;border-radius:7px;border:1px solid #2a2418;
+  background:linear-gradient(180deg,#0b0a07,#15120c);box-shadow:inset 0 2px 6px rgba(0,0,0,.9),inset 0 0 0 1px rgba(255,190,90,.06),0 1px 0 rgba(255,255,255,.05);}
+.lo-num b,.tpoints b{color:var(--vfd);font-family:ui-monospace,Consolas,'Courier New',monospace;
+  text-shadow:0 0 4px rgba(255,170,60,.85),0 0 10px rgba(255,140,40,.4);}
+/* 編成の見出しの札：前面パネル */
+.lo-hero{clip-path:none;border-radius:11px;border:1px solid #2e3139;background:var(--plate);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 4px 12px rgba(0,0,0,.5);}
