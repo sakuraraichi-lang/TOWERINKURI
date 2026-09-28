@@ -8,6 +8,7 @@
 //     ・再起動の確認は demo 付き（UI.confirmPrestige(true)）。押しても Game.prestige() は呼ばれない
 //     ・3択は demo 付き（UI.showDraft(ids)）。選んでもカードを取らず、戦闘も止めない
 //   帯（カットイン）と3択は盤の上に出るので、裏で戦闘の画面（準備フェーズ）を開いておき、下半分を確認室のパネルにする。
+//   凸・覚醒は CardFX.demoTotu(凸の数)（カード1枚のパックで、その凸に届く1枚を捲る）と、まとめて開封（覚醒あり）
 //   演出そのものは本物の関数を呼ぶだけ（見本のために別の絵を作らない）。演出を作り直したら、ここに並べる
 // ---------------------------------------------------------------
 'use strict';
@@ -54,6 +55,11 @@ const DebugRoom = {
         ['レジェンド', () => CardFX.demo('legendary')],
         ['まとめて開封', () => me.bulk()],
         ['レジェンドの割り込み', () => me.legend()],
+        ['凸（0→1凸）', () => CardFX.demoTotu(1)],
+        ['凸（2→3凸）', () => CardFX.demoTotu(3)],
+        ['覚醒（3→4凸）', () => CardFX.demoTotu(4)],
+        ['凸（覚醒のあと 4→5凸）', () => CardFX.demoTotu(5)],
+        ['まとめて開封（覚醒あり）', () => me.bulk(true)],
       ]],
       ['結果画面', [
         ['CLEAR', () => { UI.showResult(me._res()); me._safe(); }],
@@ -98,13 +104,15 @@ const DebugRoom = {
     ];
   },
 
-  bulk() {
+  bulk(awake) {
     const by = (r, n) => this._cards(r, n);
     const list = [];
     by('common', 6).forEach((id, i) => list.push({ id, gain: (i % 3) + 1, isNew: i === 0, t0: 0, t1: i % 3 === 0 ? 1 : 0 }));
     by('rare', 4).forEach((id, i) => list.push({ id, gain: 1 + (i % 2), isNew: false, t0: 0, t1: 0 }));
     by('epic', 2).forEach((id) => list.push({ id, gain: 1, isNew: true, t0: 0, t1: 0 }));
     by('legendary', 1).forEach((id) => list.push({ id, gain: 1, isNew: false, t0: 1, t1: 2 }));
+    // 覚醒（3→4凸）が1枚：並びの最後に開き、全部開いたあとに大きく見せる
+    if (awake) by('rare', 6).slice(4, 5).forEach((id) => list.push({ id, gain: 1, isNew: false, t0: 3, t1: 4 }));
     CardFX.openBulk(PACKS.basic, 5, list, null);
   },
 

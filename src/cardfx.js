@@ -429,7 +429,7 @@ const CardFX = {
           if (t1 > t0 && !c.noRank) {
             wait += 600;
             setTimeout(() => this.totuUp(el, ov, fx, c, t0, t1), 250);
-            if (t0 < BAL.totuBigFrom && t1 >= BAL.totuBigFrom) wait += 1800;
+            if (t0 < BAL.totuBigFrom && t1 >= BAL.totuBigFrom) wait += this.AWK_MS - 250;
           }
           setTimeout(() => {
             busy = false;
@@ -482,10 +482,9 @@ const CardFX = {
         if (quiet && g < 2) s.slot.classList.add('landed');
         else this._land(P, s.slot, c, g, i % 8);
         if (e.t1 > e.t0 && !c.noRank) {
-          const tag = Util.el('div', 'cf-up' + (e.t1 >= BAL.totuBigFrom ? ' big' : ''));
-          tag.innerHTML = '<b>' + e.t1 + '凸</b><small>×' + (1 + totuBonus(e.t0)).toFixed(2) +
-            ' → ×' + (1 + totuBonus(e.t1)).toFixed(2) + '</small>';
+          const tag = this._totuTag(e.t0, e.t1);
           el.appendChild(tag);
+          this._countMul(tag.querySelector('strong'), 1 + totuBonus(e.t0), 1 + totuBonus(e.t1), 300, 500, () => tag.classList.add('done'));
         }
       }, 260);
     };
@@ -500,7 +499,7 @@ const CardFX = {
         const el = slots[aw].front.querySelector('.cf');
         if (el) this.totuUp(el, ov, fx, CARDS[list[aw].id], list[aw].t0, list[aw].t1);
       }, 400);
-      setTimeout(() => this._finish(P, onDone), wait + (aw >= 0 ? 1800 : 0));
+      setTimeout(() => this._finish(P, onDone), wait + (aw >= 0 ? this.AWK_MS + 100 : 0));
     };
     // 波：1枚ずつ間を空けて捲る。**全部で2.5秒前後に収める**（何十種類でも待たせすぎない）
     const wave = () => {
@@ -562,30 +561,100 @@ const CardFX = {
     this.open(PACKS.arms || PACKS.basic, ids, steps, [false, true, false], null);
   },
 
-  // 凸が上がった瞬間：星が1つずつ灯り、倍率がカウントアップする
+  // **凸・覚醒の見本**（演出の確認室）。カード1枚のパックで、枚数が t1 凸に届く1枚を捲る。セーブには触れない
+  //   t1 … 上がった先の凸（1〜。BAL.totuBigFrom に届くと覚醒）
+  demoTotu(t1) {
+    const id = CARD_IDS.find(x => CARDS[x].kind === 'mod' && CARDS[x].rarity === 'rare' && !CARDS[x].noRank) || CARD_IDS[0];
+    const n1 = Game.totuNeed(t1);
+    this.open(PACKS.arms || PACKS.basic, [id], [{ n0: n1 - 1, n1 }], [false], null);
+  },
+
+  // ---- 凸・覚醒（0929s・ユーザー「演出面のチープさが全体的に目立つ」→ 結果画面（0929m）と同じ言葉で作り直した） ----
+  //   凸：カードが金にひらめき、六角の衝撃波が1つ。星が1つずつ灯り、札（VFD の窓）の倍率が数え上がる。札は数え終わりに脈打って右上へ退く
+  //   覚醒（4凸に届いた）：暗くなって中心から金の六角が点き、斜めの黒い帯が叩きつけられる。「// LIMIT BREAK」→ 覚醒 が赤と青に割れて1字ずつ落ち、倍率が数え上がる
+  //   凸・覚醒の条件・倍率の計算・効果は変えていない（totuBonus / BAL.totuBigFrom のまま）
+
+  // 倍率の数字を m0 → m1 へ数え上げる（VFD の窓）。要素が消えたら止まる。数え終わりに onDone
+  _countMul(node, m0, m1, delayMs, durMs, onDone) {
+    node.textContent = '×' + m0.toFixed(2);
+    const t0 = performance.now() + delayMs;
+    const tick = (t) => {
+      if (!node.isConnected) return;
+      const k = Math.max(0, Math.min(1, (t - t0) / durMs));
+      node.textContent = '×' + (m0 + (m1 - m0) * (1 - Math.pow(1 - k, 3))).toFixed(2);
+      if (k < 1) requestAnimationFrame(tick); else if (onDone) onDone();
+    };
+    requestAnimationFrame(tick);
+  },
+
+  // 凸の札。カードの中ほどに出て、少しして右上へ退く（説明文を隠したままにしない）
+  _totuTag(t0, t1) {
+    const big = t1 >= BAL.totuBigFrom;
+    const tag = Util.el('div', 'cf-up' + (big ? ' big' : ''));
+    tag.innerHTML = '<em>// ' + (big ? 'LIMIT BREAK' : 'LIMIT UP') + '</em><b>' + t1 + '凸</b>' +
+      '<div class="cfu-v"><span>×' + (1 + totuBonus(t0)).toFixed(2) + '</span><u>›</u><strong>×' + (1 + totuBonus(t1)).toFixed(2) + '</strong></div>';
+    return tag;
+  },
+
   totuUp(el, ov, fx, c, t0, t1) {
     const m0 = 1 + totuBonus(t0), m1 = 1 + totuBonus(t1);
-    const big = t1 >= BAL.totuBigFrom;
+    const brk = t0 < BAL.totuBigFrom && t1 >= BAL.totuBigFrom;
     el.classList.add('leveling');
+    setTimeout(() => el.classList.remove('leveling'), 900);
+    if (brk) el.classList.remove('awake');   // 覚醒の枠は、覚醒の瞬間に点く
+    // 星：いったん上がる前の数に戻し、新しい星だけ1つずつ灯す
     const stars = el.querySelector('.cf-stars');
-    if (stars) { stars.innerHTML = this.starsHtml(t1); stars.classList.add('pop'); }
-    const tag = Util.el('div', 'cf-up' + (big ? ' big' : ''));
-    tag.innerHTML = '<b>' + t1 + '凸</b><small>×' + m0.toFixed(2) + ' → ×' + m1.toFixed(2) + '</small>';
-    el.appendChild(tag);
-    const r = el.getBoundingClientRect();
-    this.particles(fx, r.left + r.width / 2, r.top + r.height * 0.8, '#ffb43c', 14, true);
-    Snd.totu(t1);
-    if (t0 < BAL.totuBigFrom && big) {
+    if (stars) {
+      stars.innerHTML = this.starsHtml(t0);
       setTimeout(() => {
-        const aw = Util.el('div', 'pfx-awaken');
-        aw.innerHTML = '<div class="awk-ring"></div><div class="awk-ring r2"></div>' +
-          '<div class="awk-txt">覚 醒</div><div class="awk-name">' + c.name + '</div>' +
-          '<div class="awk-mul">×' + m0.toFixed(2) + ' → <b>×' + m1.toFixed(2) + '</b></div>';
-        ov.appendChild(aw);
-        this.particles(fx, window.innerWidth / 2, window.innerHeight / 2, '#ffe08a', 36, true);
-        Snd.awaken();
-        setTimeout(() => aw.remove(), 2000);
-      }, 450);
+        if (!stars.isConnected) return;
+        stars.innerHTML = this.starsHtml(t1);
+        stars.classList.add('pop');
+        stars.querySelectorAll('i.on').forEach((st, i) => {
+          if (i >= t0) { st.classList.add('nw'); st.style.setProperty('--sd', ((i - t0) * 0.12).toFixed(2) + 's'); }
+        });
+      }, 350);
     }
+    const tag = this._totuTag(t0, t1);
+    el.appendChild(tag);
+    const num = tag.querySelector('strong');
+    const r = el.getBoundingClientRect();
+    const cx = r.left + r.width / 2, cy = r.top + r.height * 0.44;
+    this.hexShock(fx, cx, cy, brk ? '#ffe08a' : '#ffb43c', 'sm');
+    this.particles(fx, cx, cy, '#ffb43c', 10, false);
+    Snd.totu(t1);
+    this._countMul(num, m0, m1, 350, 550, () => {
+      tag.classList.add('done');
+      if (tag.isConnected && !brk) { const q = tag.getBoundingClientRect(); this.hexShock(fx, q.left + q.width / 2, q.top + q.height / 2, '#ffb43c', 'sm'); }
+    });
+    if (brk) setTimeout(() => {
+      this._awaken(ov, c, m0, m1);
+      setTimeout(() => el.classList.add('awake'), 500);
+    }, 350);
+  },
+
+  // 覚醒：全面を暗くして、中心から金の六角が点き、斜めの帯が叩きつけられる。約2秒で片付く（AWK_MS）
+  AWK_MS: 2050,
+  _awaken(ov, c, m0, m1) {
+    const aw = Util.el('div', 'pfx-awaken');
+    const chars = '覚醒'.split('').map((ch, i) => '<span class="ch" style="--d:' + (0.2 + i * 0.1).toFixed(2) + 's">' + ch + '</span>').join('');
+    aw.innerHTML = '<i class="awk-hex"></i><div class="awk-band"><em>// LIMIT BREAK</em><b>' + chars + '</b>' +
+      '<span class="awk-name">' + c.name + '</span>' +
+      '<div class="awk-vfd"><span>×' + m0.toFixed(2) + '</span><u>→</u><strong>×' + m1.toFixed(2) + '</strong></div></div>';
+    ov.appendChild(aw);
+    this.bigShake();
+    Snd.awaken();
+    const band = aw.querySelector('.awk-band');
+    const q = band.getBoundingClientRect();
+    const cx = q.left + q.width / 2, cy = q.top + q.height / 2;
+    this.hexShock(aw, cx, cy, '#ffc24a', true);
+    this.particles(aw, cx, cy, '#ffe08a', 20, false);
+    const vfd = aw.querySelector('.awk-vfd');
+    this._countMul(vfd.querySelector('strong'), m0, m1, 700, 800, () => {
+      vfd.classList.add('done');
+      if (aw.isConnected) { const v = vfd.getBoundingClientRect(); this.hexShock(aw, v.left + v.width / 2, v.top + v.height / 2, '#ffc24a', 'sm'); }
+    });
+    setTimeout(() => aw.classList.add('out'), this.AWK_MS - 300);
+    setTimeout(() => aw.remove(), this.AWK_MS);
   },
 };
