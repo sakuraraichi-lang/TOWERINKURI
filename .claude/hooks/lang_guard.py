@@ -113,6 +113,8 @@ def main():
             return 0
     except Exception:
         pass
+    if payload.get("agent_id"):
+        return 0    # サブエージェントの中の道具の呼び出し。見張るのは本体がユーザーに書く文だけ
     sid = str(payload.get("session_id") or "nosession")
     ev = payload.get("hook_event_name")
     st = load(sid)

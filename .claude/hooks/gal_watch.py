@@ -223,6 +223,14 @@ def main():
     path = state_path(payload.get("session_id"))
     st = load(path)
     tool = payload.get("tool_name") or ""
+
+    # **サブエージェント（teacher など）の道具の呼び出しは、本体の作業に数えない。**（2026-09-29 ユーザー承認）
+    #   サブエージェントの中で走った道具には、入力に `agent_id` / `agent_type` が入る（本体には無い。実際の入力で確かめた）。
+    #   これを数えていたので、teacher をバックグラウンドで動かしている間は、本体が監査を受けても
+    #   teacher の編集で `last_work_at` がすぐ追い越し、Stop のゲートが「監査が未実行」と止め続けていた。
+    #   サブエージェントの作業は、本体がその結果を受け取って判定する時点で本体の作業になる（Agent の呼び出しは本体の道具）。
+    if payload.get("agent_id"):
+        return 0
     inp = payload.get("tool_input") or {}
     warnings = []
     now = time.time()
