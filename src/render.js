@@ -2194,15 +2194,48 @@ const Render = {
     const s = Math.max(0.2, this.scale || 1);
     const fn = Math.round(12 / s), fc = Math.round(16 / s);
     ctx.lineJoin = 'round';
+    // **文字を動きとして見せる。**（企画書 §17「単純な数字のポップアップではなく、出現・拡散・消失をモーションとして」・2026-09-28）
+    //   出る：大きく飛び出してから収まる（最初の一瞬は白く光る。会心は赤と青に色がずれる）
+    //   消える：1文字ずつ間が開いていきながら薄れる（文字がほどけていく）
+    //   字は等幅（数字の表示器の手触り）。数字は同時に40まで（combat.js）なので、1つずつ変換しても重くならない
+    ctx.font = '700 ' + fn + 'px ui-monospace,Consolas,monospace';
     for (const n of run.nums) {
       const k = n.t / n.life;
-      ctx.globalAlpha = 1 - k * k;
-      ctx.font = (n.crit ? 'bold ' + fc + 'px ' : '600 ' + fn + 'px ') + 'system-ui,sans-serif';
+      const pop = k < 0.14 ? 1 + 0.7 * Math.pow(1 - k / 0.14, 2) : 1;
+      const out = k < 0.62 ? 0 : (k - 0.62) / 0.38;
+      ctx.globalAlpha = 1 - out * out;
+      ctx.font = '700 ' + (n.crit ? fc : fn) + 'px ui-monospace,Consolas,monospace';
+      ctx.save();
+      ctx.translate(n.x, n.y);
+      ctx.scale(pop, pop);
       ctx.lineWidth = 3 / s;
       ctx.strokeStyle = 'rgba(0,0,0,0.75)';
-      ctx.strokeText(n.txt, n.x, n.y);
-      ctx.fillStyle = n.crit ? '#ffb43c' : n.color;
-      ctx.fillText(n.txt, n.x, n.y);
+      const col = k < 0.07 ? '#ffffff' : n.crit ? '#ffb43c' : n.color;
+      if (!out) {
+        if (n.crit && k < 0.22) {
+          const d = 2.2 / s * (1 - k / 0.22);
+          ctx.fillStyle = 'rgba(255,60,90,0.7)'; ctx.fillText(n.txt, -d, 0);
+          ctx.fillStyle = 'rgba(60,220,255,0.7)'; ctx.fillText(n.txt, d, 0);
+        }
+        ctx.strokeText(n.txt, 0, 0);
+        ctx.fillStyle = col; ctx.fillText(n.txt, 0, 0);
+      } else {
+        // ほどける：字の間が開いていく
+        const gap = out * 5 / s;
+        const w = [];
+        let total = 0;
+        for (const ch of n.txt) { const cw = ctx.measureText(ch).width; w.push(cw); total += cw; }
+        total += gap * (w.length - 1);
+        let x = -total / 2, i = 0;
+        ctx.fillStyle = col;
+        for (const ch of n.txt) {
+          const cx = x + w[i] / 2;
+          ctx.strokeText(ch, cx, -out * i * 0.6 / s);
+          ctx.fillText(ch, cx, -out * i * 0.6 / s);
+          x += w[i] + gap; i++;
+        }
+      }
+      ctx.restore();
     }
     ctx.globalAlpha = 1;
   },
