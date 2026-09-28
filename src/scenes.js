@@ -44,6 +44,7 @@ const Scenes = {
   //   URL に ?packdemo（開封の見本）や ?notitle があるときは出さない
   // ---------------------------------------------------------------
   boot() {
+    setTimeout(() => this.loadRoom(), 4000);   // 再起動の部屋の画像を、起動が落ち着いてから裏で読む
     const q = new URLSearchParams(location.search);
     if (q.get('packdemo') || q.has('notitle')) return;
     if (!Game.perm.seenOpening) this.opening(() => { Game.perm.seenOpening = 1; Game.save(); this.title(); });
@@ -114,15 +115,49 @@ const Scenes = {
     timer = setTimeout(step, 700);
   },
 
-  // 部屋の絵を先に描いておく（再起動の確認を開いたとき・UI.confirmPrestige）。
-  //   描くのに PC で約100ミリ秒（1回測定）かかり、スマホではもっとかかるので、場面の出だしで引っかからないように
+  // ---------------------------------------------------------------
+  // 部屋の絵（2026-09-28・ユーザーが用意した画像）
+  //   ユーザー「転生の時のブラウン管や冷蔵庫などは…現実世界に相当するため、リアル寄りの生成にしてください」→
+  //   コードで描く絵では写真の質に届かないので、**文字を抜いた画像（assets/room.jpg・688×1504）を背景にし、
+  //   文字（テレビのニュース・新聞の見出し・広告・メモ・スマートフォンの通知）だけをゲームが毎回重ねる。**
+  //   画像ファイルを持たない決まりは、この1枚についてだけ外した（ユーザー了承）。
+  //   **読み込めていないとき・読み込みに失敗したときは、コードで描く部屋（src/room.js）に戻る**ので、場面が壊れることはない。
+  //   画像は起動してしばらくしてから、裏で読んでおく（起動を遅くしない）
+  // ---------------------------------------------------------------
+  ROOM_IMG: 'assets/room.jpg',
+  MEMO: ['牛乳', '電池', '火曜 ゴミ'],
+  loadRoom() {
+    if (this._img) return;
+    const im = new Image();
+    im.decoding = 'async';
+    im.onload = () => { if (im.decode) im.decode().catch(() => {}); };
+    im.src = this.ROOM_IMG;
+    this._img = im;
+  },
+  roomReady() { return !!(this._img && this._img.complete && this._img.naturalWidth > 0); },
+
+  // 部屋を先に用意しておく（再起動の確認を開いたとき・UI.confirmPrestige）。
+  //   画像が使えるときは画像＋文字、使えないときはコードで描く（PC で約12〜100ミリ秒）
   prepare() {
+    this.loadRoom();
     const pick = this._pick(this.NEWS, 3);
     const ad = this._pick(this.ADS, 2);
-    const cv = document.createElement('canvas');
-    cv.className = 'rb-room';
-    Room.paint(cv, { ad: ad[0], paper: pick[1], phone: ad[1], memo: ['牛乳', '電池', '火曜 ゴミ'] });
-    this._prep = { pick, cv };
+    let room;
+    if (this.roomReady()) {
+      room = document.createElement('div');
+      room.className = 'rb-room rb-photo';
+      const esc = (t) => String(t).replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' })[c]);
+      room.innerHTML = '<img src="' + this.ROOM_IMG + '" alt="">' +
+        '<div class="rbt rbt-poster">' + esc(ad[0]) + '</div>' +
+        '<div class="rbt rbt-memo">' + this.MEMO.map(esc).join('<br>') + '</div>' +
+        '<div class="rbt rbt-paper">' + esc(pick[1]) + '</div>' +
+        '<div class="rbt rbt-phone"><b>23:44</b><div><i>通知</i>' + esc(ad[1]) + '</div></div>';
+    } else {
+      room = document.createElement('canvas');
+      room.className = 'rb-room';
+      Room.paint(room, { ad: ad[0], paper: pick[1], phone: ad[1], memo: this.MEMO });
+    }
+    this._prep = { pick, cv: room };
   },
 
   // 再起動の場面。終わったら（または触って飛ばしたら）done を呼ぶ

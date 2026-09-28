@@ -1587,13 +1587,13 @@ body:not(.tabsoff) .hlogo{display:none;}
    部屋とテレビの画面は、縦横比を固定した入れ物（.rb-box・375:812）の中の同じ座標で置くので、どの画面でもずれない */
 .rbscene{position:fixed;inset:0;z-index:9000;background:#000;overflow:hidden;cursor:pointer;transition:opacity .25s;}
 .rbscene.out{opacity:0;}
-.rb-box{position:absolute;left:50%;top:50%;width:max(100vw,calc(100vh * 375 / 812));aspect-ratio:375/812;transform:translate(-50%,-50%);}
+.rb-box{position:absolute;left:50%;top:50%;width:max(100vw,calc(100vh * 688 / 1504));aspect-ratio:688/1504;transform:translate(-50%,-50%);container-type:inline-size;}
 .rb-room{position:absolute;inset:0;width:100%;height:100%;opacity:0;transition:opacity .6s .2s;}
 .rbscene.pull .rb-room{opacity:1;}
 .rbscene.dive .rb-room{opacity:0;transition:opacity .4s;}
 .rb-screen{position:absolute;left:0;top:0;width:100%;height:100%;overflow:hidden;background:#07080b;border-radius:0;
   transition:left .8s cubic-bezier(.6,0,.2,1),top .8s cubic-bezier(.6,0,.2,1),width .8s cubic-bezier(.6,0,.2,1),height .8s cubic-bezier(.6,0,.2,1),border-radius .8s;}
-.rbscene.pull .rb-screen{left:21.33%;top:26.11%;width:49.33%;height:18.47%;border-radius:12%/14%;box-shadow:0 0 26px rgba(110,140,210,.16),inset 0 0 18px rgba(0,0,0,.7);}
+.rbscene.pull .rb-screen{left:21.1%;top:25.8%;width:50.4%;height:19.1%;border-radius:12%/14%;box-shadow:0 0 26px rgba(110,140,210,.16),inset 0 0 18px rgba(0,0,0,.7);}
 .rbscene.dive .rb-screen{left:0;top:0;width:100%;height:100%;border-radius:0;transition-duration:.55s;}
 .rb-game{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
   background:radial-gradient(circle at 50% 45%,rgba(255,120,30,.38),rgba(255,90,10,.08) 40%,transparent 65%),#07080b;transition:opacity .3s;}
@@ -1830,3 +1830,19 @@ body:not(.tabsoff) .hlogo{display:none;}
 /* 編成の見出しの札：前面パネル */
 .lo-hero{clip-path:none;border-radius:11px;border:1px solid #2e3139;background:var(--plate);
   box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 4px 12px rgba(0,0,0,.5);}
+
+/* ===== 再起動の部屋：ユーザーの画像（assets/room.jpg・688×1504）に文字だけを重ねる（2026-09-28） =====
+   位置は画像の画素を百分率にしたもの。文字の大きさは入れ物の幅（cqw）に合わせるので、どの画面でもずれない。
+   紙に刷った字は「乗算」で紙になじませ、スマートフォンの画面の字は光らせる */
+.rb-photo{position:absolute;inset:0;}
+.rb-photo img{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.rbt{position:absolute;pointer-events:none;line-height:1.3;}
+.rbt-poster{left:64.2%;top:18.8%;width:23.5%;font:800 2.55cqw/1.35 sans-serif;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden;color:#2a241a;mix-blend-mode:multiply;opacity:.85;}
+.rbt-memo{left:4.4%;top:30.6%;width:10.5%;font:600 2.1cqw/1.45 sans-serif;color:#26345a;mix-blend-mode:multiply;opacity:.75;transform:rotate(-1deg);}
+.rbt-paper{left:10.2%;top:78.9%;width:50%;transform:rotate(-7.6deg);transform-origin:0 0;
+  font:900 3.9cqw/1.22 "Hiragino Mincho ProN","Yu Mincho","MS Mincho",serif;color:#1e1b15;mix-blend-mode:multiply;opacity:.82;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;}
+.rbt-phone{left:64.4%;top:77.4%;width:20.2%;height:17%;transform:rotate(8deg);transform-origin:50% 50%;color:#e8eefb;
+  display:flex;flex-direction:column;gap:1.6cqw;padding:2.4cqw 1.4cqw;box-sizing:border-box;}
+.rbt-phone b{font:700 4.2cqw/1 sans-serif;text-shadow:0 0 6px rgba(160,190,255,.5);}
+.rbt-phone div{font:700 2.3cqw/1.35 sans-serif;padding:1.4cqw;border-radius:1.4cqw;background:rgba(220,230,255,.12);text-shadow:0 0 4px rgba(160,190,255,.4);}
+.rbt-phone i{display:block;font-style:normal;font-size:1.7cqw;color:#9fb3dd;margin-bottom:.6cqw;}
