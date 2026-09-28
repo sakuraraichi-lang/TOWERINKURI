@@ -68,7 +68,8 @@ function hsv2rgb(h, s, v) { const c = v * s, x = c * (1 - Math.abs((h / 60) % 2 
   return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)]; }
 
 // ---- 本体 ----
-const [src, outDir] = process.argv.slice(2);
+//   追加の使い方（カードの枠など）：node tools/packart.js 元.png 出力 幅x高さ '{"名前":"#色",…}'
+const [src, outDir, sizeArg, kindsArg] = process.argv.slice(2);
 const img = readPng(src);
 const { w, h } = img;
 // 1) 輪郭の外の黒を透明に：盤の縁から、暗い画素だけをたどって塗りつぶす
@@ -83,8 +84,8 @@ let x0 = w, y0 = h, x1 = 0, y1 = 0;
 for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (!bg[y * w + x]) { if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y; }
 console.log('範囲', { x0, y0, x1, y1, bw: x1 - x0 + 1, bh: y1 - y0 + 1 });
 // 3) 5種の色（ゲームの PACKS の色に合わせる）。光る線（色の濃い画素）の色相だけを替え、明るさと濃さは元のまま
-const KINDS = { basic: '#7f93a8', arms: '#ffd24a', chem: '#8fd94a', relic: '#ffb43c', syn: '#c26bff' };
-const OW = 300, OH = 430;
+const KINDS = kindsArg ? JSON.parse(kindsArg) : { basic: '#7f93a8', arms: '#ffd24a', chem: '#8fd94a', relic: '#ffb43c', syn: '#c26bff' };
+const [OW, OH] = sizeArg ? sizeArg.split('x').map(Number) : [300, 430];
 fs.mkdirSync(outDir, { recursive: true });
 for (const [id, hex] of Object.entries(KINDS)) {
   const [th, ts] = rgb2hsv(parseInt(hex.slice(1, 3), 16), parseInt(hex.slice(3, 5), 16), parseInt(hex.slice(5, 7), 16));
@@ -94,7 +95,7 @@ for (const [id, hex] of Object.entries(KINDS)) {
     const [hh, s, v] = rgb2hsv(px[i * 4], px[i * 4 + 1], px[i * 4 + 2]);
     if (s > 0.25 && v > 0.12) {
       // 基本（青灰）は彩度も落とす
-      const [r, g, b] = hsv2rgb(th, id === 'basic' ? s * 0.45 : Math.max(s, ts * 0.9), v);
+      const [r, g, b] = hsv2rgb(th, (id === 'basic' || id === 'common') ? s * 0.45 : Math.max(s, ts * 0.9), v);
       px[i * 4] = r; px[i * 4 + 1] = g; px[i * 4 + 2] = b;
     }
   }

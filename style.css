@@ -1926,3 +1926,16 @@ body:not(.tabsoff) #home #panel{animation:panelIn .2s cubic-bezier(.2,.8,.2,1);}
 .cf-icon .cimg{width:72%;height:auto;max-height:92%;object-fit:contain;image-rendering:auto;
   filter:drop-shadow(0 2px 4px rgba(0,0,0,.7));pointer-events:none;-webkit-user-drag:none;}
 .cf-icon.dual .cimg{width:46%;}
+
+/* ===== カードの枠（2026-09-29・assets/cardframes/{common,rare,epic,legendary}.png・400×560） =====
+   ユーザー「カードのデザインも作ってみましょう」。ComfyUI で作った「機械の前面パネル」の枠1枚を、光る線の色だけ塗り替えてレア度ごとに4種（tools/packart.js）。
+   名前は上の名札に、絵・説明・星は窓の中に。レア度は枠の光の色で分かる */
+.cf{background:url(assets/cardframes/common.png) center/100% 100% no-repeat;padding:0;border-radius:0;box-shadow:none;}
+.cf.r-rare{background:url(assets/cardframes/rare.png) center/100% 100% no-repeat;}
+.cf.r-epic{background:url(assets/cardframes/epic.png) center/100% 100% no-repeat;}
+.cf.r-legendary{background:url(assets/cardframes/legendary.png) center/100% 100% no-repeat;box-shadow:none;filter:drop-shadow(0 0 10px rgba(255,200,60,.45));}
+.cf-frame{position:absolute;left:12%;right:12.5%;top:15.6%;bottom:14.6%;height:auto;border-radius:3px;background:transparent;overflow:visible;}
+.cf-art{margin:3px 3px 0;border:0;}
+.cf-top{position:absolute;left:12%;right:12%;top:-13.2%;height:9.5%;display:flex;align-items:center;justify-content:center;padding:0;background:none;border:0;}
+.cf-name{font-size:clamp(9px,2.6vw,12px);text-align:center;color:#fff;text-shadow:0 0 6px rgba(0,0,0,.9);}
+.cf-rar{bottom:1.5%;}
