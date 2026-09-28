@@ -279,14 +279,16 @@ const Pack = {
 // **ミッションは「実際に突破した数」で見る。**（2026-09-22）
 //   スキップは報酬を出さない約束なので、
 //   飛ばして通っただけで「全30章を突破」が達成されてはいけない
-function clearedStages(p) { return STAGES.filter(s => (p.stages[s.id] || {}).cleared).length; }
+//   **数えるのは第1〜30章だけ。**（2026-09-29 に直した）第30章の先はアセンションで章が1つずつ足されるので、
+//   「全章（STAGES.length）」と比べると、いつも1章足りず「全30章を突破」が永久に達成されなかった
+function clearedStages(p) { return STAGES.slice(0, MAIN_CHAPTERS).filter(s => (p.stages[s.id] || {}).cleared).length; }
 
 const MISSIONS = [
   { id: 'st1',      name: '第1章を突破',               reward: { basic: 1 }, check: (p) => clearedStages(p) >= 1 },
   { id: 'st3',      name: '第3章まで突破',             reward: { arms: 1 },  check: (p) => clearedStages(p) >= 3 },
   { id: 'st8',      name: '第8章まで突破',             reward: { chem: 1 },  check: (p) => clearedStages(p) >= 8 },
   { id: 'st15',     name: '第15章まで突破',            reward: { chem: 2 },  check: (p) => clearedStages(p) >= 15 },
-  { id: 'stAll',    name: '全30章を突破',              reward: { syn: 2 },   check: (p) => clearedStages(p) >= STAGES.length },
+  { id: 'stAll',    name: '全30章を突破',              reward: { syn: 2 },   check: (p) => clearedStages(p) >= MAIN_CHAPTERS },
   { id: 'perfect1', name: '初めての完璧クリア',         reward: { basic: 2 }, check: (p) => STAGES.some(s => (p.stages[s.id] || {}).perfect) },
   { id: 'perfect3', name: '3章で完璧クリア',           reward: { chem: 1 },  check: (p) => STAGES.filter(s => (p.stages[s.id] || {}).perfect).length >= 3 },
   { id: 'kill1k',   name: '累計1,000体撃破',            reward: { basic: 1 }, check: (p) => p.totalKills >= 1000 },

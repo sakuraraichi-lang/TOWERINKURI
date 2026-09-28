@@ -1998,3 +1998,25 @@ body:not(.tabsoff) #home #panel{animation:panelIn .2s cubic-bezier(.2,.8,.2,1);}
   clip-path:polygon(25% 3%,75% 3%,100% 50%,75% 97%,25% 97%,0 50%);background:radial-gradient(circle,transparent 58%,var(--best) 62%,transparent 70%);}
 .pfx.granted .pfx-shock{animation:pfxshock .7s cubic-bezier(.2,.7,.2,1) forwards;}
 @keyframes pfxshock{0%{opacity:1;transform:scale(.4);}100%{opacity:0;transform:scale(6);}}
+
+/* ---- 指揮官の記録（左上を押すと開く・2026-09-29） ---- */
+#home .hbar .lvring,#home .hbar .hid{cursor:pointer;}
+.prof{display:flex;flex-direction:column;gap:12px;width:100%;max-width:360px;box-sizing:border-box;max-height:80vh;overflow-y:auto;padding:4px 2px;}
+.prof-h{display:flex;align-items:center;gap:14px;}
+.prof-h .lvring{flex:0 0 58px;width:58px;height:58px;}
+.prof-h .lvring b{font-size:22px;}
+.prof-h > div:last-child{flex:1;min-width:0;display:flex;flex-direction:column;gap:3px;}
+.prof-h small{font-family:var(--font-num);font-size:9px;letter-spacing:.4em;color:var(--dim);}
+.prof-nm input{width:100%;box-sizing:border-box;font:inherit;font-size:17px;font-weight:900;letter-spacing:.04em;color:#fff;
+  background:#0b0d12;border:1px solid var(--line2);border-radius:6px;padding:6px 9px;outline:none;}
+.prof-nm input:focus{border-color:var(--acc);box-shadow:0 0 0 2px color-mix(in srgb,var(--acc) 30%,transparent);}
+.prof-note{font-size:9.5px;color:var(--dim);}
+.prof-st{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+.prof-st > div{display:flex;justify-content:space-between;align-items:baseline;gap:6px;padding:6px 9px;background:#10131a;border:1px solid var(--line);border-radius:6px;}
+.prof-st em{font-style:normal;font-size:10px;color:var(--dim);}
+.prof-st b{font-family:var(--font-num);font-size:14px;font-weight:400;color:var(--gold);}
+.prof-ach{display:flex;flex-direction:column;gap:2px;}
+.prof-t{display:flex;align-items:baseline;gap:8px;font-size:12px;font-weight:800;margin-bottom:4px;}
+.prof-t b{font-family:var(--font-num);font-weight:400;color:var(--gold);}
+.prof-t span{margin-left:auto;font-size:9.5px;font-weight:400;color:var(--dim);}
+.prof .synclose{align-self:center;width:min(62vw,240px);flex:0 0 auto;}

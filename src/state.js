@@ -64,6 +64,7 @@ const Game = {
       //   deepest を直接見ると周の途中で伸びて暴走する（relics.js 参照）
       legacyDeep: 0,
       prestiges: 0,
+      playerName: '',    // 左上に出す名前（指揮官の記録で決める・12字まで）
       totalKills: 0,
       totalRuns: 0,
       packsEarned: 0,     // **遊んで手に入れた**パックの数（最初から持っている1個は数えない）

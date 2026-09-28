@@ -39,6 +39,8 @@ const UI = {
     if (this.el.btnCfg) {
       this.el.btnCfg.addEventListener('click', () => { Snd.ui(); this.toggleCfg(); });
     }
+    // 左上（RANK と名前）を押すと「指揮官の記録」
+    document.querySelectorAll('#home .hbar .lvring, #home .hbar .hid').forEach(x => x.addEventListener('click', () => { Snd.ui(); this.openProfile(); }));
 
     this.el.tabs.addEventListener('click', (e) => {
       const b = e.target.closest('[data-tab]');
@@ -189,18 +191,20 @@ const UI = {
     const done = Game.clearedCount(), all = STAGES.length;
 
     e.homeCoin.textContent = Util.fmt(Game.meta.coins);
-    // 階級＝転生回数。伸び方が一番ゆっくりで、外から見た「格」に近い
-    if (e.homeRank) e.homeRank.textContent = Game.perm.prestiges;
+    // **RANK＝到達した章**（2026-09-29 ユーザー「ランクは到達階層、プレイヤー名は設定できても良い」）。
+    //   前は転生の回数で、何を表すのか分からなかった。押すと「指揮官の記録」（名前・記録・実績）が開く
+    if (e.homeRank) e.homeRank.textContent = this.reachCh();
+    const nm = document.getElementById('homeName2');
+    if (nm) nm.textContent = Game.perm.playerName || 'PLAYER 1';
+    const achN = MISSIONS.filter(m => Game.perm.missions[m.id]).length;
     if (Asc.on(Game.perm)) {
       // アセンション中：レベルと、次のレベルまでの経験値
       const a = Game.perm.asc;
       if (e.homeXp) e.homeXp.style.width = Math.min(100, 100 * a.exp / Asc.need(a.lv)).toFixed(1) + '%';
-      e.homeProg.textContent = 'アセンション Lv' + a.lv + '　到達 第' + Math.max(MAIN_CHAPTERS, Game.endlessReach()) + '章' +
-        '　撃破 ' + Util.fmt(Game.perm.totalKills);
+      e.homeProg.textContent = 'アセンション Lv' + a.lv + '　実績 ' + achN + ' / ' + MISSIONS.length;
     } else {
       if (e.homeXp) e.homeXp.style.width = (100 * done / all).toFixed(1) + '%';
-      e.homeProg.textContent = '突破 ' + done + ' / ' + all +
-        '　撃破 ' + Util.fmt(Game.perm.totalKills);
+      e.homeProg.textContent = '突破 ' + done + ' / ' + all + '　実績 ' + achN + ' / ' + MISSIONS.length;
     }
 
     const mi = STAGES.findIndex(x => x.id === st.id);
@@ -283,6 +287,55 @@ const UI = {
     b.classList.toggle('on', on);
     if (t) t.classList.toggle('on', on);
     if (on) this.renderCfg();
+  },
+
+  // 到達した章（転生しても戻らない）。第30章の先はアセンションで伸びた章
+  reachCh() {
+    const p = Game.perm;
+    return Math.max(p.deepest || 0, Game.progressCount(), Asc.on(p) ? Math.max(MAIN_CHAPTERS, Game.endlessReach()) : 0);
+  },
+
+  // ---- 指揮官の記録：左上（RANK と名前）を押すと開く ----
+  //   名前を決める・これまでの記録・実績（パックの入手ミッション）。実績はパックのタブにも同じ一覧がある
+  openProfile() {
+    const p = Game.perm;
+    const body = Util.el('div', 'prof');
+    const stat = (k, v) => '<div><em>' + k + '</em><b>' + v + '</b></div>';
+    const perfect = STAGES.filter(s => (p.stages[s.id] || {}).perfect).length;
+    const achN = MISSIONS.filter(m => p.missions[m.id]).length;
+    body.innerHTML =
+      '<div class="prof-h"><div class="lvring"><b>' + this.reachCh() + '</b><i>RANK</i></div>' +
+        '<div><small>COMMANDER</small><div class="prof-nm"><input maxlength="12" spellcheck="false" autocomplete="off" placeholder="PLAYER 1"></div>' +
+        '<span class="prof-note">RANK は到達した章。転生しても戻りません</span></div></div>' +
+      '<div class="prof-st">' +
+        stat('到達', '第' + this.reachCh() + '章') + stat('突破', STAGES.slice(0, MAIN_CHAPTERS).filter(s => (p.stages[s.id] || {}).cleared).length + ' / ' + MAIN_CHAPTERS) +
+        stat('完璧クリア', perfect + '章') + stat('転生', p.prestiges + '回') +
+        stat('撃破', Util.fmt(p.totalKills || 0)) + stat('カード', Object.keys(p.collection).length + '種') +
+        (Asc.on(p) ? stat('アセンション', 'Lv' + p.asc.lv) : '') + stat('出撃', Util.fmt(p.totalRuns || 0) + '回') +
+      '</div>' +
+      '<div class="prof-ach"><div class="prof-t">実績 <b>' + achN + ' / ' + MISSIONS.length + '</b><span>達成するとパックがもらえる</span></div></div>';
+    const inp = body.querySelector('input');
+    inp.value = p.playerName || '';
+    const commit = () => {
+      const v = Array.from(inp.value).filter(ch => ch >= ' ').join('').trim().slice(0, 12);   // 改行などの制御文字は落とす
+      if (v === (p.playerName || '')) return;
+      p.playerName = v; Game.save(); this.renderHome();
+    };
+    inp.addEventListener('change', commit);
+    inp.addEventListener('keyup', (ev) => { if (ev.key === 'Enter') inp.blur(); });
+    const ach = body.querySelector('.prof-ach');
+    for (const m of MISSIONS) {
+      const done = !!p.missions[m.id];
+      const row = Util.el('div', 'mrow' + (done ? ' done' : ''));
+      const rw = Object.entries(m.reward).map(([k, v]) => PACKS[k].name + '×' + v).join(' / ');
+      row.innerHTML = '<span>' + (done ? Icons.get('check') : '□') + '</span><b>' + m.name + '</b><em>' + rw + '</em>';
+      ach.appendChild(row);
+    }
+    const close = Util.el('button', 'rs-sub synclose');
+    close.innerHTML = Icons.get('close') + '閉じる';
+    close.addEventListener('click', () => { commit(); this.closeModal(); });
+    body.appendChild(close);
+    this.openModal(body);
   },
 
   renderCfg() {
