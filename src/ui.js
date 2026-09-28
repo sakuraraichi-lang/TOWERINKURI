@@ -1303,7 +1303,17 @@ const UI = {
         '<b>' + c.name + '</b><span class="lo-sd">' + this.shortDesc(c) + '</span>' +
         '<em>' + (st === 'on' ? (Game.own(id) > 0 ? '成立' : '成立・未所持') :
           'あと ' + c.requires.filter(w => !ids.includes(w)).map(w => WEAPONS[w].name).join('') + '</em>');
-      d.addEventListener('click', () => this.openModal(CardFX.face(c, { count: Game.own(id), tap: true }), true));
+      // カードを大きく見せる。**閉じるキーを付け、背景を押しても閉じる**（2026-09-29 ユーザー報告：
+      //   「連携を押すとカードが一枚出てきて、その後戻ることができなくなる」。背景で閉じない設定で開いていて、閉じる手段が無かった）
+      d.addEventListener('click', () => {
+        const body = Util.el('div', 'synview');
+        body.appendChild(CardFX.face(c, { count: Game.own(id), tap: true }));
+        const close = Util.el('button', 'rs-sub synclose');
+        close.innerHTML = Icons.get('close') + '閉じる';
+        close.addEventListener('click', () => this.closeModal());
+        body.appendChild(close);
+        this.openModal(body);
+      });
       return d;
     };
     const syn = Util.el('div', 'lo-synbox');

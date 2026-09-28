@@ -1945,3 +1945,7 @@ body:not(.tabsoff) #home #panel{animation:panelIn .2s cubic-bezier(.2,.8,.2,1);}
 .cf.cf-back.br-epic{background:url(assets/cardframes/epic.png) center/100% 100% no-repeat;box-shadow:none;filter:drop-shadow(0 0 8px var(--rc));}
 .cf.cf-back.br-legendary{background:url(assets/cardframes/legendary.png) center/100% 100% no-repeat;box-shadow:none;filter:drop-shadow(0 0 12px var(--rc));}
 .cf-backin{position:absolute;left:12%;right:12.5%;top:15.6%;bottom:14.6%;height:auto;border-radius:3px;box-shadow:none;}
+/* 装備タブの連携のカードを大きく見せる箱（2026-09-29・閉じるキー付き） */
+.synview{display:flex;flex-direction:column;align-items:center;gap:14px;padding:6px 0 2px;}
+.synview .cf{width:min(62vw,240px);}
+.synview .synclose{width:min(62vw,240px);flex:0 0 auto;}
