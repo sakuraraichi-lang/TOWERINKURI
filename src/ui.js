@@ -262,6 +262,13 @@ const UI = {
 
   // ===== 画面の切り替え =====
   setScreen(name) {
+    // 画面が変わるときは、短い電子的な切り替え（光の線が横切る・約0.28秒・触るのを止めない）。企画書 §5「高速な画面遷移」§26
+    if (this._screen && this._screen !== name) {
+      const fx = Util.el('div', 'scrx');
+      document.body.appendChild(fx);
+      setTimeout(() => fx.remove(), 320);
+    }
+    this._screen = name;
     document.body.classList.toggle('on-home', name === 'home');
     document.body.classList.toggle('on-battle', name === 'battle');
     if (name === 'home') { this.renderHome(); this.renderTabs(); this.renderPanel(); }

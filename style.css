@@ -1861,3 +1861,16 @@ body:not(.tabsoff) .hlogo{display:none;}
 #cutin .ci-sys{position:relative;margin-top:6px;font:700 9px/1 ui-monospace,Consolas,monospace;letter-spacing:.18em;color:rgba(255,190,120,.7);
   white-space:nowrap;overflow:hidden;max-width:86vw;animation:ciSys 1.45s steps(24) forwards;}
 @keyframes ciSys{0%{clip-path:inset(0 100% 0 0);opacity:.9;}45%{clip-path:inset(0 0 0 0);}80%{opacity:.9;}100%{clip-path:inset(0 0 0 0);opacity:0;}}
+
+/* ===== 画面の切り替え（企画書 §5・§26・2026-09-28） =====
+   光の線が上から下へ走り、その後ろで画面が入れ替わる。0.28秒・触れる（pointer-events:none） */
+.scrx{position:fixed;inset:0;z-index:8800;pointer-events:none;overflow:hidden;animation:scrxFade .3s ease-out forwards;
+  background:repeating-linear-gradient(0deg,rgba(255,150,60,.05) 0 1px,transparent 1px 3px);}
+.scrx::before{content:'';position:absolute;left:0;right:0;height:3px;top:-4px;
+  background:linear-gradient(90deg,transparent,#ffd2a0 20%,#fff 50%,#ffd2a0 80%,transparent);
+  box-shadow:0 0 18px 4px rgba(255,150,60,.55);animation:scrxLine .28s cubic-bezier(.5,0,.3,1) forwards;}
+.scrx::after{content:'';position:absolute;left:0;right:0;top:0;height:100%;background:#050608;transform-origin:50% 100%;
+  animation:scrxCover .28s cubic-bezier(.5,0,.3,1) forwards;}
+@keyframes scrxLine{0%{top:-4px;}100%{top:100%;}}
+@keyframes scrxCover{0%{transform:scaleY(1);opacity:.85;}100%{transform:scaleY(0);opacity:.85;}}
+@keyframes scrxFade{0%,70%{opacity:1;}100%{opacity:0;}}
