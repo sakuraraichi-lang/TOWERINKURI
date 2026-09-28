@@ -1271,6 +1271,26 @@ const Render = {
     cg.addColorStop(0, '#fffbe8'); cg.addColorStop(0.35, danger > 0.5 ? '#ff6a4a' : '#ffb43c'); cg.addColorStop(1, 'rgba(255,100,20,0)');
     ctx.globalCompositeOperation = 'lighter';
     ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(0, 0, t.r * 0.55 * beat, 0, Math.PI * 2); ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    // **Makina / Core は「守るべき装置」**（企画書 §15・2026-09-28）。喋らせず、説明もしない。
+    //   台座の各辺に部品の足（ピン）を並べて「基板に載った部品」に見せ、下に小さなシルク印刷の名前を入れる
+    ctx.strokeStyle = 'rgba(210,200,180,0.55)'; ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    for (let i = 0; i < 6; i++) {
+      const a0 = Math.PI / 3 * i, a1 = Math.PI / 3 * (i + 1), R = t.r * 1.25;
+      for (let k = 1; k <= 3; k++) {
+        const f = k / 4;
+        const x = Math.cos(a0) * R * (1 - f) + Math.cos(a1) * R * f, y = Math.sin(a0) * R * (1 - f) + Math.sin(a1) * R * f;
+        const nx = Math.cos((a0 + a1) / 2), ny = Math.sin((a0 + a1) / 2);
+        ctx.moveTo(x, y); ctx.lineTo(x + nx * 4, y + ny * 4);
+      }
+    }
+    ctx.stroke();
+    const towers = run.towers || [t];
+    const name = towers.length > 1 ? 'MAKINA / CORE-0' + (towers.indexOf(t) + 1) : 'MAKINA / CORE';
+    ctx.font = '700 7px ui-monospace,Consolas,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.fillStyle = 'rgba(255,200,140,0.55)';
+    ctx.fillText(name, 0, t.r * 1.25 + 14);
     ctx.restore();
 
 
