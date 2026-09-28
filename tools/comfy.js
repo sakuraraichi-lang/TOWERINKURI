@@ -96,6 +96,24 @@ async function generate(prompt, w, h, seed, steps, out, from) {
     console.log(JSON.stringify({ comfyui: s.system.comfyui_version, gpu: (s.devices || []).map(d => d.name + ' ' + Math.round(d.vram_total / 1073741824) + 'GB'), checkpoints: list }, null, 1));
     return;
   }
+  // --webp 元の画像 --out 出力.webp [--q 80]：画像を軽い WEBP に変える（ComfyUI の SaveAnimatedWEBP を1コマで使う）
+  if (arg('webp')) {
+    const name = await upload(arg('webp'));
+    const wf = { '8': { class_type: 'LoadImage', inputs: { image: name } },
+      '7': { class_type: 'SaveAnimatedWEBP', inputs: { images: ['8', 0], filename_prefix: 'inkuriment/webp', fps: 1, lossless: false, quality: +arg('q', 80), method: 'slowest' } } };
+    const { prompt_id } = await j('/prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: wf }) });
+    for (;;) {
+      await new Promise(r => setTimeout(r, 800));
+      const h1 = (await j('/history/' + prompt_id))[prompt_id];
+      const im = h1 && Object.values(h1.outputs || {}).flatMap(o => o.images || [])[0];
+      if (!im) continue;
+      const r = await fetch(HOST + '/view?' + new URLSearchParams({ filename: im.filename, subfolder: im.subfolder || '', type: im.type || 'output' }));
+      const buf = Buffer.from(await r.arrayBuffer());
+      fs.writeFileSync(arg('out'), buf);
+      console.log('保存: ' + arg('out') + '（' + Math.round(buf.length / 1024) + 'KB）');
+      return;
+    }
+  }
   const prompt = arg('prompt');
   if (!prompt) { console.error('--prompt が要る'); process.exit(1); }
   const w = +arg('w', 1024), h = +arg('h', 1024), seed = +arg('seed', 1), n = +arg('n', 1), steps = +arg('steps', 4);

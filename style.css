@@ -1919,3 +1919,22 @@ body:not(.tabsoff) #home #panel{animation:panelIn .2s cubic-bezier(.2,.8,.2,1);}
 .pfx.img .pfx-body,.gs-box.img .pfx-body{clip-path:none;background:var(--pimg) bottom center/100% auto no-repeat;animation:none;box-shadow:none;border:0;}
 .pfx.img .pfx-body > *,.gs-box.img .pfx-body > *{display:none;}
 .gs-box.img{filter:drop-shadow(0 10px 18px rgba(0,0,0,.7));}
+
+/* ===== タイトル：写真のブラウン管の中にタイトルが映る（2026-09-29・assets/title_tv.webp・688×1504） =====
+   画面の範囲（ガラスの内側）は写真の画素を百分率にしたもの。文字の大きさは入れ物の幅（cqw）に合わせる */
+.ttl{background:#000;}
+.ttl-box{position:absolute;left:50%;top:50%;width:max(100vw,calc(100vh * 688 / 1504));aspect-ratio:688/1504;transform:translate(-50%,-50%);container-type:inline-size;}
+.ttl-photo{position:absolute;inset:0;width:100%;height:100%;display:block;}
+.ttl-box .ttl-crt{position:absolute;left:17.6%;top:9.6%;width:72.4%;height:63.4%;border-radius:9%/5.5%;
+  background:radial-gradient(ellipse at 50% 45%,rgba(30,16,6,.62) 0%,rgba(8,6,4,.5) 60%,rgba(0,0,0,0) 100%);
+  box-shadow:none;
+  /* 縁をぼかして、板ではなく「ガラスに映っている」ように */
+  -webkit-mask-image:radial-gradient(ellipse 58% 56% at 50% 48%,#000 62%,transparent 100%);mask-image:radial-gradient(ellipse 58% 56% at 50% 48%,#000 62%,transparent 100%);}
+.ttl-box .ttl-mark{width:18cqw;height:18cqw;}
+.ttl-box .ttl-name{font-size:7cqw;letter-spacing:.02em;white-space:nowrap;}
+.ttl-box .ttl-sub{font-size:3.1cqw;}
+.ttl-box .ttl-start{margin-top:9cqw;font-size:3.2cqw;}
+/* 銘板：写真の下の崩れた字を覆う。シルク印刷の小さな板 */
+.ttl-plate{position:absolute;left:55%;top:79.3%;padding:1.3cqw 2cqw;border-radius:.6cqw;
+  background:linear-gradient(180deg,#2a2622,#171411);box-shadow:0 0 0 1px rgba(255,255,255,.06),0 1px 3px rgba(0,0,0,.8);
+  font:600 1.9cqw/1 "Share Tech Mono",ui-monospace,Consolas,monospace;letter-spacing:.2em;color:rgba(255,210,160,.75);white-space:nowrap;}

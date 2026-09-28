@@ -54,14 +54,17 @@ const Scenes = {
   // タイトル：ブラウン管が点いて、題字が出る（企画書 §19「CRT はタイトルで使う・現実とゲームをつなぐ窓」）
   title(done) {
     const el = Util.el('div', 'ttl');
-    el.innerHTML =
+    // 現実のブラウン管テレビの写真（assets/title_tv.webp・ComfyUI で作成・2026-09-29 ユーザー「タイトルのテレビ」）の画面の中に、タイトルが映る。
+    //   写真とテレビの画面の範囲は、縦横比を固定した入れ物（.ttl-box・688:1504）の同じ座標に置くので、どの画面でもずれない。
+    //   写真の下の崩れた銘柄の字は、版を書いた銘板（.ttl-plate）で覆う
+    el.innerHTML = '<div class="ttl-box"><img class="ttl-photo" src="assets/title_tv.webp" alt="">' +
       '<div class="ttl-crt"><div class="ttl-in">' +
         '<div class="ttl-mark">' + (typeof CardFX !== 'undefined' ? CardFX.logoSvg() : '') + '</div>' +
         '<div class="ttl-name">エクスメントマキナ</div>' +
         '<div class="ttl-sub">RETRO DEFENDER</div>' +
         '<div class="ttl-start">TAP TO START</div>' +
-        '<div class="ttl-pj">PROJECT MAKINA　ver ' + BUILD + '</div>' +
-      '</div><i class="ttl-scan"></i></div>';
+      '</div><i class="ttl-scan"></i></div>' +
+      '<div class="ttl-plate">PROJECT MAKINA　ver ' + BUILD + '</div></div>';
     document.body.appendChild(el);
     requestAnimationFrame(() => el.classList.add('on'));
     el.addEventListener('pointerdown', () => {
