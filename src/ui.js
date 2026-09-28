@@ -1776,7 +1776,7 @@ const UI = {
   showPrestigeResult(res) {
     // リザルトと同じ形（判定の帯 → 獲得物 → 次へ）
     const body = Util.el('div', 'rs rs-perfect');
-    body.innerHTML = '<div class="rs-ban"><i class="rs-sweep"></i><b>REBOOT</b><span>再起動 ' + res.prestiges + '回目</span></div>';
+    body.innerHTML = '<div class="rs-ban"><i class="rs-sweep"></i><em>// SYSTEM RESTART</em><b>REBOOT</b><span>再起動 ' + res.prestiges + '回目</span></div>';
     const rew = Util.el('div', 'rs-rew');
     for (const k of PACK_IDS.filter(k => res.reward[k] > 0)) {
       const d = Util.el('div', 'rs-pack');
@@ -1790,6 +1790,7 @@ const UI = {
     body.appendChild(b);
     this.openModal(body);
     this.el.modal.classList.add('rsmodal');
+    this._rsFx(body, '#ffd24a', { perfect: true });
     this.burst('#ffd24a');
   },
 
@@ -2010,7 +2011,7 @@ const UI = {
     //   （前の説明文は、太字のつもりの ** がそのまま画面に出ていた）
     const body = Util.el('div', 'rs rs-skip');
     body.innerHTML =
-      '<div class="rs-ban"><i class="rs-sweep"></i><b>SKIP</b><span>' + res.stage.name + '　通過（突破ではない）</span></div>' +
+      '<div class="rs-ban"><i class="rs-sweep"></i><em>// BYPASSED</em><b>SKIP</b><span>' + res.stage.name + '　通過（突破ではない）</span></div>' +
       '<div class="rs-tip">コイン・カード・再起動の評価は増えません。初回突破の報酬は残っているので、あとで自分で突破すれば受け取れます</div>';
     const go = Util.el('button', 'rs-go');
     go.innerHTML = '<span>次へ</span><b>' + (res.next ? res.next.name : 'ホーム') + '</b>' + Icons.get('play');
@@ -2018,6 +2019,41 @@ const UI = {
     body.appendChild(go);
     this.openModal(body, true);
     this.el.modal.classList.add('rsmodal');
+    this._rsFx(body, '#7fb2ff');
+  },
+
+  // ================= 結果画面の出方（0929m） =================
+  //   帯が叩きつけられ（CSS）、その位置から六角の衝撃波と背景の格子が広がる。下の段は上から順に滑り込み、
+  //   獲得物は1つずつ弾けて出る（出る瞬間に小さな衝撃波）。全部で約1.2秒・ボタンは最初から押せる。
+  //   動きは CSS の backwards（終わったあとに何も持たない）。ここは段ごとの遅れ（--dl）と衝撃波の出どころだけ決める
+  _rsFx(body, color, opt) {
+    opt = opt || {};
+    body.classList.add('fx');
+    const host = this.el.modal;
+    const shock = (el, ms, big) => setTimeout(() => {
+      if (!body.isConnected || !el.isConnected) return;
+      const r = el.getBoundingClientRect();
+      CardFX.hexShock(host, r.left + r.width / 2, r.top + r.height / 2, color, big ? true : 'sm');
+    }, ms);
+    let t = 0.32;
+    for (const c of Array.from(body.children)) {
+      if (c.classList.contains('rs-ban')) continue;
+      c.style.setProperty('--dl', t.toFixed(2) + 's');
+      if (c.classList.contains('rs-rew')) {
+        Array.from(c.children).slice(0, 6).forEach((it, i) => {
+          const d = t + 0.08 + i * 0.15;
+          it.style.setProperty('--dl', d.toFixed(2) + 's');
+          shock(it, (d + 0.1) * 1000, false);
+        });
+        t += 0.12 + Math.min(6, c.children.length) * 0.15;
+      } else t += 0.07;
+    }
+    const ban = body.querySelector('.rs-ban');
+    if (ban) {
+      shock(ban, 150, true);
+      if (opt.perfect) setTimeout(() => { if (ban.isConnected) CardFX.hexShock(host, ban.getBoundingClientRect().left + ban.offsetWidth / 2,
+        ban.getBoundingClientRect().top + ban.offsetHeight / 2, '#ffffff', true); }, 480);
+    }
   },
 
   // ================= リザルト =================
@@ -2030,8 +2066,9 @@ const UI = {
     const body = Util.el('div', 'rs ' + (perfect ? 'rs-perfect' : res.ok ? 'rs-clear' : 'rs-lose'));
     const word = perfect ? 'PERFECT' : res.ok ? 'CLEAR' : 'DEFEAT';
     const sub = perfect ? '完璧クリア' : res.ok ? '突破' : '防衛線が抜かれた';
+    const kicker = perfect ? '// ZERO LEAK' : res.ok ? '// STAGE CLEARED' : '// WARNING　LINE BREACH';
     body.innerHTML =
-      '<div class="rs-ban"><i class="rs-sweep"></i><b>' + word + '</b>' +
+      '<div class="rs-ban"><i class="rs-sweep"></i><em>' + kicker + '</em><b>' + word + '</b>' +
         '<span>' + res.stage.name + '　' + sub + '</span></div>' +
       '<div class="rs-coin">' + Icons.coin() + '<b>0</b><small>獲得コイン</small></div>' +
       '<div class="rs-line">' +
@@ -2121,13 +2158,23 @@ const UI = {
 
     this.openModal(body, true);
     this.el.modal.classList.add('rsmodal');
-    // コインは数え上げる（0.7秒）
-    const cb = body.querySelector('.rs-coin b');
-    const t0 = performance.now(), total = res.coins || 0;
+    const fxColor = perfect ? '#ffe27a' : res.ok ? '#ffc24a' : '#ff4a66';
+    this._rsFx(body, fxColor, { perfect });
+    // コインは VFD の窓に数え上げる（帯のあと0.4秒から1秒・数え終わりに一度脈打って小さな衝撃波）
+    const cw = body.querySelector('.rs-coin'), cb = cw.querySelector('b');
+    const total = res.coins || 0;
+    const t0 = performance.now() + 400, dur = 1000;
+    cb.textContent = Util.fmt(0);
     const tick = (t) => {
-      const k = Math.min(1, (t - t0) / 700);
+      if (!cb.isConnected) return;
+      const k = Math.max(0, Math.min(1, (t - t0) / dur));
       cb.textContent = Util.fmt(total * (1 - Math.pow(1 - k, 3)));
-      if (k < 1 && cb.isConnected) requestAnimationFrame(tick);
+      if (k < 1) requestAnimationFrame(tick);
+      else if (total > 0) {
+        cw.classList.add('done');
+        const r = cw.getBoundingClientRect();
+        CardFX.hexShock(this.el.modal, r.left + r.width / 2, r.top + r.height / 2, fxColor, 'sm');
+      }
     };
     requestAnimationFrame(tick);
     if (perfect || (got && got.first && got.cards.length)) this.burst('#ff8a1f');

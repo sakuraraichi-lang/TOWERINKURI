@@ -281,9 +281,11 @@ const CardFX = {
   },
 
   // 六角の衝撃波（カードが表になった瞬間など）。x, y は画面の座標
+  //   big が true なら大きく3重、'sm' なら小さく（結果画面の獲得物など）
   hexShock(host, x, y, color, big) {
+    const sm = big === 'sm'; big = big === true;
     for (let k = 0; k < (big ? 3 : 1); k++) {
-      const h = Util.el('i', 'pfx-hexshock' + (big ? ' big' : ''));
+      const h = Util.el('i', 'pfx-hexshock' + (big ? ' big' : sm ? ' sm' : ''));
       h.style.left = x + 'px'; h.style.top = y + 'px';
       h.style.setProperty('--hc', color);
       h.style.animationDelay = (k * 0.12).toFixed(2) + 's';
