@@ -157,13 +157,12 @@ const CardFX = {
     //   ハニカムの格子とデータの雨の空間に、パックを六角の錠の輪が3重に囲む。上に「DATA PACKAGE」、タップで復号の数字が駆け上がる
     const ring = (r, cls) => { let p = ''; for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i + Math.PI / 6; p += (i ? ' ' : '') + (Math.cos(a) * r).toFixed(1) + ',' + (Math.sin(a) * r).toFixed(1); } return '<polygon class="' + cls + '" points="' + p + '"/>'; };
     ov.innerHTML =
-      '<div class="pfx-sys"><i class="pfx-grid"></i><i class="pfx-rain"></i>' +
+      '<div class="pfx-sys"><i class="pfx-grid"></i><i class="pfx-data"></i>' +
         '<svg class="pfx-rings" viewBox="-100 -100 200 200">' + ring(64, 'ra') + ring(78, 'rb') + ring(92, 'rc') + '</svg></div>' +
       '<div class="pfx-hud"><div class="pfx-hud-t"><b>DATA PACKAGE</b><span>' + pk.name + '</span></div>' +
         '<div class="pfx-hud-c"><em class="pfx-lbl">SEALED</em><b class="pfx-pct">000</b><i>%</i></div>' +
         '<div class="pfx-sig">SIGNAL ▸ ----</div><div class="pfx-code"></div></div>' +
       '<i class="pfx-shock"></i>' +
-      '<div class="pfx-rays"></div>' +
       '<div class="pfx-pack"><div class="pfx-mouth"></div><div class="pfx-strip"></div><div class="pfx-seam"></div>' +
         '<div class="pfx-body"><i class="pfx-rv a"></i><i class="pfx-rv b"></i><i class="pfx-rv c"></i><i class="pfx-rv d"></i>' +
         '<div class="pfx-emb"><div class="pfx-gear">' + Icons.get('gear') + '</div><div class="pfx-logo">' + this.logoSvg() + '</div></div>' +
@@ -196,6 +195,7 @@ const CardFX = {
     const stepMs = best >= 3 ? 330 : 300;
     // **復号の表示**：数字が 000→100% と駆け上がり、16進の記号の行が流れ、レア度が上がるたびに SIGNAL が書き換わる
     const chargeMs = steps0.length * stepMs + 250;
+    const legMs = best >= 3 ? this.LEG_MS : 0;
     const pctEl = ov.querySelector('.pfx-pct'), lblEl = ov.querySelector('.pfx-lbl'), sigEl = ov.querySelector('.pfx-sig'), codeEl = ov.querySelector('.pfx-code');
     if (lblEl) lblEl.textContent = 'DECRYPTING';
     const t0 = performance.now();
@@ -215,7 +215,7 @@ const CardFX = {
     }, 70);
     setTimeout(() => clearInterval(codeTimer), chargeMs + 200);
     steps0.forEach((r, i) => setTimeout(() => { if (sigEl) { sigEl.textContent = 'SIGNAL ▸ ' + this.RAR_EN[r]; sigEl.style.color = BAL.rarity[r].color; } }, i * stepMs));
-    setTimeout(() => { if (lblEl) lblEl.textContent = 'ACCESS GRANTED'; if (pctEl) pctEl.textContent = '100'; ov.classList.add('granted'); }, chargeMs + (best >= 3 ? 1450 : 0));
+    setTimeout(() => { if (lblEl) lblEl.textContent = 'ACCESS GRANTED'; if (pctEl) pctEl.textContent = '100'; ov.classList.add('granted'); }, chargeMs + legMs);
     steps0.forEach((r, i) => setTimeout(() => {
       ov.style.setProperty('--best', BAL.rarity[r].color);
       ov.classList.remove('lv0', 'lv1', 'lv2', 'lv3'); ov.classList.add('lv' + i);
@@ -238,29 +238,58 @@ const CardFX = {
       const sy = pr.top + pr.height * 0.12;
       for (let i = 0; i < 5; i++) setTimeout(() =>
         this.particles(fx, pr.left + pr.width * (i + 0.5) / 5, sy, BAL.rarity[bestRar].color, 4 + best * 2, false), i * 55);
-      if (best >= 3) setTimeout(() => this.particles(fx, pr.left + pr.width / 2, sy, '#ffe08a', 16, true), 300);
+      if (best >= 3) setTimeout(() => this.particles(fx, pr.left + pr.width / 2, sy, '#ffe08a', 16, false), 300);
       Snd.openLoop(true);
       // 口を下へずらしてから、カードを飛び出させる
       setTimeout(() => ov.classList.add('lower'), 520);
       setTimeout(onOut, 900);
-    }, steps0.length * stepMs + 250 + (legend ? 1450 : 0));
+    }, chargeMs + legMs);
   },
 
-  // 放送停止（カラーバー）→ グリッチ → 虹。ov の上に全面で重ね、終わったら消す
+  // **レジェンドの割り込み。**放送停止（カラーバー）→ グリッチ → 深層信号の警告。ov の上に全面で重ね、終わったら消す
+  //   2026-09-29 ユーザー「レジェンドでも虹の集中線をやめて、レジェンドの演出もスクラップアンドビルドを…
+  //   レジェンドで良いのはテレビの放送停止画面の演出の部分のみです」→ 放送停止だけ残し、その後の虹をやめた。
+  //   いまは：真っ暗 → 中心から金の六角が外へ点いていく（ハニカムの奥が露出する）→ WARNING の板 → 錠の輪が一気に締まる
+  LEG_MS: 2000,
   legendBreak(ov) {
     const el = Util.el('div', 'lgb');
     el.innerHTML = '<div class="lgb-bars"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div>' +
       '<div class="lgb-low"><i></i><i></i><i></i><i></i></div>' +
       '<div class="lgb-msg"><b>PLEASE STAND BY</b><span>しばらくお待ちください</span></div>' +
-      '<div class="lgb-rb"></div>';
+      '<div class="lgb-ov"><i class="lgb-hex"></i><i class="lgb-scan"></i>' +
+        '<div class="lgb-warn"><em>WARNING</em><b>LEGENDARY SIGNAL</b><span>深層信号を検出 ─ 封印を解除します</span></div></div>';
     ov.appendChild(el);
     try { Snd.tone({ type: 'sine', f0: 1000, f1: 1000, dur: 0.55, vol: 0.07 }); } catch (e) {}   // 放送休止の「ピー」
     setTimeout(() => {
       el.classList.add('glitch');
       try { Snd.noise({ dur: 0.38, vol: 0.12, f: 2400, q: 0.6 }); } catch (e) {}
     }, 560);
-    setTimeout(() => { el.classList.add('rainbow'); this.bigShake(); }, 960);
-    setTimeout(() => el.remove(), 1480);
+    // 映像が切れて真っ暗 → 金の六角が中心から外へ点く。場面全体も金に変わる
+    setTimeout(() => {
+      el.classList.remove('glitch'); el.classList.add('override');
+      ov.classList.add('legend');
+      this.bigShake();
+      try { Snd.tone({ type: 'sawtooth', f0: 220, f1: 55, dur: 0.7, vol: 0.09 }); } catch (e) {}
+    }, 960);
+    // 錠の輪が一気に締まる（ガチッ）
+    setTimeout(() => {
+      ov.classList.add('lock');
+      try { Snd.noise({ dur: 0.09, vol: 0.16, f: 900, q: 1.2 }); Snd.tone({ type: 'square', f0: 140, f1: 90, dur: 0.12, vol: 0.06 }); } catch (e) {}
+    }, 1560);
+    setTimeout(() => el.classList.add('out'), 1760);
+    setTimeout(() => el.remove(), this.LEG_MS);
+  },
+
+  // 六角の衝撃波（カードが表になった瞬間など）。x, y は画面の座標
+  hexShock(host, x, y, color, big) {
+    for (let k = 0; k < (big ? 3 : 1); k++) {
+      const h = Util.el('i', 'pfx-hexshock' + (big ? ' big' : ''));
+      h.style.left = x + 'px'; h.style.top = y + 'px';
+      h.style.setProperty('--hc', color);
+      h.style.animationDelay = (k * 0.12).toFixed(2) + 's';
+      host.appendChild(h);
+      setTimeout(() => h.remove(), 1300);
+    }
   },
 
   bigShake() {
@@ -325,12 +354,12 @@ const CardFX = {
     Snd.land(g, i);
     slot.classList.add('landed');
     if (g >= 3) {
-      P.ov.classList.remove('flash'); void P.ov.offsetWidth; P.ov.classList.add('flash');
-      this.particles(P.fx, cx, cy, '#ffe08a', 24, true);
-      this.banner(P.ov, 'LEGENDARY', c.name, '#ffb020');
-      this.coinRain(P.fx, 42);
+      P.ov.classList.remove('dim'); void P.ov.offsetWidth; P.ov.classList.add('dim');
+      this.hexShock(P.fx, cx, cy, '#ffc24a', true);
+      this.particles(P.fx, cx, cy, '#ffe08a', 24, false);
+      this.banner(P.ov, 'LEGENDARY', c.name, '#ffb020', 'leg');
     } else if (g >= 2) {
-      P.ov.classList.remove('flashp'); void P.ov.offsetWidth; P.ov.classList.add('flashp');
+      this.hexShock(P.fx, cx, cy, '#c26bff', false);
       this.banner(P.ov, 'EPIC', c.name, '#c26bff');
     }
   },
@@ -510,26 +539,12 @@ const CardFX = {
   },
 
   // 画面を横切る帯（エピック・レジェンド）
-  banner(ov, word, name, color) {
-    const b = Util.el('div', 'pfx-banner');
+  banner(ov, word, name, color, cls) {
+    const b = Util.el('div', 'pfx-banner' + (cls ? ' ' + cls : ''));
     b.style.setProperty('--bc', color);
-    b.innerHTML = '<b>' + word + '</b><span>' + name + '</span>';
+    b.innerHTML = (cls === 'leg' ? '<em>▲ WARNING ▲ 最上位の記録を確認</em>' : '') + '<b>' + word + '</b><span>' + name + '</span>';
     ov.appendChild(b);
-    setTimeout(() => b.remove(), 1500);
-  },
-
-  // 上からコインが降る
-  coinRain(host, n) {
-    for (let i = 0; i < n; i++) {
-      const p = Util.el('i', 'pfx-rain');
-      p.innerHTML = Icons.coin();
-      p.style.left = (Math.random() * 100).toFixed(1) + 'vw';
-      p.style.animationDelay = (Math.random() * 0.7).toFixed(2) + 's';
-      p.style.animationDuration = (1.1 + Math.random() * 0.8).toFixed(2) + 's';
-      p.style.fontSize = (12 + Math.random() * 14).toFixed(0) + 'px';
-      host.appendChild(p);
-      setTimeout(() => p.remove(), 2800);
-    }
+    setTimeout(() => b.remove(), cls === 'leg' ? 1900 : 1500);
   },
 
   // **見本のパック。**セーブには触らない（URL の ?packdemo=legendary など）。
