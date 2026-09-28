@@ -308,6 +308,132 @@ const Render = {
   },
 
   // ---------------------------------------------------------------
+  // 壁の中の「露出」（2026-09-28・企画書 §9・§10・§31 ／ ユーザー「§3 の表のとおり」）
+  //   **壊れていくのではなく、最初から中にあったものが、深く進むほど見えてくる。**
+  //     段1 第1〜4章   ハニカムの壁だけ
+  //     段2 第5〜10章  継ぎ目から配線と表示灯がのぞく
+  //     段3 第11〜19章 基板の配線が壁の中を通る
+  //     段4 第20〜30章 基板がはっきり見え、ハニカムは上に被さった装甲板に見える
+  //     段5 第31章〜   配線の上をデータが流れ、壁の中にシステムの文字が見える
+  //   **下絵（boardImage）に1回だけ焼く**ので毎フレームの重さは変わらない。動くのは段5のデータの光だけ（boardAnim）。
+  //   六角1つずつに縁を描くと細かい穴の並びに戻る（2026-09-24「重合体恐怖症を刺激します」）ので、どの段もまばらに置く。
+  //   盤は全員同じなので、見えるものも章の番号で決めて全員同じにする（乱数は章の番号から）
+  // ---------------------------------------------------------------
+  exposeTier(st) {
+    const n = parseInt(String(st.id || '').replace(/\D/g, ''), 10) || 1;
+    return n <= 4 ? 1 : n <= 10 ? 2 : n <= 19 ? 3 : n <= 30 ? 4 : 5;
+  },
+
+  exposeLayer(c, st, R) {
+    const tier = this.exposeTier(st);
+    st._traces = [];
+    if (tier <= 1) return;
+    const n = parseInt(String(st.id || '').replace(/\D/g, ''), 10) || 1;
+    let s = (n * 2654435761) >>> 0;
+    const rnd = () => { s = (s + 0x6D2B79F5) >>> 0; let t = s; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+    const walls = this.wallHexes(st);
+    const LED = ['#ff4a4a', '#ffb43c', '#ff8a1f', '#fff1d6'];
+    const led = (x, y, col, r) => {
+      c.save(); c.shadowColor = col; c.shadowBlur = 6;
+      c.fillStyle = col; c.beginPath(); c.arc(x, y, r, 0, Math.PI * 2); c.fill(); c.restore();
+    };
+    // 段4から：下地が基板の色に寄る（黒に近い暗い緑。企画書 §18 の黒地を崩さない濃さ）
+    if (tier >= 4) {
+      c.fillStyle = tier >= 5 ? 'rgba(16,26,22,0.55)' : 'rgba(18,28,24,0.45)';
+      c.fillRect(-R * 2, -R * 2, st.w + R * 4, st.h + R * 4);
+    }
+    // 段2：継ぎ目のすき間から、配線と表示灯がのぞく
+    if (tier === 2) {
+      for (const h of walls) {
+        const k = rnd();
+        if (k < 0.09) {
+          const a = Math.floor(rnd() * 3) * Math.PI / 3 + Math.PI / 6, len = R * (0.5 + rnd() * 0.4);
+          const dx = Math.cos(a) * len / 2, dy = Math.sin(a) * len / 2;
+          c.strokeStyle = 'rgba(0,0,0,0.85)'; c.lineWidth = 8; c.lineCap = 'round';
+          c.beginPath(); c.moveTo(h.x - dx, h.y - dy); c.lineTo(h.x + dx, h.y + dy); c.stroke();
+          c.strokeStyle = rnd() < 0.5 ? 'rgba(255,138,31,0.6)' : 'rgba(255,90,70,0.5)'; c.lineWidth = 2.2;
+          c.beginPath(); c.moveTo(h.x - dx * 0.8, h.y - dy * 0.8); c.lineTo(h.x + dx * 0.8, h.y + dy * 0.8); c.stroke();
+          led(h.x + dx, h.y + dy, LED[(rnd() * LED.length) | 0], 2.4);
+        } else if (k < 0.14) {
+          led(h.x + (rnd() - 0.5) * R, h.y + (rnd() - 0.5) * R, LED[(rnd() * LED.length) | 0], 2.2);
+        }
+      }
+      return;
+    }
+    // 段3〜：基板の配線（縦・横・斜め45度で折れる。端は丸い穴＝ビア）
+    const pTrace = tier === 3 ? 0.16 : 0.3;
+    const alpha = tier === 3 ? 0.2 : 0.34;
+    c.lineCap = 'round'; c.lineJoin = 'round';
+    for (const h of walls) {
+      if (rnd() >= pTrace) continue;
+      let dir = (rnd() * 8) | 0;
+      const pts = [{ x: h.x, y: h.y }];
+      const segs = 2 + ((rnd() * 3) | 0);
+      for (let i = 0; i < segs; i++) {
+        const p = pts[pts.length - 1];
+        const len = R * (0.5 + rnd() * 0.9) * (dir % 2 ? 1.2 : 1);
+        const a = dir * Math.PI / 4;
+        pts.push({ x: p.x + Math.cos(a) * len, y: p.y + Math.sin(a) * len });
+        dir = (dir + (rnd() < 0.5 ? 1 : 7)) % 8;       // 45度ずつ折れる
+      }
+      const wide = rnd() < 0.25;
+      c.strokeStyle = 'rgba(255,140,50,' + (alpha * 0.45).toFixed(3) + ')'; c.lineWidth = wide ? 5 : 3.4;
+      c.beginPath(); c.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i].x, pts[i].y); c.stroke();
+      c.strokeStyle = 'rgba(255,170,90,' + alpha.toFixed(3) + ')'; c.lineWidth = wide ? 2 : 1.2;
+      c.beginPath(); c.moveTo(pts[0].x, pts[0].y); for (let i = 1; i < pts.length; i++) c.lineTo(pts[i].x, pts[i].y); c.stroke();
+      for (const e of [pts[0], pts[pts.length - 1]]) {
+        c.strokeStyle = 'rgba(255,180,100,' + (alpha * 1.3).toFixed(3) + ')'; c.lineWidth = 1.2;
+        c.beginPath(); c.arc(e.x, e.y, 2.4, 0, Math.PI * 2); c.stroke();
+      }
+      st._traces.push(pts);
+    }
+    // 段3〜：表示灯
+    for (const h of walls) if (rnd() < (tier === 3 ? 0.05 : 0.08)) led(h.x + (rnd() - 0.5) * R, h.y + (rnd() - 0.5) * R, LED[(rnd() * LED.length) | 0], 2.3);
+    if (tier < 4) return;
+    // 段4〜：部品（黒い本体に足が並ぶ）と、上に被さった装甲板の継ぎ目（まばらに・2辺だけ）
+    c.font = '700 8px ui-monospace,Consolas,monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    for (const h of walls) {
+      const k = rnd();
+      if (k < 0.045) {
+        const vert = rnd() < 0.5, w = R * (0.7 + rnd() * 0.4), hh = R * 0.42;
+        const W = vert ? hh : w, H = vert ? w : hh;
+        c.fillStyle = 'rgba(8,9,12,0.92)'; c.fillRect(h.x - W / 2, h.y - H / 2, W, H);
+        c.strokeStyle = 'rgba(255,170,90,0.28)'; c.lineWidth = 1; c.strokeRect(h.x - W / 2, h.y - H / 2, W, H);
+        c.strokeStyle = 'rgba(210,200,190,0.35)'; c.lineWidth = 1.1;
+        const pins = 4 + ((rnd() * 3) | 0);
+        for (let i = 0; i < pins; i++) {
+          const f = (i + 0.5) / pins;
+          c.beginPath();
+          if (vert) { const y = h.y - H / 2 + f * H; c.moveTo(h.x - W / 2 - 3, y); c.lineTo(h.x - W / 2, y); c.moveTo(h.x + W / 2, y); c.lineTo(h.x + W / 2 + 3, y); }
+          else { const x = h.x - W / 2 + f * W; c.moveTo(x, h.y - H / 2 - 3); c.lineTo(x, h.y - H / 2); c.moveTo(x, h.y + H / 2); c.lineTo(x, h.y + H / 2 + 3); }
+          c.stroke();
+        }
+        if (!vert) { c.fillStyle = 'rgba(255,190,120,0.4)'; c.fillText('MK-' + (100 + ((rnd() * 900) | 0)), h.x, h.y); }
+      } else if (k < 0.2) {
+        const i0 = (rnd() * 6) | 0;
+        c.strokeStyle = 'rgba(190,200,220,0.09)'; c.lineWidth = 1.2;
+        c.beginPath();
+        for (let j = 0; j < 3; j++) {
+          const a = Math.PI / 3 * (i0 + j), rr = R * 0.96;
+          const x = h.x + Math.cos(a) * rr, y = h.y + Math.sin(a) * rr;
+          if (j === 0) c.moveTo(x, y); else c.lineTo(x, y);
+        }
+        c.stroke();
+      }
+    }
+    if (tier < 5) return;
+    // 段5：壁の中にシステムの文字（16進・ログの断片）
+    const WORDS = ['SYS.CORE', 'MAKINA', 'AUTH OK', 'PKT DROP', 'ACK', 'TRACE', 'NODE', 'SEG', 'ROOT', 'HEAP', 'IRQ', 'SYNC'];
+    c.font = '700 11px ui-monospace,Consolas,monospace'; c.textAlign = 'left';
+    for (const h of walls) {
+      if (rnd() >= 0.07) continue;
+      const txt = rnd() < 0.55 ? '0x' + ((rnd() * 65536) | 0).toString(16).toUpperCase().padStart(4, '0') : WORDS[(rnd() * WORDS.length) | 0];
+      c.fillStyle = 'rgba(255,170,90,' + (0.22 + rnd() * 0.18).toFixed(3) + ')';
+      c.fillText(txt, h.x - R * 0.6, h.y + (rnd() - 0.5) * R * 0.6);
+    }
+  },
+
+  // ---------------------------------------------------------------
   // 盤面（六角）。**動かない部分は下絵として作り置きし、毎フレームは貼るだけ。**
   //   （2026-09-24・ユーザー「デザイン面を大きく変えましょう、まだ質素です」「今のSF（黒×橙）を豪華に」）
   //   下絵：壁（面取りした金属板・継ぎ目・表示灯）／通路の縁の橙のネオン／通路（暗い床と薄い格子）／
@@ -360,6 +486,10 @@ const Render = {
     const wg = c.createLinearGradient(0, 0, st.w, st.h);
     wg.addColorStop(0, '#262c3b'); wg.addColorStop(0.55, '#171b26'); wg.addColorStop(1, '#0e1118');
     wallPath(); c.fillStyle = wg; c.fill();
+    //    壁の中の「露出」（企画書 §9・§10・§31）：章が深いほど、ハニカムの中にあった基板やデータが見えてくる
+    c.save(); wallPath(); c.clip();
+    this.exposeLayer(c, st, R);
+    c.restore();
     //    塊の縁の厚み：通路に面したところだけ、内側に明るい帯と暗い筋（塊の中に切り込まない）
     c.save(); wallPath(); c.clip();
     c.strokeStyle = 'rgba(150,170,205,0.10)'; c.lineWidth = 16;
@@ -459,6 +589,29 @@ const Render = {
       ctx.stroke();
     }
     ctx.setLineDash([]);
+    // 段5（第31章〜）：壁の中の配線をデータの光が流れる（exposeLayer）。**光るのは壁のタイルの上だけ**（通路に漏らさない）
+    if (st._traces && st._traces.length && this.exposeTier(st) >= 5) {
+      if (!st._pulse) {
+        st._pulse = st._traces.slice(0, 32).map(pts => {
+          const out = [];
+          for (let i = 1; i < pts.length; i++) {
+            const a = pts[i - 1], b = pts[i], L = Math.hypot(b.x - a.x, b.y - a.y);
+            for (let d = 0; d < L; d += 3) {
+              const x = a.x + (b.x - a.x) * d / L, y = a.y + (b.y - a.y) * d / L;
+              const cc = Math.floor(x / TILE), rr = Math.floor(y / TILE);
+              out.push({ x, y, ok: !st.walkable(cc, rr) });
+            }
+          }
+          return out;
+        });
+      }
+      ctx.fillStyle = 'rgba(255,200,120,0.9)';
+      st._pulse.forEach((sm, i) => {
+        if (!sm.length) return;
+        const p = sm[Math.floor((t * 40 + i * 37) % sm.length)];
+        if (p.ok) { ctx.globalAlpha = 0.35; ctx.beginPath(); ctx.arc(p.x, p.y, 6, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1; ctx.beginPath(); ctx.arc(p.x, p.y, 2.8, 0, Math.PI * 2); ctx.fill(); }
+      });
+    }
     // 出現口の脈動
     const R = (st.vec && st.vec.hexR) || MapGen.HEX_R;
     const pulse = 0.35 + 0.25 * Math.sin(t * 4);
