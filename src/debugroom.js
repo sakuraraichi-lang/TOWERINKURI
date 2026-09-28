@@ -9,6 +9,7 @@
 //     ・3択は demo 付き（UI.showDraft(ids)）。選んでもカードを取らず、戦闘も止めない
 //   帯（カットイン）と3択は盤の上に出るので、裏で戦闘の画面（準備フェーズ）を開いておき、下半分を確認室のパネルにする。
 //   凸・覚醒は CardFX.demoTotu(凸の数)（カード1枚のパックで、その凸に届く1枚を捲る）と、まとめて開封（覚醒あり）
+//     ・スキルツリーは見本のセーブ（Game.meta / Game.perm の写し）に読み出しのあいだだけ差し替えて、本物の札（UI.skillTrack）と買う処理（UI.skillBuy）をそのまま通す。実セーブは変わらない
 //   演出そのものは本物の関数を呼ぶだけ（見本のために別の絵を作らない）。演出を作り直したら、ここに並べる
 // ---------------------------------------------------------------
 'use strict';
@@ -97,11 +98,54 @@ const DebugRoom = {
         ['連続で6個（差し替わる）', () => ['weapon', 'wave', 'buy', 'warn', 'card', 'lock'].forEach((k, i) => setTimeout(() =>
           UI.toastMsg(['新しい武器 ガトリング', 'ウェーブ ' + (i + 1) + ' 突破', '3件 購入　コイン 900', '盤に置ける数がいっぱいです', '取得: 見本のカード', '開いていません'][i], '#ffc24a', k), i * 260))],
       ]],
+      ['スキルツリー（ノードを取った瞬間）', [
+        ['1つ取る（火力の連なり）', () => me.skill('normal')],
+        ['設置枠を取る（増設完了の帯）', () => me.skill('units')],
+        ['取り切る（系統完了の帯）', () => me.skill('done')],
+        ['連打（5つ続けて取る）', () => me.skill('rapid')],
+      ], () => me._skHostEl()],
       ['場面・画面', [
         ['再起動の場面（部屋）', () => Scenes.reboot(null)],
         ['指揮官の記録', () => UI.openProfile(true)],
       ]],
     ];
+  },
+
+  // スキルツリーの見本：見本の札を置く場所
+  _skHostEl() {
+    this._skHost = Util.el('div', 'dbg-sk');
+    return this._skHost;
+  },
+  // 見本のセーブ：実セーブの浅い写し。第1章突破・全武器所持にして、どの連なりも開けておく（Game.meta / Game.perm は UI._demoView が読み出しのあいだだけ差し替える）
+  //   skills … 取り済みの節。コインは尽きない。**実セーブには書かない**（写しの meta.skills だけを変える）
+  _skDemo(skills) {
+    const perm = Object.assign({}, Game.perm);
+    perm.stages = Object.assign({}, Game.perm.stages);
+    perm.stages[STAGES[0].id] = Object.assign({}, perm.stages[STAGES[0].id], { cleared: true });
+    perm.collection = Object.assign({}, Game.perm.collection);
+    for (const w of Object.keys(WEAPONS)) perm.collection['wc_' + w] = Math.max(1, perm.collection['wc_' + w] || 0);
+    return { host: this._skHost, sel: {}, meta: { coins: 1e30, skills: Object.assign({}, skills) }, perm, rerender: null, chain: null };
+  },
+  // kind … normal（火力の連なりの1つ目）／units（設置枠・3つ取り済みから4つ目）／done（資源の連なり・最後の1つ）／rapid（火力の連なりを5つ続けて）
+  skill(kind) {
+    if (!this._skHost) return;
+    UI.skillFxClear();
+    clearInterval(this._skRapid);
+    const pre = { normal: {}, rapid: {}, units: { units1: 1, units2: 1, units3: 1 }, done: { coin1: 1, coin2: 1, coin3: 1 } }[kind];
+    const key = { normal: 'short_main', rapid: 'short_main', units: 'units', done: 'coin' }[kind];
+    const dm = this._skDemo(pre);
+    const ch = UI.skillChains(['短射程', '拠点', '資源']).find(c => c.key === key);
+    if (!ch) { UI.toastMsg('見本の連なりが見つかりません：' + key, '#ff4a66'); return; }
+    dm.chain = ch;
+    dm.rerender = () => { this._skHost.replaceChildren(UI.skillTrack(ch, dm)); };
+    UI._demoView(dm, dm.rerender);
+    this._skHost.scrollIntoView({ block: 'nearest' });
+    // 見本の札の「取得」を、本物と同じ押し方で押す（見せるための少しの間のあと）
+    const press = () => { const b = this._skHost.querySelector('.tk-buy:not(:disabled)'); if (b) b.click(); return !!b; };
+    if (kind === 'rapid') {
+      let n = 0;
+      this._skRapid = setInterval(() => { if (!this._skHost.isConnected || !press() || ++n >= 5) clearInterval(this._skRapid); }, 180);
+    } else setTimeout(press, 450);
   },
 
   bulk(awake) {
@@ -192,7 +236,7 @@ const DebugRoom = {
     el.id = 'dbg';
     el.innerHTML = '<div class="rs-ban"><i class="rs-sweep"></i><em>// DEBUG ROOM</em><b>演出の確認室</b><span>押すと、その演出が見本で出ます（セーブは変わりません）</span></div>';
     let t = 0.3;
-    for (const [name, keys] of this.groups()) {
+    for (const [name, keys, extra] of this.groups()) {
       const h = Util.el('div', 'rs-h', name);
       h.style.setProperty('--dl', t.toFixed(2) + 's');
       const row = Util.el('div', 'dbg-keys');
@@ -205,6 +249,7 @@ const DebugRoom = {
         row.appendChild(b);
       }
       el.appendChild(h); el.appendChild(row);
+      if (extra) el.appendChild(extra());
       t += 0.08;
     }
     const subs = Util.el('div', 'rs-subs');
@@ -219,6 +264,9 @@ const DebugRoom = {
 
   close() {
     this._btEnd();
+    clearInterval(this._skRapid);
+    UI.skillFxClear();
+    this._skHost = null;
     if (!this.el) return;
     this.el.remove();
     this.el = null;

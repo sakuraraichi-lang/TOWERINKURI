@@ -2308,3 +2308,59 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
   text-shadow:0 0 6px var(--tc);animation:rsSys .4s steps(16) .1s backwards;}
 #toast .tp-t{font-size:13px;font-weight:800;line-height:1.35;color:#f2f4f8;text-shadow:0 1px 3px #000;overflow-wrap:anywhere;}
 #toast.swap .tp-k{animation:none;}
+/* ===== スキルツリーでノードを取った瞬間（0929t・ui.js の skillBuy / skillFxPlay） =====
+   結果画面（0929m）と同じ語彙：六角の衝撃波・VFD の窓で数え上がる「前 → 後」・斜めに叩きつける帯（設置枠と連なりの取り切りだけ）。
+   演出は #skfx（触れない別の層）に出し、JS が1.1〜1.5秒で片付ける。動きの始まりの状態は動きの中（fill-mode: both / backwards）だけに持たせる */
+#skfx{position:fixed;inset:0;z-index:60;pointer-events:none;overflow:hidden;}
+/* 前 → 後の窓：札の見出しの上に重なる。左から点いて、最後は透明になって終わる */
+.skfx-read{--bc:#ff8a1f;position:absolute;height:32px;box-sizing:border-box;display:flex;align-items:center;gap:10px;padding:0 12px;
+  background:linear-gradient(180deg,#050607,#0b0d10);border:1px solid color-mix(in srgb,var(--bc) 55%,#2a2d34);border-radius:6px;
+  box-shadow:inset 0 2px 8px rgba(0,0,0,.95),0 0 14px color-mix(in srgb,var(--bc) 35%,transparent);animation:skRead 1.05s linear both;}
+@keyframes skRead{0%{opacity:0;clip-path:inset(0 100% 0 0);}12%{opacity:1;clip-path:inset(0 0 0 0);}80%{opacity:1;clip-path:inset(0 0 0 0);}100%{opacity:0;clip-path:inset(0 0 0 0);}}
+.skfx-read small{flex:1 1 auto;min-width:0;overflow:hidden;white-space:nowrap;font-size:10px;font-weight:800;letter-spacing:.14em;color:var(--txt2);}
+.skfx-read b{flex:0 0 auto;font:400 18px/1 var(--font-num);letter-spacing:.04em;color:var(--vfd);font-variant-numeric:tabular-nums;
+  text-shadow:0 0 6px rgba(255,192,98,.8),0 0 16px rgba(255,150,40,.45);}
+.skfx-read b.a{color:#6f5f3d;text-shadow:none;}
+.skfx-read i{flex:0 0 auto;font-style:normal;font-size:14px;color:var(--bc);}
+.skfx-read.done b.b,.skfx-band span.done .to{animation:rsCoinDone .4s ease-out;}
+/* 次の節へ走る光と、つながりの線 */
+.skfx-beam{position:absolute;left:0;top:0;height:3px;margin-top:-1.5px;transform-origin:0 50%;border-radius:2px;
+  background:linear-gradient(90deg,var(--bc),#fff);box-shadow:0 0 8px var(--bc);}
+.skfx-run{position:absolute;left:0;top:0;width:20px;height:18px;margin:-9px 0 0 -10px;
+  filter:drop-shadow(0 0 5px var(--bc)) drop-shadow(0 0 12px var(--bc));}
+.skfx-run i{display:block;width:100%;height:100%;background:#fff;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);}
+/* 設置枠・取り切りの帯：斜めの黒い帯・赤と青に割れた字が1字ずつ落ちて収まる */
+.skfx-band{position:absolute;left:-8%;right:-8%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;
+  animation:skBandOut 1.5s linear both;}
+@keyframes skBandOut{0%,74%{opacity:1;}100%{opacity:0;}}
+.skb-bg{position:absolute;inset:0;transform:skewY(-4deg);
+  background:linear-gradient(90deg,transparent,rgba(6,8,12,.95) 12%,rgba(6,8,12,.95) 88%,transparent);
+  border-top:2px solid var(--bc);border-bottom:2px solid var(--bc);box-shadow:0 0 26px color-mix(in srgb,var(--bc) 45%,transparent);
+  animation:skBand .42s cubic-bezier(.2,.9,.3,1) backwards;}
+@keyframes skBand{0%{transform:skewY(-4deg) scaleY(0);opacity:0;}35%{transform:skewY(-4deg) scaleY(1.28);opacity:1;}65%{transform:skewY(-4deg) scaleY(1);}}
+.skfx-band em{position:relative;display:block;margin:0 0 5px;padding-left:.4em;font:700 9px/1 var(--font-num);letter-spacing:.4em;color:var(--bc);
+  animation:rsSys .4s steps(16) .12s backwards;}
+.skfx-band b{position:relative;display:block;font-size:30px;font-weight:900;letter-spacing:.16em;line-height:1;color:#fff;
+  text-shadow:2px 0 rgba(255,60,60,.6),-2px 0 rgba(60,200,255,.6),0 0 18px var(--bc);animation:skSplit .8s ease-out backwards;}
+.skfx-band b i{display:inline-block;font-style:normal;animation:skChar .34s cubic-bezier(.2,.9,.3,1.3) var(--d) backwards;}
+@keyframes skChar{0%{opacity:0;transform:translateY(-30px) scale(1.6);filter:blur(3px);}}
+@keyframes skSplit{0%{text-shadow:9px 0 rgba(255,60,60,.85),-9px 0 rgba(60,200,255,.85),0 0 26px var(--bc);}
+  40%{text-shadow:-5px 0 rgba(255,60,60,.8),5px 0 rgba(60,200,255,.8),0 0 22px var(--bc);}}
+.skfx-band span{position:relative;display:block;margin-top:7px;font-size:11px;font-weight:800;letter-spacing:.1em;color:color-mix(in srgb,var(--bc) 70%,#fff);
+  animation:awkfade .4s ease .3s both;}
+.skfx-band span b{display:inline;font:400 15px/1 var(--font-num);letter-spacing:.04em;color:var(--vfd);animation:none;
+  text-shadow:0 0 6px rgba(255,192,98,.8),0 0 16px rgba(255,150,40,.45);}
+.skfx-band span b.a{color:#8a7448;text-shadow:none;}
+/* 札の側：取った粒・着いた粒・開いた節・取った数（描き直した札にだけ印が付く。終わりは元の見た目） */
+.tk-pip.sk-got,.tk-pip.sk-arrive{animation:skGot .5s ease-out;}
+@keyframes skGot{0%{transform:scale(2.6);filter:brightness(3.2);}}
+.tk-pip.sk-wave{animation:skGot .5s ease-out calc(var(--i,0) * 32ms) backwards;}
+.tk-plate.sk-open{animation:skOpen .42s ease-out .3s backwards;}
+@keyframes skOpen{0%{transform:scale(1.5);opacity:.15;filter:brightness(2.4) drop-shadow(0 0 14px var(--bc));}}
+.tk-body.sk-in{animation:skIn .3s ease-out .3s backwards;}
+@keyframes skIn{0%{opacity:0;transform:translateX(8px);}}
+.tk-head span.sk-cnt{animation:skCnt .45s ease-out .1s backwards;}
+@keyframes skCnt{0%{transform:scale(1.7);color:#fff;text-shadow:0 0 10px var(--bc);}}
+/* 見本の札（演出の確認室） */
+.dbg-sk{padding:0 14px;}
+.dbg-sk .tk{margin:0;}

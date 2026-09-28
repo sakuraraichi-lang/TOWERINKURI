@@ -425,6 +425,45 @@ const Skill = {
       .trim();
   },
 
+  // ---- 取った瞬間の演出（0929t・ui.js の skillFxPlay）が読む。**表示だけで、効果は何も変えない** ----
+  //   その節が伸ばす値の「連なり全体の合計」（同じカテゴリ・同じ種類の節をぜんぶ合わせたもの。カテゴリの無い節は gkey ごと）。
+  //   mul は掛け合わせ、add は足し合わせる。mods() が使う Skill.amount をそのまま読むので、説明文・実効果と食い違わない
+  fxTotal(meta, s) {
+    let t = null;
+    for (const x of SKILLS) {
+      const same = (s.cat && s.key) ? (x.cat === s.cat && x.key === s.key) : (x.gkey === s.gkey);
+      if (!same) continue;
+      const v = Skill.amount(meta, x.id);
+      t = s.mode === 'mul' ? (t === null ? 1 : t) * v : (t || 0) + v;
+    }
+    return t === null ? (s.mode === 'mul' ? 1 : 0) : t;
+  },
+  // 数の見せ方：10 未満は小数2桁まで、10 以上は1桁まで。末尾の 0 は落とす
+  fxNum(v) {
+    const d = Math.abs(v) >= 10 ? 1 : 2;
+    return String(parseFloat(v.toFixed(d)));
+  },
+  // 合計値 t を画面に出す形にするための表：ラベルと、t から実際の値への変換と、文字の作り方
+  //   （mods() の計算と同じ組み立て：獲得コインは 1+合計、盤の数は土台+合計、取れる枚数は 1+合計、選択肢は BAL.draftSize+合計）
+  fxKind(s) {
+    const n = Skill.fxNum;
+    const plus = (label, unit) => ({ label, v: t => t, f: v => '+' + n(v) + (unit || '') });
+    const G = s.gkey;
+    if (G === 'coin')    return { label: '獲得コイン', v: t => 1 + t, f: v => '×' + n(v) };
+    if (G === 'units')   return { label: '盤に置ける数', v: t => BAL.slotsBase + t, f: v => n(v) + '基' };
+    if (G === 'picks')   return { label: '取れる枚数', v: t => 1 + t, f: v => n(v) + '枚' };
+    if (G === 'choices') return { label: '提示枚数', v: t => BAL.draftSize + t, f: v => n(v) + '枚' };
+    if (G === 'lure')    return { label: '敵の出現数', v: t => 1 + t, f: v => '×' + n(v) };
+    if (G === 'regen')   return plus('突破ごとの回復');
+    if (G === 'luck')    return plus('高レアの出やすさ');
+    if (G === 'pack')    return plus('パックの等級');
+    if (s.key === 'units') return plus('武器1種の上限', '基');
+    const L = { dmg: 'ダメージ', rate: '発射レート', range: '射程', size: '効果範囲', dur: '状態異常の持続',
+      pierce: '貫通', crit: '会心率', count: '同時発射' }[s.key] || s.name;
+    if (s.mode === 'mul') return { label: L, v: t => t, f: v => '×' + n(v) };
+    return plus(L);
+  },
+
   // 値段は「レベル」だけでなく「どこまで進んだか」でも上がる。
   //
   //   **これが無いと、コインに重みが戻らない。**

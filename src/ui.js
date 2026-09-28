@@ -1250,57 +1250,190 @@ const UI = {
     for (const ch of this.skillChains(groups)) p.appendChild(this.skillTrack(ch));
   },
 
-  // 連なり1本の札
-  skillTrack(ch) {
+  // 連なり1本の札。dm … 演出の確認室の見本（debugroom.js）。あれば見本のセーブ・見本の選択で描き、押しても実セーブは変わらない
+  skillTrack(ch, dm) {
     const perm = Game.perm, meta = Game.meta;
+    const canBuy = dm ? true : Game.canBuySkills();
     const col = ch.cat ? CATEGORIES[ch.cat].color : ({ '資源': '#ffd24a', '拠点': '#9fe0c0', 'カード': '#c9a0ff', '危険': '#ff6a7e' })[ch.group] || '#ff8a1f';
     const got = ch.nodes.filter(s => Skill.lv(meta, s.id) > 0).length;
     const next = ch.nodes.find(s => Skill.lv(meta, s.id) <= 0);
-    this.skillSel = this.skillSel || {};
-    const selId = (this.skillSel[ch.key] && ch.nodes.some(s => s.id === this.skillSel[ch.key])) ? this.skillSel[ch.key] : (next || ch.nodes[ch.nodes.length - 1]).id;
+    const sel = dm ? dm.sel : (this.skillSel = this.skillSel || {});
+    const selId = (sel[ch.key] && ch.nodes.some(s => s.id === sel[ch.key])) ? sel[ch.key] : (next || ch.nodes[ch.nodes.length - 1]).id;
+    // 取った直後の描き直しだけ、動きの印（sk-*）を付ける。動きは CSS の backwards だけで、描き直せば消える
+    const pend = this._skPend && this._skPend.key === ch.key ? this._skPend : null;
 
     const tk = Util.el('div', 'tk' + (got === ch.nodes.length ? ' full' : ''));
+    tk.dataset.key = ch.key;
     tk.style.setProperty('--bc', col);
     tk.innerHTML = '<div class="tk-head"><i class="tk-ic">' + Icons.skill(ch.nodes[0]) + '</i><b>' + ch.name + '</b>' +
-      '<span>' + got + ' / ' + ch.nodes.length + '</span></div>';
+      '<span' + (pend ? ' class="sk-cnt"' : '') + '>' + got + ' / ' + ch.nodes.length + '</span></div>';
 
     // 節の粒（取った／次／まだ）。タップでその節の中身を見る
     const pips = Util.el('div', 'tk-pips');
-    for (const s of ch.nodes) {
+    ch.nodes.forEach((s, i) => {
       const lv = Skill.lv(meta, s.id);
-      const can = Game.canBuySkills() && Skill.canBuy(meta, perm, s.id);
-      const b = Util.el('button', 'tk-pip' + (lv > 0 ? ' have' : s === next ? ' next' : '') + (can ? ' can' : '') + (s.id === selId ? ' sel' : ''));
-      b.addEventListener('click', () => { this.skillSel[ch.key] = s.id; this.refreshTree(); });
+      const can = canBuy && Skill.canBuy(meta, perm, s.id);
+      const b = Util.el('button', 'tk-pip' + (lv > 0 ? ' have' : s === next ? ' next' : '') + (can ? ' can' : '') + (s.id === selId ? ' sel' : '') +
+        (pend && i === pend.idx ? ' sk-got' : '') + (pend && pend.done && lv > 0 ? ' sk-wave' : ''));
+      if (pend && pend.done) b.style.setProperty('--i', i);
+      b.addEventListener('click', () => { sel[ch.key] = s.id; if (dm) this._demoView(dm, dm.rerender); else this.refreshTree(); });
       pips.appendChild(b);
-      this.skillRows.push({ id: s.id, el: b, can });
-    }
+      if (!dm) this.skillRows.push({ id: s.id, el: b, can });
+    });
     tk.appendChild(pips);
 
     // 選んだ節の中身と、取るボタン
     const s = SKILL_BY_ID[selId];
     const lv = Skill.lv(meta, s.id);
     const unlocked = Skill.isUnlocked(perm, s.id);
-    const can = Game.canBuySkills() && Skill.canBuy(meta, perm, s.id);
+    const can = canBuy && Skill.canBuy(meta, perm, s.id);
     const node = Util.el('div', 'tk-node');
     node.innerHTML =
-      '<div class="tk-plate' + (lv > 0 ? ' have' : '') + '"><i class="tplate">' + (unlocked || lv > 0 ? Icons.skill(s) : Icons.get('lock')) + '</i></div>' +
-      '<div class="tk-body"><b>' + (unlocked || lv > 0 ? s.name : '？？？') + '</b>' +
+      '<div class="tk-plate' + (lv > 0 ? ' have' : '') + (pend ? ' sk-open' : '') + '"><i class="tplate">' + (unlocked || lv > 0 ? Icons.skill(s) : Icons.get('lock')) + '</i></div>' +
+      '<div class="tk-body' + (pend ? ' sk-in' : '') + '"><b>' + (unlocked || lv > 0 ? s.name : '？？？') + '</b>' +
         '<span>' + (unlocked || lv > 0 ? Skill.shortDesc(s) : Skill.lockReason(perm, s.id)) + '</span></div>';
     const btn = Util.el('button', 'tk-buy' + (lv > 0 ? ' done' : can ? '' : ' short'));
     if (lv > 0) btn.innerHTML = Icons.get('check') + '取得済';
     else if (!unlocked) btn.innerHTML = Icons.get('lock');
-    else btn.innerHTML = '<span>' + (can ? '取得' : !Game.canBuySkills() ? '戦闘中' : '不足') + '</span><b>' + Icons.coin() + Util.fmt(Skill.cost(meta, s.id)) + '</b>';
+    else btn.innerHTML = '<span>' + (can ? '取得' : !canBuy ? '戦闘中' : '不足') + '</span><b>' + Icons.coin() + Util.fmt(Skill.cost(meta, s.id)) + '</b>';
     btn.disabled = lv > 0 || !can;
-    btn.addEventListener('click', () => {
-      if (!Game.canBuySkills() || !Skill.buy(Game.meta, Game.perm, s.id)) return;
-      Game.applyMods();
-      Snd.ui();
-      delete this.skillSel[ch.key];       // 取ったら次の節へ
-      this.refreshTree();
-    });
+    btn.addEventListener('click', () => this.skillBuy(ch, s, dm));
     node.appendChild(btn);
     tk.appendChild(node);
     return tk;
+  },
+
+  // ノードを買う。買う・値段・効果は前のまま（Skill.buy / Game.applyMods）。そのあと取った瞬間の演出（skillFxPlay）を出す
+  //   dm があるときは見本：見本のセーブを Game.meta / Game.perm の代わりに読み出しのあいだだけ差し替え、実セーブは触らない
+  skillBuy(ch, s, dm) {
+    const go = () => {
+      if (!dm && !Game.canBuySkills()) return;
+      const meta = Game.meta, perm = Game.perm;
+      const host = dm ? dm.host : this.el.panel;
+      const sel = dm ? dm.sel : this.skillSel;
+      const oldTk = host.querySelector('.tk[data-key="' + ch.key + '"]');
+      const plate = oldTk && oldTk.querySelector('.tk-plate');
+      const pr = plate ? plate.getBoundingClientRect() : null;   // 押した節の位置（描き直す前に控える）
+      const kind = Skill.fxKind(s), t0 = Skill.fxTotal(meta, s);
+      if (!Skill.buy(meta, perm, s.id)) return;
+      const t1 = Skill.fxTotal(meta, s);
+      if (!dm) Game.applyMods();
+      Snd.ui();
+      delete sel[ch.key];       // 取ったら次の節へ
+      const done = ch.nodes.every(x => Skill.lv(meta, x.id) > 0);
+      this._skPend = { key: ch.key, idx: ch.nodes.indexOf(s), done };
+      try { if (dm) dm.rerender(); else this.refreshTree(); }
+      finally { this._skPend = null; }
+      const tk = host.querySelector('.tk[data-key="' + ch.key + '"]');
+      const mile = s.gkey === 'units' ? 'units' : done ? 'done' : null;   // 設置枠と、連なりを取り切った節は一段強く
+      try { this.skillFxPlay({ tk, pr, kind, t0, t1, idx: ch.nodes.indexOf(s), done, mile, chName: ch.name, n: ch.nodes.length, col: ch.cat ? CATEGORIES[ch.cat].color : (tk ? tk.style.getPropertyValue('--bc') : '#ff8a1f') }); }
+      catch (e) { console.error('スキルの演出', e); }
+    };
+    if (dm) this._demoView(dm, go); else go();
+  },
+
+  // 見本のセーブに差し替えて fn を回す（同期だけ。実セーブはすぐ戻す）
+  _demoView(dm, fn) {
+    if (this._demoOn) return fn();
+    const m = Game.meta, p = Game.perm;
+    this._demoOn = true; Game.meta = dm.meta; Game.perm = dm.perm;
+    try { return fn(); }
+    finally { Game.meta = m; Game.perm = p; this._demoOn = false; try { Relic.invalidate(); } catch (e) {} }
+  },
+
+  // ================= ノードを取った瞬間の演出（0929t） =================
+  //   結果画面と同じ語彙：六角の衝撃波・VFD の窓で数え上がる「前 → 後」・斜めの帯（設置枠と連なりの取り切りだけ）。
+  //   **操作を妨げない**：全部 pointer-events:none の別の層（#skfx）に出し、通常は約1.1秒・帯は約1.5秒で片付ける。
+  //   連打しても溜まらない：出すたびに前の層を空にして、前の数え上げ・待ち時間も止める。次の節を押すのは、押した瞬間から可能
+  _skLayer() {
+    let L = document.getElementById('skfx');
+    if (!L) { L = Util.el('div'); L.id = 'skfx'; document.body.appendChild(L); }
+    clearInterval(this._skIv);
+    (this._skTimers || []).forEach(clearTimeout);
+    this._skTimers = [];
+    L.replaceChildren();
+    return L;
+  },
+  skillFxClear() {
+    clearInterval(this._skIv);
+    (this._skTimers || []).forEach(clearTimeout);
+    this._skTimers = [];
+    const L = document.getElementById('skfx');
+    if (L) L.replaceChildren();
+  },
+  skillFxPlay(P) {
+    const tk = P.tk;
+    if (!tk || !tk.isConnected) return;
+    const L = this._skLayer();
+    const col = P.col, tr = tk.getBoundingClientRect(), mile = P.mile;
+    const from = P.kind.v(P.t0), to = P.kind.v(P.t1), f = P.kind.f;
+    const later = (fn, ms) => this._skTimers.push(setTimeout(fn, ms));
+    const anim = (el, kf, o) => { try { el.animate(kf, Object.assign({ fill: 'both' }, o)); } catch (e) {} };
+    const pips = tk.querySelectorAll('.tk-pip');
+    const A = pips[P.idx], B = P.done ? null : pips[P.idx + 1];
+    const mid = (el) => { const r = el.getBoundingClientRect(); return [r.left + r.width / 2, r.top + r.height / 2]; };
+
+    // 1) 押した節から六角の衝撃波。取った粒にも小さく
+    const [px, py] = P.pr ? [P.pr.left + P.pr.width / 2, P.pr.top + P.pr.height / 2] : [tr.left + 40, tr.top + 50];
+    CardFX.hexShock(L, px, py, col, mile ? true : false);
+    if (A) { const [ax, ay] = mid(A); later(() => CardFX.hexShock(L, ax, ay, '#ffffff', 'sm'), 70); }
+
+    // 2) 次の節へ、つながりの線を光が走る（粒の列を伝う）。着いた粒がもう一度光る
+    if (A && B && !mile) {
+      const [ax, ay] = mid(A), [bx, by] = mid(B);
+      const len = Math.hypot(bx - ax, by - ay), ang = Math.atan2(by - ay, bx - ax);
+      const beam = Util.el('i', 'skfx-beam');
+      beam.style.width = len + 'px'; beam.style.setProperty('--bc', col);
+      const T = 'translate(' + ax + 'px,' + ay + 'px) rotate(' + ang + 'rad) ';
+      L.appendChild(beam);
+      anim(beam, [{ transform: T + 'scaleX(0)', opacity: 1 }, { transform: T + 'scaleX(1)', opacity: 1, offset: 0.45 }, { transform: T + 'scaleX(1)', opacity: 0 }],
+        { duration: 560, delay: 60, easing: 'ease-out' });
+      const run = Util.el('div', 'skfx-run');
+      run.style.setProperty('--bc', col);
+      run.innerHTML = '<i></i>';
+      L.appendChild(run);
+      anim(run, [{ transform: 'translate(' + ax + 'px,' + ay + 'px) scale(.7)', opacity: 1 },
+        { transform: 'translate(' + bx + 'px,' + by + 'px) scale(1)', opacity: 1, offset: 0.6 },
+        { transform: 'translate(' + bx + 'px,' + by + 'px) scale(1.9)', opacity: 0 }], { duration: 520, delay: 80, easing: 'cubic-bezier(.4,0,.2,1)' });
+      later(() => { if (B.isConnected) { B.classList.add('sk-arrive'); B.addEventListener('animationend', () => B.classList.remove('sk-arrive'), { once: true }); } CardFX.hexShock(L, bx, by, col, 'sm'); }, 320);
+    }
+
+    // 3) 数え上がる窓（前 → 後）。設置枠と取り切りは、斜めの帯に載せる
+    const count = (el, f0) => {
+      let i = 0; const N = 8;
+      el.textContent = f(f0);
+      this._skIv = setInterval(() => {
+        i++;
+        el.textContent = f(f0 + (to - f0) * (1 - Math.pow(1 - i / N, 2)));
+        if (i >= N) { clearInterval(this._skIv); if (el.parentNode) el.parentNode.classList.add('done'); }
+      }, 45);
+    };
+    if (mile) {
+      const pb = tk.querySelector('.tk-pips').getBoundingClientRect().bottom;
+      const h = 86;
+      const top = Math.max(4, Math.min(window.innerHeight - h - 4, tr.top + (pb - tr.top) / 2 - h / 2));
+      const units = mile === 'units';
+      const chars = Array.from(units ? '増設完了' : '系統完了').map((c, i) => '<i style="--d:' + (i * 0.05).toFixed(2) + 's">' + c + '</i>').join('');
+      const band = Util.el('div', 'skfx-band');
+      band.style.setProperty('--bc', col); band.style.top = top + 'px'; band.style.height = h + 'px';
+      band.innerHTML = '<i class="skb-bg"></i><em>' + (units ? '// MODULE INSTALLED' : '// BRANCH COMPLETE') + '</em><b>' + chars + '</b>' +
+        '<span>' + (units ? P.kind.label + ' <b class="a">' + f(from) + '</b> → <b class="to">' + f(from) + '</b>' : P.chName + '　' + P.n + '節 すべて取得') + '</span>';
+      L.appendChild(band);
+      const cy = top + h / 2;
+      later(() => CardFX.hexShock(L, window.innerWidth / 2, cy, col, true), 90);
+      if (units) later(() => { const el = band.querySelector('.to'); if (el && el.isConnected) count(el, from); }, 300);
+      try { Snd.tone({ type: 'triangle', f0: 392, f1: 784, dur: 0.16, vol: 0.06 }); setTimeout(() => Snd.tone({ type: 'triangle', f0: 587, f1: 1174, dur: 0.22, vol: 0.06 }), 90); } catch (e) {}
+      later(() => L.replaceChildren(), 1500);
+    } else {
+      const rd = Util.el('div', 'skfx-read');
+      rd.style.setProperty('--bc', col);
+      rd.style.left = (tr.left + 8) + 'px'; rd.style.top = (tr.top + 4) + 'px'; rd.style.width = (tr.width - 16) + 'px';
+      rd.innerHTML = '<small>' + P.kind.label + '</small><b class="a">' + f(from) + '</b><i>→</i><b class="b">' + f(from) + '</b>';
+      L.appendChild(rd);
+      later(() => { const el = rd.querySelector('.b'); if (el && el.isConnected) count(el, from); }, 200);
+      try { Snd.tone({ type: 'triangle', f0: 520, f1: 1040, dur: 0.09, vol: 0.045 }); } catch (e) {}
+      later(() => L.replaceChildren(), 1100);
+    }
   },
 
   treePoints() {
