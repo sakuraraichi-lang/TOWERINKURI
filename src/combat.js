@@ -517,6 +517,9 @@ const Combat = {
       this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 5, color: '#ff4d6a', life: 0.6 });
       this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 3, color: '#fff3c8', life: 0.4 });
       this.shake(run, 16, true);
+      // 倒した**その場所**の演出（0929p）：金の六角の輪が3重に広がり、データ片が弾ける（render.js の 'bossdown'）。
+      //   一度きり・粒は16。fx の上限（240）に阻まれないよう直接積む。コアに着いて負けたとき（漏れ）はここを通らない
+      run.fx.push({ type: 'bossdown', x: e.x, y: e.y, r: e.r, life: 1.1, t: 0 });
     }
     // **入れ子：倒すと、同じ場所から中身が1体出てくる。**（2026-09-28）最後の層（nest 1）は何も出さない
     if (e.nest > 1 && run.enemies.length < BAL.enemyCap) {

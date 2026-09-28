@@ -2228,6 +2228,38 @@ const Render = {
         ctx.globalAlpha = (1 - k) * 0.26;
         ctx.fillStyle = f.color;
         ctx.beginPath(); ctx.arc(f.x, f.y, r * 0.8, 0, Math.PI * 2); ctx.fill();
+      } else if (f.type === 'bossdown') {
+        // **ボスを倒した位置**（0929p・結果画面と同じ金の六角）：白い閃光 → 六角の輪が3重に広がり、六角のデータ片が16個弾ける。1.1秒・一度きり
+        const hex = (cx, cy, r, rot) => {
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) { const a = rot + Math.PI / 3 * i; const x = cx + Math.cos(a) * r, y = cy + Math.sin(a) * r; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+          ctx.closePath();
+        };
+        if (k < 0.22) {
+          ctx.globalAlpha = (1 - k / 0.22) * 0.6; ctx.fillStyle = '#fff3c8';
+          ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 3.4, 0, Math.PI * 2); ctx.fill();
+        }
+        for (let j = 0; j < 3; j++) {
+          const q = (k - j * 0.1) / 0.8;
+          if (q <= 0 || q >= 1) continue;
+          ctx.globalAlpha = (1 - q) * 0.9;
+          ctx.strokeStyle = j === 0 ? '#fff3c8' : '#ffc24a';
+          ctx.lineWidth = 7 * (1 - q) + 1.6;
+          hex(f.x, f.y, f.r * (1.2 + q * 9), Math.PI / 6);
+          ctx.stroke();
+        }
+        const kk = Math.min(1, k / 0.9), dd = 1 - Math.pow(1 - kk, 2);
+        ctx.globalAlpha = 1 - k;
+        for (let i = 0; i < 16; i++) {
+          const a = (i / 16) * Math.PI * 2 + Math.sin(i * 12.9898) * 0.25;
+          const d = f.r * (5 + ((i * 7919) % 100) / 100 * 8) * dd;
+          const s = (9 - k * 6.5) * (0.7 + ((i * 104729) % 60) / 100);
+          if (s <= 0.3) continue;
+          ctx.fillStyle = i % 3 === 0 ? '#fff3c8' : '#ffc24a';
+          hex(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d, s, a);
+          ctx.fill();
+        }
+        ctx.globalAlpha = 1;
       } else if (f.type === 'ring') {
         ctx.globalAlpha = (1 - k) * 0.7;
         ctx.strokeStyle = f.color; ctx.lineWidth = 2.5;

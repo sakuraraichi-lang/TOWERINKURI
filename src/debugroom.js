@@ -71,6 +71,7 @@ const DebugRoom = {
         ['最終ウェーブの帯', cut('WAVE ' + W + '<em> / ' + W + '</em>', '最終ウェーブ', 'last')],
         ['ボスの帯', () => { UI.cutinBoss(W); setTimeout(() => UI.sysWarn('boss'), 2100); }],
         ['BOSS DOWN（あと2体）', () => UI.cutinBossDown(2)],
+        ['ボス戦の見本（第10章・2体）', () => me.bossBattle()],
       ]],
       ['場面・画面', [
         ['再起動の場面（部屋）', () => Scenes.reboot(null)],
@@ -95,6 +96,54 @@ const DebugRoom = {
     P.hint.textContent = '';
     CardFX.legendBreak(P.ov);
     setTimeout(() => P.ov.remove(), CardFX.LEG_MS + 300);
+  },
+
+  // ボス戦の見本：第10章（口2つ）の**本物の戦闘**でボスを2体出し、1体ずつ倒す（ボスの帯 → 1体倒して BOSS DOWN と倒した位置の演出 → もう1体で突破）。
+  //   Combat.update を確認室が自分で回す（Game.phase は準備のまま＝本体のループは戦闘を進めず、突破の記録・報酬・セーブは動かない）。
+  //   章の開放と currentStage は借りて、すぐ戻す。湧き口のバリア（約10秒）を抜けるまでは6倍速で進める
+  //   **セーブを守る**：ボスを倒すとコイン・撃破数が入るので、始める前の perm/meta を写し取り、終わったら（ウェーブ終了・部屋を閉じる・作り直し）その場で書き戻す。
+  //   演出中は Game.save を止める（8秒ごとの自動保存が、コインの入った状態を書かないように）
+  _btEnd() {
+    clearInterval(this._bt);
+    if (!this._btSnap) return;
+    const snap = this._btSnap; this._btSnap = null;
+    for (const k of Object.keys(Game.perm)) delete Game.perm[k];
+    for (const k of Object.keys(Game.meta)) delete Game.meta[k];
+    Object.assign(Game.perm, snap.perm); Object.assign(Game.meta, snap.meta);
+    Game.save = snap.save;
+    try { Relic.invalidate(); } catch (e) {}
+  },
+  bossBattle() {
+    this._btEnd();
+    this._btSnap = { perm: JSON.parse(JSON.stringify(Game.perm)), meta: JSON.parse(JSON.stringify(Game.meta)), save: Game.save };
+    Game.save = () => {};
+    const perm = Game.perm, cur = perm.currentStage, orig = Game.stageUnlocked;
+    let run;
+    try { Game.stageUnlocked = () => true; run = Game.startPrep('ch10'); }
+    finally { Game.stageUnlocked = orig; perm.currentStage = cur; }
+    Render.fit(); UI.renderTray();
+    run.phase = 'build'; run.wave = BAL.wavesPerStage - 1;
+    Game.startNextWave();
+    UI._bossKills = 0;
+    UI.cutinWave(run.wave);
+    const bosses = run.enemies.filter(e => e.boss);
+    let t0 = performance.now(), tOut = null, done = false, last = t0;
+    this._bt = setInterval(() => {
+      if (!this.el || Game.run !== run || done) { this._btEnd(); return; }
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      const inSh = bosses.some(b => !b.dead && Combat.inShield(run, b));
+      const steps = inSh ? 6 : 1;
+      let sig = null;
+      for (let i = 0; i < steps; i++) sig = Combat.update(run, dt) || sig;
+      if (!inSh && tOut === null) tOut = now;
+      if (tOut !== null) {
+        const el = (now - tOut) / 1000;
+        bosses.forEach((b, i) => { if (!b.dead && el >= 0.8 + i * 2.6) Combat.damage(run, b, b.maxHp * 2, { by: 'debug' }); });
+      }
+      if (sig === 'stageclear' || sig === 'waveclear') { done = true; UI.toastMsg('ボス戦の見本：全部倒してウェーブ終了（見本・記録なし）', '#ffc24a'); this._btEnd(); }
+      if (now - t0 > 60000) { done = true; this._btEnd(); }
+    }, 16);
   },
 
   open() {
@@ -137,6 +186,7 @@ const DebugRoom = {
   },
 
   close() {
+    this._btEnd();
     if (!this.el) return;
     this.el.remove();
     this.el = null;
