@@ -505,8 +505,7 @@ const Render = {
     for (let x = 0, col = 0; x < w + R * 2; x += R * 1.5, col++) {
       for (let y = (col % 2) * R * 0.866; y < h + R * 2; y += R * 1.732) this.hexPathOn(c, x, y, R), c.stroke();
     }
-    c.fillStyle = 'rgba(0,0,0,0.18)';
-    for (let y = 0; y < h; y += 3 * (this.dpr || 1)) c.fillRect(0, y, w, 1);
+    // 走査線は引かない（企画書 §19「CRT・走査線は常用しない。タイトルと転生の移り変わりだけ」・2026-09-28）
     this._bg = { w, h, cv };
     return cv;
   },
@@ -1858,6 +1857,8 @@ const Render = {
   //   前は盤の座標で 11px（会心 15px）だった。スマホでは盤全体を約0.42倍に縮めて映すので、画面では約4.6pxになり読めなかった。
   //   盤の縮み（this.scale）で割って、画面で 12px（会心 16px）にする。重なっても読めるように暗い縁を付ける
   numbers(ctx, run) {
+    // ダメージ数字は ⚙ で消せる（企画書 §23「ダメージ数字は最優先ではない。設定で非表示にできてよい」）
+    if (Game.perm.hideDmgNum) return;
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     const s = Math.max(0.2, this.scale || 1);
     const fn = Math.round(12 / s), fc = Math.round(16 / s);

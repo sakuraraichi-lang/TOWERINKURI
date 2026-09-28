@@ -134,7 +134,7 @@ const UI = {
   // 武器ごとの記録（Game.perm.dmgLog）を、貼り付けて読める文字にする。1行＝1回の出撃、新しい順
   dmgLogText() {
     const log = Game.perm.dmgLog || [];
-    const lines = ['INKURIMENT 武器の記録（新しい順・' + log.length + '回）',
+    const lines = ['エクスメントマキナ 武器の記録（新しい順・' + log.length + '回）',
       '版 章 結果 W 転生 前回到達 最深 漏れ 撃破 置いた数 | 武器 有効ダメージの割合%（有効ダメージ／撃破／基数）'];
     for (const x of log) {
       const tot = x.w.reduce((a, w) => a + w[1], 0) || 1;
@@ -302,6 +302,15 @@ const UI = {
       el.innerHTML = '<span class="box">' + (on ? Icons.get('check') : '') + '</span>' +
         '<span><b>ライフのバーを出す</b><span>戦闘中、盤の左上にライフの残りをバーと数字で出します（切るとコアの輪だけ）</span></span>';
       el.addEventListener('click', () => { Game.perm.hideLifeBar = !Game.perm.hideLifeBar; Game.save(); Snd.ui(); this.renderCfg(); });
+      b.appendChild(el);
+    }
+    {
+      // ダメージ数字（初期は出す。hideDmgNum で消す・企画書 §23）
+      const on = !Game.perm.hideDmgNum;
+      const el = Util.el('label', 'cfgrow' + (on ? ' on' : ''));
+      el.innerHTML = '<span class="box">' + (on ? Icons.get('check') : '') + '</span>' +
+        '<span><b>ダメージの数字を出す</b><span>敵に当たったときの数字（切ると盤がすっきりします）</span></span>';
+      el.addEventListener('click', () => { Game.perm.hideDmgNum = !Game.perm.hideDmgNum; Game.save(); Snd.ui(); this.renderCfg(); });
       b.appendChild(el);
     }
     // 自動化は開いてから出す（BAL.autoUnlock）
@@ -483,7 +492,7 @@ const UI = {
     const last = n >= BAL.wavesPerStage;
     const boss = run && Combat.isBossWave(run);
     this.cutin('WAVE ' + n + '<em> / ' + BAL.wavesPerStage + '</em>',
-      boss ? 'ボスが来る ─ コアに届く前に倒せ' : last ? '最終ウェーブ' : '', last ? 'last' : 'wave');
+      boss ? 'VIRUS DETECTED ─ コアに届く前に倒せ' : last ? '最終ウェーブ' : '', last ? 'last' : 'wave');
   },
 
   // ================= 戦闘中の ⚙（一時停止） =================
@@ -524,6 +533,9 @@ const UI = {
     box.appendChild(tog('autoWave', '次のウェーブへ自動で進む'));
     box.appendChild(btn(Game.perm.hideLifeBar ? '' : 'on', '<i class="bc-chk">' + (Game.perm.hideLifeBar ? '' : Icons.get('check')) + '</i><span>ライフのバーを出す</span>', () => {
       Game.perm.hideLifeBar = !Game.perm.hideLifeBar; Game.save(); Snd.ui(); this.renderBattleCfg(); this.renderHud();
+    }));
+    box.appendChild(btn(Game.perm.hideDmgNum ? '' : 'on', '<i class="bc-chk">' + (Game.perm.hideDmgNum ? '' : Icons.get('check')) + '</i><span>ダメージの数字を出す</span>', () => {
+      Game.perm.hideDmgNum = !Game.perm.hideDmgNum; Game.save(); Snd.ui(); this.renderBattleCfg();
     }));
     // 減速・加速の説明の札（閉じたあとで、もう一度出せるように）
     box.appendChild(btn(Game.perm.zoneTipOff ? '' : 'on', '<i class="bc-chk">' + (Game.perm.zoneTipOff ? '' : Icons.get('check')) + '</i><span>減速・加速の説明を出す</span>', () => {

@@ -998,7 +998,8 @@ body:not(.on-home) #homeFx{display:none;}
 .hfx-glow{position:absolute;left:50%;top:38%;width:130vmin;height:130vmin;transform:translate(-50%,-50%);
   background:radial-gradient(circle,rgba(255,120,30,.22) 0%,rgba(255,90,10,.08) 35%,transparent 65%);animation:glowbreath 6s ease-in-out infinite;}
 @keyframes glowbreath{0%,100%{opacity:.75;transform:translate(-50%,-50%) scale(1);}50%{opacity:1;transform:translate(-50%,-50%) scale(1.06);}}
-.hfx-scan{position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(0,0,0,.22) 0 1px,transparent 1px 3px);}
+/* 走査線はホームに常時出さない（企画書 §19・2026-09-28）。タイトルと転生の移り変わりで使う */
+.hfx-scan{display:none;}
 .hfx-scan::after{content:'';position:absolute;left:0;right:0;height:22%;top:-22%;
   background:linear-gradient(180deg,transparent,rgba(255,150,60,.06),transparent);animation:scanmove 7s linear infinite;}
 @keyframes scanmove{0%{top:-22%;}100%{top:100%;}}
@@ -1021,6 +1022,9 @@ body:not(.on-home) #homeFx{display:none;}
   text-shadow:0 0 6px #ff8a1f,0 0 18px #ff6a00,0 0 36px rgba(255,90,0,.6);
   background:linear-gradient(90deg,#fff 0%,#ffd8a8 40%,#fff 50%,#ffd8a8 60%,#fff 100%);background-size:200% 100%;
   -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;animation:wordsheen 4s linear infinite;}
+/* 題字は「エクスメントマキナ」＋小さな RETRO DEFENDER（2026-09-28 企画書）。カタカナ9文字なので字間を詰める */
+.hlogo-word{letter-spacing:.1em;font-size:clamp(17px,5vw,24px);line-height:1.05;text-align:left;}
+.hlogo-word small{display:block;font-size:.38em;letter-spacing:.62em;font-weight:800;margin-top:2px;opacity:.9;}
 @keyframes wordsheen{0%{background-position:100% 0;}100%{background-position:-100% 0;}}
 /* 章の地図：レーダーの走査線と目盛りの輪 */
 .heroart{isolation:isolate;}
