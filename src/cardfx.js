@@ -16,6 +16,10 @@
 // ---------------------------------------------------------------
 'use strict';
 
+// パックの絵（2026-09-29・ComfyUI で作った1枚を元に、光る線の色だけ塗り替えて5種・300×430・透明な背景。tools/packart.js）
+//   ユーザー「パック5種について いいですけどせめてパックの大きさは整えてください」→ 形も大きさも5種で同じ
+const PACK_IMG = { basic: 'assets/packs/basic.png', arms: 'assets/packs/arms.png', chem: 'assets/packs/chem.png', relic: 'assets/packs/relic.png', syn: 'assets/packs/syn.png' };
+
 const CardFX = {
   KIND_NAME: { weapon: '武器', mod: '武器強化', generic: '汎用', synergy: '連携', perm: '常駐', key: '鍵' },
   RAR_EN: { common: 'COMMON', rare: 'RARE', epic: 'EPIC', legendary: 'LEGENDARY' },
@@ -106,7 +110,7 @@ const CardFX = {
 
   // 一覧に並べる小さなパック（開封画面の金属の箱の縮小版）
   miniPack(pk) {
-    return '<div class="mpack" style="--pc:' + pk.color + '"><i class="mpack-strip"></i>' +
+    return '<div class="mpack' + (PACK_IMG[pk.id] ? ' img' : '') + '" style="--pc:' + pk.color + (PACK_IMG[pk.id] ? ';--pimg:url(' + PACK_IMG[pk.id] + ')' : '') + '"><i class="mpack-strip"></i>' +
       '<i class="mpack-gear">' + Icons.get('gear') + '</i><i class="mpack-haz"></i></div>';
   },
 
@@ -135,6 +139,7 @@ const CardFX = {
     const ov = Util.el('div', 'pfx best-' + bestRar + (cls ? ' ' + cls : ''));
     ov.style.setProperty('--pc', pk.color);
     ov.style.setProperty('--best', BAL.rarity[bestRar].color);
+    if (PACK_IMG[pk.id]) { ov.classList.add('img'); ov.style.setProperty('--pimg', 'url(' + PACK_IMG[pk.id] + ')'); }
     ov.innerHTML =
       '<div class="pfx-rays"></div>' +
       '<div class="pfx-pack"><div class="pfx-mouth"></div><div class="pfx-strip"></div><div class="pfx-seam"></div>' +

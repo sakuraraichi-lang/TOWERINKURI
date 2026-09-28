@@ -1909,3 +1909,13 @@ body:not(.tabsoff) #home #panel{animation:panelIn .2s cubic-bezier(.2,.8,.2,1);}
 :root{--font-dot:"DotGothic16",system-ui,sans-serif;--font-num:"Share Tech Mono",ui-monospace,Consolas,monospace;}
 .ttl-name,.hlogo-word,#cutin .ci b,.rs-ban b,.chhead b,.lo-hero > div:first-child b,.pz-title b,.htitle{font-family:var(--font-dot);font-weight:400;}
 .hpill,.lo-num b,.tpoints b,#cutin .ci b em{font-family:var(--font-num);}
+
+/* ===== パックの絵（2026-09-29・assets/packs/*.png・300×430・透明な背景） =====
+   開封画面と一覧は、同じ画像を「上の帯（13%）」と「本体」に分けて貼る。帯を剥がす動きはそのまま */
+.mpack.img{background:var(--pimg) center/contain no-repeat;box-shadow:none;clip-path:none;}
+.mpack.img > i{display:none;}
+.pfx.img .pfx-strip,.gs-box.img .pfx-strip{clip-path:none;border-bottom:0;background:var(--pimg) top center/100% auto no-repeat;}
+.pfx.img .pfx-strip::after,.gs-box.img .pfx-strip::after{display:none;}
+.pfx.img .pfx-body,.gs-box.img .pfx-body{clip-path:none;background:var(--pimg) bottom center/100% auto no-repeat;animation:none;box-shadow:none;border:0;}
+.pfx.img .pfx-body > *,.gs-box.img .pfx-body > *{display:none;}
+.gs-box.img{filter:drop-shadow(0 10px 18px rgba(0,0,0,.7));}

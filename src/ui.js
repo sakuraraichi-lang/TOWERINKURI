@@ -1437,7 +1437,7 @@ const UI = {
     gs.innerHTML =
       '<div class="gs-stage' + (ok ? '' : ' locked') + '">' +
         '<i class="gs-rays"></i><i class="gs-floor"></i>' +
-        '<div class="gs-box"><div class="pfx-strip"></div>' +
+        '<div class="gs-box' + (PACK_IMG[pid] ? ' img' : '') + '"' + (PACK_IMG[pid] ? ' style="--pimg:url(' + PACK_IMG[pid] + ')"' : '') + '><div class="pfx-strip"></div>' +
           '<div class="pfx-body"><i class="pfx-rv a"></i><i class="pfx-rv b"></i><i class="pfx-rv c"></i><i class="pfx-rv d"></i>' +
           '<div class="pfx-emb"><div class="pfx-gear">' + Icons.get('gear') + '</div><div class="pfx-logo">' + CardFX.logoSvg() + '</div></div>' +
           '<div class="pfx-name">' + pk.name + '</div><div class="pfx-sub">' + pk.size + ' CARDS</div><i class="pfx-haz"></i></div></div>' +
