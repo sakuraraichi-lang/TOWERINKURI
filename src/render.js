@@ -11,6 +11,135 @@ const _poisonBuf = [], _stunBuf = [], _fieldBuf = [];
 const _spins = [];        // 手裏剣のまとめ描き用（毎フレーム作り直さない）
 const _spinPts = new Float32Array(16);
 
+// 武器のドットの絵（企画書 §14「プログラムに、ゲーム的な兵器の皮を貼ったもの」・2026-09-28）
+//   敵と同じ描き方（暗い縁取り・色の光・光沢）でそろえる。**+x が砲身の向き**（狙う向きへ回す）。
+//   '#' 武器の色（光る）／ 'd' 暗い金属 ／ 'g' 灰色の金属 ／ 'w' 白い光 ／ '.' 空き。
+//   p は回す中心（列, 行）。1ドット＝2.4px。砲身の先は barrelLen（発砲の火の位置）にだいたい合わせてある
+const WEAPON_PIX = {
+  gatling: { p: [5, 4], r: [
+    '..ddddd........',
+    '.dggggdd#######',
+    '.dgggggd.......',
+    'ddggwggdd######',
+    'ddgwwwgdd######',
+    'ddggwggdd######',
+    '.dgggggd.......',
+    '.dggggdd#######',
+    '..ddddd........'] },
+  sniper: { p: [5, 3], r: [
+    '....dddd..........',
+    '.dddd##dd.........',
+    'dgggggdddd........',
+    'dggwgggg##########',
+    'dgggggdddd........',
+    '.ddddddd..........',
+    '...d...d..........'] },
+  missile: { p: [5, 5], r: [
+    '.dddddddddd..',
+    'dgggggggggd..',
+    'dg###g###gdd.',
+    'dg#w#g#w#gdd.',
+    'dg###g###gdd.',
+    'dgggggggggddd',
+    'dg###g###gdd.',
+    'dg#w#g#w#gdd.',
+    'dg###g###gdd.',
+    'dgggggggggd..',
+    '.dddddddddd..'] },
+  tesla: { p: [5, 5], r: [
+    '...ddddd....',
+    '..d#####d...',
+    '.d#ddddd#d..',
+    'd#dgggggd#d.',
+    'd#dgwwwgd#d.',
+    'd#dgwwwgd###',
+    'd#dgwwwgd#d.',
+    'd#dgggggd#d.',
+    '.d#ddddd#d..',
+    '..d#####d...',
+    '...ddddd....'] },
+  flame: { p: [3, 4], r: [
+    '.ddddd.......',
+    'dgggggd......',
+    'dg###gdddd...',
+    'dg###gd####d.',
+    'dgggggd#####d',
+    'dg###gd####d.',
+    'dg###gdddd...',
+    'dgggggd......',
+    '.ddddd.......'] },
+  gas: { p: [4, 4], r: [
+    '..ddddd......',
+    '.d#####d.....',
+    'd##www##dddd.',
+    'd#wwwww#d###d',
+    'd#wwwww#d####',
+    'd#wwwww#d###d',
+    'd##www##dddd.',
+    '.d#####d.....',
+    '..ddddd......'] },
+  cryo: { p: [5, 5], r: [
+    '.....#.....',
+    '.#...#...#.',
+    '..#.ddd.#..',
+    '...dgggd...',
+    '..dgwwwgd..',
+    '####www####',
+    '..dgwwwgd..',
+    '...dgggd...',
+    '..#.ddd.#..',
+    '.#...#...#.',
+    '.....#.....'] },
+  katana: { p: [3, 2], r: [
+    '..g...........',
+    'ddgw##########',
+    'dddgw#########w',
+    'ddgw##########',
+    '..g...........'] },
+  shuriken: { p: [4, 4], r: [
+    '....#....',
+    '....#....',
+    '...d#d...',
+    '..dwww#..',
+    '####w####',
+    '..#www...',
+    '...d#d...',
+    '....#....',
+    '....#....'] },
+  tentacle: { p: [3, 4], r: [
+    '..ddd......',
+    '.d###d.#...',
+    'd##w##d.#..',
+    'd#www#d##.#',
+    'd#www#d####',
+    'd#www#d##.#',
+    'd##w##d.#..',
+    '.d###d.#...',
+    '..ddd......'] },
+  bubble: { p: [4, 4], r: [
+    '..ddddd..',
+    '.d#####d.',
+    'd##www##d',
+    'd#wwwww#d',
+    'd#wwwww##',
+    'd#wwwww#d',
+    'd##www##d',
+    '.d#####d.',
+    '..ddddd..'] },
+  mortar: { p: [5, 5], r: [
+    '...ddddd....',
+    '..dgggggd...',
+    '.dg#####gd..',
+    'dg##ddd##gd.',
+    'dg#ddddd#gd.',
+    'dg#ddwdd#gdd',
+    'dg#ddddd#gd.',
+    'dg##ddd##gd.',
+    '.dg#####gd..',
+    '..dgggggd...',
+    '...ddddd....'] },
+};
+
 // 敵のドットの絵（企画書 §13「どこか昔のゲームに存在していそうなキャラクター」・2026-09-28）
 //   '#' 体（その種類の色）／ 'o' 目（白く光る）／ '.' 空き。種類ごとに2コマ（足踏み）
 //   **形で性質が読めるように**：速い＝小さく細い／硬い＝大きく横に広い／盾＝前に板／群れ＝ごく小さい虫／
@@ -1355,6 +1484,27 @@ const Render = {
     return (this._ped[key] = { cv, h });
   },
 
+  // 武器のドットの絵を描く（WEAPON_PIX）。1ドット2px・回す中心は def.p
+  turretPix(c, def, color) {
+    const P = 2.4, rows = def.r, W = Math.max.apply(null, rows.map(r => r.length));
+    const x0 = -def.p[0] * P - P / 2, y0 = -def.p[1] * P - P / 2;
+    const each = (fn) => { for (let y = 0; y < rows.length; y++) for (let x = 0; x < W; x++) { const ch = rows[y][x] || '.'; if (ch !== '.') fn(x0 + x * P, y0 + y * P, ch); } };
+    // 暗い縁取り
+    c.fillStyle = 'rgba(0,0,0,0.85)';
+    each((x, y) => c.fillRect(x - 0.7, y - 0.7, P + 1.4, P + 1.4));
+    // 金属
+    each((x, y, ch) => { if (ch === 'd' || ch === 'g') { c.fillStyle = ch === 'd' ? '#1d2027' : '#5d6370'; c.fillRect(x, y, P + 0.2, P + 0.2); } });
+    // 武器の色：光る
+    c.save(); c.shadowColor = color; c.shadowBlur = 4;
+    c.fillStyle = color;
+    each((x, y, ch) => { if (ch === '#') c.fillRect(x, y, P + 0.2, P + 0.2); });
+    c.restore();
+    // 白い光
+    c.save(); c.shadowColor = '#fff'; c.shadowBlur = 3; c.fillStyle = '#ffffff';
+    each((x, y, ch) => { if (ch === 'w') c.fillRect(x, y, P + 0.2, P + 0.2); });
+    c.restore();
+  },
+
   // 砲塔：turret() で描いたものに、金属の光沢（左上が明るく右下が暗い）を重ねる
   turretSprite(id, color) {
     const res = this.spriteRes();
@@ -1365,7 +1515,9 @@ const Render = {
     const cv = document.createElement('canvas'); cv.width = cv.height = Math.ceil(h * 2 * res);
     const c = cv.getContext('2d'); c.setTransform(res, 0, 0, res, h * res, h * res);
     c.save(); c.shadowColor = 'rgba(0,0,0,0.8)'; c.shadowBlur = 5; c.shadowOffsetY = 2;
-    this.turret(c, { id }, color);
+    // ドットの絵があれば、それで描く（企画書 §14・敵と同じ描き方にそろえる）。無い武器は前の図形のまま
+    if (WEAPON_PIX[id]) this.turretPix(c, WEAPON_PIX[id], color);
+    else this.turret(c, { id }, color);
     c.restore();
     c.globalCompositeOperation = 'source-atop';
     const g = c.createLinearGradient(-h * 0.6, -h * 0.6, h * 0.6, h * 0.6);
@@ -1416,6 +1568,10 @@ const Render = {
 
   // 砲身の長さ（発砲の火を出す位置）
   barrelLen(u) {
+    // ドットの絵（1ドット2.4px）にしたので、前の長さの1.2倍（2026-09-28）
+    return this._barrelLen0(u) * 1.2;
+  },
+  _barrelLen0(u) {
     switch (u.id) {
       case 'sniper': return 24;
       case 'katana': return 19;
