@@ -1527,3 +1527,21 @@ body:not(.tabsoff) .hlogo{display:none;}
 .chhead .wp-x{position:absolute;top:50%;right:6px;transform:translateY(-50%);float:none;margin:0;width:32px;height:32px;}
 .wp-card{gap:0;}
 .wp-card .wp-tag{margin-top:12px;}   /* 札の下にはみ出すレア度の札と重ならないように */
+
+/* ===== 警告の文字（企画書 §11・2026-09-28） =====
+   盤の奥を右から左へ一瞬流れて消える。遊びには関係しないので、触れず（pointer-events:none）、薄く、HUDより下に置く */
+.syswarn{position:absolute;right:10px;max-width:calc(100% - 20px);z-index:4;pointer-events:none;white-space:nowrap;overflow:visible;
+  font:700 11px/1 ui-monospace,Consolas,'Courier New',monospace;letter-spacing:.14em;color:rgba(255,96,80,.78);
+  text-shadow:0 0 6px rgba(255,60,50,.55);animation:syswarn 2.6s cubic-bezier(.2,.7,.3,1) forwards;}
+.syswarn i{font-style:normal;display:inline-block;margin-right:.6em;padding:1px 4px;color:#0b0506;background:rgba(255,80,70,.85);
+  letter-spacing:0;text-shadow:none;animation:syswarnblink .32s steps(2) infinite;}
+.syswarn span{border-bottom:1px solid rgba(255,90,70,.35);padding-bottom:2px;}
+.syswarn-wave{color:rgba(255,170,80,.72);text-shadow:0 0 6px rgba(255,140,40,.5);}
+.syswarn-wave i{background:rgba(255,160,60,.85);}
+.syswarn-boss{font-size:12px;}
+@keyframes syswarn{
+  0%{transform:translateX(60px);opacity:0;}
+  10%{transform:translateX(0);opacity:1;}
+  78%{transform:translateX(-10px);opacity:.9;}
+  100%{transform:translateX(-24px);opacity:0;}}
+@keyframes syswarnblink{50%{opacity:.35;}}

@@ -493,6 +493,37 @@ const UI = {
     const boss = run && Combat.isBossWave(run);
     this.cutin('WAVE ' + n + '<em> / ' + BAL.wavesPerStage + '</em>',
       boss ? 'VIRUS DETECTED ─ コアに届く前に倒せ' : last ? '最終ウェーブ' : '', last ? 'last' : 'wave');
+    // 警告の文字は、カットインが抜けたあとに流す（重ねると読めない）
+    const tier = run && run.stage ? Render.exposeTier(run.stage) : 1;
+    const p = boss ? 1 : [0, 0, 0.15, 0.3, 0.45, 0.7][tier];
+    if (Math.random() < p) setTimeout(() => this.sysWarn(boss ? 'boss' : 'wave'), 1700);
+  },
+
+  // ================= 警告の文字（企画書 §11） =================
+  //   **遊びには何も関係しない。**操作も要らない。盤の奥を一瞬流れて消える。「ゲームの裏側で何かが起きている」と感じさせるだけ。
+  //   英語と日本語を混ぜる（ユーザー 2026-09-28）。1度に1行・2.5秒は間を空ける。触れない（pointer-events:none）
+  //   出す場面：ウェーブの始まり（深い章ほど出やすい・第1〜4章は出ない）／ボスのウェーブ／敵がコアに届いたとき（第5章から）
+  WARN_TEXT: {
+    wave: ['EXTERNAL ATTACK DETECTED', '外部から攻撃を受けています！', 'UNAUTHORIZED ACCESS', '不正なパケットを破棄しました',
+           'FIREWALL REBUILDING...', 'ファイアウォール再構成中', 'TRACE ROUTE LOST', '接続元を特定できません',
+           'PACKET STORM 0x3F2A', 'SYNC ERROR — RETRYING', '侵入経路を遮断しています', 'INTRUSION COUNT OVERFLOW'],
+    boss: ['VIRUS DETECTED', '警告！ウイルスが検出されました！', 'QUARANTINE FAILED', '隔離に失敗しました'],
+    leak: ['CORE ACCESS VIOLATION', 'コアへの不正アクセスを検知', 'MAKINA / CORE : INTEGRITY WARNING', '防壁を突破されました'],
+  },
+  sysWarn(kind) {
+    const host = document.querySelector('#stage .bfield');
+    if (!host) return;
+    const now = performance.now();
+    if (now - (this._warnT || 0) < 2500) return;
+    if (kind === 'leak' && now - (this._leakWarnT || 0) < 8000) return;   // 漏れが続いても流しっぱなしにしない
+    if (kind === 'leak') this._leakWarnT = now;
+    this._warnT = now;
+    const list = this.WARN_TEXT[kind] || this.WARN_TEXT.wave;
+    const el = Util.el('div', 'syswarn syswarn-' + kind);
+    el.innerHTML = '<i>!!</i><span>' + list[(Math.random() * list.length) | 0] + '</span>';
+    el.style.top = (14 + Math.random() * 60).toFixed(1) + '%';
+    host.appendChild(el);
+    setTimeout(() => el.remove(), 2700);
   },
 
   // ================= 戦闘中の ⚙（一時停止） =================

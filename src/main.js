@@ -320,6 +320,9 @@ const Main = {
       }
     }
 
+    // 敵がコアに届いたら、ときどき警告の文字を流す（企画書 §11・遊びには関係しない・第5章から）
+    if (run && run.leaked > (this._leak0 || 0) && run.stage && Render.exposeTier(run.stage) >= 2) UI.sysWarn('leak');
+    this._leak0 = run ? run.leaked : 0;
     Render.draw(run);
     UI.perf(real, performance.now() - t0, run);
     UI.renderHud();
