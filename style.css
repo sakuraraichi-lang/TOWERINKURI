@@ -1651,3 +1651,9 @@ body:not(.tabsoff) .hlogo{display:none;}
 .opn-line em{font-style:normal;color:rgba(157,255,176,.5);}
 .opn-line.b b{color:#ffd28a;text-shadow:0 0 6px rgba(255,170,60,.5);}
 .opn-cur{display:inline-block;width:.6em;height:1.05em;vertical-align:-.15em;background:#9dffb0;margin-left:2px;animation:ttlblink .8s steps(2) infinite;}
+/* 部屋のテレビの画面：丸いガラスの映り込み（部屋に縮んでいるあいだだけ） */
+.rb-screen::after{content:'';position:absolute;inset:0;pointer-events:none;opacity:0;transition:opacity .4s;
+  background:radial-gradient(ellipse 80% 55% at 30% 18%,rgba(255,255,255,.16),rgba(255,255,255,0) 60%),
+             linear-gradient(115deg,rgba(255,255,255,0) 55%,rgba(255,255,255,.06) 62%,rgba(255,255,255,0) 70%);}
+.rbscene.pull .rb-screen::after{opacity:1;}
+.rbscene.dive .rb-screen::after{opacity:0;}
