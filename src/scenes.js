@@ -80,6 +80,83 @@ const Scenes = {
     '</svg>';
   },
 
+  // ---------------------------------------------------------------
+  // 起動：（初めてだけ）オープニング → タイトル → ホーム
+  //   タイトルは毎回出す。**「TAP TO START」の1タップが、音を鳴らせるようにするタップを兼ねる**
+  //   （ブラウザは最初のタップまで音を出させない）ので、1タップ増えるわけではない
+  //   URL に ?packdemo（開封の見本）や ?notitle があるときは出さない
+  // ---------------------------------------------------------------
+  boot() {
+    const q = new URLSearchParams(location.search);
+    if (q.get('packdemo') || q.has('notitle')) return;
+    if (!Game.perm.seenOpening) this.opening(() => { Game.perm.seenOpening = 1; Game.save(); this.title(); });
+    else this.title();
+  },
+
+  // タイトル：ブラウン管が点いて、題字が出る（企画書 §19「CRT はタイトルで使う・現実とゲームをつなぐ窓」）
+  title(done) {
+    const el = Util.el('div', 'ttl');
+    el.innerHTML =
+      '<div class="ttl-crt"><div class="ttl-in">' +
+        '<div class="ttl-mark">' + (typeof CardFX !== 'undefined' ? CardFX.logoSvg() : '') + '</div>' +
+        '<div class="ttl-name">エクスメントマキナ</div>' +
+        '<div class="ttl-sub">RETRO DEFENDER</div>' +
+        '<div class="ttl-start">TAP TO START</div>' +
+        '<div class="ttl-pj">PROJECT MAKINA　ver ' + BUILD + '</div>' +
+      '</div><i class="ttl-scan"></i></div>';
+    document.body.appendChild(el);
+    requestAnimationFrame(() => el.classList.add('on'));
+    el.addEventListener('pointerdown', () => {
+      if (el.classList.contains('off')) return;
+      Snd.resume(); Snd.ui();
+      el.classList.add('off');                        // 画面へ吸い込まれるように消える
+      setTimeout(() => { el.remove(); done && done(); }, 480);
+    });
+  },
+
+  // オープニング（初めて起動したときだけ）。**会話はここだけ**（企画書 §26）。
+  //   ただし §32-6「他のキャラクターに話しかけられるイベントを入れない」ので、**プレイヤーに話しかけない**。
+  //   古いパソコンの画面に、名前の無い2人のやり取り（チャットの記録）が打ち出されていくのを、横から覗くだけ。
+  //   長い説明はしない（§7）。触ると飛ばせる
+  OPENING: [
+    ['23:41', 'sysop', '外からの接続、また増えてる'],
+    ['23:41', 'guest02', '防壁は？'],
+    ['23:42', 'sysop', '自動のほうは、もう追いつかない'],
+    ['23:42', 'guest02', '…じゃあ、手で守るしかないな'],
+    ['23:43', 'sysop', '起動する。　MAKINA / CORE'],
+  ],
+  opening(done) {
+    const el = Util.el('div', 'opn');
+    el.innerHTML = '<div class="opn-crt"><div class="opn-log"></div><i class="ttl-scan"></i></div><div class="rb-skip">タップで飛ばす</div>';
+    document.body.appendChild(el);
+    const log = el.querySelector('.opn-log');
+    let ended = false, timer = 0;
+    const end = () => {
+      if (ended) return; ended = true; clearTimeout(timer);
+      el.classList.add('off');
+      setTimeout(() => { el.remove(); done && done(); }, 420);
+    };
+    el.addEventListener('pointerdown', () => { Snd.resume(); end(); });
+    // 1行ずつ、1文字ずつ打ち出す
+    let li = 0, ci = 0, cur = null;
+    const step = () => {
+      if (ended) return;
+      if (li >= this.OPENING.length) { timer = setTimeout(end, 1300); return; }
+      const [t, who, msg] = this.OPENING[li];
+      if (!cur) {
+        cur = Util.el('div', 'opn-line' + (who === 'sysop' ? ' a' : ' b'));
+        cur.innerHTML = '<em>[' + t + ']</em> <b>' + who + '</b>: <span></span><i class="opn-cur"></i>';
+        log.appendChild(cur); ci = 0;
+      }
+      const sp = cur.querySelector('span');
+      sp.textContent = msg.slice(0, ++ci);
+      if (ci % 2 === 0 && Snd.ctx && Snd.ctx.state === 'running') try { Snd.tone({ type: 'square', f0: 1200, f1: 1200, dur: 0.012, vol: 0.02 }); } catch (e) {}
+      if (ci >= msg.length) { cur.querySelector('.opn-cur').remove(); cur = null; li++; timer = setTimeout(step, 520); }
+      else timer = setTimeout(step, 55);
+    };
+    timer = setTimeout(step, 700);
+  },
+
   // 再起動の場面。終わったら（または触って飛ばしたら）done を呼ぶ
   reboot(done) {
     const pick = this._pick(this.NEWS, 3);

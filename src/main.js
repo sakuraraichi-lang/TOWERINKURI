@@ -61,6 +61,7 @@ const Main = {
     // 起動したらホーム。**いきなり盤面を出さない**
     Game.startPrep(Game.perm.currentStage);
     UI.setScreen('home');
+    Snd.bgm('cafe');   // ホームは喫茶店の曲（鳴り始めるのは最初のタップ＝タイトルの TAP TO START から）
 
     // **起動直後の説明モーダルは廃止した。**
     // ルールを1枚に並べても読まれない。戦場で1操作ずつ出す（UI.renderTut）
@@ -368,6 +369,8 @@ window.addEventListener('load', () => {
   // ホームのロゴ（cardfx.js の描き起こしを使う）
   const hl = document.getElementById('homeLogo');
   if (hl && typeof CardFX !== 'undefined') hl.innerHTML = CardFX.logoSvg();
+  // タイトル（初めてならオープニングから）。企画書 §19・§26（src/scenes.js）
+  if (typeof Scenes !== 'undefined') Scenes.boot();
   // 演出の見本：?packdemo=legendary / epic / rare / common（セーブには触らない）
   const demo = new URLSearchParams(location.search).get('packdemo');
   if (demo && typeof CardFX !== 'undefined') setTimeout(() => CardFX.demo(demo), 700);
