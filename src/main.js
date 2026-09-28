@@ -384,4 +384,6 @@ window.addEventListener('load', () => {
   // 演出の見本：?packdemo=legendary / epic / rare / common（セーブには触らない）
   const demo = new URLSearchParams(location.search).get('packdemo');
   if (demo && typeof CardFX !== 'undefined') setTimeout(() => CardFX.demo(demo), 700);
+  // 演出の確認室：?debugroom（見本でいつでも演出を出す・セーブは変わらない・src/debugroom.js）
+  if (new URLSearchParams(location.search).has('debugroom') && typeof DebugRoom !== 'undefined') DebugRoom.open();
 });

@@ -1125,13 +1125,13 @@ body:not(.on-home) #homeFx{display:none;}
   transform:skewX(-20deg) translateX(420%);animation:rssweep .8s ease-out .28s backwards;}
 /* 背景：中心（帯のあたり）から六角の格子が外へ点く。ハニカムの奥が露出する。負けは赤で、途切れ途切れに点く */
 @property --rh{syntax:'<percentage>';inherits:false;initial-value:150%;}
-.rs{position:relative;isolation:isolate;}
-.rs.fx::before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:var(--rk);opacity:.24;
+.rs,.draft{position:relative;isolation:isolate;}
+.rs.fx::before,.draft.fx::before{content:'';position:absolute;inset:0;z-index:-1;pointer-events:none;background:var(--rk);opacity:.24;
   -webkit-mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='52' height='90' viewBox='0 0 52 90'%3E%3Cpath d='M26 0l26 15v30L26 60 0 45V15zM26 60v30M0 45l-26 15M52 45l26 15' fill='none' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E"),
-    radial-gradient(circle at 50% 74px,#000 0,#000 var(--rh),transparent calc(var(--rh) + 12%));
+    radial-gradient(circle at 50% var(--hy,74px),#000 0,#000 var(--rh),transparent calc(var(--rh) + 12%));
   -webkit-mask-size:44px 76px,100% 100%;-webkit-mask-composite:source-in;
   mask-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='52' height='90' viewBox='0 0 52 90'%3E%3Cpath d='M26 0l26 15v30L26 60 0 45V15zM26 60v30M0 45l-26 15M52 45l26 15' fill='none' stroke='%23000' stroke-width='1.6'/%3E%3C/svg%3E"),
-    radial-gradient(circle at 50% 74px,#000 0,#000 var(--rh),transparent calc(var(--rh) + 12%));
+    radial-gradient(circle at 50% var(--hy,74px),#000 0,#000 var(--rh),transparent calc(var(--rh) + 12%));
   mask-size:44px 76px,100% 100%;mask-composite:intersect;
   animation:rsHex 1.1s cubic-bezier(.4,0,.5,1) .1s backwards;}
 .rs-perfect.fx::before{opacity:.36;}
@@ -1944,11 +1944,11 @@ body:not(.tabsoff) #home #panel{animation:panelIn .2s cubic-bezier(.2,.8,.2,1);}
 @keyframes panelIn{from{transform:translateY(14px);opacity:0;}to{transform:none;opacity:1;}}
 
 /* ===== 字体（企画書 §22・2026-09-29） =====
-   数字と表示器（VFD の窓・システムの行・ラベル）は Share Tech Mono（上の置き換え）。
-   見せる見出し（題字・カットイン・結果の帯・ラベル板・パネルの見出し）は DotGothic16。本文とカードの説明は端末の字体のまま（§23 読みやすさ優先） */
-/* **ウェーブの帯（#cutin）はドット字体にしない**（2026-09-29 ユーザー「レトロモチーフとはいえ8bitゲームではなく、最新の演出感が好き…初音ミクのMVのような迫力」）。元の太い字体のまま */
-:root{--font-dot:"DotGothic16",system-ui,sans-serif;--font-num:"Share Tech Mono",ui-monospace,Consolas,monospace;}
-.ttl-name,.hlogo-word,.rs-ban b,.chhead b,.lo-hero > div:first-child b,.pz-title b,.htitle{font-family:var(--font-dot);font-weight:400;}
+   数字と表示器（VFD の窓・システムの行・ラベル）は Share Tech Mono。
+   見せる見出し（題字・結果の帯・ラベル板・パネルの見出し）は、ウェーブの帯（#cutin .ci b）と同じ太い字体（端末の字体・weight 900）。
+   **ドット字体は使わない**（2026-09-29 ユーザー「基本ドット字体は不要です」。レトロモチーフとはいえ 8bit ではなく、最新の演出感）。本文とカードの説明も端末の字体 */
+:root{--font-num:"Share Tech Mono",ui-monospace,Consolas,monospace;}
+.ttl-name,.hlogo-word,.rs-ban b,.chhead b,.lo-hero > div:first-child b,.pz-title b,.htitle{font-family:inherit;font-weight:900;}
 .hpill,.lo-num b,.tpoints b{font-family:var(--font-num);}
 
 /* ===== パックの絵（2026-09-29・assets/packs/*.png・300×430・透明な背景） =====
@@ -2116,3 +2116,79 @@ body:not(.tabsoff) #home #panel{animation:panelIn .2s cubic-bezier(.2,.8,.2,1);}
 .pfx-banner.leg span{color:#ffe2a8;}
 @keyframes legban{0%{transform:skewY(-4deg) scaleY(0);opacity:0;}10%{transform:skewY(-4deg) scaleY(1.25);opacity:1;}16%{transform:skewY(-4deg) scaleY(1);}
   82%{transform:skewY(-4deg);opacity:1;clip-path:inset(0 0 0 0);}100%{transform:skewY(-4deg);opacity:0;clip-path:inset(0 0 0 100%);}}
+
+/* ===== カード3択の出方（0929n・2026-09-29） =====
+   結果画面（0929m）と同じ言葉：見出しの板が叩きつけられ、そこから六角の格子が点く。3枚は裏のまま下から順に滑り込み、1枚ずつ表になる（全部で約0.8秒）。
+   選ぶと六角の衝撃波が出て、選んだカードは上の武器の枠へ吸い込まれる。エピック以上は後ろに六角の光。
+   動きは backwards（始まりの状態は動きの中だけ・終わったあとは何も持たない）。押せるのは最初から */
+.draft{--rk:#ff8a1f;--hy:40px;}
+.draft.fx::before{inset:-16px;animation-duration:.8s;}
+.mbox:has(.draft.fx){animation:rsShake .3s ease-out .14s backwards;--sh:2px;}
+.draft.fx .chhead{overflow:hidden;animation:chHead .42s cubic-bezier(.2,.9,.3,1) backwards;}
+@keyframes chHead{0%{transform:scaleY(0);opacity:0;}30%{transform:scaleY(1.28);opacity:1;}60%{transform:scaleY(.96);}100%{transform:none;opacity:1;}}
+.draft .chhead em{display:block;margin:0 0 6px;padding-left:.5em;font:700 9px/1 var(--font-num);letter-spacing:.5em;color:var(--rk);
+  animation:rsSys .5s steps(20) .2s backwards;}
+.draft.fx .chhead b{animation:chSplit .7s ease-out backwards,chIn .42s cubic-bezier(.2,1.5,.3,1) .05s backwards;}
+@keyframes chSplit{0%{text-shadow:9px 0 rgba(255,60,60,.85),-9px 0 rgba(60,200,255,.85),0 0 28px var(--rk);}
+  30%{text-shadow:-6px 0 rgba(255,60,60,.8),6px 0 rgba(60,200,255,.8),0 0 24px var(--rk);}
+  100%{text-shadow:0 0 16px rgba(255,138,31,.55);}}
+@keyframes chIn{0%{transform:scale(1.6);opacity:0;}100%{transform:none;opacity:1;}}
+.draft.fx .chhead span{animation:awkfade .4s ease .3s backwards;}
+.ch-sweep{position:absolute;top:0;bottom:0;left:0;width:36%;pointer-events:none;opacity:.5;
+  background:linear-gradient(105deg,transparent,color-mix(in srgb,var(--rk) 55%,#fff),transparent);
+  transform:skewX(-20deg) translateX(420%);animation:rssweep .8s ease-out .2s backwards;}
+.draft.fx > .draftwhy,.draft.fx > .chslots{animation:rsUp .34s ease-out .16s backwards;}
+
+/* 3枚：裏のまま滑り込み、順に表になる（--dl は ui.js が1枚ごとに置く） */
+.chrow{isolation:isolate;}
+.chcard.cfpick{overflow:visible;clip-path:none;}
+.ch-face{position:relative;width:clamp(96px,28vw,150px);}
+.chcard.cfpick .ch-face .cf{width:100%;}
+.ch-back{position:absolute;left:0;top:0;right:0;bottom:0;}
+.draft.fx .chcard.cfpick{animation:chSlide .26s cubic-bezier(.2,.9,.3,1.1) var(--dl,.1s) backwards;}
+@keyframes chSlide{0%{opacity:0;transform:translateY(48px) scale(.86);}100%{opacity:1;transform:none;}}
+.draft.fx .ch-back{animation:chBack .12s ease-in calc(var(--dl,.1s) + .22s) forwards;}
+@keyframes chBack{0%{transform:perspective(700px) rotateY(0);}99%{transform:perspective(700px) rotateY(-90deg);visibility:visible;}
+  100%{transform:perspective(700px) rotateY(-90deg);visibility:hidden;}}
+.draft.fx .ch-front{animation:chFront .14s ease-out calc(var(--dl,.1s) + .32s) backwards;}
+@keyframes chFront{0%{transform:perspective(700px) rotateY(90deg);}100%{transform:none;}}
+
+/* エピック以上：カードの後ろに六角の光（塗りは脈打ち、輪は外へ広がる）。集中線は使わない */
+.ch-face.g2::before,.ch-face.g3::before,.ch-face.g2::after,.ch-face.g3::after{content:'';position:absolute;left:50%;top:50%;height:126%;aspect-ratio:90/104;
+  transform:translate(-50%,-50%);z-index:-1;pointer-events:none;}
+.ch-face.g2::before,.ch-face.g3::before{clip-path:polygon(50% 0,100% 25%,100% 75%,50% 100%,0 75%,0 25%);
+  background:radial-gradient(circle,color-mix(in srgb,var(--rc) 55%,transparent) 0,color-mix(in srgb,var(--rc) 20%,transparent) 55%,transparent 75%);
+  animation:chHalo 1.6s ease-in-out infinite;}
+.ch-face.g3::before{background:radial-gradient(circle,color-mix(in srgb,var(--rc) 75%,transparent) 0,color-mix(in srgb,var(--rc) 30%,transparent) 55%,transparent 78%);animation-duration:1.1s;}
+.ch-face.g2::after,.ch-face.g3::after{background:var(--rc);
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-45 -52 90 104'%3E%3Cpolygon points='0,-50 43.3,-25 43.3,25 0,50 -43.3,25 -43.3,-25' fill='none' stroke='%23000' stroke-width='2.4'/%3E%3C/svg%3E") center/100% 100% no-repeat;
+  mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-45 -52 90 104'%3E%3Cpolygon points='0,-50 43.3,-25 43.3,25 0,50 -43.3,25 -43.3,-25' fill='none' stroke='%23000' stroke-width='2.4'/%3E%3C/svg%3E") center/100% 100% no-repeat;
+  animation:chRing 1.6s ease-out infinite;}
+.ch-face.g3::after{animation-duration:1.1s;}
+@keyframes chHalo{0%,100%{opacity:.55;}50%{opacity:1;}}
+@keyframes chRing{0%{transform:translate(-50%,-50%) scale(.9);opacity:.9;}100%{transform:translate(-50%,-50%) scale(1.22);opacity:0;}}
+
+/* 選んだ瞬間：カードが上の武器の枠へ吸い込まれ、枠が弾む */
+.chrow.done .chcard.cfpick.sel{transform:none;box-shadow:none;border-color:transparent;z-index:3;}
+.chrow.done .chcard.sel > .chpip,.chrow.done .chcard.sel > .chtype{opacity:0;transition:opacity .15s;}
+.ch-face.suck{animation:chSuck .3s cubic-bezier(.55,0,.9,.4) forwards;}
+@keyframes chSuck{0%{transform:none;opacity:1;filter:none;}100%{transform:translate(var(--fx),var(--fy)) scale(.16);opacity:0;filter:blur(2px);}}
+.chslot.hit{animation:chSlotHit .34s ease-out;}
+@keyframes chSlotHit{0%{transform:scale(1.28);box-shadow:0 0 0 2px currentColor,0 0 18px currentColor;}}
+.chcard.cfpick.hot{box-shadow:none;}
+.draft.fx .chcard.cfpick .cf.ch-back{animation:chBack .12s ease-in calc(var(--dl,.1s) + .22s) forwards;}
+
+/* ===== 演出の確認室（0929n・src/debugroom.js） =====
+   結果画面の方針（斜めの帯の見出し・物理スイッチのキー）。盤の上の帯や3択を見られるよう、画面の下半分だけを使う */
+#dbg{position:fixed;left:0;right:0;bottom:0;max-width:560px;margin:0 auto;height:min(50vh,440px);z-index:45;overflow-x:hidden;overflow-y:auto;
+  padding:0 0 14px;border-radius:16px 16px 0 0;border-top:1px solid rgba(255,138,31,.45);box-shadow:0 -10px 40px rgba(0,0,0,.7);
+  background:radial-gradient(ellipse at 50% 0%,#241a10 0%,#0d0f15 55%);}
+#dbg .rs-ban{padding:26px 12px 20px;}
+#dbg .rs-ban b{font-size:clamp(24px,8vw,34px);}
+.dbg-keys{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;padding:0 14px;}
+.dbg-key{padding:11px 6px;font:inherit;font-size:12px;font-weight:800;line-height:1.25;color:var(--txt);text-align:center;
+  background:var(--key-face);border:1px solid var(--key-edge);border-radius:7px;box-shadow:var(--key-bevel),var(--key-lift);
+  transition:transform .08s ease-out,box-shadow .08s ease-out;}
+.dbg-key:active{transform:translateY(2px);box-shadow:var(--key-press);}
+.cfgroom .box::before,.cfgroom .box::after{display:none;}
+.cfgroom .box{display:grid;place-items:center;font-size:11px;color:var(--acc);}

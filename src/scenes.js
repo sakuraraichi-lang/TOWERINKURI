@@ -41,12 +41,12 @@ const Scenes = {
   // 起動：（初めてだけ）オープニング → タイトル → ホーム
   //   タイトルは毎回出す。**「TAP TO START」の1タップが、音を鳴らせるようにするタップを兼ねる**
   //   （ブラウザは最初のタップまで音を出させない）ので、1タップ増えるわけではない
-  //   URL に ?packdemo（開封の見本）や ?notitle があるときは出さない
+  //   URL に ?packdemo（開封の見本）・?notitle・?debugroom（演出の確認室）があるときは出さない
   // ---------------------------------------------------------------
   boot() {
     setTimeout(() => this.loadRoom(), 4000);   // 再起動の部屋の画像を、起動が落ち着いてから裏で読む
     const q = new URLSearchParams(location.search);
-    if (q.get('packdemo') || q.has('notitle')) return;
+    if (q.get('packdemo') || q.has('notitle') || q.has('debugroom')) return;
     if (!Game.perm.seenOpening) this.opening(() => { Game.perm.seenOpening = 1; Game.save(); this.title(); });
     else this.title();
   },

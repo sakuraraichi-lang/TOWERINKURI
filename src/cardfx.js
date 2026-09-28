@@ -296,6 +296,7 @@ const CardFX = {
 
   bigShake() {
     document.body.classList.remove('bigshake'); void document.body.offsetWidth; document.body.classList.add('bigshake');
+    clearTimeout(this._bsT); this._bsT = setTimeout(() => document.body.classList.remove('bigshake'), 600);   // 揺れ（.5秒）が終わったらクラスも片付ける
   },
 
   // 伏せたカード1枚（裏と表の2面）。**裏面はロゴで、レア度の色が裏から透ける**

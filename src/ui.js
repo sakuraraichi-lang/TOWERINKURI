@@ -297,7 +297,8 @@ const UI = {
 
   // ---- 指揮官の記録：左上（RANK と名前）を押すと開く ----
   //   名前を決める・これまでの記録・実績（パックの入手ミッション）。実績はパックのタブにも同じ一覧がある
-  openProfile() {
+  // demo … 演出の確認室から。名前の欄は読み取り専用（セーブは変わらない）
+  openProfile(demo) {
     const p = Game.perm;
     const body = Util.el('div', 'prof');
     const stat = (k, v) => '<div><em>' + k + '</em><b>' + v + '</b></div>';
@@ -316,7 +317,9 @@ const UI = {
       '<div class="prof-ach"><div class="prof-t">実績 <b>' + achN + ' / ' + MISSIONS.length + '</b><span>達成するとパックがもらえる</span></div></div>';
     const inp = body.querySelector('input');
     inp.value = p.playerName || '';
+    if (demo) inp.readOnly = true;
     const commit = () => {
+      if (demo) return;
       const v = Array.from(inp.value).filter(ch => ch >= ' ').join('').trim().slice(0, 12);   // 改行などの制御文字は落とす
       if (v === (p.playerName || '')) return;
       p.playerName = v; Game.save(); this.renderHome();
@@ -379,6 +382,13 @@ const UI = {
     if (Game.autoOpen('autoBuy')) b.appendChild(row('autoBuy', '自動購入',
       '出撃するとき、「まとめて購入」と同じ順で買えるだけ買います'));
     b.appendChild(row('perf', '処理の重さを表示', 'fps と1フレームの時間'));
+    // 演出の確認室（src/debugroom.js）。セーブは変わらない
+    {
+      const el = Util.el('label', 'cfgrow cfgroom');
+      el.innerHTML = '<span class="box">▶</span><span><b>演出の確認室</b><span>パック開封・結果画面・カード3択・帯などを、見本でいつでも見られます（セーブは変わりません）</span></span>';
+      el.addEventListener('click', () => { Snd.ui(); if (typeof DebugRoom !== 'undefined') DebugRoom.open(); });
+      b.appendChild(el);
+    }
   },
 
   // ================= 処理の重さ =================
@@ -1743,8 +1753,9 @@ const UI = {
     p.appendChild(reset);
   },
 
-  confirmPrestige() {
-    const pv = Pack.prestigePreview(Game.clearedCount(), Game.perm.prestiges, Game.perm.legacyDeep || 0);
+  // demo … 演出の確認室から。見本の数字を出し、押しても再起動せず（セーブは変わらない）、場面と結果の画面だけ見せる
+  confirmPrestige(demo) {
+    const pv = demo ? { relic: 3, cards: 8 } : Pack.prestigePreview(Game.clearedCount(), Game.perm.prestiges, Game.perm.legacyDeep || 0);
     const body = Util.el('div', 'rs rs-lose');
     body.innerHTML =
       '<div class="rs-ban"><b>再起動</b><span>本当に再起動しますか？</span></div>' +
@@ -1755,6 +1766,11 @@ const UI = {
     const ok = Util.el('button', 'rs-go');
     ok.innerHTML = '<span>失って得る</span><b>再起動する</b>' + Icons.get('cycle');
     ok.addEventListener('click', () => {
+      if (demo) {
+        this.closeModal();
+        Scenes.reboot(() => this.showPrestigeResult({ prestiges: 4, reward: { relic: pv.relic, basic: pv.cards } }));
+        return;
+      }
       const res = Game.prestige();
       this.closeModal();
       UI.pick = 0;
@@ -1799,19 +1815,28 @@ const UI = {
   eligibleCards() { return Draft.eligible(); },
   rollDraft(n) { return Draft.roll(n); },
 
-  showDraft() {
+  // demo … 演出の確認室（src/debugroom.js）から見本のカードで出すとき。ids の配列。選んでもカードは取らず、戦闘も止めない
+  showDraft(demo) {
     const run = Game.run;
-    if (!run || run.over) return;
-    const ids = this.rollDraft(run.mods.choices);
-    if (!ids.length) { run.pendingPicks = 0; return; }
+    if (!run || (run.over && !demo)) return;
+    const ids = demo || this.rollDraft(run.mods.choices);
+    if (!ids.length) { if (!demo) run.pendingPicks = 0; return; }
 
-    this.draftOpen = true;
-    Game.paused = true;
+    if (!demo) { this.draftOpen = true; Game.paused = true; }
 
-    const body = Util.el('div', 'draft');
+    // **出方（0929n）**：見出しの板が叩きつけられ、そこから六角の格子が点く。3枚は裏のまま下から順に滑り込み、
+    //   1枚ずつ表になる（全部で約0.8秒・触れるのは最初から）。選ぶと六角の衝撃波が出て、カードは上の武器の枠へ吸い込まれる。
+    //   動きは CSS の backwards だけ（終わったあとに何も持たない）。ここは順番の遅れ（--dl）と、選んだときの行き先だけ決める
+    const body = Util.el('div', 'draft fx');
+    // 出た3枚のうち、いちばん高いレア度の色で格子が点く（エピック以上だけ。それ以外はいつもの橙）
+    {
+      let best = null;
+      for (const id of ids) { const r = BAL.rarity[CARDS[id].rarity]; if (r.glow >= 2 && (!best || r.glow > best.glow)) best = r; }
+      if (best) body.style.setProperty('--rk', best.color);
+    }
     body.appendChild(this.choiceHead('レベルアップ',
-      'ウェーブ ' + run.wave + ' 突破　1枚選ぶ' +
-      (run.pendingPicks > 1 ? '（あと ' + run.pendingPicks + ' 枚）' : '')));
+      demo ? '見本　選んでも何も変わりません' : 'ウェーブ ' + run.wave + ' 突破　1枚選ぶ' +
+      (run.pendingPicks > 1 ? '（あと ' + run.pendingPicks + ' 枚）' : ''), '// UPGRADE SELECT'));
     // **なぜ4択・5択なのか／なぜ何枚も取れるのかを出す。**（ユーザー 2026-09-24
     //   「5択、複数回選択出来るのは一体何の効果なのかわからない」）
     {
@@ -1825,47 +1850,90 @@ const UI = {
       if (rp) why.push('1ウェーブに +' + rp + '枚（常駐）');
       if (why.length) body.appendChild(Util.el('div', 'draftwhy', why.join('　')));
     }
-    body.appendChild(this.runSlots());
+    const slots = this.runSlots();
+    body.appendChild(slots);
 
     const row = Util.el('div', 'chrow');
-    for (const id of ids) {
+    ids.forEach((id, i) => {
       const c = CARDS[id];
+      const glow = BAL.rarity[c.rarity].glow;
       // **新しいカードの見た目で出す。**（ユーザー 2026-09-24「カードをちゃんとデザインして」）
       //   ★はいまの凸（パックで被った枚数から）。**枚数と「あと何枚」は出さない**
       //   （ユーザー 2026-09-23「3択チョイスでは被せて取る意味は残したい」。ここで枚数を出すと
       //    3択で被せると凸が進むように読めてしまう）。下の丸は「この出撃で何枚積んだか」
       const el = Util.el('button', 'chcard pick cfpick' + (BAL.rarity[c.rarity].glow >= 2 ? ' hot' : ''));
-      el.appendChild(CardFX.face(c, { count: Game.own(id), noCount: true }));
+      el.style.setProperty('--dl', (0.12 + i * 0.09).toFixed(2) + 's');
+      // 絵の面＋伏せた裏面（同じ大きさで重ねる。裏が回って消え、表が回って出る）。エピック以上は後ろに六角の光（CSS）
+      const face = Util.el('div', 'ch-face g' + glow);
+      face.style.setProperty('--rc', BAL.rarity[c.rarity].color);
+      const front = Util.el('div', 'ch-front');
+      front.appendChild(CardFX.face(c, { count: Game.own(id), noCount: true }));
+      const back = CardFX.back(c.rarity);
+      back.classList.add('ch-back');
+      face.appendChild(front); face.appendChild(back);
+      el.appendChild(face);
       el.insertAdjacentHTML('beforeend',
         this.stackPips({ have: run.cards[id] || 0, limit: Game.stackLimit(id) }) +
         '<div class="chtype">' + (c.kind === 'weapon' ? '武器を編成に追加'
           : c.kind === 'synergy' ? 'シナジー'
-          : (c.weapon ? WEAPONS[c.weapon].name + ' 強化' : '全体強化')) + '</div>');      el.addEventListener('click', () => {
+          : (c.weapon ? WEAPONS[c.weapon].name + ' 強化' : '全体強化')) + '</div>');
+      el.addEventListener('click', () => {
         if (row.classList.contains('done')) return;   // 二度押しで2枚取らせない
         // **選んだ瞬間を目で分からせる。** 選んだ1枚が残り、他が退く
         row.classList.add('done');
         el.classList.add('sel');
-        run.cards[id] = (run.cards[id] || 0) + 1;
-        Game.applyCard(id, run);
-        run.pendingPicks = Math.max(0, run.pendingPicks - 1);
-        this.draftOpen = false;
+        if (!demo) {
+          run.cards[id] = (run.cards[id] || 0) + 1;
+          Game.applyCard(id, run);
+          run.pendingPicks = Math.max(0, run.pendingPicks - 1);
+          this.draftOpen = false;
+        }
+        this._draftTake(slots, face, c);
         setTimeout(() => {
           this.closeModal();
-          this.toastMsg('取得: ' + c.name, BAL.rarity[c.rarity].color);
+          this.toastMsg((demo ? '見本: ' : '取得: ') + c.name, BAL.rarity[c.rarity].color);
+          if (demo) return;
           if (run.pendingPicks > 0) this.showDraft();
           else Game.paused = false;
-        }, 260);
+        }, 320);
       });
       row.appendChild(el);
-    }
+    });
     body.appendChild(row);
     this.openModal(body, true);
+    // 裏面は表が出たあとは要らない（動きが止まる端末でも、いつまでも表を隠さないように片付ける）
+    setTimeout(() => { body.querySelectorAll('.ch-back').forEach(x => x.remove()); }, 1200);
+  },
+
+  // 選んだ瞬間：カードの位置に六角の衝撃波。カードは上の武器の枠（連携は先頭の武器・武器に属さないものは「汎用」）へ吸い込まれ、枠の数が1つ増える
+  _draftTake(slots, face, c) {
+    const color = BAL.rarity[c.rarity].color;
+    const fr = face.getBoundingClientRect();
+    CardFX.hexShock(this.el.modal, fr.left + fr.width / 2, fr.top + fr.height / 2, color, true);
+    const all = Array.from(slots.querySelectorAll('.chslot'));
+    const owners = c.kind === 'synergy' ? (c.requires || []) : (c.weapon ? [c.weapon] : []);
+    let tg = all.filter(s => owners.includes(s.dataset.g));
+    if (!tg.length) tg = all.filter(s => s.dataset.g === 'gen');
+    if (!tg.length) return;
+    const tr = tg[0].getBoundingClientRect();
+    face.style.setProperty('--fx', (tr.left + tr.width / 2 - fr.left - fr.width / 2).toFixed(0) + 'px');
+    face.style.setProperty('--fy', (tr.top + tr.height / 2 - fr.top - fr.height / 2).toFixed(0) + 'px');
+    face.classList.add('suck');
+    setTimeout(() => {
+      for (const s of tg) {
+        if (!s.isConnected) continue;
+        const u = s.querySelector('u');
+        if (u) u.textContent = String((parseInt(u.textContent, 10) || 0) + 1);
+        s.classList.remove('empty'); s.classList.add('on', 'hit');
+      }
+    }, 190);
   },
 
   // ---- 3択の画面の部品 ----
-  choiceHead(title, sub) {
+  choiceHead(title, sub, kicker) {
     const h = Util.el('div', 'chhead');
-    h.innerHTML = '<b>' + title + '</b>' + (sub ? '<span>' + sub + '</span>' : '');
+    h.innerHTML = (kicker ? '<em>' + kicker + '</em>' : '') + '<b>' + title + '</b>' + (sub ? '<span>' + sub + '</span>' : '') +
+      (kicker ? '<i class="ch-sweep"></i>' : '');
     return h;
   },
 
@@ -1896,6 +1964,7 @@ const UI = {
       const n = g.cards.reduce((a, id) => a + got[id], 0);
       const s = Util.el('button', 'chslot' + (n ? ' on' : ' empty'));
       s.style.color = g.color;
+      s.dataset.g = g.id;
       s.innerHTML = '<i>' + g.icon + '</i><u>' + n + '</u>';
       s.title = g.name + '：' + n + '枚';
       s.addEventListener('click', (e) => {
