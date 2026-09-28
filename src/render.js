@@ -608,7 +608,7 @@ const Render = {
   // ---------------------------------------------------------------
   exposeTier(st) {
     const n = parseInt(String(st.id || '').replace(/\D/g, ''), 10) || 1;
-    return n <= 4 ? 1 : n <= 10 ? 2 : n <= 19 ? 3 : n <= 30 ? 4 : 5;
+    return n <= 4 ? 1 : n <= 10 ? 2 : n <= 19 ? 3 : n <= 30 ? 4 : n <= 45 ? 5 : 6;
   },
 
   exposeLayer(c, st, R) {
@@ -718,6 +718,24 @@ const Render = {
       c.fillStyle = 'rgba(255,170,90,' + (0.22 + rnd() * 0.18).toFixed(3) + ')';
       c.fillText(txt, h.x - R * 0.6, h.y + (rnd() - 0.5) * R * 0.6);
     }
+    if (tier < 6) return;
+    // 段6（第46章から）：**データの奥に、何かがいる。**（企画書 §31「データの奥にAIがある」・説明はしない）
+    //   壁の中に、神経のようにつながった点と線の網。点は boardAnim でゆっくり呼吸するように明滅する
+    const nodes = [];
+    for (const h of walls) if (rnd() < 0.09) nodes.push({ x: h.x + (rnd() - 0.5) * R, y: h.y + (rnd() - 0.5) * R, ph: rnd() * 6.28 });
+    c.lineWidth = 0.9;
+    for (let i = 0; i < nodes.length; i++) {
+      let k = 0;
+      for (let j = i + 1; j < nodes.length && k < 3; j++) {
+        const a = nodes[i], b = nodes[j], d = Math.hypot(a.x - b.x, a.y - b.y);
+        if (d > R * 3.2) continue;
+        k++;
+        c.strokeStyle = 'rgba(255,225,190,' + (0.10 * (1 - d / (R * 3.2)) + 0.04).toFixed(3) + ')';
+        c.beginPath(); c.moveTo(a.x, a.y); c.lineTo(b.x, b.y); c.stroke();
+      }
+    }
+    for (const nd of nodes) { c.fillStyle = 'rgba(255,230,200,0.35)'; c.beginPath(); c.arc(nd.x, nd.y, 1.8, 0, 7); c.fill(); }
+    st._nodes = nodes;
   },
 
   // ---------------------------------------------------------------
@@ -877,6 +895,16 @@ const Render = {
     }
     ctx.setLineDash([]);
     // 段5（第31章〜）：壁の中の配線をデータの光が流れる（exposeLayer）。**光るのは壁のタイルの上だけ**（通路に漏らさない）
+    // 段6：網の点が、ゆっくり呼吸するように明滅する（光るのは壁のタイルの上だけ）
+    if (st._nodes && st._nodes.length && this.exposeTier(st) >= 6) {
+      if (!st._nodesOk) st._nodesOk = st._nodes.filter(nd => !st.walkable(Math.floor(nd.x / TILE), Math.floor(nd.y / TILE)));
+      const breath = 0.5 + 0.5 * Math.sin(t * 0.9);
+      for (const nd of st._nodesOk) {
+        const a = Math.max(0, 0.25 + 0.55 * breath * (0.5 + 0.5 * Math.sin(t * 1.7 + nd.ph)));
+        ctx.fillStyle = 'rgba(255,225,190,' + a.toFixed(3) + ')';
+        ctx.beginPath(); ctx.arc(nd.x, nd.y, 2.6, 0, Math.PI * 2); ctx.fill();
+      }
+    }
     if (st._traces && st._traces.length && this.exposeTier(st) >= 5) {
       if (!st._pulse) {
         st._pulse = st._traces.slice(0, 32).map(pts => {
