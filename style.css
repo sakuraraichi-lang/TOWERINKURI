@@ -2192,3 +2192,57 @@ body:not(.tabsoff) #home #panel{animation:panelIn .2s cubic-bezier(.2,.8,.2,1);}
 .dbg-key:active{transform:translateY(2px);box-shadow:var(--key-press);}
 .cfgroom .box::before,.cfgroom .box::after{display:none;}
 .cfgroom .box{display:grid;place-items:center;font-size:11px;color:var(--acc);}
+
+/* ===== ボスの帯と BOSS DOWN（0929o・ui.js の cutinBoss / cutinBossDown） =====
+   ウェーブの帯の骨格（斜めの帯の叩きつけ・字が1字ずつ収まる）はそのまま、色と語彙だけ変える。
+   ボスが来る：赤い警告の帯（上下が警告の縞）・「// WARNING　VIRUS DETECTED」・画面の縁が赤く明滅・叩きつけで赤い六角の衝撃波。1.9秒（通常は1.45秒）
+   倒した：金の帯・「// TARGET ELIMINATED」・金の六角の衝撃波が2回・残りの数は VFD の色。帯は操作の邪魔をしない（触れない） */
+#cutin .ci-boss{--ck:#ff3d4d;animation:ciHold 1.9s linear forwards;}
+#cutin .ci-down{--ck:#ffc24a;}
+#cutin .ci-kick{position:relative;margin:0 0 5px;padding-left:.3em;font:700 10px/1 var(--font-num);letter-spacing:.3em;color:var(--ck);
+  animation:rsSys .5s steps(20) .12s backwards;}
+#cutin .ci-boss .ci-kick{animation:rsSys .5s steps(20) .12s backwards,ciBlink .36s steps(2) .7s 4;}
+@keyframes ciBlink{50%{opacity:.25;}}
+#cutin .ci-boss .ci-band{top:-16px;bottom:-18px;border:0;box-shadow:0 0 34px rgba(255,61,77,.5);
+  background:repeating-linear-gradient(135deg,#ff3d4d 0 9px,#101216 9px 18px) top/100% 6px no-repeat,
+             repeating-linear-gradient(135deg,#ff3d4d 0 9px,#101216 9px 18px) bottom/100% 6px no-repeat,
+             linear-gradient(90deg,transparent,rgba(26,4,8,.95) 14%,rgba(26,4,8,.95) 86%,transparent);
+  animation:ciBandBoss 1.9s cubic-bezier(.2,.8,.2,1) forwards;}
+#cutin .ci-down .ci-band{border-color:var(--ck);box-shadow:0 0 36px rgba(255,194,74,.55);
+  background:linear-gradient(90deg,transparent,rgba(26,18,4,.92) 16%,rgba(26,18,4,.92) 84%,transparent);
+  animation:ciBandBoss 1.45s cubic-bezier(.2,.8,.2,1) forwards;}
+@keyframes ciBandBoss{0%{transform:skewY(-4deg) scaleX(.2) scaleY(.4);}10%{transform:skewY(-4deg) scaleX(1.02) scaleY(1.3);}18%,100%{transform:skewY(-4deg);}}
+#cutin .ci-boss b,#cutin .ci-down b{text-shadow:0 0 16px color-mix(in srgb,var(--ck) 90%,transparent);animation:ciSplit .9s ease-out backwards;}
+#cutin .ci-boss b em{color:var(--ck);}
+@keyframes ciSplit{0%{text-shadow:9px 0 rgba(255,60,60,.85),-9px 0 rgba(60,200,255,.85),0 0 28px var(--ck);}
+  30%{text-shadow:-6px 0 rgba(255,60,60,.8),6px 0 rgba(60,200,255,.8),0 0 24px var(--ck);}}
+#cutin .ci-boss b .cc{animation:ccIn .46s cubic-bezier(.2,.8,.2,1) var(--d) both,ccOut .32s cubic-bezier(.6,0,.9,.4) calc(1.5s + var(--d)) forwards;}
+#cutin .ci-boss span{color:#ffd0d4;animation:ciSub 1.9s ease-out forwards;}
+#cutin .ci-boss .ci-sys{color:rgba(255,120,130,.8);animation:ciSys 1.9s steps(24) forwards;}
+#cutin .ci-n{margin:0 .25em;font:400 22px/1 var(--font-num);color:var(--vfd);text-shadow:0 0 6px rgba(255,170,60,.9),0 0 14px rgba(255,140,40,.5);}
+#cutin.boss::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(ellipse at 50% 50%,transparent 40%,rgba(255,30,50,.5) 100%);animation:ciVig 1.9s ease-out forwards;}
+@keyframes ciVig{0%{opacity:0;}6%{opacity:1;}16%{opacity:.25;}24%{opacity:1;}40%{opacity:.2;}52%{opacity:.7;}100%{opacity:0;}}
+#cutin.down::before{content:'';position:absolute;inset:0;pointer-events:none;
+  background:radial-gradient(circle at 50% 44%,rgba(255,224,130,.55),transparent 62%);animation:ciFlash .7s ease-out forwards;}
+@keyframes ciFlash{0%{opacity:0;}12%{opacity:1;}100%{opacity:0;}}
+
+/* ===== 再起動の場面の前後（0929o・src/scenes.js の reboot） =====
+   ゲームの画面がブラウン管のように横一線に潰れて消え（body.rb-off）→ 部屋の場面の中でゲームの画面が横一線から点く →
+   部屋を出るときはまた横一線に潰れて消える → 結果の帯が叩きつけられる。部屋の絵と文字は変えていない */
+body.rb-off{background:#000;}
+body.rb-off #app{animation:crtoff .3s ease-in forwards;}
+.rbscene.out{opacity:1;transition:none;}
+.rbscene .rb-box{animation:rbOn .34s cubic-bezier(.2,.8,.2,1) backwards;}
+.rbscene.out .rb-box{animation:rbOff .3s ease-in forwards;}
+.rbscene.out .rb-skip{opacity:0;}
+@keyframes rbOn{0%{transform:translate(-50%,-50%) scaleY(.004) scaleX(.6);filter:brightness(3);}
+  45%{transform:translate(-50%,-50%) scaleY(.004) scaleX(1);filter:brightness(3);}100%{transform:translate(-50%,-50%);}}
+@keyframes rbOff{0%{transform:translate(-50%,-50%);}60%{transform:translate(-50%,-50%) scaleY(.006);filter:brightness(3);opacity:1;}
+  100%{transform:translate(-50%,-50%) scaleY(.004) scaleX(0);opacity:0;}}
+/* 点いた直後：題字が赤と青にずれて揺れる（再起動では走査線とグリッチを使ってよい） */
+.rbscene .rb-game b{animation:rbGlitch .5s steps(1) .16s backwards;}
+@keyframes rbGlitch{0%{text-shadow:6px 0 rgba(255,60,60,.8),-6px 0 rgba(60,200,255,.8),0 0 10px #ff7a18;transform:translateX(-4px);}
+  25%{text-shadow:-5px 0 rgba(255,60,60,.8),5px 0 rgba(60,200,255,.8),0 0 10px #ff7a18;transform:translateX(5px);opacity:.55;}
+  50%{text-shadow:3px 0 rgba(255,60,60,.7),-3px 0 rgba(60,200,255,.7),0 0 10px #ff7a18;transform:none;opacity:1;}
+  75%{text-shadow:-2px 0 rgba(255,60,60,.6),2px 0 rgba(60,200,255,.6),0 0 10px #ff7a18;opacity:.7;}}

@@ -69,8 +69,8 @@ const DebugRoom = {
         ['準備フェーズの帯', cut('準備フェーズ', '武器を置いて「準備完了」', 'prep')],
         ['ウェーブの帯', cut('WAVE 3<em> / ' + W + '</em>', '', 'wave')],
         ['最終ウェーブの帯', cut('WAVE ' + W + '<em> / ' + W + '</em>', '最終ウェーブ', 'last')],
-        ['ボスの帯', () => { UI.cutin('WAVE ' + W + '<em> / ' + W + '</em>', 'VIRUS DETECTED ─ コアに届く前に倒せ', 'last'); setTimeout(() => UI.sysWarn('boss'), 1700); }],
-        ['BOSS DOWN', cut('BOSS DOWN', 'あと 2体', 'last')],
+        ['ボスの帯', () => { UI.cutinBoss(W); setTimeout(() => UI.sysWarn('boss'), 2100); }],
+        ['BOSS DOWN（あと2体）', () => UI.cutinBossDown(2)],
       ]],
       ['場面・画面', [
         ['再起動の場面（部屋）', () => Scenes.reboot(null)],

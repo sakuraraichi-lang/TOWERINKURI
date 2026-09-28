@@ -161,32 +161,38 @@ const Scenes = {
   },
 
   // 再起動の場面。終わったら（または触って飛ばしたら）done を呼ぶ
+  //   前後のつなぎ（0929o）：ゲームの画面がブラウン管のように横一線に潰れて消え（0.3秒）→ ゲームの画面が点いて部屋へ縮む →
+  //   部屋を出るときはまた横一線に潰れて消え（0.3秒）→ 結果の帯が叩きつけられる。動きは CSS（body.rb-off ／ .rbscene の crton・rbOff）
   reboot(done) {
     if (!this._prep) this.prepare();
     const { pick, cv } = this._prep;
     this._prep = null;
-    const el = Util.el('div', 'rbscene');
-    el.innerHTML = '<div class="rb-box">' +
-      '<div class="rb-screen"><div class="rb-game"><b>エクスメントマキナ</b></div><div class="rb-news"><b>NEWS</b><span>' + pick[2] + '</span></div><i class="rb-scan"></i></div></div>' +
-      '<div class="rb-skip">タップで飛ばす</div>';
-    // 現実の部屋は写実寄り（src/room.js・ユーザー 2026-09-28「リアル寄りの生成に」・参考画像の暗さと汚れ）
-    el.querySelector('.rb-box').prepend(cv);
-    document.body.appendChild(el);
-    let ended = false;
-    const end = () => {
-      if (ended) return; ended = true;
-      el.classList.add('out');
-      setTimeout(() => { el.remove(); done && done(); }, 260);
-    };
-    el.addEventListener('pointerdown', end);
+    document.body.classList.add('rb-off');
     try { Snd.noise({ dur: 0.18, vol: 0.08, f: 3200, q: 0.5 }); } catch (e) {}   // 画面が切れる「ブツッ」
-    requestAnimationFrame(() => el.classList.add('pull'));          // ゲームの画面がテレビの中へ縮む
-    setTimeout(() => { if (!ended) el.classList.add('news'); }, 900);
-    setTimeout(() => {                                               // もう一度テレビの中へ入っていく
-      if (ended) return;
-      el.classList.add('dive');
-      try { Snd.tone({ type: 'sine', f0: 180, f1: 900, dur: 0.45, vol: 0.05 }); } catch (e) {}
-    }, 2350);
-    setTimeout(end, 2950);
+    setTimeout(() => {
+      document.body.classList.remove('rb-off');
+      const el = Util.el('div', 'rbscene');
+      el.innerHTML = '<div class="rb-box">' +
+        '<div class="rb-screen"><div class="rb-game"><b>エクスメントマキナ</b></div><div class="rb-news"><b>NEWS</b><span>' + pick[2] + '</span></div><i class="rb-scan"></i></div></div>' +
+        '<div class="rb-skip">タップで飛ばす</div>';
+      // 現実の部屋は写実寄り（src/room.js・ユーザー 2026-09-28「リアル寄りの生成に」・参考画像の暗さと汚れ）
+      el.querySelector('.rb-box').prepend(cv);
+      document.body.appendChild(el);
+      let ended = false;
+      const end = () => {
+        if (ended) return; ended = true;
+        el.classList.add('out');                       // 横一線に潰れて消える（.3秒）
+        setTimeout(() => { el.remove(); done && done(); }, 320);
+      };
+      el.addEventListener('pointerdown', end);
+      setTimeout(() => { if (!ended) el.classList.add('pull'); }, 330);        // ゲームの画面が点いてから、テレビの中へ縮む
+      setTimeout(() => { if (!ended) el.classList.add('news'); }, 1150);
+      setTimeout(() => {                                                       // もう一度テレビの中へ入っていく
+        if (ended) return;
+        el.classList.add('dive');
+        try { Snd.tone({ type: 'sine', f0: 180, f1: 900, dur: 0.45, vol: 0.05 }); } catch (e) {}
+      }, 2350);
+      setTimeout(end, 2900);
+    }, 300);
   },
 };

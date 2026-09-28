@@ -452,7 +452,7 @@ const UI = {
     if ((r.bossKills || 0) !== (this._bossKills || 0)) {
       this._bossKills = r.bossKills || 0;
       const rest = r.enemies.filter(e => e.boss && !e.dead).length;
-      if (this._bossKills > 0 && rest > 0) this.cutin('BOSS DOWN', 'あと ' + rest + '体', 'last');
+      if (this._bossKills > 0 && rest > 0) this.cutinBossDown(rest);
     }
     // **ライフのバー。初期は常に出し、⚙で消せる**（2026-09-28・ユーザー「HPバーはデフォルトで常時表示で、設定から非表示にできる形のが良い」。
     //   0926c で上の帯ごと外し、0926i で「数字を出す（初期はオフ）」にしていた）
@@ -562,26 +562,50 @@ const UI = {
         ((Math.random() - 0.5) * 70 | 0) + 'px;--r:' + ((Math.random() - 0.5) * 60 | 0) + 'deg">' + ch + '</i>').join('')).join('');
     // 帯の下を流れる小さなシステムの行（情報の集中）
     const hex = () => '0x' + ((Math.random() * 65536) | 0).toString(16).toUpperCase().padStart(4, '0');
-    const sys = 'SYS//' + String(title).replace(/<[^>]+>/g, '').replace(/\s+/g, '_').toUpperCase() + '  ' + hex() + '  ' + hex() + '  OK';
+    // ボス（0929o）：赤い警告の帯（縞・WARNING の行・画面の縁の赤い明滅）。倒したとき：金の帯と六角の衝撃波。
+    //   通常のウェーブの帯の骨格（斜めの帯の叩きつけ・字が1字ずつ収まる）はそのまま。長さだけ 1.45 → 1.9 秒（ボスの帯のみ）
+    const boss = kind === 'boss', down = kind === 'down';
+    const kick = boss ? '// WARNING　VIRUS DETECTED' : down ? '// TARGET ELIMINATED' : '';
+    const sys = 'SYS//' + String(title).replace(/<[^>]+>/g, '').replace(/\s+/g, '_').toUpperCase() + '  ' + hex() + '  ' + hex() + '  ' + (boss ? 'ALERT' : down ? 'PURGED' : 'OK');
     c.innerHTML = '<div class="ci ci-' + (kind || 'wave') + '"><i class="ci-band"></i>' +
+      (kick ? '<div class="ci-kick">' + kick + '</div>' : '') +
       '<b>' + split + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '<i class="ci-sys">' + sys + '</i></div>';
     void c.offsetWidth;
-    c.className = 'on';
+    c.className = 'on' + (boss || down ? ' ' + kind : '');
     // 動きが終わったら片付ける（動きだけに頼ると、見た目の定義を変えたときに出たままになる・0929a）。次のカットインが来ていたら触らない
     const tok = this._cutTok = (this._cutTok || 0) + 1;
     clearTimeout(this._cutTimer);
-    this._cutTimer = setTimeout(() => { if (this._cutTok === tok) { c.className = ''; c.innerHTML = ''; } }, 1600);
+    this._cutTimer = setTimeout(() => { if (this._cutTok === tok) { c.className = ''; c.innerHTML = ''; } }, boss ? 2100 : 1600);
+    // 叩きつけた瞬間の六角の衝撃波（ボスは赤・倒したときは金で2回）
+    if (boss || down) {
+      const shock = (ms, big) => setTimeout(() => {
+        if (this._cutTok !== tok) return;
+        const band = c.querySelector('.ci-band');
+        if (!band) return;
+        const r = band.getBoundingClientRect();
+        CardFX.hexShock(c, r.left + r.width / 2, r.top + r.height / 2, boss ? '#ff3d4d' : '#ffc24a', big);
+      }, ms);
+      if (boss) shock(140, true); else { shock(90, true); shock(420, 'sm'); }
+    }
+  },
+  // ボスのウェーブの帯（n ウェーブ目／total）。警告の文字は帯が抜けたあとに流す
+  cutinBoss(n) {
+    this.cutin('BOSS<em> WAVE ' + n + ' / ' + BAL.wavesPerStage + '</em>', 'ボスが来る ─ コアに届く前に倒せ', 'boss');
+  },
+  // ボスを1体倒した（まだ残りがいる）とき
+  cutinBossDown(rest) {
+    this.cutin('BOSS DOWN', 'あと<strong class="ci-n">' + rest + '</strong>体', 'down');
   },
   cutinWave(n) {
     const run = Game.run;
     const last = n >= BAL.wavesPerStage;
     const boss = run && Combat.isBossWave(run);
-    this.cutin('WAVE ' + n + '<em> / ' + BAL.wavesPerStage + '</em>',
-      boss ? 'VIRUS DETECTED ─ コアに届く前に倒せ' : last ? '最終ウェーブ' : '', last ? 'last' : 'wave');
+    if (boss) this.cutinBoss(n);
+    else this.cutin('WAVE ' + n + '<em> / ' + BAL.wavesPerStage + '</em>', last ? '最終ウェーブ' : '', last ? 'last' : 'wave');
     // 警告の文字は、カットインが抜けたあとに流す（重ねると読めない）
     const tier = run && run.stage ? Render.exposeTier(run.stage) : 1;
     const p = boss ? 1 : [0, 0, 0.15, 0.3, 0.45, 0.7][tier];
-    if (Math.random() < p) setTimeout(() => this.sysWarn(boss ? 'boss' : 'wave'), 1700);
+    if (Math.random() < p) setTimeout(() => this.sysWarn(boss ? 'boss' : 'wave'), boss ? 2100 : 1700);
   },
 
   // ================= 大量撃破（企画書 §16） =================
