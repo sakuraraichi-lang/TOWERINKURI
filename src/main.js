@@ -44,7 +44,8 @@ const Main = {
       if (!st || !Game.stageUnlocked(st.id)) return;
       Game.perm.currentStage = st.id;
       Game.save();
-      this.toBattle();
+      // 出撃の瞬間の演出（0929s・src/sortie.js）。切り替えの本体（toBattle）は幕が閉じきった時刻に呼ばれる
+      Sortie.play(st, (cutDelay) => this.toBattle(cutDelay));
     });
 
     UI.el.modal.addEventListener('click', (e) => {
@@ -87,7 +88,7 @@ const Main = {
   },
 
   // ---------- 戦場（準備フェーズ）へ ----------
-  toBattle() {
+  toBattle(cutDelay) {
     // **自動購入**（転生6回から・設定で切れる）：「まとめて購入」と同じ順で買えるだけ買う
     if (Game.autoOpen('autoBuy') && Game.perm.autoBuy && Game.canBuySkills()) {
       const r = Skill.buyAll(Game.meta, Game.perm);
@@ -97,11 +98,12 @@ const Main = {
       }
     }
     UI.setScreen('battle');
-    this.toPrep();
+    this.toPrep(cutDelay);
     setTimeout(() => Render.resize(), 0);
   },
 
-  toPrep() {
+  // cutDelay … 準備フェーズの帯を遅らせる時間（ミリ秒）。出撃の演出の帯が抜けるのを待つ。無ければすぐ出す
+  toPrep(cutDelay) {
     Game.startPrep(Game.perm.currentStage);
     Snd.bgm('cafe');   // 準備フェーズは喫茶店の空気（企画書§24）
     Render.fit();
@@ -112,7 +114,8 @@ const Main = {
     UI.renderTray();
     this.syncStartButton();
     UI.closeBattleCfg();
-    UI.cutin('準備フェーズ', '武器を置いて「準備完了」', 'prep');
+    if (cutDelay > 0) setTimeout(() => { if (UI._screen === 'battle' && Game.phase !== 'battle') UI.cutin('準備フェーズ', '武器を置いて「準備完了」', 'prep'); }, cutDelay);
+    else UI.cutin('準備フェーズ', '武器を置いて「準備完了」', 'prep');
   },
 
   beginBattle() {

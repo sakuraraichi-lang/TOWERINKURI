@@ -105,6 +105,7 @@ const DebugRoom = {
         ['連打（5つ続けて取る）', () => me.skill('rapid')],
       ], () => me._skHostEl()],
       ['場面・画面', [
+        ['出撃の瞬間（幕・帯・衝撃波）', () => Sortie.demo()],
         ['再起動の場面（部屋）', () => Scenes.reboot(null)],
         ['指揮官の記録', () => UI.openProfile(true)],
       ]],
