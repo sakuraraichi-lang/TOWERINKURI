@@ -127,11 +127,17 @@ const DebugRoom = {
     UI._bossKills = 0;
     UI.cutinWave(run.wave);
     const bosses = run.enemies.filter(e => e.boss);
-    let t0 = performance.now(), tOut = null, done = false, last = t0;
+    let t0 = performance.now(), tOut = null, done = false, doneAt = 0, last = t0;
     this._bt = setInterval(() => {
-      if (!this.el || Game.run !== run || done) { this._btEnd(); return; }
+      if (!this.el || Game.run !== run) { this._btEnd(); return; }
       const now = performance.now();
       const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      // ウェーブが終わったあとも、演出（fx）が消えきるまで時間を進める（準備に入ると本体のループは fx を進めず、最後のボスの演出が止まったまま残る）。最長2.5秒
+      if (done) {
+        Combat.update(run, dt);
+        if (!run.fx.length || now - doneAt > 2500) this._btEnd();
+        return;
+      }
       const inSh = bosses.some(b => !b.dead && Combat.inShield(run, b));
       const steps = inSh ? 6 : 1;
       let sig = null;
@@ -141,8 +147,8 @@ const DebugRoom = {
         const el = (now - tOut) / 1000;
         bosses.forEach((b, i) => { if (!b.dead && el >= 0.8 + i * 2.6) Combat.damage(run, b, b.maxHp * 2, { by: 'debug' }); });
       }
-      if (sig === 'stageclear' || sig === 'waveclear') { done = true; UI.toastMsg('ボス戦の見本：全部倒してウェーブ終了（見本・記録なし）', '#ffc24a'); this._btEnd(); }
-      if (now - t0 > 60000) { done = true; this._btEnd(); }
+      if (sig === 'stageclear' || sig === 'waveclear') { done = true; UI.toastMsg('ボス戦の見本：全部倒してウェーブ終了（見本・記録なし）', '#ffc24a'); doneAt = now; }
+      if (now - t0 > 60000) { done = true; doneAt = now; }
     }, 16);
   },
 
