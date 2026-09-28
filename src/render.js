@@ -678,7 +678,7 @@ const Render = {
     for (const h of walls) if (rnd() < (tier === 3 ? 0.05 : 0.08)) led(h.x + (rnd() - 0.5) * R, h.y + (rnd() - 0.5) * R, LED[(rnd() * LED.length) | 0], 2.3);
     if (tier < 4) return;
     // 段4〜：部品（黒い本体に足が並ぶ）と、上に被さった装甲板の継ぎ目（まばらに・2辺だけ）
-    c.font = '700 8px ui-monospace,Consolas,monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.font = '700 8px "Share Tech Mono",ui-monospace,Consolas,monospace'; c.textAlign = 'center'; c.textBaseline = 'middle';
     for (const h of walls) {
       const k = rnd();
       if (k < 0.045) {
@@ -711,7 +711,7 @@ const Render = {
     if (tier < 5) return;
     // 段5：壁の中にシステムの文字（16進・ログの断片）
     const WORDS = ['SYS.CORE', 'MAKINA', 'AUTH OK', 'PKT DROP', 'ACK', 'TRACE', 'NODE', 'SEG', 'ROOT', 'HEAP', 'IRQ', 'SYNC'];
-    c.font = '700 11px ui-monospace,Consolas,monospace'; c.textAlign = 'left';
+    c.font = '700 11px "Share Tech Mono",ui-monospace,Consolas,monospace'; c.textAlign = 'left';
     for (const h of walls) {
       if (rnd() >= 0.07) continue;
       const txt = rnd() < 0.55 ? '0x' + ((rnd() * 65536) | 0).toString(16).toUpperCase().padStart(4, '0') : WORDS[(rnd() * WORDS.length) | 0];
@@ -1316,7 +1316,7 @@ const Render = {
     ctx.stroke();
     const towers = run.towers || [t];
     const name = towers.length > 1 ? 'MAKINA / CORE-0' + (towers.indexOf(t) + 1) : 'MAKINA / CORE';
-    ctx.font = '700 7px ui-monospace,Consolas,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
+    ctx.font = '700 7px "Share Tech Mono",ui-monospace,Consolas,monospace'; ctx.textAlign = 'center'; ctx.textBaseline = 'top';
     ctx.fillStyle = 'rgba(255,200,140,0.55)';
     ctx.fillText(name, 0, t.r * 1.25 + 14);
     ctx.restore();
@@ -2402,13 +2402,13 @@ const Render = {
     //   出る：大きく飛び出してから収まる（最初の一瞬は白く光る。会心は赤と青に色がずれる）
     //   消える：1文字ずつ間が開いていきながら薄れる（文字がほどけていく）
     //   字は等幅（数字の表示器の手触り）。数字は同時に40まで（combat.js）なので、1つずつ変換しても重くならない
-    ctx.font = '700 ' + fn + 'px ui-monospace,Consolas,monospace';
+    ctx.font = '700 ' + fn + 'px "Share Tech Mono",ui-monospace,Consolas,monospace';
     for (const n of run.nums) {
       const k = n.t / n.life;
       const pop = k < 0.14 ? 1 + 0.7 * Math.pow(1 - k / 0.14, 2) : 1;
       const out = k < 0.62 ? 0 : (k - 0.62) / 0.38;
       ctx.globalAlpha = 1 - out * out;
-      ctx.font = '700 ' + (n.crit ? fc : fn) + 'px ui-monospace,Consolas,monospace';
+      ctx.font = '700 ' + (n.crit ? fc : fn) + 'px "Share Tech Mono",ui-monospace,Consolas,monospace';
       ctx.save();
       ctx.translate(n.x, n.y);
       ctx.scale(pop, pop);
