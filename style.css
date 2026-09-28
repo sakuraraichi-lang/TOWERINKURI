@@ -1874,3 +1874,15 @@ body:not(.tabsoff) .hlogo{display:none;}
 @keyframes scrxLine{0%{top:-4px;}100%{top:100%;}}
 @keyframes scrxCover{0%{transform:scaleY(1);opacity:.85;}100%{transform:scaleY(0);opacity:.85;}}
 @keyframes scrxFade{0%,70%{opacity:1;}100%{opacity:0;}}
+
+/* ===== 大量撃破（企画書 §16・2026-09-28） =====
+   盤の上の方に「×N」が1字ずつ弾け、光の輪が広がる。0.7秒・触れる */
+.chainfx{position:absolute;left:0;right:0;top:16%;z-index:6;pointer-events:none;display:flex;flex-direction:column;align-items:center;}
+.chainfx b{font:900 28px/1 ui-monospace,Consolas,monospace;color:#fff;letter-spacing:.04em;text-shadow:0 0 10px #ff8a1f,0 0 24px rgba(255,120,30,.7);}
+.chainfx b em{display:inline-block;font-style:normal;animation:cfPop .7s cubic-bezier(.2,.9,.2,1) var(--d) both;}
+.chainfx span{font:800 9px/1 ui-monospace,Consolas,monospace;letter-spacing:.5em;color:#ffcf96;margin-top:3px;animation:cfSub .7s ease-out both;}
+.chainfx .cf-ring{position:absolute;left:50%;top:14px;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;
+  border:2px solid rgba(255,200,140,.9);box-shadow:0 0 18px rgba(255,140,40,.7);animation:cfRing .6s ease-out forwards;}
+@keyframes cfPop{0%{opacity:0;transform:scale(2.4) translateY(-6px);filter:blur(3px);}25%{opacity:1;transform:scale(1);filter:none;}75%{opacity:1;}100%{opacity:0;transform:translateY(-10px) scale(.9);}}
+@keyframes cfSub{0%,20%{opacity:0;}35%,75%{opacity:1;}100%{opacity:0;}}
+@keyframes cfRing{0%{transform:scale(.3);opacity:1;}100%{transform:scale(7);opacity:0;}}

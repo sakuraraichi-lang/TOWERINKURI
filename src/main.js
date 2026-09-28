@@ -321,6 +321,16 @@ const Main = {
       }
     }
 
+    // **大量撃破の瞬間**（企画書 §16「敵の大量撃破・音響との連動」・2026-09-28）：0.35秒のうちに10体以上倒したら、光と音と「×N」。1.5秒に1回まで
+    if (run) {
+      const now = performance.now();
+      const dk = Math.max(0, (run.kills || 0) - (this._k0 == null ? (run.kills || 0) : this._k0));
+      this._k0 = run.kills || 0;
+      this._kw = (this._kw || []).filter(x => now - x[0] < 350);
+      if (dk) this._kw.push([now, dk]);
+      const sum = this._kw.reduce((a, x) => a + x[1], 0);
+      if (sum >= 10 && now - (this._chainT || 0) > 1500) { this._chainT = now; this._kw = []; UI.chainFx(sum); }
+    }
     // 敵がコアに届いたら、ときどき警告の文字を流す（企画書 §11・遊びには関係しない・第5章から）
     if (run && run.leaked > (this._leak0 || 0) && run.stage && Render.exposeTier(run.stage) >= 2) UI.sysWarn('leak');
     this._leak0 = run ? run.leaked : 0;

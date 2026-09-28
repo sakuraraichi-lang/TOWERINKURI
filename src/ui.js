@@ -517,6 +517,18 @@ const UI = {
     if (Math.random() < p) setTimeout(() => this.sysWarn(boss ? 'boss' : 'wave'), 1700);
   },
 
+  // ================= 大量撃破（企画書 §16） =================
+  //   盤の上の方に「×N」を1字ずつ弾けさせ、盤全体に光の輪を広げ、上がっていく短い音を鳴らす。0.7秒で消える・触れる
+  chainFx(n) {
+    const host = document.querySelector('#stage .bfield');
+    if (!host) return;
+    const el = Util.el('div', 'chainfx');
+    el.innerHTML = '<i class="cf-ring"></i><b>' + Array.from('×' + n).map((ch, i) => '<em style="--d:' + (i * 0.03).toFixed(2) + 's">' + ch + '</em>').join('') + '</b><span>CHAIN</span>';
+    host.appendChild(el);
+    setTimeout(() => el.remove(), 760);
+    try { Snd.chain(n); } catch (e) {}
+  },
+
   // ================= 警告の文字（企画書 §11） =================
   //   **遊びには何も関係しない。**操作も要らない。盤の奥を一瞬流れて消える。「ゲームの裏側で何かが起きている」と感じさせるだけ。
   //   英語と日本語を混ぜる（ユーザー 2026-09-28）。1度に1行・2.5秒は間を空ける。触れない（pointer-events:none）

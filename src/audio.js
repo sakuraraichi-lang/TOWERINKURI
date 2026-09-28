@@ -138,6 +138,14 @@ const Snd = {
     this.tone(m[weaponId] || { type: 'square', f0: 420, f1: 280, dur: 0.05, vol: 0.025 });
   },
 
+  // 大量撃破：上がっていく短い分散和音（多いほど高く・長く）。企画書 §16「音響との連動」
+  chain(n) {
+    if (!this.on()) return;
+    const base = 520 + Math.min(8, Math.floor(n / 10)) * 40;
+    const steps = Math.min(5, 2 + Math.floor(n / 15));
+    for (let i = 0; i < steps; i++) setTimeout(() => this.tone({ type: 'square', f0: base * Math.pow(1.26, i), f1: base * Math.pow(1.26, i) * 1.02, dur: 0.06, vol: 0.05 }), i * 45);
+  },
+
   kill() {
     if (!this.on()) return;
     if (!this.gate('kill')) return;
