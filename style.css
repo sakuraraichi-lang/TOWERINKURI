@@ -1744,3 +1744,35 @@ body:not(.tabsoff) .hlogo{display:none;}
 #tray .chip.unit:active{transform:translateY(2px);box-shadow:var(--key-press);}
 #tray .chip.unit.on{background:linear-gradient(180deg,#2a1406,#3a1c08);transform:translateY(2px);
   box-shadow:var(--key-press),0 0 12px rgba(255,138,31,.45);}
+
+/* ---- 物理スイッチ 2回目：パネルの中のボタン（2026-09-28） ---- */
+.sk-tab,.sk-cat,.gs-tab,.snav,.skipbtn,body:not(.tabsoff) .pbackbtn,.rs-sub,.ctl{
+  background:var(--key-face);border-radius:7px;clip-path:none;
+  box-shadow:var(--key-bevel),var(--key-lift);transition:transform .08s ease-out,box-shadow .08s ease-out,background .15s;}
+.sk-tab,.gs-tab,.snav,.skipbtn,body:not(.tabsoff) .pbackbtn,.rs-sub,.ctl{border:1px solid var(--key-edge);}
+.sk-tab:active,.sk-cat:active,.gs-tab:active,.snav:active:not(:disabled),.skipbtn:active,body:not(.tabsoff) .pbackbtn:active,.rs-sub:active,.ctl:active{
+  transform:translateY(2px);box-shadow:var(--key-press);}
+/* 選んでいるキーは押し込まれたまま、色の光が灯る */
+.sk-tab.on{color:var(--acc);background:linear-gradient(180deg,#1d1f25,#262930);transform:translateY(2px);
+  box-shadow:var(--key-press),0 0 0 1px rgba(255,138,31,.55),0 0 12px rgba(255,138,31,.35);}
+.sk-cat.on,.gs-tab.on{transform:translateY(2px);}
+.sk-cat.on{box-shadow:var(--key-press),0 0 12px color-mix(in srgb,var(--bc) 40%,transparent);}
+.gs-tab.on{box-shadow:var(--key-press),0 0 12px color-mix(in srgb,var(--pc) 40%,transparent);}
+.snav{border-radius:9px;}
+.snav:disabled{box-shadow:var(--key-bevel);}
+/* 主役のキー：スキルを取る・パックを開ける */
+.tk-buy,.gs-pull{border-radius:9px;clip-path:none;transition:transform .08s ease-out,box-shadow .08s ease-out;}
+.tk-buy{background:var(--key-hot);border:1px solid #8a3a00;box-shadow:inset 0 1px 0 rgba(255,240,210,.7),inset 0 -3px 0 rgba(120,40,0,.35),0 3px 0 #7a3100,0 6px 12px rgba(255,120,20,.3);}
+.gs-pull.one{background:linear-gradient(180deg,#ffe7a3 0%,#ffc24d 50%,#e89a1a 100%);border:1px solid #8a5a00;
+  box-shadow:inset 0 1px 0 rgba(255,250,230,.8),inset 0 -3px 0 rgba(120,70,0,.3),0 4px 0 #7a4e00,0 7px 14px rgba(255,180,60,.3);}
+.gs-pull.all{background:linear-gradient(180deg,#ff9166 0%,#ff5a4a 50%,#d8304e 100%);border:1px solid #6a1020;
+  box-shadow:inset 0 1px 0 rgba(255,225,215,.6),inset 0 -3px 0 rgba(80,0,10,.35),0 4px 0 #5a0c18,0 7px 14px rgba(255,80,80,.3);}
+.tk-buy:active:not(:disabled):not(.short),.gs-pull:active:not(:disabled){transform:translateY(3px);box-shadow:inset 0 1px 0 rgba(255,240,210,.4),0 1px 0 #5a2400;}
+/* 取れない・もう取った：沈んだ平らなキー */
+.tk-buy.short,.tk-buy:disabled,.gs-pull:disabled{background:linear-gradient(180deg,#191b20,#1f2227);border:1px solid var(--key-edge);box-shadow:var(--key-press);}
+.tk-buy.done{background:#0f1116;box-shadow:inset 0 2px 5px rgba(0,0,0,.6);border-radius:9px;}
+/* まとめて購入など、橙の文字の副キー */
+.sbuy{background:var(--key-face);border:1px solid #6a3408;border-radius:7px;color:var(--acc);clip-path:none;
+  box-shadow:var(--key-bevel),var(--key-lift);transition:transform .08s ease-out,box-shadow .08s ease-out;}
+.sbuy:active:not(:disabled){transform:translateY(2px);box-shadow:var(--key-press);}
+.sbuy:disabled{color:var(--dim);border-color:var(--key-edge);box-shadow:var(--key-press);}
