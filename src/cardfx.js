@@ -41,6 +41,17 @@ const CardFX = {
     return s;
   },
 
+  // カードの絵：ComfyUI で作ったアイコン（assets/icons・2026-09-29）。
+  //   ユーザー「それぞれ違う必要はありません、汎用アイコンとか武器アイコンを貼り付ければいい」「漫画っぽいやつにしましょう」
+  //   武器と武器強化はその武器、連携は関わる2つの武器を並べる（条件が一目で分かる）、常駐はフロッピー、ほかは光るチップ
+  artHtml(c) {
+    const img = (id) => '<img class="cimg" src="assets/icons/' + id + '.png" alt="" draggable="false">';
+    if (c.kind === 'perm') return img('perm');
+    if (c.kind === 'synergy') { const r = (c.requires || []).filter(w => WEAPONS[w]); return r.length ? r.map(img).join('') : img('synergy'); }
+    if (c.weapon && WEAPONS[c.weapon]) return img(c.weapon);
+    return img('generic');
+  },
+
   // ---- カードの表 ----
   //   o.count … その時点の枚数（凸を出す） ／ o.isNew … 初めて ／ o.dim … 未所持
   //   o.gain  … まとめて開けたときに増えた枚数 ／ o.tap … タップで説明の全文
@@ -56,7 +67,7 @@ const CardFX = {
     el.innerHTML =
       '<div class="cf-frame">' +
         '<div class="cf-top"><span class="cf-name">' + c.name + '</span></div>' +
-        '<div class="cf-art"><div class="cf-icon">' + UI.cardIcon(c) + '</div>' +
+        '<div class="cf-art"><div class="cf-icon' + ((c.kind === 'synergy' && (c.requires || []).length > 1) ? ' dual' : '') + '">' + this.artHtml(c) + '</div>' +
           '<div class="cf-kind">' + (this.KIND_NAME[c.kind] || '') + '</div>' +
           (o.isNew ? '<div class="cf-new">NEW</div>' : '') + '</div>' +
         '<div class="cf-text">' + UI.shortDesc(c) + '</div>' +

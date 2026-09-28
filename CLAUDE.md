@@ -897,7 +897,7 @@ runStage('ch15', [武器], 60, { coins: 1e9, deep: {prestiges:2, deepest:17}, li
 
 `<script>` を並べるだけの構成。**ES modules は `file://` で動かないので使わない。**
 音も画像も持たず、その場で生成する（`src/audio.js` は WebAudio、武器の絵は Canvas）。
-**例外（どれもユーザー了承）**：再起動の場面の「現実の部屋」の背景 `assets/room.jpg`（688×1504・約238KB・ユーザーが用意した文字なしの画像・2026-09-28）／タイトルのブラウン管テレビ `assets/title_tv.webp`（688×1504・約25KB・ComfyUI・2026-09-29）／パック5種 `assets/packs/*.png`（300×430・各約270KB・ComfyUI の1枚から `tools/packart.js` で色違いを作った・2026-09-29）。
+**例外（どれもユーザー了承）**：再起動の場面の「現実の部屋」の背景 `assets/room.jpg`（688×1504・約238KB・ユーザーが用意した文字なしの画像・2026-09-28）／タイトルのブラウン管テレビ `assets/title_tv.webp`（688×1504・約25KB・ComfyUI・2026-09-29）／カードの絵のアイコン15種 `assets/icons/*.png`（192×192・計約440KB・ComfyUI・漫画っぽい絵柄・`tools/iconize.js` で透明な背景と大きさをそろえた・2026-09-29）／パック5種 `assets/packs/*.png`（300×430・各約270KB・ComfyUI の1枚から `tools/packart.js` で色違いを作った・2026-09-29）。
 文字はゲームが重ね、読めないときはコードで描く部屋（`src/room.js`）に戻る。**画像を足すときは必ずユーザーに聞く**
 
 ### セーブは3層
