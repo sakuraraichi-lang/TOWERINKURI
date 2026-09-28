@@ -123,19 +123,30 @@ const Snd = {
 
   // ---- 鳴らすもの ----
   // 武器ごとに少しだけ音を変える。**どれが撃っているかが耳で分かる程度**
+  //   昔のパソコン・アーケードの電子音に寄せる：sine/sawtoothの滑らかな波形をやめ、
+  //   矩形波・三角波・短いFM・ノイズのビット感で統一する（音量は元の値以下に抑える）
   shot(weaponId) {
     if (!this.on() || !this.gate('shot')) return;
     const m = {
-      gatling:  { type: 'square',   f0: 320, f1: 210, dur: 0.045, vol: 0.0275 },
-      sniper:   { type: 'sawtooth', f0: 780, f1: 150, dur: 0.11,  vol: 0.0425 },
-      missile:  { type: 'triangle', f0: 180, f1: 90,  dur: 0.13,  vol: 0.0375 },
-      tesla:    { type: 'square',   f0: 1150, f1: 640, dur: 0.06, vol: 0.03 },
-      flame:    { type: 'sawtooth', f0: 130, f1: 100, dur: 0.07,  vol: 0.02 },
-      mortar:   { type: 'triangle', f0: 120, f1: 60,  dur: 0.16,  vol: 0.045 },
-      katana:   { type: 'sawtooth', f0: 900, f1: 380, dur: 0.07,  vol: 0.035 },
-      shuriken: { type: 'square',   f0: 620, f1: 480, dur: 0.05,  vol: 0.025 },
+      // ガトリング：矩形波の短い連打に、粒立つノイズを重ねて「ダダダ」感を出す
+      gatling:  { type: 'square',   f0: 300,  f1: 210, dur: 0.04,  vol: 0.026, noiseF: 2600, noiseVol: 0.018 },
+      // スナイパー：高い矩形波が一気に落ちる、鋭い一撃
+      sniper:   { type: 'square',   f0: 1600, f1: 160, dur: 0.09,  vol: 0.04 },
+      missile:  { type: 'triangle', f0: 180,  f1: 90,  dur: 0.13,  vol: 0.0375 },
+      // テスラ：FM変調で金属的な「ジジッ」
+      tesla:    { fm: true, f0: 820, ratio: 3.4, index: 7, dur: 0.05, vol: 0.028 },
+      // 火炎放射器：ノイズだけで「シュー」という噴射音
+      flame:    { noiseOnly: true, noiseF: 1100, noiseQ: 0.6, dur: 0.09, noiseVol: 0.02 },
+      mortar:   { type: 'triangle', f0: 120,  f1: 60,  dur: 0.16,  vol: 0.045 },
+      // 刀：短い矩形波の斬撃に、高いノイズの「シャッ」を重ねる
+      katana:   { type: 'square',   f0: 1200, f1: 420, dur: 0.06,  vol: 0.032, noiseF: 4200, noiseVol: 0.014 },
+      shuriken: { type: 'square',   f0: 620,  f1: 480, dur: 0.05,  vol: 0.025 },
     };
-    this.tone(m[weaponId] || { type: 'square', f0: 420, f1: 280, dur: 0.05, vol: 0.025 });
+    const cfg = m[weaponId] || { type: 'square', f0: 420, f1: 280, dur: 0.05, vol: 0.025 };
+    if (cfg.fm) { this.fmTone({ f0: cfg.f0, ratio: cfg.ratio, index: cfg.index, dur: cfg.dur, vol: cfg.vol, bus: this.sfxGain }); return; }
+    if (cfg.noiseOnly) { this.noise({ dur: cfg.dur, f: cfg.noiseF, q: cfg.noiseQ || 1, vol: cfg.noiseVol }); return; }
+    this.tone(cfg);
+    if (cfg.noiseF) this.noise({ dur: Math.min(cfg.dur, 0.03), f: cfg.noiseF, q: 1.5, vol: cfg.noiseVol });
   },
 
   // 大量撃破：上がっていく短い分散和音（多いほど高く・長く）。企画書 §16「音響との連動」
@@ -149,19 +160,20 @@ const Snd = {
   kill() {
     if (!this.on()) return;
     if (!this.gate('kill')) return;
-    this.noise({ dur: 0.09, f: 1500, q: 1.6, vol: 0.13 });
+    // パンッと弾けるビット感。帯域を絞って短く切ることで「破裂」に近づける
+    this.noise({ dur: 0.055, f: 2000, q: 2.2, vol: 0.12 });
   },
 
-  coin() { if (this.gate('coin')) { this.tone({ type: 'sine', f0: 1050, f1: 1550, dur: 0.07, vol: 0.05 }); } },
-  leak() { this.tone({ type: 'sawtooth', f0: 220, f1: 110, dur: 0.16, vol: 0.09 }); },
+  coin() { if (this.gate('coin')) { this.tone({ type: 'square', f0: 900, f1: 1400, dur: 0.06, vol: 0.04 }); } },
+  leak() { this.tone({ type: 'square', f0: 220, f1: 100, dur: 0.15, vol: 0.08 }); },
 
-  ui()    { this.tone({ type: 'sine', f0: 620, f1: 820, dur: 0.045, vol: 0.05 }); },
+  ui()    { this.tone({ type: 'square', f0: 600, f1: 900, dur: 0.04, vol: 0.045 }); },
   place() { this.tone({ type: 'triangle', f0: 380, f1: 620, dur: 0.09, vol: 0.08 }); },
   deny()  { this.tone({ type: 'square', f0: 200, f1: 140, dur: 0.1, vol: 0.06 }); },
 
   waveStart() {
-    this.tone({ type: 'triangle', f0: 330, f1: 440, dur: 0.14, vol: 0.09 });
-    setTimeout(() => this.tone({ type: 'triangle', f0: 440, f1: 660, dur: 0.18, vol: 0.09 }), 110);
+    this.tone({ type: 'square', f0: 330, f1: 440, dur: 0.13, vol: 0.08 });
+    setTimeout(() => this.tone({ type: 'square', f0: 440, f1: 660, dur: 0.17, vol: 0.08 }), 110);
   },
   waveClear() {
     [523, 659, 784].forEach((f, i) =>
@@ -169,11 +181,11 @@ const Snd = {
   },
   stageClear() {
     [523, 659, 784, 1047].forEach((f, i) =>
-      setTimeout(() => this.tone({ type: 'triangle', f0: f, f1: f, dur: 0.26, vol: 0.1 }), i * 130));
+      setTimeout(() => this.tone({ type: 'square', f0: f, f1: f, dur: 0.24, vol: 0.09 }), i * 130));
   },
   dead() {
     [392, 330, 262, 196].forEach((f, i) =>
-      setTimeout(() => this.tone({ type: 'sawtooth', f0: f, f1: f * 0.98, dur: 0.3, vol: 0.09 }), i * 150));
+      setTimeout(() => this.tone({ type: 'square', f0: f, f1: f * 0.98, dur: 0.28, vol: 0.08 }), i * 150));
   },
   pack() {
     [784, 988, 1175].forEach((f, i) =>
