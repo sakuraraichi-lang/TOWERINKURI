@@ -11,6 +11,164 @@ const _poisonBuf = [], _stunBuf = [], _fieldBuf = [];
 const _spins = [];        // 手裏剣のまとめ描き用（毎フレーム作り直さない）
 const _spinPts = new Float32Array(16);
 
+// 敵のドットの絵（企画書 §13「どこか昔のゲームに存在していそうなキャラクター」・2026-09-28）
+//   '#' 体（その種類の色）／ 'o' 目（白く光る）／ '.' 空き。種類ごとに2コマ（足踏み）
+//   **形で性質が読めるように**：速い＝小さく細い／硬い＝大きく横に広い／盾＝前に板／群れ＝ごく小さい虫／
+//   再生＝体に十字／分裂＝真ん中に割れ目／入れ子＝卵の中に卵／ボス＝昔の画面の上を横切った円盤
+const ENEMY_PIX = {
+  grunt: [[
+    '..#.....#..',
+    '...#...#...',
+    '..#######..',
+    '.##o###o##.',
+    '###########',
+    '#.#######.#',
+    '#.#.....#.#',
+    '...##.##...'], [
+    '..#.....#..',
+    '#..#...#..#',
+    '#.#######.#',
+    '###o###o###',
+    '###########',
+    '.#########.',
+    '..#.....#..',
+    '.#.......#.']],
+  swift: [[
+    '...##...',
+    '..####..',
+    '.######.',
+    '##o##o##',
+    '########',
+    '..#..#..',
+    '.#.##.#.',
+    '#.#..#.#'], [
+    '...##...',
+    '..####..',
+    '.######.',
+    '##o##o##',
+    '########',
+    '.#.##.#.',
+    '#......#',
+    '.#....#.']],
+  tank: [[
+    '....####....',
+    '.##########.',
+    '############',
+    '###oo##oo###',
+    '############',
+    '...##..##...',
+    '..##.##.##..',
+    '##........##'], [
+    '....####....',
+    '.##########.',
+    '############',
+    '###oo##oo###',
+    '############',
+    '..###..###..',
+    '.##..##..##.',
+    '..##....##..']],
+  shield: [[
+    '..######.##',
+    '.#######.##',
+    '##o###o#.##',
+    '########.##',
+    '.#######.##',
+    '..######.##',
+    '.##..##..##',
+    '.#....#....'], [
+    '..######.##',
+    '.#######.##',
+    '##o###o#.##',
+    '########.##',
+    '.#######.##',
+    '..######.##',
+    '..##..##.##',
+    '...#..#....']],
+  swarm: [[
+    '.#.#.',
+    '#####',
+    '#o#o#',
+    '#####',
+    '.#.#.'], [
+    '#...#',
+    '#####',
+    '#o#o#',
+    '#####',
+    '#...#']],
+  regen: [[
+    '...###...',
+    '.#######.',
+    '###o#o###',
+    '#...#...#',
+    '##.....##',
+    '#...#...#',
+    '#########',
+    '.#.#.#.#.'], [
+    '...###...',
+    '.#######.',
+    '###o#o###',
+    '#...#...#',
+    '##.....##',
+    '#...#...#',
+    '#########',
+    '#.#.#.#.#']],
+  split: [[
+    '....#....',
+    '...###...',
+    '..##.##..',
+    '.#o#.#o#.',
+    '####.####',
+    '.###.###.',
+    '..##.##..',
+    '...###...',
+    '....#....'], [
+    '....#....',
+    '...#.#...',
+    '..##.##..',
+    '.#o#.#o#.',
+    '###...###',
+    '.###.###.',
+    '..##.##..',
+    '...#.#...',
+    '....#....']],
+  nest: [[
+    '...####...',
+    '..######..',
+    '.###..###.',
+    '.##.oo.##.',
+    '##.o..o.##',
+    '##.o..o.##',
+    '.##.oo.##.',
+    '.###..###.',
+    '..######..',
+    '...####...'], [
+    '...####...',
+    '..######..',
+    '.###..###.',
+    '.##.oo.##.',
+    '##.o..o.##',
+    '##.o..o.##',
+    '.##.oo.##.',
+    '.###..###.',
+    '..######..',
+    '....##....']],
+  boss: [[
+    '......####......',
+    '...##########...',
+    '..############..',
+    '.##o##o##o##o##.',
+    '################',
+    '..###..##..###..',
+    '...#........#...'], [
+    '......####......',
+    '...##########...',
+    '..############..',
+    '.#o##o##o##o##o.',
+    '################',
+    '..###..##..###..',
+    '..#..........#..']],
+};
+
 const Render = {
   canvas: null, ctx: null, dpr: 1,
   scale: 1, offX: 0, offY: 0,
@@ -1217,29 +1375,42 @@ const Render = {
     return (this._tur[key] = { cv, h });
   },
 
-  // 敵：種類・色・大きさごとに1枚。中心が明るいグラデーション・つや・暗い輪郭・進む向きの「目」
-  enemySprite(tname, color, r) {
+  // 敵：**昔のゲームの敵キャラの皮を貼った侵入プログラム**（企画書 §13「古いデザイン感 × 現代的な描画品質」・2026-09-28）
+  //   ドットの絵（下の ENEMY_PIX）を、暗い縁取り・色の光・上から当たる光で描く。**2コマで足踏み**し、同じ種類は揃って動く（昔の画面の行進）。
+  //   向きでは回さない（昔のゲームの敵は画面の正面を向いている）。種類・色・大きさ・コマごとに1枚作り置き＝数百体でも貼るだけ
+  enemySprite(tname, color, r, frame) {
     const res = this.spriteRes();
-    const key = tname + color + r + '@' + res;
+    const f = frame ? 1 : 0;
+    const key = tname + color + r + '#' + f + '@' + res;
     this._enm = this._enm || {};
     if (this._enm[key]) return this._enm[key];
     const h = r + 6;
     const cv = document.createElement('canvas'); cv.width = cv.height = Math.ceil(h * 2 * res);
     const c = cv.getContext('2d'); c.setTransform(res, 0, 0, res, h * res, h * res);
-    const fake = { tname, r };
-    const g = c.createRadialGradient(-r * 0.3, -r * 0.35, r * 0.1, 0, 0, r * 1.25);
-    g.addColorStop(0, '#ffffff'); g.addColorStop(0.18, color); g.addColorStop(1, 'rgba(0,0,0,0.9)');
-    c.beginPath(); this.enemyBody(c, fake); c.fillStyle = color; c.fill();
-    c.beginPath(); this.enemyBody(c, fake); c.globalAlpha = 0.55; c.fillStyle = g; c.fill(); c.globalAlpha = 1;
-    c.strokeStyle = 'rgba(0,0,0,0.75)'; c.lineWidth = tname === 'tank' ? 2.4 : 1.5; c.stroke();
-    // つや
-    c.fillStyle = 'rgba(255,255,255,0.35)';
-    c.beginPath(); c.ellipse(-r * 0.25, -r * 0.4, r * 0.35, r * 0.16, -0.5, 0, Math.PI * 2); c.fill();
-    // 重い相手は内側にもう1本（硬さを形で）
-    if (tname === 'tank') { c.strokeStyle = 'rgba(255,255,255,0.22)'; c.lineWidth = 1.2; c.beginPath(); c.arc(0, 0, r * 0.5, 0, Math.PI * 2); c.stroke(); }
-    // 目（進む向き＝+x）
-    c.fillStyle = '#fff'; c.shadowColor = color; c.shadowBlur = 4;
-    c.beginPath(); c.arc(r * 0.45, 0, Math.max(1.4, r * 0.16), 0, Math.PI * 2); c.fill();
+    const pix = ENEMY_PIX[tname] || ENEMY_PIX.grunt;
+    const rows = pix[f] || pix[0];
+    const W = rows[0].length, H = rows.length;
+    const p = (r * 2.15) / Math.max(W, H);          // 1ドットの大きさ
+    const x0 = -W * p / 2, y0 = -H * p / 2;
+    const each = (fn) => { for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) { const ch = rows[y][x]; if (ch !== '.') fn(x0 + x * p, y0 + y * p, ch); } };
+    // 暗い縁取り（重なったときに何体いるか読めるように・以前からの理由）
+    c.fillStyle = 'rgba(0,0,0,0.8)';
+    each((x, y) => c.fillRect(x - p * 0.35, y - p * 0.35, p * 1.7, p * 1.7));
+    // 体：色の光をまとわせる
+    c.save(); c.shadowColor = color; c.shadowBlur = Math.max(3, p * 1.4);
+    c.fillStyle = color;
+    each((x, y, ch) => { if (ch === '#') c.fillRect(x, y, p + 0.3, p + 0.3); });
+    c.restore();
+    // 上から当たる光（上ほど明るく、下ほど沈む）
+    c.save(); c.globalCompositeOperation = 'source-atop';
+    const g = c.createLinearGradient(0, y0, 0, y0 + H * p);
+    g.addColorStop(0, 'rgba(255,255,255,0.45)'); g.addColorStop(0.45, 'rgba(255,255,255,0.05)'); g.addColorStop(1, 'rgba(0,0,0,0.4)');
+    c.fillStyle = g; c.fillRect(x0 - p, y0 - p, W * p + p * 2, H * p + p * 2);
+    c.restore();
+    // 目（o）：白く光る
+    c.save(); c.shadowColor = '#fff'; c.shadowBlur = p * 1.2; c.fillStyle = '#fff';
+    each((x, y, ch) => { if (ch === 'o') c.fillRect(x, y, p + 0.3, p + 0.3); });
+    c.restore();
     return (this._enm[key] = { cv, h });
   },
 
@@ -1480,11 +1651,10 @@ const Render = {
     for (const e of run.enemies) {
       ctx.save();
       ctx.translate(e.x, e.y);
-      ctx.rotate(e.ang || 0);
-      // **体は作り置きの絵**（グラデーション・つや・輪郭・目）。数百体でも貼るだけ
-      //   輪郭は、押し合って重なったときに何体いるか読めるようにするため（以前からの理由）
+      // **体は作り置きのドット絵**（enemySprite・ENEMY_PIX）。数百体でも貼るだけ。
+      //   向きでは回さない（昔のゲームの敵は正面を向いている）。同じ種類は揃って2コマで足踏みする（2026-09-28）
       const col = e.hitFlash > 0 ? '#ffffff' : e.chill > 0 ? '#7fd8ff' : e.burnT > 0 ? '#ff9a4a' : e.color;
-      const spr = this.enemySprite(e.tname, col, e.r);
+      const spr = this.enemySprite(e.boss ? 'boss' : e.tname, col, e.r, (((run.time || 0) * 3.2) | 0) & 1);
       ctx.drawImage(spr.cv, -spr.h, -spr.h, spr.h * 2, spr.h * 2);
       // 湧き口のバリアに弾かれた（combat.js の damage）
       if (e.shieldT > 0) {
@@ -1500,7 +1670,6 @@ const Render = {
         const near = Util.clamp(1 - (e.dist || 0) / 10, 0, 1);
         const beat = 0.5 + 0.5 * Math.sin(run.time * (3 + near * 9));
         ctx.save();
-        ctx.rotate(-(e.ang || 0));
         ctx.strokeStyle = 'rgba(255,60,80,' + (0.25 + 0.45 * beat * (0.5 + near * 0.5)).toFixed(2) + ')';
         ctx.lineWidth = 3 + near * 3;
         ctx.beginPath(); ctx.arc(0, 0, e.r + 12 + beat * (6 + near * 8), 0, Math.PI * 2); ctx.stroke();
@@ -1515,7 +1684,7 @@ const Render = {
       if (e.armor > 0) {
         ctx.strokeStyle = 'rgba(180,220,255,0.65)';
         ctx.lineWidth = 2.6;
-        this.enemyBody(ctx, e); ctx.stroke();
+        ctx.strokeRect(-e.r * 1.2, -e.r * 1.05, e.r * 2.4, e.r * 2.1);
       }
       // 入れ子：中の層を輪で見せる（残りの層 − 1 本。最後の層は輪なし）
       if (e.nest > 1) {
@@ -1922,6 +2091,14 @@ const Render = {
         //   >   赤でなくていい、**敵の色遵守**で」
         //   進んでいた向きの逆へ、扇の中に散らす。**飛ぶほど細くなって落ちる**
         //   （まっすぐ伸びるだけだと「線が出た」にしか見えない）
+        //   **2026-09-28：血ではなく、四角いドットの破片が弾ける**（企画書 §13「敵は生き物ではない」§16「パンッと弾け飛ぶ」・ユーザー了承）。
+        //   向き・色・量はそのまま。最初の一瞬だけ、四角い光の輪が広がる
+        if (k < 0.3) {
+          const q = k / 0.3, w = 6 + q * 18;
+          ctx.globalAlpha = (1 - q) * 0.8;
+          ctx.strokeStyle = f.color; ctx.lineWidth = 2 * (1 - q) + 0.6;
+          ctx.strokeRect(f.x - w / 2, f.y - w / 2, w, w);
+        }
         ctx.globalAlpha = (1 - k) * 0.9;
         ctx.fillStyle = f.color;
         const n = f.n || 6;
@@ -1932,10 +2109,11 @@ const Render = {
           const sp = f.sp * (0.45 + ((i * 7919) % 100) / 180);
           const d = sp * (k * (1.6 - k * 0.6));            // 最初速く、だんだん止まる
           const x = f.x + Math.cos(a) * d;
-          const y = f.y + Math.sin(a) * d + k * k * 10;    // 少し落ちる
+          const y = f.y + Math.sin(a) * d + k * k * 4;     // ほんの少し落ちる（データ片なので重くない）
           const r = (2.6 - k * 1.8) * (0.7 + ((i * 104729) % 60) / 100);
           if (r <= 0.2) continue;
-          ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
+          const q = r * 1.7;
+          ctx.fillRect(x - q / 2, y - q / 2, q, q);
         }
         ctx.globalAlpha = 1;
       } else if (f.type === 'coin') {

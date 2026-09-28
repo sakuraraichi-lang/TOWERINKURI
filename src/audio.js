@@ -7,7 +7,13 @@
 //   守っていること
 //     ・最初のタップまで音は作らない（ブラウザが自動再生を止めるため）
 //     ・同じ音を連射しない。敵を毎秒10体倒すので、間引かないと壁になる
-//     ・BGMは小さく、同じ和音をゆっくり回すだけ。盤面の邪魔をしない
+//     ・BGMは企画書（WORLD-BIBLE §24）どおり2種類。'cafe'（ホーム・準備フェーズ＝
+//       喫茶店にいるようなリラックス感）と 'battle'（戦闘中＝PC-8801-FM を
+//       想わせる電子アーケードゲーム感）。切り替えは短いクロスフェードで、
+//       「日常→ゲーム→電子世界」の切り替わりを耳でも作る（Snd.bgm(mode)）
+//     ・BGMは「先読みのスケジューラ」で鳴らす。setInterval の発火そのものは
+//       数msずれるので、鳴らす時刻はAudioContextの時計で少し先を予約する
+//       （tone/noiseの`o.at`）。これでテンポが揺れない
 // ---------------------------------------------------------------
 'use strict';
 
@@ -18,8 +24,15 @@ const Snd = {
   bgmGain: null,
   started: false,
   _last: {},          // 種類ごとの最後に鳴らした時刻。連射を間引く
-  _bgmTimer: 0,
-  _step: 0,
+
+  // ---- BGMのスケジューラが持つ状態 ----
+  _bgmMode: null,     // 'cafe' / 'battle' / null。いま鳴らしたい種類（鳴らせていなくても持つ）
+  _bgmTimer: 0,       // setInterval（先読みのスケジューラ本体）
+  _bgmSwap: 0,        // クロスフェードの「切り替え待ち」setTimeout
+  _bgmNextTime: 0,    // 次の1ステップを置く予定時刻（AudioContextの時計）
+  _bgmStepDur: 0,     // 1ステップの長さ（秒）
+  _bgmStep: 0,        // 通しのステップ数
+  _bgmTick: null,     // いま使っている「1ステップぶん鳴らす」関数
 
   // 音量。**既定はかなり控えめ**。あとから設定で触れるようにする
   VOL: { master: 0.5, sfx: 0.55, bgm: 0.22 },
@@ -54,14 +67,20 @@ const Snd = {
     const c = this.ensure();
     if (c && c.state === 'suspended') c.resume();
     this.started = true;
+    // **BGMは、起動直後の `bgm('cafe')` の時点ではまだ何も鳴らせない**
+    //   （AudioContextを最初のタップより前に作らないため。下のensure()参照）。
+    //   ここ＝最初のタップで拾って、いま欲しいはずのモードを鳴らし始める
+    if (this._bgmMode && !this._bgmTimer) this._bgmSpinUp(this._bgmMode);
   },
 
   // ---- 部品 ----
+  // `o.at` を渡すと「いま」ではなく指定した未来の時刻に鳴らす。
+  //   BGMの先読みスケジューラ専用（効果音は渡さないので今までどおり）
   tone(o) {
     if (!this.on()) return;
     const c = this.ensure();
     if (!c || c.state === 'suspended') return;
-    const t = c.currentTime;
+    const t = o.at != null ? o.at : c.currentTime;
     const osc = c.createOscillator();
     const g = c.createGain();
     osc.type = o.type || 'square';
@@ -78,7 +97,7 @@ const Snd = {
     if (!this.on()) return;
     const c = this.ensure();
     if (!c || c.state === 'suspended') return;
-    const t = c.currentTime;
+    const t = o.at != null ? o.at : c.currentTime;
     const n = Math.floor(c.sampleRate * o.dur);
     const buf = c.createBuffer(1, n, c.sampleRate);
     const d = buf.getChannelData(0);
@@ -87,7 +106,7 @@ const Snd = {
     const bp = c.createBiquadFilter();
     bp.type = 'bandpass'; bp.frequency.value = o.f || 900; bp.Q.value = o.q || 1.2;
     const g = c.createGain(); g.gain.value = o.vol;
-    src.connect(bp); bp.connect(g); g.connect(this.sfxGain);
+    src.connect(bp); bp.connect(g); g.connect(o.bus || this.sfxGain);
     src.start(t);
   },
 
@@ -232,28 +251,146 @@ const Snd = {
   },
 
   // ---- BGM ----
-  // 8つの音をゆっくり回すだけ。**曲というより、部屋の空気**
-  BASS: [55, 55, 73.42, 73.42, 65.41, 65.41, 49, 49],
-  LEAD: [220, 261.63, 329.63, 261.63, 293.66, 349.23, 246.94, 196],
+  // 音階はMIDIノート番号で持つ（読みやすさのため）。440Hz=A4=69
+  hz(midi) { return 440 * Math.pow(2, (midi - 69) / 12); },
 
-  bgmStart() {
-    this.ensure();
-    if (!this.ctx || this._bgmTimer) return;
-    this.bgmGain.gain.setTargetAtTime(this.on() ? this.VOL.bgm : 0, this.ctx.currentTime, 1.2);
-    const stepMs = 480;
-    this._bgmTimer = setInterval(() => {
-      if (!this.ctx || this.ctx.state === 'suspended') return;
-      const i = this._step++ % 8;
-      this.tone({ type: 'triangle', f0: this.BASS[i], f1: this.BASS[i], dur: 0.42, vol: 0.5, bus: this.bgmGain });
-      if (i % 2 === 0) {
-        this.tone({ type: 'sine', f0: this.LEAD[i], f1: this.LEAD[i], dur: 0.7, vol: 0.18, bus: this.bgmGain });
-      }
-    }, stepMs);
+  // 喫茶店：Cmaj9 → Am9 → Fmaj9 → G9。よくあるジャズの循環に、
+  //   7th/9thを足して「ふわっと浮く」感じを出す（エレピのボイシング）
+  CAFE_CHORDS: [
+    [60, 64, 67, 71, 74],   // Cmaj9
+    [57, 60, 64, 67, 71],   // Am9
+    [53, 57, 60, 64, 67],   // Fmaj9
+    [55, 59, 62, 65, 69],   // G9
+  ],
+  // 戦闘：Am7 → Fmaj7 → Cmaj7 → G7。アーケードらしいマイナー循環
+  BATTLE_CHORDS: [
+    [45, 48, 52, 55],   // Am7
+    [41, 45, 48, 52],   // Fmaj7
+    [48, 52, 55, 59],   // Cmaj7
+    [43, 47, 50, 53],   // G7
+  ],
+  // FMのリードを打つ位置（16分音符・0〜15）。8小節ごとに入れ替えて単調にしない
+  LEAD_A: [2, 6, 10, 14],
+  LEAD_B: [2, 5, 8, 10, 13, 15],
+
+  // FM合成の1音（オシレーター2つ。modがcarの周波数を揺らす）。
+  //   PC-8801のFM音源を想わせる金属的なリード・ベルはこれで作る
+  fmTone(o) {
+    if (!this.on()) return;
+    const c = this.ensure();
+    if (!c || c.state === 'suspended') return;
+    const t = o.at != null ? o.at : c.currentTime;
+    const car = c.createOscillator(), mod = c.createOscillator(), modG = c.createGain();
+    car.type = o.type || 'sine';
+    car.frequency.setValueAtTime(o.f0, t);
+    mod.type = 'sine';
+    mod.frequency.setValueAtTime(o.f0 * (o.ratio || 2), t);
+    modG.gain.setValueAtTime(o.f0 * (o.index || 4), t);   // 変調の深さ＝金属っぽさ
+    mod.connect(modG); modG.connect(car.frequency);
+    const g = c.createGain();
+    g.gain.setValueAtTime(0.0001, t);
+    g.gain.exponentialRampToValueAtTime(Math.max(0.0002, o.vol), t + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, t + o.dur);
+    car.connect(g); g.connect(o.bus || this.bgmGain);
+    mod.start(t); car.start(t);
+    mod.stop(t + o.dur + 0.03); car.stop(t + o.dur + 0.03);
   },
 
-  bgmStop() {
-    if (this._bgmTimer) { clearInterval(this._bgmTimer); this._bgmTimer = 0; }
-    if (this.ctx && this.bgmGain) this.bgmGain.gain.setTargetAtTime(0, this.ctx.currentTime, 0.5);
+  // 1ステップ（4分音符）ぶん鳴らす：喫茶店。エレピ風の和音をゆっくり崩して弾き、
+  //   控えめなベースと、裏拍だけブラシ風の刻み（ノイズを短く）
+  _bgmTickCafe(step, at) {
+    const chord = this.CAFE_CHORDS[Math.floor(step / 8) % this.CAFE_CHORDS.length];
+    const inChord = step % 8;
+    // 和音は5音・拍は8つなので、周回するたびに弾く位置がずれて表情が変わる
+    const note = chord[inChord % chord.length];
+    this.tone({ type: 'sine', f0: this.hz(note), f1: this.hz(note), dur: this._bgmStepDur * 1.8, vol: 0.4, bus: this.bgmGain, at });
+    if (inChord % 2 === 0) {
+      this.tone({ type: 'triangle', f0: this.hz(chord[0] - 12), f1: this.hz(chord[0] - 12), dur: this._bgmStepDur * 3.4, vol: 0.3, bus: this.bgmGain, at });
+    } else {
+      this.noise({ dur: 0.035, f: 5200, q: 0.7, vol: 0.045, bus: this.bgmGain, at });
+    }
+  },
+
+  // 1ステップ（16分音符）ぶん鳴らす：戦闘。矩形波の速いアルペジオ＋
+  //   FMのリード・ベル＋うねる低音のサブベース＋ノイズのハイハット/スネア
+  _bgmTickBattle(step, at) {
+    const bar = Math.floor(step / 16);
+    const chord = this.BATTLE_CHORDS[bar % this.BATTLE_CHORDS.length];
+    const inBar = step % 16;
+    const part = Math.floor(bar / 8) % 2;   // 8小節ごとに入れ替え。ずっと同じ骨格にしない
+
+    // 根音・5度・7度を1オクターブ下で駆けるアルペジオ
+    const arpIdx = [0, 2, 0, 3, 0, 2, 0, 3, 0, 2, 0, 3, 0, 2, 0, 3][inBar];
+    this.tone({ type: 'square', f0: this.hz(chord[arpIdx] - 12), f1: this.hz(chord[arpIdx] - 12),
+      dur: this._bgmStepDur * 0.85, vol: 0.22, bus: this.bgmGain, at });
+
+    const hits = part === 0 ? this.LEAD_A : this.LEAD_B;
+    if (hits.includes(inBar)) {
+      this.fmTone({ f0: this.hz(chord[1] + 12), ratio: 2, index: part === 0 ? 4 : 7,
+        dur: this._bgmStepDur * (part === 0 ? 2.4 : 1.6), vol: 0.2, bus: this.bgmGain, at });
+    }
+    if (inBar === 0) {
+      // 小節の頭で低く長く。「うねるベース」＝サブベースが下から支える
+      this.tone({ type: 'sawtooth', f0: this.hz(chord[0] - 24), f1: this.hz(chord[0] - 12),
+        dur: this._bgmStepDur * 15, vol: 0.13, bus: this.bgmGain, at });
+    }
+    this.noise({ dur: 0.018, f: 8200, q: 1.0, vol: 0.03, bus: this.bgmGain, at });   // 閉じたハイハット
+    if (inBar === 4 || inBar === 12) {
+      this.noise({ dur: 0.09, f: 1700, q: 0.8, vol: 0.09, bus: this.bgmGain, at });  // 裏拍のスネア
+    }
+  },
+
+  // 先読みのスケジューラ本体。**AudioContextの時計を基準に**次の一定時間ぶんを予約する。
+  //   setIntervalの発火間隔そのものがテンポではないので、多少の呼び出しの遅れでは揺れない
+  _bgmSchedule() {
+    const c = this.ctx;
+    if (!c || !this._bgmTick) return;
+    const ahead = 0.12;
+    let guard = 0;
+    while (this._bgmNextTime < c.currentTime + ahead && guard++ < 64) {
+      this._bgmTick(this._bgmStep, this._bgmNextTime);
+      this._bgmStep++;
+      this._bgmNextTime += this._bgmStepDur;
+    }
+  },
+
+  // 指定のモードで、いまから鳴らし始める（クロスフェードの「フェードイン」側）
+  _bgmSpinUp(mode) {
+    const c = this.ctx;
+    if (!c) return;
+    this._bgmStep = 0;
+    this._bgmStepDur = mode === 'battle' ? (60 / 142 / 4) : (60 / 78);   // 戦闘=142BPMの16分／喫茶店=78BPMの4分
+    this._bgmTick = mode === 'battle' ? this._bgmTickBattle : this._bgmTickCafe;
+    this._bgmNextTime = c.currentTime + 0.05;
+    clearInterval(this._bgmTimer);
+    this._bgmTimer = setInterval(() => this._bgmSchedule(), 35);
+    this.bgmGain.gain.cancelScheduledValues(c.currentTime);
+    this.bgmGain.gain.setTargetAtTime(this.on() ? this.VOL.bgm : 0, c.currentTime, 0.16);
+  },
+
+  // 'cafe' ⇄ 'battle' の切り替え。**短くフェードアウトしてから入れ替える**
+  //   （オシレーターを重ねる真のクロスフェードより軽く、スマホでも安い）
+  _bgmSwitch(mode) {
+    const c = this.ctx;
+    const tc = 0.16;   // 時定数。実質のフェード幅は3倍＝約0.5秒
+    this.bgmGain.gain.cancelScheduledValues(c.currentTime);
+    this.bgmGain.gain.setTargetAtTime(0.0001, c.currentTime, tc);
+    clearInterval(this._bgmTimer); this._bgmTimer = 0;
+    clearTimeout(this._bgmSwap);
+    if (!mode) return;   // 止めるだけ
+    this._bgmSwap = setTimeout(() => {
+      if (this._bgmMode === mode) this._bgmSpinUp(mode);
+    }, tc * 1000 * 3);
+  },
+
+  // ---- 呼び出し口。mode は 'cafe' / 'battle' / null ----
+  //   同じmodeなら何もしない。まだ最初のタップより前（AudioContext未生成）なら
+  //   希望のmodeだけ覚えておいて、resume()（＝最初のタップ）が拾って鳴らし始める
+  bgm(mode) {
+    if (mode === this._bgmMode) return;
+    this._bgmMode = mode;
+    if (!this.ctx) return;
+    this._bgmSwitch(mode);
   },
 
   setMute(m) {

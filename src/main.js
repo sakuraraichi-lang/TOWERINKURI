@@ -72,7 +72,7 @@ const Main = {
   // ---------- ホームへ ----------
   toHome() {
     UI.closeBattleCfg();
-    Snd.bgmStop();
+    Snd.bgm('cafe');
     UI.placingType = null; UI.selected = null; UI.moving = null;
     Game.paused = false;
     // **ホームの選択を、いま居る章に合わせる。**（2026-09-22）
@@ -102,6 +102,7 @@ const Main = {
 
   toPrep() {
     Game.startPrep(Game.perm.currentStage);
+    Snd.bgm('cafe');   // 準備フェーズは喫茶店の空気（企画書§24）
     Render.fit();
     Game.paused = false;
     UI.placingType = null;
@@ -123,7 +124,7 @@ const Main = {
     // **戦闘に入ったら、編成のための表示は全部畳む。**
     // 向きのスライダーや配置調整が開いたままだと、触れないものが盤面に残る
     UI.selected = null; UI.placingType = null; UI.moving = null; UI.aiming = null;
-    Snd.resume(); Snd.waveStart(); Snd.bgmStart();
+    Snd.resume(); Snd.waveStart(); Snd.bgm('battle');
     UI.renderTray();
     UI.renderPanel();
     this.syncStartButton();
