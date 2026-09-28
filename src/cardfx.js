@@ -17,7 +17,7 @@
 'use strict';
 
 const CardFX = {
-  KIND_NAME: { weapon: '武器', mod: '武器強化', generic: '汎用', synergy: '連携', perm: '遺物', key: '鍵' },
+  KIND_NAME: { weapon: '武器', mod: '武器強化', generic: '汎用', synergy: '連携', perm: '常駐', key: '鍵' },
   RAR_EN: { common: 'COMMON', rare: 'RARE', epic: 'EPIC', legendary: 'LEGENDARY' },
 
   // カードの絵の色。武器ものは武器の色、それ以外は種類ごと

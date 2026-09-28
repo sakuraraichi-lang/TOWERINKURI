@@ -135,11 +135,11 @@ const UI = {
   dmgLogText() {
     const log = Game.perm.dmgLog || [];
     const lines = ['エクスメントマキナ 武器の記録（新しい順・' + log.length + '回）',
-      '版 章 結果 W 転生 前回到達 最深 漏れ 撃破 置いた数 | 武器 有効ダメージの割合%（有効ダメージ／撃破／基数）'];
+      '版 章 結果 W 再起動 前回到達 最深 漏れ 撃破 置いた数 | 武器 有効ダメージの割合%（有効ダメージ／撃破／基数）'];
     for (const x of log) {
       const tot = x.w.reduce((a, w) => a + w[1], 0) || 1;
       const d = new Date(x.at);
-      lines.push([x.build, x.stage, x.ok ? '突破' : '敗北', 'W' + x.wave, '転生' + x.prestiges, '前回' + x.legacyDeep, '最深' + x.deepest,
+      lines.push([x.build, x.stage, x.ok ? '突破' : '敗北', 'W' + x.wave, '再起動' + x.prestiges, '前回' + x.legacyDeep, '最深' + x.deepest,
         '漏れ' + x.leaked, '撃破' + x.kills, '置' + x.placed].join(' ') + ' (' + (d.getMonth() + 1) + '/' + d.getDate() + ' ' +
         d.getHours() + ':' + String(d.getMinutes()).padStart(2, '0') + ') | ' +
         x.w.map(w => this.wname(w[0]) + ' ' + (Math.round(1000 * w[1] / tot) / 10) + '%（' + (+w[1]).toExponential(2) + '／' + w[2] + '／' + w[3] + '基）').join('、'));
@@ -236,7 +236,7 @@ const UI = {
       e.homeSkip.disabled = !can;
       // **もらえるものは無い。**チェックが付いて次へ行けるだけ、と書いておく
       e.homeSkip.innerHTML = can
-        ? 'スキップ<u>報酬なし・転生の評価にも入りません</u>'
+        ? 'スキップ<u>報酬なし・再起動の評価にも入りません</u>'
         : '<u>' + Game.skipWhy(st.id) + '</u>';
     }
     // 一括突破。**2章以上まとめて飛ばせるときだけ出す**（1章なら上のスキップと同じ）
@@ -782,9 +782,9 @@ const UI = {
   TAB_TIP: {
     skill: 'コインで強化を取る。取ると次の節が開く',
     load:  '出撃に持っていく武器を選ぶ画面',
-    pack:  'パックを開けてカードを集める。カードは転生しても残る',
+    pack:  'パックを開けてカードを集める。カードは再起動しても残る',
     coll:  '集めたカードの一覧。同じカードを重ねると強くなる',
-    pres:  '転生すると章とコインは戻るが、土台がずっと強くなる',
+    pres:  '再起動すると章とコインは戻るが、土台がずっと強くなる',
   },
 
   // 画面の一言と、見たかどうかの鍵。**アセンション中の「転生」タブは別の画面なので、別の一言と別の鍵**（開いたらもう一度 NEW が付く）
@@ -851,7 +851,7 @@ const UI = {
       const open = Game.tabOpen(id);
       b.classList.toggle('lock', !open);
       // 第30章を突破したら「転生」は「アセンション」になる（src/ascension.js）
-      if (id === 'pres') { const tl = b.querySelector('.tl'); if (tl) tl.textContent = Asc.on(Game.perm) ? 'アセンション' : '転生'; }
+      if (id === 'pres') { const tl = b.querySelector('.tl'); if (tl) tl.textContent = Asc.on(Game.perm) ? 'アセンション' : '再起動'; }
       b.classList.toggle('new', open && !!this.tabTip(id) && this.isNew(this.tabTip(id).key));
       b.classList.toggle('on', open && id === this.tab && !this.tabsOff);
     }
@@ -1332,7 +1332,7 @@ const UI = {
       { kind: 'mod',     name: '武器強化',   sub: '3択に出る。その武器が編成にあると効く' },
       { kind: 'synergy', name: '連携',       sub: '3択に出る。2つの武器がそろうと効く' },
       { kind: 'generic', name: '汎用',       sub: '3択に出る。どの編成でも効く' },
-      { kind: 'perm',    name: '遺物',       sub: '持っているだけで常に効く。凸で強くなる' },
+      { kind: 'perm',    name: '常駐',       sub: '持っているだけで常に効く。凸で強くなる' },
       { kind: 'key',     name: '鍵',         sub: '機能を開く' },
     ];
     for (const sec of sections) {
@@ -1556,7 +1556,7 @@ const UI = {
     const hero = Util.el('div', 'pz-hero' + (can ? ' can' : ''));
     hero.innerHTML =
       '<div class="pz-emb"><i class="pz-ring"></i>' + Icons.get('cycle') + '</div>' +
-      '<div class="pz-title"><b>転生</b><span>' + (perm.prestiges + 1) + '回目　突破 ' + cleared + ' / ' + STAGES.length + '章</span></div>';
+      '<div class="pz-title"><b>再起動</b><span>' + (perm.prestiges + 1) + '回目　突破 ' + cleared + ' / ' + STAGES.length + '章</span></div>';
     p.appendChild(hero);
 
     // 失うもの ／ 残るもの・得るもの
@@ -1565,24 +1565,24 @@ const UI = {
       '<div class="pz-col lose"><h4>失う</h4><ul>' +
         '<li>コイン</li><li>スキルツリー</li><li>章の突破（初回報酬は取り直せる）</li><li>盤の配置</li></ul></div>' +
       '<div class="pz-col keep"><h4>残る</h4><ul>' +
-        '<li>カード・凸</li><li>持っているパック</li><li>遺物</li><li>到達した深さ</li></ul></div>';
+        '<li>カード・凸</li><li>持っているパック</li><li>常駐</li><li>到達した深さ</li></ul></div>';
     p.appendChild(cols);
 
     const gain = Util.el('div', 'pz-gain');
     gain.innerHTML = '<h4>得る</h4>' + (cleared > 0
       ? '<div class="pz-packs">' +
-          '<div>' + CardFX.miniPack(PACKS.relic) + '<b>遺物パック</b><em>×' + pv.relic + '</em></div>' +
+          '<div>' + CardFX.miniPack(PACKS.relic) + '<b>常駐パック</b><em>×' + pv.relic + '</em></div>' +
           '<div>' + CardFX.miniPack(PACKS.basic) + '<b>カードパック</b><em>×' + pv.cards + '</em></div></div>' +
-        '<p>奥まで突破してから転生するほど多い。カードパックの分野は、突破した章の分野から出る</p>' +
+        '<p>奥まで突破してから再起動するほど多い。カードパックの分野は、突破した章の分野から出る</p>' +
         // 前回の到達より浅いときは減る（Pack.prestigePreview）。**減っていることを隠さない**
         ((perm.legacyDeep || 0) > cleared
-          ? '<p class="pz-warn">前回は第' + perm.legacyDeep + '章まで進んでいます。そこより浅いところで転生すると、得られるパックが大きく減ります（今は突破 ' + cleared + ' 章）</p>'
+          ? '<p class="pz-warn">前回は第' + perm.legacyDeep + '章まで進んでいます。そこより浅いところで再起動すると、得られるパックが大きく減ります（今は突破 ' + cleared + ' 章）</p>'
           : '')
       : '<p>まだ何も得られません</p>');
     p.appendChild(gain);
 
-    const btn = Util.el('button', 'pz-go', can ? '転生する'
-      : 'ステージを ' + BAL.prestigeMinStages + ' 個突破すると転生できます（現在 ' + cleared + ' 個）');
+    const btn = Util.el('button', 'pz-go', can ? '再起動する'
+      : 'ステージを ' + BAL.prestigeMinStages + ' 個突破すると再起動できます（現在 ' + cleared + ' 個）');
     btn.disabled = !can;
     btn.addEventListener('click', () => this.confirmPrestige());
     p.appendChild(btn);
@@ -1590,14 +1590,14 @@ const UI = {
     // 遺物は「持っているだけで効くカード」。一覧は図鑑の「遺物」の節にある（凸の星つき）
     const st = Util.el('div', 'pz-stats');
     st.innerHTML =
-      '<div><span>転生回数</span><b>' + perm.prestiges + '</b></div>' +
-      '<div><span>遺物</span><b>' + R.count + '枚</b></div>' +
-      '<div><span>遺物のダメージ</span><b>×' + Util.fmt(R.dmg) + '</b></div>' +
-      '<div><span>遺物のコイン</span><b>×' + Util.fmt(R.coin) + '</b></div>';
+      '<div><span>再起動回数</span><b>' + perm.prestiges + '</b></div>' +
+      '<div><span>常駐</span><b>' + R.count + '枚</b></div>' +
+      '<div><span>常駐のダメージ</span><b>×' + Util.fmt(R.dmg) + '</b></div>' +
+      '<div><span>常駐のコイン</span><b>×' + Util.fmt(R.coin) + '</b></div>';
     p.appendChild(st);
     if (R.count > 0) {
       const link = Util.el('button', 'pz-link');
-      link.innerHTML = Icons.get('grid') + '遺物を図鑑で見る';
+      link.innerHTML = Icons.get('grid') + '常駐を図鑑で見る';
       link.addEventListener('click', () => {
         this.tab = 'coll'; this.renderTabs(); this.renderPanel();
         const sec = document.querySelector('#panel .csec.k-perm');
@@ -1619,13 +1619,13 @@ const UI = {
     const pv = Pack.prestigePreview(Game.clearedCount(), Game.perm.prestiges, Game.perm.legacyDeep || 0);
     const body = Util.el('div', 'rs rs-lose');
     body.innerHTML =
-      '<div class="rs-ban"><b>転生</b><span>本当に転生しますか？</span></div>' +
-      '<div class="rs-tip">コイン・スキルツリー・章の突破・盤の配置を失います。カード・パック・遺物は残ります</div>' +
+      '<div class="rs-ban"><b>再起動</b><span>本当に再起動しますか？</span></div>' +
+      '<div class="rs-tip">コイン・スキルツリー・章の突破・盤の配置を失います。カード・パック・常駐は残ります</div>' +
       '<div class="rs-rew">' +
-        '<div class="rs-pack">' + CardFX.miniPack(PACKS.relic) + '<b>遺物パック</b><em>×' + pv.relic + '</em></div>' +
+        '<div class="rs-pack">' + CardFX.miniPack(PACKS.relic) + '<b>常駐パック</b><em>×' + pv.relic + '</em></div>' +
         '<div class="rs-pack">' + CardFX.miniPack(PACKS.basic) + '<b>カードパック</b><em>×' + pv.cards + '</em></div></div>';
     const ok = Util.el('button', 'rs-go');
-    ok.innerHTML = '<span>失って得る</span><b>転生する</b>' + Icons.get('cycle');
+    ok.innerHTML = '<span>失って得る</span><b>再起動する</b>' + Icons.get('cycle');
     ok.addEventListener('click', () => {
       const res = Game.prestige();
       this.closeModal();
@@ -1645,7 +1645,7 @@ const UI = {
   showPrestigeResult(res) {
     // リザルトと同じ形（判定の帯 → 獲得物 → 次へ）
     const body = Util.el('div', 'rs rs-perfect');
-    body.innerHTML = '<div class="rs-ban"><i class="rs-sweep"></i><b>REBIRTH</b><span>転生 ' + res.prestiges + '回目</span></div>';
+    body.innerHTML = '<div class="rs-ban"><i class="rs-sweep"></i><b>REBOOT</b><span>再起動 ' + res.prestiges + '回目</span></div>';
     const rew = Util.el('div', 'rs-rew');
     for (const k of PACK_IDS.filter(k => res.reward[k] > 0)) {
       const d = Util.el('div', 'rs-pack');
@@ -1688,9 +1688,9 @@ const UI = {
       const sc = Skill.gsum(Game.meta, 'choices'), rc = R.choices || 0;
       const sp = Skill.gsum(Game.meta, 'picks'), rp = R.picks || 0;
       if (sc) why.push('選択肢 +' + sc + '（スキル「選択肢拡張」）');
-      if (rc) why.push('選択肢 +' + rc + '（遺物）');
+      if (rc) why.push('選択肢 +' + rc + '（常駐）');
       if (sp) why.push('1ウェーブに +' + sp + '枚（スキル「増設スロット」）');
-      if (rp) why.push('1ウェーブに +' + rp + '枚（遺物）');
+      if (rp) why.push('1ウェーブに +' + rp + '枚（常駐）');
       if (why.length) body.appendChild(Util.el('div', 'draftwhy', why.join('　')));
     }
     body.appendChild(this.runSlots());
@@ -1873,7 +1873,7 @@ const UI = {
     const body = Util.el('div', 'rs rs-skip');
     body.innerHTML =
       '<div class="rs-ban"><i class="rs-sweep"></i><b>SKIP</b><span>' + res.stage.name + '　通過（突破ではない）</span></div>' +
-      '<div class="rs-tip">コイン・カード・転生の評価は増えません。初回突破の報酬は残っているので、あとで自分で突破すれば受け取れます</div>';
+      '<div class="rs-tip">コイン・カード・再起動の評価は増えません。初回突破の報酬は残っているので、あとで自分で突破すれば受け取れます</div>';
     const go = Util.el('button', 'rs-go');
     go.innerHTML = '<span>次へ</span><b>' + (res.next ? res.next.name : 'ホーム') + '</b>' + Icons.get('play');
     go.addEventListener('click', () => { this.closeModal(); this.renderHome(); });
@@ -1943,7 +1943,7 @@ const UI = {
       const pk = PACKS[Pack.forStage(res.stage.id)];
       body.appendChild(Util.el('div', 'rs-tip', rec.perfect
         ? 'この周の完璧クリアのパックは受け取り済み'
-        : '1体も通さずに凌ぐと ' + pk.name + ' ×2（転生ごとに1回）'));
+        : '1体も通さずに凌ぐと ' + pk.name + ' ×2（再起動ごとに1回）'));
     }
     if (res.missions && res.missions.length) {
       const ms = Util.el('div', 'rs-miss');

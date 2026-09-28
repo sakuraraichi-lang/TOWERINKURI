@@ -334,7 +334,7 @@ const SKILLS = [
     cost0: 400, g: 4.8, unlock: 1 }),
   ...chain({ id: 'pack', gkey: 'pack', group: 'カード',
     names: ['解析装置', '深層解析', '完全解析'],
-    steps: 3, eff: 4, mode: 'add', tmpl: '転生で得るカードパックの等級が上がりやすくなる（+{e}）',
+    steps: 3, eff: 4, mode: 'add', tmpl: '再起動で得るカードパックの等級が上がりやすくなる（+{e}）',
     cost0: 900, g: 4.8, unlock: 3 }),
 
   // ============ 危険と引き換え ============

@@ -61,8 +61,8 @@ const PACKS = {
   },
   // **転生でしか手に入らない。** 中身は遺物（転生で消えない永続パッシブ）
   relic: {
-    id: 'relic', name: '遺物パック', size: 3, unlock: 0, unlockP: 1, color: '#ffb43c',
-    desc: '転生でしか出ない。中身は転生で消えない永続強化',
+    id: 'relic', name: '常駐パック', size: 3, unlock: 0, unlockP: 1, color: '#ffb43c',
+    desc: '再起動でしか出ない。中身は再起動で消えない永続強化',
     //   **レジェンドを半分に。**（2026-09-21・ユーザー指摘「レジェンドも出やすすぎ」）
     //   当時はレジェンドの遺物が2種類しかなく、出やすいと同じものばかりになった
     //   （いまは6種類。遺物の母数を 13種 → 33種 に増やしたため）
@@ -117,8 +117,8 @@ const Pack = {
     if (depth < (pk.unlock || 0)) return 'ステージを ' + pk.unlock + ' 個突破すると解放';
     const need = (pk.unlockP || 0) - prestigeRank(perm);
     if (need > 0) return need === 1 && !(perm.prestiges || 0)
-      ? '初めて転生すると解放'
-      : '第' + ((pk.unlockP - 1) * (BAL.rankPerDepth || 4) + 1) + '章まで進んでから転生すると解放';   // 格は到達章で上がる
+      ? '初めて再起動すると解放'
+      : '第' + ((pk.unlockP - 1) * (BAL.rankPerDepth || 4) + 1) + '章まで進んでから再起動すると解放';   // 格は到達章で上がる
     return '';
   },
 
@@ -292,8 +292,8 @@ const MISSIONS = [
   { id: 'kill1k',   name: '累計1,000体撃破',            reward: { basic: 1 }, check: (p) => p.totalKills >= 1000 },
   { id: 'kill50k',  name: '累計50,000体撃破',           reward: { arms: 2 },  check: (p) => p.totalKills >= 50000 },
   { id: 'kill1m',   name: '累計1,000,000体撃破',        reward: { chem: 2 },  check: (p) => p.totalKills >= 1000000 },
-  { id: 'pres1',    name: '初めての転生',               reward: { basic: 2 }, check: (p) => p.prestiges >= 1 },
-  { id: 'pres10',   name: '第21章まで進んでから転生', reward: { syn: 1 },   check: (p) => prestigeRank(p) >= 6 },   // 回数だと浅い転生で稼げた（2026-09-25）
+  { id: 'pres1',    name: '初めての再起動',               reward: { basic: 2 }, check: (p) => p.prestiges >= 1 },
+  { id: 'pres10',   name: '第21章まで進んでから再起動', reward: { syn: 1 },   check: (p) => prestigeRank(p) >= 6 },   // 回数だと浅い転生で稼げた（2026-09-25）
   { id: 'coll25',   name: 'カード25種を所持',           reward: { arms: 1 },  check: (p) => Object.keys(p.collection).length >= 25 },
   { id: 'cat6',     name: '6カテゴリすべての武器を所持', reward: { syn: 1 },
     check: (p) => CATEGORY_IDS.every(cat => WEAPON_IDS.some(w => WEAPONS[w].cat === cat && (p.collection['wc_' + w] || 0) > 0)) },
