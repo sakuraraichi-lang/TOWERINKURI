@@ -504,6 +504,10 @@ const UI = {
       '<b>' + split + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '<i class="ci-sys">' + sys + '</i></div>';
     void c.offsetWidth;
     c.className = 'on';
+    // 動きが終わったら片付ける（動きだけに頼ると、見た目の定義を変えたときに出たままになる・0929a）。次のカットインが来ていたら触らない
+    const tok = this._cutTok = (this._cutTok || 0) + 1;
+    clearTimeout(this._cutTimer);
+    this._cutTimer = setTimeout(() => { if (this._cutTok === tok) { c.className = ''; c.innerHTML = ''; } }, 1600);
   },
   cutinWave(n) {
     const run = Game.run;
