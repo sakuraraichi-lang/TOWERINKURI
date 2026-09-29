@@ -80,39 +80,14 @@ const CardFX = {
     return el;
   },
 
-  // **ゲームのロゴ**（ユーザー 2026-09-24 に見本画像）。外周の輪と4方向の突起・内側の輪・
-  //   矢じりの付いた8本の光条・中心の歯車。画像を貼らずに描き起こす（どの大きさでも滲まない）
+  // **ゲームのロゴ＝六角の紋**（2026-09-30 ユーザー「はい、どちらも変えます」：カードの裏面とパック開封の箱の上も、題字 X1 の紋に）。
+  //   紋そのものは Scenes.markSvg()（タイトル・ホームと同じ1つの描き方）。前は歯車と光条のロゴ（2026-09-24）を別に描いていた。
+  //   関数の名前は呼び出し元（裏面・箱）をそのままにするため残す。何度作っても同じ文字列（まとめて開けると裏面が何十枚も要る）
   logoSvg() {
-    if (this._logoHtml) return this._logoHtml;   // 何度作っても同じ文字列（まとめて開けると裏面が何十枚も要る）
-    const rot =(pts, a) => pts.map(([x, y]) => {
-      const c = Math.cos(a), s = Math.sin(a);
-      return (x * c - y * s).toFixed(2) + ',' + (x * s + y * c).toFixed(2);
-    }).join(' ');
-    let spikes = '', rays = '';
-    for (let i = 0; i < 4; i++) {                     // 外周の4方向の突起
-      spikes += '<polygon points="' + rot([[0, -50], [5.5, -38], [0, -42], [-5.5, -38]], i * Math.PI / 2) + '"/>';
-    }
-    for (let i = 0; i < 8; i++) {                     // 8本の光条（縦横は長く、斜めは短い）
-      const a = i * Math.PI / 4, L = i % 2 ? 23 : 29;
-      rays += '<polygon points="' + rot([[0, -L - 3], [4.2, -L + 5], [1.3, -L + 3.6], [1.3, -10], [-1.3, -10], [-1.3, -L + 3.6], [-4.2, -L + 5]], a) + '"/>';
-    }
-    return this._logoHtml = '<svg class="gamelogo" viewBox="-52 -52 104 104" xmlns="http://www.w3.org/2000/svg">' +
-      '<defs><linearGradient id="lgGold" x1="0" y1="0" x2="1" y2="1">' +
-        '<stop offset="0" stop-color="#fff4c2"/><stop offset=".4" stop-color="#f2c34a"/>' +
-        '<stop offset=".7" stop-color="#b47212"/><stop offset="1" stop-color="#ffe08a"/></linearGradient></defs>' +
-      '<g fill="url(#lgGold)" stroke="#5a3606" stroke-width=".9" stroke-linejoin="round">' + spikes + rays + '</g>' +
-      '<g fill="none" stroke-linecap="round">' +
-        '<circle r="40" stroke="#5a3606" stroke-width="7.6"/><circle r="40" stroke="url(#lgGold)" stroke-width="5.6"/>' +
-        '<circle r="40" stroke="#fff4c2" stroke-width=".8" opacity=".7"/>' +
-        '<circle r="31" stroke="#5a3606" stroke-width="3.2"/><circle r="31" stroke="url(#lgGold)" stroke-width="1.8"/>' +
-        '<circle r="13" stroke="#5a3606" stroke-width="3.4"/><circle r="13" stroke="url(#lgGold)" stroke-width="2"/>' +
-        '<circle r="7.6" stroke="url(#lgGold)" stroke-width="3" stroke-dasharray="2.2 1.5"/>' +
-      '</g>' +
-      '<circle r="5.6" fill="url(#lgGold)" stroke="#5a3606" stroke-width=".8"/><circle r="2.6" fill="#241604"/>' +
-      '</svg>';
+    if (this._logoHtml) return this._logoHtml;
+    return this._logoHtml = Scenes.markSvg().replace('class="xmark"', 'class="gamelogo"');
   },
 
-  // カードの裏面。**レア度の色が裏から透ける**（ユーザー 2026-09-24「裏面からレア度の色が透けてると良い」）
   back(rarity) {
     const el = Util.el('div', 'cf cf-back br-' + (rarity || 'common'));
     el.style.setProperty('--rc', BAL.rarity[rarity || 'common'].color);
