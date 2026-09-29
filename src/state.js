@@ -73,6 +73,9 @@ const Game = {
       stages: { ch1: { cleared: false, perfect: false, bestWave: 0, attempts: 0 } },
       currentStage: 'ch1',
       placements: {},
+      // 六角の配置に移った印（下の load の移行用）。**新しいセーブには最初から立てる**
+      //   （立てないと、最初に読み直したとき置いた配置が「六角化の前のもの」として一度だけ捨てられた）
+      hexPlace: 1,
       // **【2026-09-26】mapRoll と mapSeed はもう読まない。**盤は全員同じ30章（BAL.mapSeed）で、二度と変わらない（stages.js の mapRowsFor）。
       //   古いセーブとの互換のために項目だけ残す
       // 章ごとに「何周目の引きを使ったか」。踏んだ章は変えず、
@@ -157,6 +160,8 @@ const Game = {
       }
       return false;
     }
+    // 六角化の前のセーブか（保存された側に印が無い）。newSave が印を立てているので、代入の前に見る
+    const preHex = !(d.perm && d.perm.hexPlace);
     Object.assign(this.perm, d.perm || {});
     Object.assign(this.meta, d.meta || {});
     for (const id of Object.keys(this.perm.collection)) if (!CARDS[id]) delete this.perm.collection[id];
@@ -166,7 +171,7 @@ const Game = {
     //   セルの座標系が変わったため、古い (c,r) を六角として読むと
     //   まったく違う場所に置かれる。**セーブ全体は消さない**
     //   （進捗・カード・遺物はそのまま。置き直してもらうだけ）
-    if (!this.perm.hexPlace) {
+    if (preHex) {
       this.perm.placements = {};
       this.perm.hexPlace = 1;
     }

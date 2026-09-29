@@ -343,27 +343,50 @@ const Render = {
     this.viewW = this.cssW / s;
     this.viewH = this.cssH / s;
 
+    // 上下の余白は、盤の上に重なる札の高さぶんまで広げる（insets）。**左右は六角1つぶんのまま**
+    const I = this.insets(s);
+    this.insT = I.t / s; this.insB = I.b / s;
     if (this.camStage !== st.id) { this.cam.x = -M; this.cam.y = st.h; this.camStage = st.id; }
     this.clampCam();
 
     this.offX = ((st.w + 2 * M) * s <= this.cssW) ? (this.cssW - st.w * s) / 2 : -this.cam.x * s;
-    this.offY = ((st.h + 2 * M) * s <= this.cssH) ? (this.cssH - st.h * s) / 2 : -this.cam.y * s;
+    // 収まる盤は真ん中に置く。ただし上下は札の下・札の上に収める（余白が足りるときだけ動く）
+    this.offY = ((st.h + this.insT + this.insB) * s <= this.cssH)
+      ? Util.clamp((this.cssH - st.h * s) / 2, I.t, this.cssH - I.b - st.h * s)
+      : -this.cam.y * s;
   },
+
+  // **盤の上に重なって、押せなくしている札**の高さ。左上の「火力」・残りウェーブ・ライフの帯と、左下の減速・加速の説明。
+  //   （2026-09-29・第20〜30章の広い盤で、盤の端の六角がこの札の下になり、置く操作そのものができなかった。
+  //    札は押せる（火力の内訳・説明を閉じる）ので、札の側を通り抜けにせず、盤を札の外まで動かせるようにした）
+  //   返すのは画面px。**札が無ければ六角1つぶん（margin）のまま**。
+  insets(s) {
+    const M = this.margin() * s;
+    let t = M, b = M;
+    if (!this.canvas) return { t, b };
+    const cr = this.canvas.getBoundingClientRect();
+    const hud = document.querySelector('.bhud');
+    if (hud && hud.offsetHeight) t = Math.max(t, hud.getBoundingClientRect().bottom - cr.top + 4);
+    const zt = typeof UI !== 'undefined' && UI.el && UI.el.zoneTip;
+    if (zt && zt.classList.contains('on') && zt.offsetHeight) b = Math.max(b, cr.bottom - zt.getBoundingClientRect().top + 4);
+    return { t, b };
+  },
+  insT: 0, insB: 0,
 
   clampCam() {
     const st = this.stage;
     if (!st) return;
-    const M = this.margin();
+    const M = this.margin(), mt = Math.max(M, this.insT || 0), mb = Math.max(M, this.insB || 0);
     if (!Number.isFinite(this.cam.x)) this.cam.x = -M;
-    if (!Number.isFinite(this.cam.y)) this.cam.y = -M;
+    if (!Number.isFinite(this.cam.y)) this.cam.y = -mt;
     this.cam.x = Math.min(Math.max(-M, st.w + M - this.viewW), Math.max(-M, this.cam.x));
-    this.cam.y = Math.min(Math.max(-M, st.h + M - this.viewH), Math.max(-M, this.cam.y));
+    this.cam.y = Math.min(Math.max(-mt, st.h + mb - this.viewH), Math.max(-mt, this.cam.y));
   },
 
   // なぞって動かせるか（画面に収まっていれば動かす必要が無い）
   canPan() {
     const st = this.stage, M = this.margin();
-    return !!st && (st.w + 2 * M > this.viewW + 1 || st.h + 2 * M > this.viewH + 1);
+    return !!st && (st.w + 2 * M > this.viewW + 1 || st.h + Math.max(M, this.insT || 0) + Math.max(M, this.insB || 0) > this.viewH + 1);
   },
   panBy(dxPx, dyPx) {
     if (!this.canPan()) return;

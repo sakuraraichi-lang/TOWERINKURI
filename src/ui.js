@@ -730,13 +730,16 @@ const UI = {
     this._zoneKey = key;
     z.classList.toggle('on', show);
     z.innerHTML = '';
-    if (!show) return;
-    z.innerHTML = '<div><b class="zt-mud">減速</b>敵が遅くなる</div><div><b class="zt-slope">加速</b>敵が速くなる</div>';
-    const x = Util.el('button', 'zt-x');
-    x.innerHTML = Icons.get('close');
-    x.title = 'この説明を閉じる（⚙ から戻せます）';
-    x.addEventListener('click', () => { Game.perm.zoneTipOff = true; Game.save(); Snd.ui(); this._zoneKey = null; this.renderZoneTip(); });
-    z.appendChild(x);
+    if (show) {
+      z.innerHTML = '<div><b class="zt-mud">減速</b>敵が遅くなる</div><div><b class="zt-slope">加速</b>敵が速くなる</div>';
+      const x = Util.el('button', 'zt-x');
+      x.innerHTML = Icons.get('close');
+      x.title = 'この説明を閉じる（⚙ から戻せます）';
+      x.addEventListener('click', () => { Game.perm.zoneTipOff = true; Game.save(); Snd.ui(); this._zoneKey = null; this.renderZoneTip(); });
+      z.appendChild(x);
+    }
+    // 札が出入りすると、盤を動かせる範囲も変わる（札の下に隠れる六角を作らない・Render.insets）
+    if (typeof Render !== 'undefined' && Render.canvas && Game.run) Render.fit();
   },
 
   // 選んだ武器の調整。

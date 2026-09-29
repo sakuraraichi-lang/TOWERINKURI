@@ -65,10 +65,22 @@ const DebugRoom = {
   //   where … mid（見える範囲の真ん中）／left・right（左右の縁の真ん中）／tl・tr（上の角）。下半分は確認室のパネルが覆うので、上の半分から選ぶ。
   //   **セーブを守る**：置く・向きを変えると配置の記録（perm.placements）とチュートリアルの進みが動くので、始める前の値を写し取り、片づけるとき（もう一度押す・片づける・部屋を閉じる）に書き戻す。
   //   演出中は Game.save を止める。武器の数の上限・盤の枠には数えない（見本の1基は run.units に直接足す）
+  // 保存の差し替え：**本物の Game.save は最初の1回だけ控え、戻すのは差し替えを頼んだものが全部終わったとき。**
+  //   （2026-09-29・前は見本ごとに「そのとき見えている Game.save」を控えていた。ボス戦の見本の途中で向きの花を出すと、
+  //    花が控えたのは差し替え後の空の関数で、片づけたあとも保存が止まったままになり、記憶のセーブも見本の前と食い違った）
+  _saveHold() {
+    if (!this._holds) { this._realSave = Game.save; Game.save = () => {}; }
+    this._holds = (this._holds || 0) + 1;
+  },
+  _saveRelease() {
+    if (!this._holds) return;
+    if (--this._holds > 0) return;
+    Game.save = this._realSave; this._realSave = null;
+  },
   _dirEnd() {
     if (!this._dirSnap) return;
     const sn = this._dirSnap; this._dirSnap = null;
-    Game.save = sn.save;
+    this._saveRelease();
     const run = Game.run;
     if (run && sn.unit) { const i = run.units.indexOf(sn.unit); if (i >= 0) run.units.splice(i, 1); }
     Game.perm.placements = sn.placements; Game.perm.lastPlace = sn.lastPlace; Game.perm.tut = sn.tut;
@@ -78,10 +90,12 @@ const DebugRoom = {
   },
   dirDemo(where) {
     this._dirEnd();
+    // ボス戦の見本の途中なら、先にそちらを片づける（perm と meta を書き戻す）。裏の盤はふつうの準備フェーズに戻す
+    if (this._btSnap) { const bt = this._btRun; this._btEnd(); if (bt && Game.run === bt) { Main.toPrep(); Render.fit(); } }
     const run = Game.run;
     if (!run || run.over || !Game.canBuild()) { UI.toastMsg('準備フェーズの盤がありません', '#ff4a66', 'error'); return; }
-    this._dirSnap = { placements: JSON.parse(JSON.stringify(Game.perm.placements)), lastPlace: JSON.parse(JSON.stringify(Game.perm.lastPlace || {})), tut: Game.perm.tut, save: Game.save, unit: null };
-    Game.save = () => {};
+    this._dirSnap = { placements: JSON.parse(JSON.stringify(Game.perm.placements)), lastPlace: JSON.parse(JSON.stringify(Game.perm.lastPlace || {})), tut: Game.perm.tut, unit: null };
+    this._saveHold();
     // 見える範囲（盤の画面の上から、確認室のパネルの上まで）を盤の座標にして、その中の目標に一番近い置ける六角を選ぶ
     const cv = Render.canvas.getBoundingClientRect();
     const panelTop = window.innerHeight - Math.min(window.innerHeight * 0.5, 440);
@@ -345,17 +359,19 @@ const DebugRoom = {
     for (const k of Object.keys(Game.perm)) delete Game.perm[k];
     for (const k of Object.keys(Game.meta)) delete Game.meta[k];
     Object.assign(Game.perm, snap.perm); Object.assign(Game.meta, snap.meta);
-    Game.save = snap.save;
+    this._saveRelease();
     try { Relic.invalidate(); } catch (e) {}
   },
   bossBattle() {
     this._btEnd();
-    this._btSnap = { perm: JSON.parse(JSON.stringify(Game.perm)), meta: JSON.parse(JSON.stringify(Game.meta)), save: Game.save };
-    Game.save = () => {};
+    this._dirEnd();     // 向きの花の見本が出ていたら先に片づける（配置の記録の写しが、ボス戦のあとの書き戻しと食い違わないように）
+    this._btSnap = { perm: JSON.parse(JSON.stringify(Game.perm)), meta: JSON.parse(JSON.stringify(Game.meta)) };
+    this._saveHold();
     const perm = Game.perm, cur = perm.currentStage, orig = Game.stageUnlocked;
     let run;
     try { Game.stageUnlocked = () => true; run = Game.startPrep('ch10'); }
     finally { Game.stageUnlocked = orig; perm.currentStage = cur; }
+    this._btRun = run;
     Render.fit(); UI.renderTray();
     run.phase = 'build'; run.wave = BAL.wavesPerStage - 1;
     Game.startNextWave();
