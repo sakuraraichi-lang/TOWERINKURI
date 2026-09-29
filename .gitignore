@@ -6,3 +6,4 @@ node_modules/
 *.bak-scope
 __pycache__/
 .claude/agent-comments.log
+.claude/worktrees/
