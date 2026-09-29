@@ -88,7 +88,8 @@ const DebugRoom = {
     try { Game.applyMods(); } catch (e) {}
     UI.renderTray();
   },
-  dirDemo(where) {
+  //   wid … 見本の武器（省くと編成の1つ目＝ふつうはガトリング）。0930：**向きが効かない武器（指定攻撃・凍結）は花が出ない**ので、その見本もここから出す
+  dirDemo(where, wid) {
     this._dirEnd();
     // ボス戦の見本の途中なら、先にそちらを片づける（perm と meta を書き戻す）。裏の盤はふつうの準備フェーズに戻す
     if (this._btSnap) { const bt = this._btRun; this._btEnd(); if (bt && Game.run === bt) { Main.toPrep(); Render.fit(); } }
@@ -111,11 +112,13 @@ const DebugRoom = {
       if (d < bd) { bd = d; best = h; }
     }
     if (!best) { this._dirEnd(); UI.toastMsg('見える範囲に置ける六角がありません', '#ff4a66', 'error'); return; }
-    const u = Game.newUnit(Game.loadoutWeapons()[0] || Object.keys(WEAPONS)[0], best.c, best.r, Game.FACES[0]);
+    const u = Game.newUnit(wid || Game.loadoutWeapons()[0] || Object.keys(WEAPONS)[0], best.c, best.r, Game.FACES[0]);
     run.units.push(u);
     Game.applyMods();
+    // 指定攻撃は、置いた瞬間に既定の着弾円を持つ（Game.placeUnit と同じ）。盤をタップするとそこへ動く（Game.setAimPoint・本物の操作）
+    if (Game.usesAimPoint(u.def)) { const ap = Game.defaultAimPoint(u); u.ax = ap.x; u.ay = ap.y; }
     this._dirSnap.unit = u;
-    UI.placingType = null; UI.moving = null; UI.aiming = null;
+    UI.placingType = null; UI.moving = null;
     UI.selected = u;
     UI.renderTray();
   },
@@ -189,7 +192,10 @@ const DebugRoom = {
         ['連打（5つ続けて取る）', () => me.skill('rapid')],
       ], () => me._skHostEl()],
       ['向きの指定（六角の花）', [
-        ['盤の真ん中に置く', () => me.dirDemo('mid')],
+        ['指定攻撃（ミサイル：花なし・盤をタップで着弾円）', () => me.dirDemo('mid', 'missile')],
+        ['指定攻撃（迫撃砲：花なし・盤をタップで着弾円）', () => me.dirDemo('mid', 'mortar')],
+        ['凍結装置（射程の円・花なし）', () => me.dirDemo('mid', 'cryo')],
+        ['盤の真ん中に置く（ガトリング：花あり）', () => me.dirDemo('mid')],
         ['左の縁に置く', () => me.dirDemo('left')],
         ['右の縁に置く', () => me.dirDemo('right')],
         ['左上の角に置く', () => me.dirDemo('tl')],

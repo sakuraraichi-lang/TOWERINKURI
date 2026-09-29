@@ -750,7 +750,7 @@ const UI = {
     if (!p) return;
     const u = this.selected;
     // **戦闘が始まったら閉じる。** 触れないものを開いたままにしない
-    if (!Game.canBuild()) { this.selected = null; this.aiming = null; this.moving = null; }
+    if (!Game.canBuild()) { this.selected = null; this.moving = null; }
     if (!u || !Game.run || Game.run.over || !Game.canBuild()) {
       p.classList.remove('on'); p.innerHTML = '';
       this.el.stage.classList.remove('popopen');
@@ -765,11 +765,15 @@ const UI = {
 
     // **射界も着弾円の大きさも、武器ごとの固定値**（2026-09-30 段1a・スライダー撤去）。ここは見せるだけ
     const spot = Game.usesAimPoint(u.def);
+    const omni = !spot && !Game.usesFace(u.def);          // 全周に効く（凍結装置）。向きも扇も無い
+    // **単位は六角。**盤に見えているのは六角で、タイル（40px）はもう画面に出ない。
+    //   隣り合う六角の中心どうしは √3·R 離れているので、長さをそれで割る
+    const hexN = (px) => Math.round(px / (Math.sqrt(3) * MapGen.HEX_R) * 10) / 10;
     const uInfoText = () => spot
-      // **単位は六角。**盤に見えているのは六角で、タイル（40px）はもう画面に出ない。
-      //   隣り合う六角の中心どうしは √3·R 離れているので、直径をそれで割る
-      ? '着弾範囲 六角' + (Math.round(Game.spotR(u) * 2 / (Math.sqrt(3) * MapGen.HEX_R) * 10) / 10) + '個ぶん'
-      : '射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) + '°';
+      ? '着弾範囲 六角' + hexN(Game.spotR(u) * 2) + '個ぶん'
+      : omni
+        ? '全方位 射程 六角' + hexN(u.s.range) + '個ぶん'
+        : '射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) + '°';
 
     // 掴んで動かす取っ手。ここだけがドラッグを受ける
     const info = Util.el('div', 'usel uhandle');
@@ -782,7 +786,8 @@ const UI = {
     // **向きは六角の6方向から選ぶ。**（2026-09-25・プレイヤーの感想「360度ある意味がない」→ ユーザー採用）
     //   0929y：板の中の矢印ボタンの列をやめ、**選んだ武器の六角のまわりに、辺ごとに六角のボタンを出す**（盤の上・Render.dirRing。押す処理は Main.bindPlacement）。
     //   向きの意味・保存（perm.placements の a）は前のまま。**射界のスライダーは撤去した**（射界は武器ごとの固定値）
-    if (build) p.appendChild(Util.el('div', 'udhint', '向き：まわりの六角をタップ'));
+    //   0930：**向きが攻撃に関係しない武器には花を出さない**（Game.usesFace）。指定攻撃は、選んだまま盤をタップすると着弾円がそこへ動く（着弾円のボタンは無くした）。凍結装置は向きが要らない
+    if (build) p.appendChild(Util.el('div', 'udhint', spot ? '盤をタップ：着弾円がそこへ動く' : omni ? '向きは関係なし（円の中に全部効く）' : '向き：まわりの六角をタップ'));
 
     const row = Util.el('div', 'urow');
     const mk = (label, fn, cls) => {
@@ -791,25 +796,16 @@ const UI = {
       b.addEventListener('click', fn);
       return b;
     };
-    // 指定攻撃だけ、砲弾を落とす場所を指せる
-    if (spot) {
-      row.appendChild(mk(this.aiming === u ? '…タップ' : '着弾円', () => {
-        this.aiming = (this.aiming === u) ? null : u;
-        this.moving = null; this.placingType = null;
-        this.renderTray();
-      }));
-    }
     row.appendChild(mk('移動', () => {
-      this.moving = u; this.aiming = null; this.placingType = null; this.renderTray();
+      this.moving = u; this.placingType = null; this.renderTray();
     }));
     row.appendChild(mk('撤去', () => {
       if (Game.removeUnit(u)) { this.selected = null; this.moving = null; this.renderTray(); Game.save(); }
     }, 'danger'));
-    row.appendChild(mk('閉じる', () => { this.selected = null; this.moving = null; this.aiming = null; this.renderTray(); }));
+    row.appendChild(mk('閉じる', () => { this.selected = null; this.moving = null; this.renderTray(); }));
     p.appendChild(row);
 
-    if (this.aiming === u) p.appendChild(Util.el('div', 'trayhint', '砲弾を落とす場所をタップ（壁の向こうでもよい）'));
-    if (this.moving) p.appendChild(Util.el('div', 'trayhint', '光っているところをタップ'));
+    if (this.moving)p.appendChild(Util.el('div', 'trayhint', '光っているところをタップ'));
     if (!build) p.appendChild(Util.el('div', 'trayhint', '戦闘中は動かせません'));
 
     this.placeUnitPop();
@@ -914,16 +910,16 @@ const UI = {
   // 武器を初めて選んだときの一言。**どこに置くと働くか**だけを言う（ガトリングはチュートリアルで教える）
   WEAPON_TIP: {
     sniper:   '射程が長い。長くまっすぐな道を見通せる場所に',
-    missile:  '円の中へ降らせる。円は敵の通り道の上に',
+    missile:  '円の中へ降らせる。置いたあと盤をタップして、円を敵の通り道へ',
     tesla:    '射程が短い。道のすぐ脇に',
     flame:    '射程が短く、壁を越えて焼ける。道の曲がり角に',
     gas:      '毒の雲は壁を越える。敵が長く通る場所に',
-    cryo:     'まわりの敵を遅くする。火力の強い武器の近くに',
+    cryo:     'まわりの敵を遅くする。向きは関係なし。火力の強い武器の近くに',
     katana:   '間合いが短く、壁を越えて斬れる。道のすぐ脇に',
     shuriken: '敵から敵へ跳ねる。敵が詰まる場所に',
     tentacle: '敵を来た道へ引き戻す。コアの手前の道に',
-    bubble:   '円の中の敵を閉じ込める。円は火力の届く道に',
-    mortar:   '円の中へ重い砲弾。射程が長いので離れた道にも届く',
+    bubble:   '円の中の敵を閉じ込める。置いたあと盤をタップして、円を火力の届く道へ',
+    mortar:   '円の中へ重い砲弾。置いたあと盤をタップして、円を離れた道へも',
   },
   // 画面（下のタブ）を初めて開いたときの一言
   TAB_TIP: {

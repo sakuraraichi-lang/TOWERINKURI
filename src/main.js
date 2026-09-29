@@ -129,7 +129,7 @@ const Main = {
     Game.beginBattle();
     // **戦闘に入ったら、編成のための表示は全部畳む。**
     // 向きのスライダーや配置調整が開いたままだと、触れないものが盤面に残る
-    UI.selected = null; UI.placingType = null; UI.moving = null; UI.aiming = null;
+    UI.selected = null; UI.placingType = null; UI.moving = null;
     Snd.resume(); Snd.waveStart(); Snd.bgm('battle');
     UI.renderTray();
     UI.renderPanel();
@@ -184,7 +184,8 @@ const Main = {
   // ---------- 配置（地面の上・ビルドフェーズのみ） ----------
   // **なぞって向けるのはやめた。** スマホで狙いづらく、移動に使えるジェスチャも残らない。
   //   武器を選ぶ    → 置ける場所が光る → タップで設置
-  //   置いたものをタップ → 選択（向きはまわりに出る六角の花を押す・射界は武器ごとの固定値）
+  //   置いたものをタップ → 選択（向きが攻撃に効く武器は、まわりに出る六角の花を押して向ける・射界は武器ごとの固定値。
+  //                          指定攻撃は花が無く、選んだまま盤をタップすると着弾円がそこへ動く。凍結装置は向きが要らない）
   //   「配置を変える」 → また光る → タップで移動
   bindPlacement(cv) {
     const unitAt = (c, r) => Game.unitAt(c, r);
@@ -232,18 +233,6 @@ const Main = {
       const t = Render.tileAt(e.clientX, e.clientY);
       const onTile = unitAt(t.hc, t.hr);
 
-      // 着弾点を指している最中。**盤面のどこでも指せる**（壁の上でもよい）
-      if (UI.aiming) {
-        if (!Game.canBuild()) { no('戦闘中は変えられません'); return; }
-        Game.setAimPoint(UI.aiming, t.x, t.y);
-        Snd.place();
-        UI.aiming = null;
-        Game.save();
-        UI.renderTray();
-        e.preventDefault();
-        return;
-      }
-
       // 移動先を選んでいる最中
       if (UI.moving) {
         if (!Game.canBuild()) { no('戦闘中は動かせません'); return; }
@@ -273,11 +262,23 @@ const Main = {
         return;
       }
 
+      // 指定攻撃を選んでいるあいだ、盤の（ユニットのいない）どこをタップしても、そこへ着弾円が動く（0930・ユーザー
+      //   「どこに攻撃するかのタップをニュートラル状態で決める」。前は「着弾円」ボタン→タップの2手だった）。
+      //   **盤面のどこでも指せる**（壁の上でもよい）。射程の外は、射程の縁の同じ向きに丸める（Game.setAimPoint）。
+      //   選択は外さない（続けて動かせる）。外すのは「閉じる」・選んでいるユニット自身のタップ・別のユニットを選ぶとき
+      const sel = UI.selected;
+      if (sel && !onTile && run.units.includes(sel) && Game.usesAimPoint(sel.def) && Game.canBuild()) {
+        Game.setAimPoint(sel, t.x, t.y);
+        Snd.place();
+        Game.save();
+        e.preventDefault();
+        return;
+      }
+
       // 選ぶ／選択を外す
       UI.selected = (onTile && UI.selected !== onTile) ? onTile : null;
       UI.placingType = null;
       UI.moving = null;
-      UI.aiming = null;
       UI.renderTray();
       e.preventDefault();
     });

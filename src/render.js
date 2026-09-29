@@ -1384,6 +1384,18 @@ const Render = {
         ctx.globalAlpha = 1;
         continue;
       }
+      if (!Game.usesFace(u.def)) {
+        // 全周に効く武器（凍結装置）：向きが攻撃に関係しないので、扇ではなく**射程の円**を出す（0930）。
+        //   凍結は全周のパルス（Combat.pulse・角度の判定なし）なので、この円の中に入った敵が、全部同じに効く。円は当たる範囲そのもの
+        ctx.beginPath();
+        ctx.arc(u.x, u.y, u.s.range, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.globalAlpha = isSel ? 0.16 : 0.07;
+        ctx.fillStyle = c;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        continue;
+      }
 
       ctx.beginPath();
       ctx.moveTo(u.x, u.y);
@@ -1405,11 +1417,13 @@ const Render = {
   //   **向きの意味・保存・射界の計算は変えない**（選び方と見せ方だけ。Game.aimUnit に FACES の角度を渡す）。
   //   盤が縮んで隣の六角が指より小さいとき（スマホ幅で約28px）は、花ぜんたいを画面上で半径 BAL.dirRingPx 以上に大きくする（角度は同じ）。
   //   盤の端で花が画面からはみ出すときは、全部が入るところまで花ごと内側へずらし、元の六角から細い線でつなぐ。
-  //   準備フェーズ・ウェーブの合間のあいだだけ（Game.canBuild）。置く場所・移動先・着弾円を選んでいる最中は出さない
+  //   準備フェーズ・ウェーブの合間のあいだだけ（Game.canBuild）。置く場所・移動先を選んでいる最中は出さない。
+  //   **向きが攻撃に関係しない武器（指定攻撃3種・凍結装置。Game.usesFace が偽）には出さない**（0930・ユーザー「方向指定の花をなくしてください」）
   dirRing() {
     const u = UI.selected, run = Game.run;
     if (!u || !run || run.over || !Game.canBuild()) return null;
-    if (UI.placingType || UI.moving || UI.aiming || !run.units.includes(u)) return null;
+    if (UI.placingType || UI.moving || !run.units.includes(u)) return null;
+    if (!Game.usesFace(u.def)) return null;      // 向きが攻撃に関係しない武器（指定攻撃・凍結）には花を出さない（0930）
     const s = this.scale, R = MapGen.HEX_R, G = BAL.dirRingGap, c30 = Math.sqrt(3) / 2;
     const f = Math.max(1, BAL.dirRingPx / (R * G * s));
     const D = Math.sqrt(3) * R * f, r = R * f * G;
@@ -1517,13 +1531,20 @@ const Render = {
       const ax = w.ax, ay = w.ay;
       const R = Math.max(14, Game.spotR(w));
       const c = w.def.color;
+      // 選んでいる指定攻撃（＝いま盤をタップすれば動く円）は、線を太く・塗りを濃くし、砲から円へ細い線を引く（0930・花を無くし、盤のタップで円を動かす形にしたので、動かせる円を見せる）
+      const isSel = UI.selected === w && Game.canBuild();
+      if (isSel) {
+        ctx.globalAlpha = 0.35; ctx.strokeStyle = c; ctx.lineWidth = 1.2; ctx.setLineDash([3, 5]);
+        ctx.beginPath(); ctx.moveTo(w.x, w.y); ctx.lineTo(ax, ay); ctx.stroke();
+        ctx.setLineDash([]); ctx.globalAlpha = 1;
+      }
       ctx.strokeStyle = c + 'cc';
-      ctx.lineWidth = 1.6;
+      ctx.lineWidth = isSel ? 2.4 : 1.6;
       ctx.setLineDash([4, 5]);
       ctx.beginPath(); ctx.arc(ax, ay, R, 0, Math.PI * 2); ctx.stroke();
       ctx.setLineDash([]);
 
-      ctx.globalAlpha = 0.10;
+      ctx.globalAlpha = isSel ? 0.2 : 0.10;
       ctx.fillStyle = c;
       ctx.beginPath(); ctx.arc(ax, ay, R, 0, Math.PI * 2); ctx.fill();
       // 内側の細い円は「1発ぶんの爆風」。この2つの差が、そのまま散り具合

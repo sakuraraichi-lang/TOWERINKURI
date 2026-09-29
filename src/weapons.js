@@ -279,7 +279,9 @@ const WEAPONS = {
   },
 
   cryo: {
-    id: 'cryo', stock: 1, cat: 'support', name: '凍結装置', short: 'CRY', icon: Icons.get('cryo'), color: '#7fe6ff', src: 'stage', arcFix: 0.75,
+    // **noFace：向きが攻撃に関係しない**（0930）。fire は `Combat.pulse`（全周・角度の判定なし・w.target も読まない）なので、
+    //   向きも扇も効かない。盤の上は射程の円で見せ、向きの花は出さない（`Game.usesFace`）。arcFix は置く瞬間の向きの選びにだけ残る
+    id: 'cryo', noFace: true, stock: 1, cat: 'support', name: '凍結装置', short: 'CRY', icon: Icons.get('cryo'), color: '#7fe6ff', src: 'stage', arcFix: 0.75,
     desc: '周囲へ冷気を放つ。敵は大きく減速し、凍った敵は受けるダメージが増える。',
     base: baseStats({ dmg: 6, rate: 0.9, range: 165, slow: 0.55, slowDur: 2.4 }),
     fire(w, run) {

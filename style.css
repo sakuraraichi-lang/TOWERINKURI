@@ -1962,7 +1962,7 @@ body:not(.tabsoff) #home #panel{animation:panelIn .2s cubic-bezier(.2,.8,.2,1);}
    数字と表示器（VFD の窓・システムの行・ラベル）は Share Tech Mono。
    見せる見出し（題字・結果の帯・ラベル板・パネルの見出し）は、ウェーブの帯（#cutin .ci b）と同じ太い字体（端末の字体・weight 900）。
    **ドット字体は使わない**（2026-09-29 ユーザー「基本ドット字体は不要です」。レトロモチーフとはいえ 8bit ではなく、最新の演出感）。本文とカードの説明も端末の字体 */
-:root{--font-num:"Share Tech Mono",ui-monospace,Consolas,monospace;}
+:root{--font-num:"Chakra Petch","Share Tech Mono",system-ui,sans-serif;}   /* 2026-09-30：Share Tech Mono → Chakra Petch（細い線が読みにくかった）。tabular-nums で桁は揃う */
 .ttl-name,.hlogo-word,.rs-ban b,.chhead b,.lo-hero > div:first-child b,.pz-title b,.htitle{font-family:inherit;font-weight:900;}
 .hpill,.lo-num b,.tpoints b{font-family:var(--font-num);}
 
@@ -2769,3 +2769,16 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 .draft .chcard.cfpick{min-width:0;}
 .draft .chcard.cfpick .ch-face{width:100%;max-width:clamp(96px,28vw,150px);}
 .draft .chcard.cfpick .cf{width:100%;}
+
+/* ===== 0930：ホームの数字とタイトルの可読性（ユーザー「ブラーがかかって見づらい。数字にブラーかかって見づらいので消して、数字のフォントを可読性に富んだものに」） =====
+   原因：
+   ・通貨の窓（.hpill）の数字に、光の text-shadow（4px＋10px）が重なり、細い字体（Share Tech Mono）の線が滲んでいた
+   ・題字（.hlogo-word）は文字の塗りが透明（background-clip:text）なので、3重の光の text-shadow（6/18/36px）が文字の中まで透けて、文字が橙のぼかしに埋もれていた
+   ・章の名前（.htitle）にも 14px の光
+   直し：数字の光は消し、字体を Chakra Petch にする（--font-num）。題字は光を弱く外側だけにし（drop-shadow は文字の外にしか出ない）、1px の暗い縁で輪郭を立てる。作り直しはしていない */
+.hpill{text-shadow:none;font-weight:600;letter-spacing:.03em;font-size:15px;}
+.lvring b{font-family:var(--font-num);font-weight:700;font-variant-numeric:tabular-nums;}
+.hlogo-word{text-shadow:none;filter:drop-shadow(0 1px 0 rgba(0,0,0,.7)) drop-shadow(0 0 3px rgba(255,130,30,.4));}
+.htitle{text-shadow:0 1px 0 rgba(0,0,0,.65);}
+/* 版（右上の ver …）：色が暗すぎて読めなかった（背景との比 2.2）。字体を数字の字体にし、比 5 前後まで明るくする。目立たせない小さい字のまま */
+#build{font-family:var(--font-num);font-weight:600;font-size:10px;color:#7d838f;}
