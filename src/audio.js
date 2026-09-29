@@ -60,12 +60,34 @@ const Snd = {
     this.bgmGain = this.ctx.createGain();
     this.bgmGain.gain.value = 0;                 // 戦闘に入ってから上げる
     this.bgmGain.connect(this.master);
+    this._wireWake();
     return this.ctx;
   },
 
+  // **別のアプリ・別のタブから戻ったら起こし直す**（2026-09-30 ユーザー報告「iOSなどで…別のアプリに移動したり、別のタブへ移動した際、正しく音声が再生されなくなる」）。
+  //   iOS の Safari は裏に回ると AudioContext を 'suspended' か 'interrupted' にし、戻っても自動では再開しない。
+  //   前は resume() が 'suspended' しか見ていなかった。戻った瞬間（見えるようになった・pageshow・focus）と、
+  //   次のタップ（iOS はタップの中でないと再開を許さないことがある）で起こし直す
+  _wireWake() {
+    if (this._wired) return;
+    this._wired = true;
+    const wake = () => { if (!document.hidden && this.ctx && this.ctx.state !== 'running') this.resume(); };
+    document.addEventListener('visibilitychange', wake);
+    window.addEventListener('pageshow', wake);
+    window.addEventListener('focus', wake);
+    document.addEventListener('pointerdown', wake, { capture: true, passive: true });
+    document.addEventListener('touchend', wake, { capture: true, passive: true });
+  },
+
   resume() {
-    const c = this.ensure();
-    if (c && c.state === 'suspended') c.resume();
+    let c = this.ensure();
+    // 閉じられていたら作り直す（部品ごと。BGM は下で鳴らし直す）
+    if (c && c.state === 'closed') {
+      clearInterval(this._bgmTimer); this._bgmTimer = 0;
+      this.ctx = null;
+      c = this.ensure();
+    }
+    if (c && c.state !== 'running') { try { c.resume(); } catch (e) {} }
     this.started = true;
     // **BGMは、起動直後の `bgm('cafe')` の時点ではまだ何も鳴らせない**
     //   （AudioContextを最初のタップより前に作らないため。下のensure()参照）。
@@ -79,7 +101,7 @@ const Snd = {
   tone(o) {
     if (!this.on()) return;
     const c = this.ensure();
-    if (!c || c.state === 'suspended') return;
+    if (!c || c.state !== 'running') return;   // 'interrupted'（iOS）でも鳴らさない。時計が止まっていて予約が溜まるだけなので
     const t = o.at != null ? o.at : c.currentTime;
     const osc = c.createOscillator();
     const g = c.createGain();
@@ -96,7 +118,7 @@ const Snd = {
   noise(o) {
     if (!this.on()) return;
     const c = this.ensure();
-    if (!c || c.state === 'suspended') return;
+    if (!c || c.state !== 'running') return;   // 'interrupted'（iOS）でも鳴らさない。時計が止まっていて予約が溜まるだけなので
     const t = o.at != null ? o.at : c.currentTime;
     const n = Math.floor(c.sampleRate * o.dur);
     const buf = c.createBuffer(1, n, c.sampleRate);
@@ -305,7 +327,7 @@ const Snd = {
   fmTone(o) {
     if (!this.on()) return;
     const c = this.ensure();
-    if (!c || c.state === 'suspended') return;
+    if (!c || c.state !== 'running') return;   // 'interrupted'（iOS）でも鳴らさない。時計が止まっていて予約が溜まるだけなので
     const t = o.at != null ? o.at : c.currentTime;
     const car = c.createOscillator(), mod = c.createOscillator(), modG = c.createGain();
     car.type = o.type || 'sine';
@@ -373,6 +395,13 @@ const Snd = {
     const c = this.ctx;
     if (!c || !this._bgmTick) return;
     const ahead = 0.12;
+    // 裏に回っていた間に時計が先へ進んでいたら、その間の拍は飛ばして「いま」から続ける
+    //   （前は、止まっていたぶんを最大64歩まとめて一度に鳴らしていた）
+    if (this._bgmNextTime < c.currentTime - 0.05) {
+      const skip = Math.ceil((c.currentTime - this._bgmNextTime) / this._bgmStepDur);
+      this._bgmStep += skip;
+      this._bgmNextTime += skip * this._bgmStepDur;
+    }
     let guard = 0;
     while (this._bgmNextTime < c.currentTime + ahead && guard++ < 64) {
       this._bgmTick(this._bgmStep, this._bgmNextTime);
