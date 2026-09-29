@@ -403,9 +403,9 @@ window.addEventListener('load', () => {
   ic('btnCfg', Icons.get('gear')); ic('btnBcfg', Icons.get('gear'));
   ic('homeCoinIc', Icons.coin());
   Main.init();
-  // ホームのロゴ（cardfx.js の描き起こしを使う）
+  // ホームのロゴ（2026-09-30 X1：六角の紋＋日本語。紋は scenes.js の Scenes.markSvg）
   const hl = document.getElementById('homeLogo');
-  if (hl && typeof CardFX !== 'undefined') hl.innerHTML = CardFX.logoSvg();
+  if (hl && typeof Scenes !== 'undefined') hl.innerHTML = Scenes.markSvg();
   // タイトル（初めてならオープニングから）。企画書 §19・§26（src/scenes.js）
   if (typeof Scenes !== 'undefined') Scenes.boot();
   // 演出の見本：?packdemo=legendary / epic / rare / common（セーブには触らない）

@@ -139,6 +139,9 @@ const DebugRoom = {
     const cut = (t, s, k) => () => UI.cutin(t, s, k);
     const W = BAL.wavesPerStage;
     return [
+      ['題字（2026-09-30 X1）', [
+        ['タイトル画面（紋 → 帯 → 字の順に出る・タップで閉じる）', () => Scenes.title()],
+      ]],
       ['パック開封', [
         ['コモン', () => CardFX.demo('common')],
         ['レア', () => CardFX.demo('rare')],

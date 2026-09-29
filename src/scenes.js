@@ -51,14 +51,30 @@ const Scenes = {
     else this.title();
   },
 
-  // タイトル：ブラウン管が点いて、題字が出る（企画書 §19「CRT はタイトルで使う・現実とゲームをつなぐ窓」）
+  // 題字の紋（2026-09-30 ユーザー決定 X1 の C3）：六角に X。タイトルとホームのロゴで使う。
+  //   絵ではなく SVG を描き起こす（どの大きさでも滲まない）。色は 黒・オレンジ・黄色・白。回さない・光らせない（数字と同じ可読性の方針）
+  //   カードの裏面・パック開封の箱の上は、いまも CardFX.logoSvg()（歯車のロゴ）のまま（替えるかはユーザーの判断・2026-09-30）
+  markSvg() {
+    return '<svg class="xmark" viewBox="-50 -50 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">' +
+      '<polygon points="45,0 22.5,39 -22.5,39 -45,0 -22.5,-39 22.5,-39" fill="#0a0a0b" stroke="#ff8a1f" stroke-width="6"/>' +
+      '<polygon points="31,0 15.5,27 -15.5,27 -31,0 -15.5,-27 15.5,-27" fill="none" stroke="#ffd21f" stroke-width="2.5" stroke-dasharray="10 6"/>' +
+      '<path d="M-17,-19 L17,19 M17,-19 L-17,19" stroke="#fff" stroke-width="9" stroke-linecap="square"/>' +
+      '<path d="M-17,-19 L17,19" stroke="#ff8a1f" stroke-width="3"/></svg>';
+  },
+
+  // タイトル（2026-09-30 X1）：ブラウン管が点く → 六角の紋が押される → 放送の帯が叩きつけられる → 題字が1字ずつ落ちる（企画書 §19「CRT はタイトルで使う」）。
+  //   紋・帯・字の動きは CSS（.ttl.on の間だけ・fill-mode: both）。ふだんの見た目は出そろった状態なので、動きが止まる端末でも題字は出る
   title(done) {
     const el = Util.el('div', 'ttl');
+    const name = 'エクスメントマキナ';
     el.innerHTML =
       '<div class="ttl-crt"><div class="ttl-in">' +
-        '<div class="ttl-mark">' + (typeof CardFX !== 'undefined' ? CardFX.logoSvg() : '') + '</div>' +
-        '<div class="ttl-name">エクスメントマキナ</div>' +
-        '<div class="ttl-sub">RETRO DEFENDER</div>' +
+        '<i class="ttl-hex"></i><i class="ttl-hz h1"></i><i class="ttl-hz h2"></i>' +
+        '<div class="ttl-osd"><i></i>REC ▶ CH-03</div>' +
+        '<span class="ttl-emb">' + this.markSvg() + '</span>' +
+        '<div class="ttl-band"><span class="ttl-t" role="img" aria-label="' + name + '">' +
+          [...name].map((ch, i) => '<b style="--i:' + i + '">' + ch + '</b>').join('') + '</span>' +
+          '<span class="ttl-e">RETRO DEFENDER</span></div>' +
         '<div class="ttl-start">TAP TO START</div>' +
         '<div class="ttl-pj">PROJECT MAKINA　ver ' + BUILD + '</div>' +
       '</div><i class="ttl-scan"></i></div>';
