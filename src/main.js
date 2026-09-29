@@ -94,7 +94,9 @@ const Main = {
       const r = Skill.buyAll(Game.meta, Game.perm);
       if (r.n) {
         Game.applyMods();
-        UI.toastMsg('自動購入 ' + r.n + '件　コイン ' + Util.fmt(r.spent), '#ff8a1f', 'auto');
+        // 出撃の演出（Sortie）の途中なら、帯が抜ける時刻（準備フェーズの帯と同じ）まで待つ。幕の下で出ると、滑り込みが見えない
+        const msg = () => UI.toastMsg('自動購入 ' + r.n + '件　コイン ' + Util.fmt(r.spent), '#ff8a1f', 'auto');
+        if (cutDelay > 0) setTimeout(msg, cutDelay); else msg();
       }
     }
     UI.setScreen('battle');

@@ -127,6 +127,8 @@ const DebugRoom = {
       ], () => me._skHostEl()],
       ['場面・画面', [
         ['出撃の瞬間（幕・帯・衝撃波）', () => Sortie.demo()],
+        ['出撃の瞬間（ボス章）', () => Sortie.demo(true)],
+        ['出撃の瞬間＋自動購入の通知', () => Sortie.demo(false, true)],
         ['再起動の場面（部屋）', () => Scenes.reboot(null)],
         ['指揮官の記録', () => UI.openProfile(true)],
       ]],

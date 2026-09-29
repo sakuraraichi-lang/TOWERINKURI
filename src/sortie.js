@@ -19,10 +19,17 @@ const Sortie = {
   T_CUT: 640,       // 準備フェーズの帯を出す時刻（出撃の帯が抜けたあと）
   T_END: 1100,      // 片付ける時刻
 
+  // ボス章か（既存のボスのウェーブの判定 Combat.isBossWave を、その章の最後のウェーブで引く。新しい判定は持たない）
+  isBoss(st) {
+    const i = st ? STAGES.indexOf(st) : -1;
+    return i >= 0 && Combat.isBossWave({ wave: BAL.wavesPerStage, stageIdx: i });
+  },
+
   // st … 出撃する章（STAGES の要素）／ go … 切り替えの本体（Main.toBattle）
   play(st, go) {
     if (this._busy) return;
     this._busy = true;
+    const boss = this.isBoss(st);
     const btn = document.getElementById('homeStart');
     if (btn) {
       btn.classList.remove('srt-press'); void btn.offsetWidth;
@@ -33,21 +40,21 @@ const Sortie = {
     let n = 0;
     const title = Array.from('SORTIE').map(ch =>
       '<i class="cc" style="--d:' + (0.1 + n++ * 0.025).toFixed(3) + 's;--y:' + (-30 - ((n * 13) % 26)) + 'px">' + ch + '</i>').join('');
-    const ov = Util.el('div', 'srt');
+    const ov = Util.el('div', 'srt' + (boss ? ' boss' : ''));
     ov.innerHTML = '<i class="srt-cover"></i><i class="srt-lat"></i>' +
       '<div class="srt-band"><i class="srt-bg"></i>' +
-      '<div class="srt-kick">// LAUNCH SEQUENCE　出撃</div>' +
+      '<div class="srt-kick">' + (boss ? '// WARNING　BOSS SECTOR' : '// LAUNCH SEQUENCE　出撃') + '</div>' +
       '<b>' + title + '</b>' +
-      '<span>' + (st && st.name ? st.name : '') + '　出撃</span></div>';
+      '<span>' + (st && st.name ? st.name : '') + (boss ? '　ボス出現' : '　出撃') + '</span></div>';
     document.body.appendChild(ov);
 
     // 叩きつけた瞬間の音と、帯の真ん中からの六角の衝撃波
     setTimeout(() => {
-      try { Snd.waveStart(); } catch (e) {}
+      try { if (boss) Snd.tone({ type: 'sawtooth', f0: 170, f1: 80, dur: 0.32, vol: 0.07 }); Snd.waveStart(); } catch (e) {}
       const band = ov.querySelector('.srt-band');
       if (band && band.isConnected) {
         const r = band.getBoundingClientRect();
-        CardFX.hexShock(ov, r.left + r.width / 2, r.top + r.height / 2, '#ff8a1f', true);
+        CardFX.hexShock(ov, r.left + r.width / 2, r.top + r.height / 2, boss ? '#ff3d4d' : '#ff8a1f', true);
       }
     }, 140);
 
@@ -63,8 +70,24 @@ const Sortie = {
   },
 
   // 確認室から：いま出ている画面の上に、幕と帯だけを出す（切り替えは行わない・セーブは変わらない）
-  demo() {
-    const st = STAGES[6];
-    this.play(st, () => {});
+  //   boss … true ならボス章（第10章）の帯。
+  //   **見本のあいだ、確認室の操作盤は隠す**（本物の出撃では幕の穴から盤が見える。見本では操作盤が穴から透けて見えていた）。
+  //   幕が閉じきった時刻に隠し、片付けと同時に戻す（戻すときは少し透明から）
+  demo(boss, auto) {
+    const st = STAGES[boss ? 9 : 6];
+    this.play(st, (cutDelay) => {
+      // auto … 自動購入の通知つき（本物の出撃と同じく、帯が抜ける時刻まで通知を待たせる）
+      if (auto) setTimeout(() => UI.toastMsg('自動購入 3件　コイン 12.4K', '#ff8a1f', 'auto'), cutDelay);
+      const dbg = document.getElementById('dbg');
+      if (!dbg) return;
+      dbg.style.transition = 'none'; dbg.style.opacity = '0'; dbg.style.pointerEvents = 'none';
+      setTimeout(() => {
+        const d = document.getElementById('dbg');
+        if (!d) return;
+        void d.offsetWidth;
+        d.style.transition = 'opacity .25s ease-out'; d.style.opacity = ''; d.style.pointerEvents = '';
+        setTimeout(() => { if (d.isConnected) d.style.transition = ''; }, 300);
+      }, this.T_END - this.T_GO);
+    });
   },
 };
