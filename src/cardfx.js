@@ -657,4 +657,52 @@ const CardFX = {
     setTimeout(() => aw.classList.add('out'), this.AWK_MS - 300);
     setTimeout(() => aw.remove(), this.AWK_MS);
   },
+
+  // ---- アセンションのレベルアップ（0929v）----
+  //   結果画面の経験値のバー（ui.js の _rsAscBar）が満ちた瞬間に、盤の上へ叩きつける。凸・覚醒（0929s）と同じ言葉：
+  //   暗くなる → 中心から青白い六角が点く → 斜めの帯 →「// ASCENSION LEVEL UP」→ Lv n が赤と青に割れて1字ずつ落ちる →
+  //   火力の前→後とパックの数が VFD の窓に数え上がる → 六角の衝撃波。約2.5秒で片付く（ASC_MS）。押せない層・host が閉じれば一緒に消える
+  //   o … { from, to, dmg0, dmg1, packs }（packs＝配ったパックの数。0なら窓を出さない）。数値は呼んだ側（Asc）が決めたものをそのまま見せる
+  ASC_MS: 2500,
+  // 数を a → b へ数え上げる（VFD の窓）。geo が true なら対数で（×4 ずつ伸びる火力が、桁ごとに等しく進んで見える）
+  _countNum(node, a, b, fmt, delayMs, durMs, geo, onDone) {
+    node.textContent = fmt(a);
+    const t0 = performance.now() + delayMs;
+    const tick = (t) => {
+      if (!node.isConnected) return;
+      const k = Math.max(0, Math.min(1, (t - t0) / durMs)), e = 1 - Math.pow(1 - k, 3);
+      node.textContent = fmt(geo && a > 0 && b > 0 ? a * Math.pow(b / a, e) : a + (b - a) * e);
+      if (k < 1) requestAnimationFrame(tick); else if (onDone) onDone();
+    };
+    requestAnimationFrame(tick);
+  },
+  ascLevelUp(host, o) {
+    const aw = Util.el('div', 'pfx-ascup');
+    const word = 'Lv' + o.to;
+    const chars = Array.from(word).map((ch, i) => '<span class="ch" style="--d:' + (0.2 + i * 0.1).toFixed(2) + 's">' + ch + '</span>').join('');
+    const many = o.to - o.from > 1;
+    aw.innerHTML = '<i class="asc-hex"></i><div class="asc-band"><em>// ASCENSION LEVEL UP</em><b>' + chars + '</b>' +
+      '<span class="asc-name">アセンション　レベル ' + o.from + ' → ' + o.to + (many ? '（+' + (o.to - o.from) + '）' : '') + '</span>' +
+      '<div class="asc-vfds"><div class="asc-vfd av-d"><small>恒久の火力</small><span>×' + Util.fmt(o.dmg0) + '</span><u>→</u><strong>×' + Util.fmt(o.dmg1) + '</strong></div>' +
+      (o.packs > 0 ? '<div class="asc-vfd av-p"><small>パック</small><strong>+0</strong></div>' : '') + '</div></div>';
+    host.appendChild(aw);
+    this.bigShake();
+    Snd.ascend();
+    const band = aw.querySelector('.asc-band');
+    const q = band.getBoundingClientRect();
+    const cx = q.left + q.width / 2, cy = q.top + q.height / 2;
+    this.hexShock(aw, cx, cy, '#6fe6ff', true);
+    this.particles(aw, cx, cy, '#bff4ff', 20, false);
+    const pulse = (vfd) => {
+      vfd.classList.add('done');
+      if (aw.isConnected) { const v = vfd.getBoundingClientRect(); this.hexShock(aw, v.left + v.width / 2, v.top + v.height / 2, '#6fe6ff', 'sm'); }
+    };
+    const vd = aw.querySelector('.av-d');
+    this._countNum(vd.querySelector('strong'), o.dmg0, o.dmg1, (n) => '×' + Util.fmt(n), 700, 800, true, () => pulse(vd));
+    const vp = aw.querySelector('.av-p');
+    if (vp) this._countNum(vp.querySelector('strong'), 0, o.packs, (n) => '+' + Math.round(n), 850, 700, false, () => pulse(vp));
+    setTimeout(() => aw.classList.add('out'), this.ASC_MS - 300);
+    setTimeout(() => aw.remove(), this.ASC_MS);
+    return aw;
+  },
 };

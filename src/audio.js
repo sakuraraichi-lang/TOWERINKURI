@@ -270,6 +270,13 @@ const Snd = {
       setTimeout(() => this.tone({ type: 'sine', f0: f, f1: f * 1.01, dur: 0.9, vol: 0.07 }), 420 + i * 55));
   },
 
+  // アセンションのレベルアップ。低い唸りのあと、青白い和音が駆け上がる
+  ascend() {
+    this.tone({ type: 'sawtooth', f0: 60, f1: 240, dur: 0.5, vol: 0.05 });
+    [392, 523, 659, 784, 1047, 1568].forEach((f, i) =>
+      setTimeout(() => this.tone({ type: 'sine', f0: f, f1: f * 1.005, dur: 0.7, vol: 0.06 }), 380 + i * 70));
+  },
+
   // ---- BGM ----
   // 音階はMIDIノート番号で持つ（読みやすさのため）。440Hz=A4=69
   hz(midi) { return 440 * Math.pow(2, (midi - 69) / 12); },

@@ -26,7 +26,8 @@ const Asc = {
   need(k) { return BAL.ascExpBase * Math.pow(BAL.ascNeedGrowth, k); },
 
   // 恒久の火力（Relic.mods の dmg に掛かる）
-  dmgMul(perm) { return Math.pow(BAL.ascDmgPerLv, this.lv(perm)); },
+  dmgMul(perm) { return this.dmgMulAt(this.lv(perm)); },
+  dmgMulAt(lv) { return Math.pow(BAL.ascDmgPerLv, lv); },   // レベル lv のときの火力（レベルアップの演出が前後を並べるため）
   // レベルが上がったときのパックの数
   packsAt(k) { return Math.round(BAL.ascPackBase * Math.pow(BAL.ascPackGrowth, k)); },
 
@@ -54,7 +55,7 @@ const Asc = {
     if (!this.on(perm)) return null;
     const exp = this.expFor(n, first);
     if (!(exp > 0)) return null;
-    const a = perm.asc, from = a.lv;
+    const a = perm.asc, from = a.lv, exp0 = a.exp;   // exp0＝入れる前の経験値（結果画面のバーが、ここから伸びる）
     a.exp += exp; a.total += exp;
     const packs = {};
     while (a.exp >= this.need(a.lv)) {
@@ -68,6 +69,6 @@ const Asc = {
       }
     }
     if (a.lv !== from) Relic.invalidate();
-    return { exp, from, to: a.lv, packs };
+    return { exp, from, to: a.lv, exp0, exp1: a.exp, packs };
   },
 };

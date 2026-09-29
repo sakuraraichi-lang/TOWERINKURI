@@ -2330,6 +2330,73 @@ const UI = {
     }
   },
 
+  // ================= アセンションの経験値のバー（0929v） =================
+  //   結果画面の下の段。経験値が入ったぶんだけバーが VFD 風に伸び、満ちるたびにレベルが1つ上がる（六角の小さな衝撃波・数字が脈打つ）。
+  //   **何レベル上がっても、バーは満ちて空になってまた伸びる**（1回の突破で2つ上がるときも同じ流れ）。
+  //   最後のレベルに届いた瞬間に「// ASCENSION LEVEL UP」の帯（CardFX.ascLevelUp）を盤の上へ。上がらないときは伸びるだけ。
+  //   数値（経験値・レベル・火力・パック）は Asc.gain が返したものをそのまま見せる。動きは JS が描く（CSS のアニメに頼らない）
+  //   g … Asc.gain の返り値（exp・exp0・exp1・from・to・packs）。delayMs … 結果画面が出てからバーが動き出すまで
+  _rsAscBar(blk, g, delayMs) {
+    const host = this.el.modal;
+    const bar = blk.querySelector('.ra-bar'), fill = bar.querySelector('i');
+    const lvEl = blk.querySelector('.ra-lv'), nx = blk.querySelector('.ra-nx');
+    const need = (k) => Asc.need(k);
+    const p0 = Math.min(1, g.exp0 / need(g.from));
+    const segs = [];
+    for (let lv = g.from; lv < g.to; lv++) segs.push({ lv, a: lv === g.from ? p0 : 0, b: 1, up: true });
+    segs.push({ lv: g.to, a: g.to > g.from ? 0 : p0, b: Math.min(1, g.exp1 / need(g.to)), up: false });
+    // 始まりの状態（1フレーム目から）
+    fill.style.width = (100 * p0).toFixed(1) + '%';
+    lvEl.textContent = g.from;
+    nx.textContent = '次のレベルまで ' + Util.fmt(Math.max(0, need(g.from) - g.exp0));
+    const packs = Object.values(g.packs || {}).reduce((s, n) => s + n, 0);
+    const shock = () => {
+      if (!bar.isConnected) return;
+      const r = bar.getBoundingClientRect(), f = fill.getBoundingClientRect();
+      CardFX.hexShock(host, Math.max(r.left + 6, f.right), r.top + r.height / 2, '#6fe6ff', 'sm');
+    };
+    const flash = (el, cls, ms) => { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); setTimeout(() => el.classList.remove(cls), ms); };
+    let i = 0, t0 = 0, dur = 0;
+    const many = g.to - g.from;
+    const startSeg = (t) => {
+      const s = segs[i];
+      // 1区間の長さ：長く伸びるほど長く（下限つき）。何レベルも上がるときは全体が 2.4 秒あたりに収まるよう縮める
+      dur = (260 + 520 * (s.b - s.a)) * (many > 2 ? 2 / many + 0.35 : 1);
+      t0 = t;
+    };
+    const tick = (t) => {
+      if (!blk.isConnected) return;
+      if (!t0) startSeg(t);
+      const s = segs[i];
+      const k = Math.max(0, Math.min(1, (t - t0) / dur)), e = 1 - Math.pow(1 - k, 2);
+      const p = s.a + (s.b - s.a) * e;
+      fill.style.width = (100 * p).toFixed(1) + '%';
+      nx.textContent = '次のレベルまで ' + Util.fmt(Math.max(0, need(s.lv) * (1 - p)));
+      if (k < 1) { requestAnimationFrame(tick); return; }
+      if (s.up) {
+        // 満ちた：レベルが1つ上がる
+        lvEl.textContent = s.lv + 1;
+        flash(bar, 'full', 320); flash(lvEl, 'pulse', 460); shock(); Snd.ui();
+        if (s.lv + 1 === g.to) {
+          setTimeout(() => {
+            if (!blk.isConnected) return;
+            CardFX.ascLevelUp(host, { from: g.from, to: g.to, dmg0: Asc.dmgMulAt(g.from), dmg1: Asc.dmgMulAt(g.to), packs });
+            blk.classList.add('up');
+            const ln = Util.el('div', 'ra-up', 'レベル ' + g.from + ' → ' + g.to + '　恒久の火力 ×' + Util.fmt(Asc.dmgMulAt(g.from)) + ' → ×' + Util.fmt(Asc.dmgMulAt(g.to)));
+            blk.appendChild(ln);
+          }, 150);
+        }
+        i++; t0 = 0;
+        setTimeout(() => { fill.style.width = '0%'; requestAnimationFrame(tick); }, 130);
+        return;
+      }
+      // 最後まで伸びた
+      nx.textContent = '次のレベルまで ' + Util.fmt(Math.max(0, need(g.to) - g.exp1));
+      if (g.to === g.from) { flash(blk, 'done', 500); shock(); }
+    };
+    setTimeout(() => requestAnimationFrame(tick), delayMs);
+  },
+
   // ================= リザルト =================
   //   **一目で「勝ったか・何を得たか・次へ」だけ分かる形にする。**
   //   （ユーザー 2026-09-25「連続して遊ぶとリザルトがまだ情報量が多く、デザイン性が悪い」）
@@ -2381,9 +2448,14 @@ const UI = {
       body.appendChild(Util.el('div', 'rs-tip', 'アセンションが開きました。第31章から先へ進めます（下の「アセンション」で確認）'));
     }
     if (res.ok && got && got.asc) {
+      // 経験値のバー（0929v）。最終の状態（レベル・次まで・バーの長さ）を先に組み、_rsAscBar が始まりの状態から伸ばす
       const g = got.asc;
-      body.appendChild(Util.el('div', 'rs-tip', 'アセンション経験値 +' + Util.fmt(g.exp) +
-        (g.to > g.from ? '　レベル ' + g.from + ' → ' + g.to + '（火力 ×' + Util.fmt(Asc.dmgMul(Game.perm)) + '）' : '')));
+      const blk = Util.el('div', 'rs-asc');
+      blk.innerHTML = '<div class="ra-h"><em>// ASCENSION</em><span>アセンション経験値</span><b>+' + Util.fmt(g.exp) + '</b></div>' +
+        '<div class="ra-bar"><i style="width:' + Math.min(100, 100 * g.exp1 / Asc.need(g.to)).toFixed(1) + '%"></i></div>' +
+        '<div class="ra-row"><span>Lv <b class="ra-lv">' + g.to + '</b></span>' +
+        '<span class="ra-nx">次のレベルまで ' + Util.fmt(Math.max(0, Asc.need(g.to) - g.exp1)) + '</span></div>';
+      body.appendChild(blk);
     }
 
     // 完璧クリアの案内は1行だけ（取れるもの／取り済み）
@@ -2434,6 +2506,8 @@ const UI = {
     this.el.modal.classList.add('rsmodal');
     const fxColor = perfect ? '#ffe27a' : res.ok ? '#ffc24a' : '#ff4a66';
     this._rsFx(body, fxColor, { perfect });
+    const ascBlk = body.querySelector('.rs-asc');
+    if (ascBlk && got && got.asc) this._rsAscBar(ascBlk, got.asc, (parseFloat(ascBlk.style.getPropertyValue('--dl')) || 0.6) * 1000 + 500);
     // コインは VFD の窓に数え上げる（帯のあと0.4秒から1秒・数え終わりに一度脈打って小さな衝撃波）
     const cw = body.querySelector('.rs-coin'), cb = cw.querySelector('b');
     const total = res.coins || 0;

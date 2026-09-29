@@ -43,6 +43,22 @@ const DebugRoom = {
     });
   },
 
+  // アセンションのレベルアップの見本：本物の結果画面（UI.showResult）に、見本の経験値の入り方（Asc.gain の返り値と同じ形）を載せる。
+  //   perm.asc には触れない（数値はこの関数の中だけ）。up … 上がるレベルの数（0なら経験値が入るだけ）
+  asc(up) {
+    const from = 6, exp0 = Asc.need(from) * 0.55;
+    const to = from + up;
+    let exp = up ? Asc.need(from) * 0.45 : Asc.need(from) * 0.2;
+    for (let k = from + 1; k < to; k++) exp += Asc.need(k);
+    const exp1 = up ? Asc.need(to) * 0.3 : exp0 + exp;
+    if (up) exp += exp1;
+    const packs = {};
+    for (let k = from + 1; k <= to; k++) packs.basic = (packs.basic || 0) + Asc.packsAt(k);
+    const stage = STAGES[MAIN_CHAPTERS] || STAGES[STAGES.length - 1];
+    const res = this._res({ stage, stageGot: { first: true, perfect: false, cards: [], packs, stage, next: stage, asc: { exp, from, to, exp0, exp1, packs } } });
+    UI.showResult(res); this._safe();
+  },
+
   // 一覧：[グループ名, [[ボタンの字, 押したときの関数], …]]
   groups() {
     const me = this;
@@ -69,6 +85,11 @@ const DebugRoom = {
         ['SKIP', () => { UI.showSkipResult({ stage: STAGES[2], next: STAGES[3] }); me._safe(); }],
         ['REBOOT', () => { UI.showPrestigeResult({ prestiges: 3, reward: { relic: 6, basic: 8, arms: 2 } }); me._safe(); }],
         ['再起動の確認', () => UI.confirmPrestige(true)],
+      ]],
+      ['アセンション（レベルアップ）', [
+        ['経験値だけ入る（上がらない）', () => me.asc(0)],
+        ['1レベル上がる', () => me.asc(1)],
+        ['一度に3レベル上がる', () => me.asc(3)],
       ]],
       ['戦闘の上に出るもの', [
         ['カード3択', () => UI.showDraft(me._cards('rare', 1).concat(me._cards('common', 2)))],
