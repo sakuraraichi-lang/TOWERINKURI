@@ -83,7 +83,8 @@ const CardFX = {
   // **ゲームのロゴ**（ユーザー 2026-09-24 に見本画像）。外周の輪と4方向の突起・内側の輪・
   //   矢じりの付いた8本の光条・中心の歯車。画像を貼らずに描き起こす（どの大きさでも滲まない）
   logoSvg() {
-    const rot = (pts, a) => pts.map(([x, y]) => {
+    if (this._logoHtml) return this._logoHtml;   // 何度作っても同じ文字列（まとめて開けると裏面が何十枚も要る）
+    const rot =(pts, a) => pts.map(([x, y]) => {
       const c = Math.cos(a), s = Math.sin(a);
       return (x * c - y * s).toFixed(2) + ',' + (x * s + y * c).toFixed(2);
     }).join(' ');
@@ -95,7 +96,7 @@ const CardFX = {
       const a = i * Math.PI / 4, L = i % 2 ? 23 : 29;
       rays += '<polygon points="' + rot([[0, -L - 3], [4.2, -L + 5], [1.3, -L + 3.6], [1.3, -10], [-1.3, -10], [-1.3, -L + 3.6], [-4.2, -L + 5]], a) + '"/>';
     }
-    return '<svg class="gamelogo" viewBox="-52 -52 104 104" xmlns="http://www.w3.org/2000/svg">' +
+    return this._logoHtml = '<svg class="gamelogo" viewBox="-52 -52 104 104" xmlns="http://www.w3.org/2000/svg">' +
       '<defs><linearGradient id="lgGold" x1="0" y1="0" x2="1" y2="1">' +
         '<stop offset="0" stop-color="#fff4c2"/><stop offset=".4" stop-color="#f2c34a"/>' +
         '<stop offset=".7" stop-color="#b47212"/><stop offset="1" stop-color="#ffe08a"/></linearGradient></defs>' +
@@ -144,8 +145,9 @@ const CardFX = {
   // ---- パックの画面（1個でもまとめてでも同じ） ----
   //   金属の箱。上の帯（つまみ付き）を剥くと、口から光があふれてカードが飛び出す。
   //   glows … 中身のレア度の光（中身が良いほど溜めの光が強い） ／ sub … 箱の下の小さな字
-  _packOverlay(pk, glows, sub, cls) {
-    const best = Math.max.apply(null, glows);
+  //   bestGlow … 最高レア度（まとめて開封は読み込みの間に出してあるので、ここでは数え直さない）
+  _packOverlay(pk, glows, sub, cls, bestGlow) {
+    const best = bestGlow !== undefined ? bestGlow : Math.max.apply(null, glows);
     const bestRar = BAL.rarityOrder[best] || 'common';
     const ov = Util.el('div', 'pfx best-' + bestRar + (cls ? ' ' + cls : ''));
     ov.style.setProperty('--pc', pk.color);
@@ -315,11 +317,14 @@ const CardFX = {
 
   // **口から飛び出して、並びの位置へ。**並べ終えた位置から口までの差を出して、そこから飛ばす。
   //   出し切ったら、空の箱は下へ落ちる（消さない）。gap … 1枚ごとの間隔（ミリ秒）
+  //   **位置を読むのを先に全部済ませてから、書く。**（前は1枚ごとに「読む→書く」を繰り返し、そのたびに並びを計算し直していた。
+  //   まとめて開けると枚数ぶん・カードが飛び出す瞬間に固まった）
   _flyOut(P, slots, rars, gap) {
     const pr = P.pack.getBoundingClientRect();
     const mx = pr.left + pr.width / 2, my = pr.top + pr.height * 0.14;
+    const rects = slots.map(s => s.slot.getBoundingClientRect());
     slots.forEach((s, idx) => {
-      const r = s.slot.getBoundingClientRect();
+      const r = rects[idx];
       s.slot.style.setProperty('--fx', (mx - (r.left + r.width / 2)).toFixed(0) + 'px');
       s.slot.style.setProperty('--fy', (my - (r.top + r.height / 2)).toFixed(0) + 'px');
       s.slot.style.setProperty('--fr', ((idx - (slots.length - 1) / 2) * -14 / Math.max(1, slots.length / 3)).toFixed(0) + 'deg');
@@ -450,21 +455,130 @@ const CardFX = {
     });
   },
 
+  // ---- まとめて開ける：① 読み込み → ② 最高レア度 → ③ 開封の演出 → ④ カードの演出 ----
+  //   ユーザー 2026-09-29「ガチャ演出重すぎ、後半の10〜30パックまとめて引くの想定してる？…計算順序として
+  //   プログレスバー付きローディング(くじ確定/同時に凸計算)→最高レア算出→演出開始→カード演出として、演出中以後の処理の偏りを無くして」
+  //   前は、開ける処理（くじ・凸）を1回の呼び出しで全部やってから、カードの表を捲る瞬間ごとに DOM を作り、画像も捲る瞬間に初めて読んでいた。
+  //   いまは演出が始まる前に、①の間に次を全部済ませる：くじの確定（Pack.open をパックの数だけ）・凸の前後・最高レア度・カードの表（DOM）・絵の展開。
+  LOAD_MIN_MS: 600,       // 読み込み画面を見せる最短の長さ。数字が一瞬で終わっても、復号している感じを残す
+  LOAD_BUDGET_MS: 8,      // 1フレームで計算に使う長さ。超えたら次のフレームへ回す（画面を固めない）
+  LOAD_DECODE_MS: 2500,   // 絵の展開を待つ上限（読めない絵があっても先へ進む）
+
+  // ② 最高レア度と、カードの表（DOM）を作っておく（捲る瞬間には、できあがった表を置くだけ）。絵の展開は下の _decodeBulk
+  _prepBulk(list) {
+    const glows = list.map(e => BAL.rarity[CARDS[e.id].rarity].glow);
+    const best = glows.length ? Math.max.apply(null, glows) : 0;
+    const faces = list.map(e => this.face(CARDS[e.id], { count: e.count !== undefined ? e.count : Game.own(e.id), gain: e.gain, isNew: e.isNew }));
+    const slots = list.map(e => this._slot(CARDS[e.id]));     // 伏せた札（裏面）。並べるのは開封の画面が出てから
+    return { glows, best, faces, slots };
+  },
+  // 絵の展開（同じ絵は1回）。進むたびに onStep。どれかが失敗しても、上限の時間が来ても、先へ進める
+  _decodeBulk(pk, list, pre, onStep) {
+    const seen = {}, jobs = [];
+    const add = (img) => {
+      if (!img || !img.src || seen[img.src]) return;
+      seen[img.src] = true;
+      jobs.push(() => (img.decode ? img.decode() : Promise.resolve()).catch(() => {}));
+    };
+    pre.faces.forEach(f => f.querySelectorAll('img').forEach(add));
+    const urls = { [PACK_IMG[pk.id] || '']: 1 };
+    list.forEach(e => { urls['assets/cardframes/' + CARDS[e.id].rarity + '.png'] = 1; });
+    Object.keys(urls).forEach(u => { if (!u) return; const im = new Image(); im.src = u; add(im); });
+    const total = jobs.length;
+    let done = 0;
+    const all = Promise.all(jobs.map(j => j().then(() => { done++; onStep(done, total); })));
+    const limit = new Promise(r => setTimeout(r, this.LOAD_DECODE_MS));
+    onStep(0, total);
+    return Promise.race([all, limit]);
+  },
+
+  // ① 読み込み画面。job = { total, step(i), commit() → list }
+  //   step(i) … i 番目の1パックぶんのくじを確定する（1フレームに LOAD_BUDGET_MS ぶんずつ、小分けにして呼ぶ）
+  //   commit() … 全部確定したら1回だけ呼ぶ。カード・パックの数の書き込みと保存はここ（途中で閉じても、パックもカードも失われず、二重にもならない）。list を返す
+  //   済んだら openBulk（開封の演出）へ。step のどこかで例外が出たら、commit の前なので何も書かないまま閉じて onDone を呼ぶ
+  loadBulk(pk, packN, job, onDone) {
+    const w = String(packN).length;
+    const ov = Util.el('div', 'pfx pfx-load');
+    ov.style.setProperty('--pc', pk.color);
+    ov.innerHTML =
+      '<div class="pfx-sys"><i class="pfx-grid"></i><i class="pfx-data"></i></div>' +
+      '<div class="ld"><em class="ld-t">// DECRYPTING PACKAGES</em>' +
+        '<div class="ld-n"><strong>' + '0'.repeat(w) + '</strong><u>/</u><span>' + packN + '</span></div>' +
+        '<div class="ld-bar"><i></i></div>' +
+        '<div class="ld-sub">' + pk.name + ' ×' + packN + '</div></div>';
+    document.body.appendChild(ov);
+    Snd.resume && Snd.resume();
+    const numEl = ov.querySelector('.ld-n strong'), barEl = ov.querySelector('.ld-bar i');
+    const t0 = performance.now();
+    let i = 0, list = null, pre = null, prepared = false, real = 0, shown = 0;
+    const setP = (p) => {
+      barEl.style.transform = 'scaleX(' + p.toFixed(3) + ')';
+      numEl.textContent = String(Math.min(packN, Math.floor(p * packN + 1e-6))).padStart(w, '0');
+    };
+    const fail = (e) => {
+      console.error('まとめて開封でエラー（commit の前なら、パックもカードも減っていません）', e);
+      ov.remove();
+      onDone && onDone();
+    };
+    const go = () => {
+      // 演出へ。読み込み画面は、開封の画面が重なって現れたあとに片付ける
+      try { this.openBulk(pk, packN, list, onDone, pre); } catch (e) { fail(e); return; }
+      setTimeout(() => ov.remove(), 320);
+    };
+    const tick = () => {
+      if (!ov.isConnected) return;
+      try {
+        if (i < packN) {
+          // ① くじの確定（Pack.open をパックの数だけ）。1フレームの予算を超えたら次のフレームへ
+          const s0 = performance.now();
+          do { job.step(i++); } while (i < packN && performance.now() - s0 < this.LOAD_BUDGET_MS);
+          real = 0.7 * i / packN;
+        } else if (!list) {
+          // 全部確定：書き込み・保存・凸の前後（commit）→ 最高レア度・カードの表（_prepBulk）
+          list = job.commit();
+          pre = this._prepBulk(list);
+          real = 0.75;
+          this._decodeBulk(pk, list, pre, (d, n) => { real = 0.75 + 0.25 * (n ? d / n : 1); }).then(() => { prepared = true; real = 1; });
+        }
+      } catch (e) { fail(e); return; }
+      // 見せる進み：実際の進みと、時間（最短 LOAD_MIN_MS）の遅いほう
+      shown = Math.max(shown, Math.min(real, (performance.now() - t0) / this.LOAD_MIN_MS));
+      setP(shown);
+      if (prepared && shown >= 1) { setP(1); setTimeout(go, 120); return; }
+      requestAnimationFrame(tick);
+    };
+    requestAnimationFrame(tick);
+  },
+
   // ---- まとめて開ける ----
   //   **前は演出が無く、しかも凸が上がると例外で止まり、パックだけ消えていた。**
   //   （ユーザー 2026-09-25「まとめて開封を押したら演出を挟まずになくなりました。これはよくないですね」）
   //   1個のときと同じ箱を剥き、カードを種類ごとに1枚ずつ伏せて並べ、**低いレア度から順に波のように捲る。**
   //   一番良いものが最後に開く。タップで残りを一気に捲れる。
-  //   list … [{ id, gain, isNew, t0, t1 }]（並べる順） ／ packN … 開けた個数
-  openBulk(pk, packN, list, onDone) {
+  //   list … [{ id, gain, isNew, t0, t1, count? }]（並べる順。count は開けたあとの枚数） ／ packN … 開けた個数
+  //   pre … 読み込み（loadBulk）で済ませた下ごしらえ { glows, best, faces }。無ければここで作る（確認室の見本など）
+  //   **演出が始まってからは、重い計算をしない。**カードの表（DOM）も画像の展開も、読み込みの間に済んでいる
+  openBulk(pk, packN, list, onDone, pre) {
+    pre = pre || this._prepBulk(list);
     const total = list.reduce((a, e) => a + e.gain, 0);
-    const glows = list.map(e => BAL.rarity[CARDS[e.id].rarity].glow);
-    const P = this._packOverlay(pk, glows, packN + ' PACKS · ' + total + ' CARDS', 'bulk');
+    const glows = pre.glows;
+    const P = this._packOverlay(pk, glows, packN + ' PACKS · ' + total + ' CARDS', 'bulk', pre.best);
     const { ov, fx, hint } = P;
     let phase = 'pack';
-    const grid = Util.el('div', 'pfx-bulk');
+    const grid = Util.el('div', 'pfx-bulk pending');   // pending … まだ伏せた札が見えない間は、スクロールの帯も出さない
     ov.insertBefore(grid, P.row);
-    const slots = [];
+    const slots = pre.slots;
+    // 伏せた札は、開封の画面が出てから少し置いてタップを待つあいだに並べておく（visibility:hidden の .pre）。
+    //   タップのあとの「箱を剥く」場面で、何十枚ぶんの並びの計算（レイアウト）が走って固まらないように
+    let attached = false;
+    const attach = () => {
+      if (attached) return;
+      attached = true;
+      const frag = document.createDocumentFragment();
+      slots.forEach(s => frag.appendChild(s.slot));
+      grid.appendChild(frag);
+    };
+    setTimeout(attach, 350);
 
     // 捲る順：レア度の低い順（同じなら並びの後ろから）。一番良いものを最後に
     const order = list.map((e, i) => i).sort((a, b) => glows[a] - glows[b] || b - a);
@@ -474,7 +588,7 @@ const CardFX = {
       if (s.done) return;
       s.done = true;
       const e = list[i], c = CARDS[e.id], g = glows[i];
-      const el = this.face(c, { count: Game.own(e.id), gain: e.gain, isNew: e.isNew });
+      const el = pre.faces[i];
       s.front.appendChild(el);
       s.slot.classList.add('flipped');
       if (!quiet || g >= 2) Snd.flip(g);
@@ -513,11 +627,8 @@ const CardFX = {
     };
     const deal = () => {
       phase = 'cards';
-      list.forEach(e => {
-        const s = this._slot(CARDS[e.id]);
-        grid.appendChild(s.slot);
-        slots.push(s);
-      });
+      attach();
+      grid.classList.remove('pending');
       const gap = Math.max(25, Math.min(120, 1200 / list.length));
       this._flyOut(P, slots, list.map(e => CARDS[e.id].rarity), gap);
       hint.textContent = 'タップで全部めくる';

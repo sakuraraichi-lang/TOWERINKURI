@@ -3,7 +3,7 @@
 //
 //   URL に ?debugroom を付けて開く（タイトルは出さない）。⚙ の設定の一番下にも入口がある。
 //   ボタンを押すと、その演出が**見本のデータで**その場に出る。**セーブは変わらない**：
-//     ・パックは CardFX.demo / openBulk（中身は見本。パックの数は減らない）
+//     ・パックは CardFX.demo / openBulk（中身は見本。パックの数は減らない）。まとめて開封の「読み込みから」は本物の loadBulk を通す（Pack.open は本物・実セーブには書かない）
 //     ・結果画面・再起動の結果は見本の数字。押すボタンは「閉じる」だけにつなぎ替える（次の章へ進まない・再起動しない）
 //     ・再起動の確認は demo 付き（UI.confirmPrestige(true)）。押しても Game.prestige() は呼ばれない
 //     ・3択は demo 付き（UI.showDraft(ids)）。選んでもカードを取らず、戦闘も止めない
@@ -124,6 +124,8 @@ const DebugRoom = {
         ['覚醒（3→4凸）', () => CardFX.demoTotu(4)],
         ['凸（覚醒のあと 4→5凸）', () => CardFX.demoTotu(5)],
         ['まとめて開封（覚醒あり）', () => me.bulk(true)],
+        ['まとめて開封（10パック・読み込みから）', () => me.bulkFlow(10)],
+        ['まとめて開封（30パック・読み込みから）', () => me.bulkFlow(30)],
       ]],
       ['結果画面', [
         ['CLEAR', () => { UI.showResult(me._res()); me._safe(); }],
@@ -268,6 +270,24 @@ const DebugRoom = {
     // 覚醒（3→4凸）が1枚：並びの最後に開き、全部開いたあとに大きく見せる
     if (awake) by('rare', 6).slice(4, 5).forEach((id) => list.push({ id, gain: 1, isNew: false, t0: 3, t1: 4 }));
     CardFX.openBulk(PACKS.basic, 5, list, null);
+  },
+
+  // まとめて開封の流れ全体の見本（0929x）：① 読み込み画面（くじ確定・凸）→ ② 最高レア度 → ③ 開封 → ④ カード。
+  //   本物の Pack.open を n 回呼び、本物の読み込み（CardFX.loadBulk）と並びの組み立て（UI.bulkList）を通す。
+  //   **実セーブには書かない**（パックも減らず、カードも増えず、保存もしない）。枚数は手元の集計（いまの所持＋出た枚数）で出す
+  bulkFlow(n) {
+    const pid = 'arms', luck = Skill.mods(Game.meta, Game.perm).packLuck;
+    const got = {}, before = {};
+    CardFX.loadBulk(PACKS[pid], n, {
+      total: n,
+      step: () => {
+        for (const id of Pack.open(pid, luck)) {
+          if (before[id] === undefined) before[id] = Game.own(id);
+          got[id] = (got[id] || 0) + 1;
+        }
+      },
+      commit: () => UI.bulkList(got, before, id => before[id] + got[id]),
+    }, null);
   },
 
   // レジェンドの割り込みだけ（放送停止 → 金の六角 → 警告 → 錠）。開封の箱の上に重ねて出し、終わったら消す

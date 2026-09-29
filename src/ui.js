@@ -1780,6 +1780,12 @@ const UI = {
   // ================= 開封（ガチャ画面） =================
   // 持っているぶんを全部いっぺんに開ける。
   //   中身は1個ずつ開けたときと完全に同じ（同じ Pack.open を回数ぶん呼ぶだけ）。見せ方は CardFX.openBulk
+  //
+  //   **流れ（ユーザー 2026-09-29「ガチャ演出重すぎ」）**：① 読み込み画面（CardFX.loadBulk）でくじを全部確定し、凸も計算する
+  //   → ② 最高レア度 → ③ 開封の演出 → ④ カードの演出。**演出が始まってからは、重い計算をしない。**
+  //   ① は 1フレームの予算（CardFX.LOAD_BUDGET_MS）で小分けにして回す。**その間は Game に何も書かない**（手元の集計だけ）。
+  //   全部確定したら commit で、カードの加算・パックの減算・保存を1回でまとめて行う
+  //   ＝ 途中で閉じてもパックもカードも減らず（二重にもならず）、保存のあとは演出を閉じてもカードは失われない
   openPackBulk(pid) {
     if (this._opening) return;
     const n = Game.perm.packs[pid] || 0;
@@ -1787,32 +1793,40 @@ const UI = {
     this._opening = true;
     const luck = Skill.mods(Game.meta, Game.perm).packLuck;
     const got = {};            // cardId -> 枚数
-    const fresh = {};          // 初めて手に入れたか
-    const before = {};         // 開ける前の枚数（凸が上がったかを見る）
-    for (let k = 0; k < n; k++) {
-      for (const id of Pack.open(pid, luck)) {
-        if (before[id] === undefined) before[id] = Game.own(id);
-        if (Game.own(id) === 0 && !got[id]) fresh[id] = true;
-        got[id] = (got[id] || 0) + 1;
-        Game.grant(id, 1);
-      }
-    }
-    Game.perm.packs[pid] = 0;
-    Game.save();
-
-    // **凸が上がったカードを先に並べる。**そのあとレア度の高い順
-    const list = Object.keys(got).map(id => ({
-      id, gain: got[id], isNew: !!fresh[id],
-      t0: Game.totuOf(before[id]), t1: Game.totuOf(Game.own(id)),
-    }));
-    const up = (e) => !CARDS[e.id].noRank && e.t1 > e.t0;
-    list.sort((a, b) => up(b) - up(a) ||
-      BAL.rarityOrder.indexOf(CARDS[b.id].rarity) - BAL.rarityOrder.indexOf(CARDS[a.id].rarity));
-    CardFX.openBulk(PACKS[pid], n, list, () => {
+    const before = {};         // 開ける前の枚数（凸が上がったかを見る・初めて手に入れたかもここから）
+    CardFX.loadBulk(PACKS[pid], n, {
+      total: n,
+      // 1パックぶん。**同じ Pack.open を、パックの数だけ呼ぶ**（中身は前と同じ）
+      step: () => {
+        for (const id of Pack.open(pid, luck)) {
+          if (before[id] === undefined) before[id] = Game.own(id);
+          got[id] = (got[id] || 0) + 1;
+        }
+      },
+      commit: () => {
+        for (const id of Object.keys(got)) Game.grant(id, got[id]);
+        Game.perm.packs[pid] = Math.max(0, (Game.perm.packs[pid] || 0) - n);
+        Game.save();
+        return this.bulkList(got, before, id => Game.own(id));
+      },
+    }, () => {
       this._opening = false;
       this._gsFx = 'tick';
       this.renderPanel();
     });
+  },
+
+  // まとめて開封で並べるカード（種類ごとに1枚）。**凸が上がったカードを先に並べる。**そのあとレア度の高い順
+  //   got … cardId → 増えた枚数 ／ before … 開ける前の枚数 ／ countOf(id) … 開けたあとの枚数（確認室の見本は、実セーブに書かないので別の式で渡す）
+  bulkList(got, before, countOf) {
+    const list = Object.keys(got).map(id => ({
+      id, gain: got[id], isNew: before[id] === 0, count: countOf(id),
+      t0: Game.totuOf(before[id]), t1: Game.totuOf(countOf(id)),
+    }));
+    const up = (e) => !CARDS[e.id].noRank && e.t1 > e.t0;
+    list.sort((a, b) => up(b) - up(a) ||
+      BAL.rarityOrder.indexOf(CARDS[b.id].rarity) - BAL.rarityOrder.indexOf(CARDS[a.id].rarity));
+    return list;
   },
 
   // **1回のタップで2枚以上減ることがあった。**（ユーザー報告 2026-09-22・最優先）
