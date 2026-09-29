@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>題字の見比べ</title>
+<!-- 題字の案を見比べるためだけのページ（2026-09-30）。ゲーム本体（index.html・style.css）には触れていない。
+     ユーザー「このゲームの雰囲気のリスペクト元はゼンレスゾーンゼロが最も近いです…イメージ元はゼンレスゾーンゼロでお願いします」
+     取るのは雰囲気の要素だけ（太い斜体・ステッカーとグラフィティの街の空気・黒と蛍光色・アナログテレビ/VHS・網点・テープの切り貼り）。
+     あちらのロゴ・字体・固有の意匠は写さない。字体はどれも Google Fonts の一般の字体 -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Anton&family=Dela+Gothic+One&family=Chakra+Petch:wght@600;700&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#07080c;--ink:#f4f1e8;--lime:#d4ff2a;--yel:#ffd21f;--mag:#ff2e88;--cy:#26e0ff;--dim:#8a8f9c;}
+*{box-sizing:border-box;}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,sans-serif;}
+body{padding:16px 16px 40px;}
+header{max-width:1200px;margin:0 auto 14px;}
+header h1{margin:0 0 4px;font-size:18px;}
+header p{margin:0;color:var(--dim);font-size:12px;line-height:1.6;}
+.bar{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;}
+.bar button{font:700 13px system-ui;padding:8px 14px;border-radius:6px;border:1px solid #333a48;background:#141821;color:var(--ink);cursor:pointer;}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:16px;max-width:1200px;margin:0 auto;}
+.card{background:#0c0e14;border:1px solid #232834;border-radius:10px;overflow:hidden;}
+.card h2{margin:0;padding:10px 12px;font-size:14px;border-bottom:1px solid #232834;display:flex;justify-content:space-between;align-items:baseline;}
+.card h2 small{color:var(--dim);font-weight:400;font-size:11px;}
+.card .note{padding:8px 12px 12px;font-size:12px;color:var(--dim);line-height:1.6;}
+/* 画面の見本：スマホの縦長を想定 */
+.stage{position:relative;aspect-ratio:9/15;overflow:hidden;isolation:isolate;
+  background:radial-gradient(ellipse at 50% 38%,#1a1f2c 0%,#07080c 70%);}
+.stage::after{content:'';position:absolute;inset:0;pointer-events:none;z-index:9;
+  background:repeating-linear-gradient(0deg,rgba(0,0,0,.18) 0 1px,transparent 1px 3px);opacity:.5;}
+.hex{position:absolute;inset:-20%;opacity:.07;z-index:0;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='52' height='90' viewBox='0 0 52 90'%3E%3Cpath d='M26 0l26 15v30L26 60 0 45V15zM26 60v30M0 45l-26 15M52 45l26 15' fill='none' stroke='%23ffffff' stroke-width='1'/%3E%3C/svg%3E") 0 0/44px 76px;}
+.tap{position:absolute;left:0;right:0;bottom:9%;text-align:center;font:700 11px 'Chakra Petch',system-ui;letter-spacing:.4em;color:rgba(244,241,232,.7);z-index:5;animation:blink 1.4s steps(2) infinite;}
+@keyframes blink{50%{opacity:.25;}}
+
+/* ============ 案A：ステッカー ============
+   街の壁に貼られたステッカー。白い太字に黒い縁、蛍光の黄色の影を斜めにずらす。角にテープ、後ろに網点 */
+.A .wrap{position:absolute;left:52%;top:40%;transform:translate(-50%,-50%) rotate(-5deg);width:84%;z-index:3;}
+.A .dots{position:absolute;left:-8%;right:20%;top:-30%;bottom:-18%;z-index:-1;
+  background:radial-gradient(circle,var(--yel) 34%,transparent 36%) 0 0/9px 9px;opacity:.85;
+  -webkit-mask:linear-gradient(135deg,#000 30%,transparent 80%);mask:linear-gradient(135deg,#000 30%,transparent 80%);}
+.A .jp{display:block;font-family:'Dela Gothic One',sans-serif;font-size:clamp(28px,9.4vw,42px);line-height:1.02;letter-spacing:.02em;color:#fff;
+  -webkit-text-stroke:7px #0a0a0a;paint-order:stroke fill;text-shadow:6px 7px 0 var(--yel),6px 7px 0 var(--yel);}
+.A .jp span{display:block;}
+.A .jp span+span{margin-left:.9em;}
+.A .en{display:inline-block;margin-top:10px;margin-left:8%;padding:5px 12px 4px;background:#0a0a0a;color:var(--lime);
+  font:400 clamp(18px,6vw,26px) 'Anton',sans-serif;letter-spacing:.14em;transform:skewX(-12deg) rotate(3deg);box-shadow:4px 4px 0 var(--mag);}
+.A .tape{position:absolute;width:74px;height:22px;background:rgba(255,236,160,.78);z-index:4;
+  box-shadow:0 1px 2px rgba(0,0,0,.4);clip-path:polygon(3% 0,97% 4%,100% 50%,96% 100%,2% 96%,0 50%);}
+.A .tape.t1{left:-4%;top:-8%;transform:rotate(-24deg);}
+.A .tape.t2{right:-2%;bottom:-6%;transform:rotate(-18deg);}
+.A .tag{position:absolute;right:6%;top:9%;z-index:3;font:700 10px 'Chakra Petch';letter-spacing:.2em;color:#0a0a0a;background:var(--lime);padding:3px 7px;transform:rotate(6deg);}
+.A.play .wrap{animation:stickIn .55s cubic-bezier(.2,1.6,.4,1) both;}
+.A.play .en{animation:stickEn .4s cubic-bezier(.2,1.6,.4,1) .35s both;}
+.A.play .tape{animation:fadeIn .2s ease-out .55s both;}
+@keyframes stickIn{0%{transform:translate(-50%,-50%) rotate(-18deg) scale(1.6);opacity:0;}100%{transform:translate(-50%,-50%) rotate(-5deg) scale(1);opacity:1;}}
+@keyframes stickEn{0%{transform:skewX(-12deg) rotate(3deg) translateX(-40px);opacity:0;}100%{transform:skewX(-12deg) rotate(3deg);opacity:1;}}
+@keyframes fadeIn{0%{opacity:0;}100%{opacity:1;}}
+
+/* ============ 案B：放送の帯（アナログテレビ／VHS） ============
+   斜めの黒い帯に白い太字。色が赤と青に割れて1字ずつ落ちる（結果画面の語彙）。左上に録画の表示、下に時刻 */
+.B .osd{position:absolute;left:7%;top:7%;z-index:6;font:700 12px 'Chakra Petch';letter-spacing:.12em;color:#fff;text-shadow:0 0 1px #000;}
+.B .osd i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--mag);margin-right:6px;animation:blink 1s steps(2) infinite;}
+.B .osd2{position:absolute;right:7%;bottom:17%;z-index:6;font:700 12px 'Chakra Petch';letter-spacing:.12em;color:#fff;}
+.B .band{position:absolute;left:-6%;right:-6%;top:33%;z-index:3;transform:skewY(-7deg);padding:18px 0 14px;
+  background:#050506;border-top:3px solid var(--cy);border-bottom:3px solid var(--mag);}
+.B .jp{display:block;text-align:center;font-family:'Dela Gothic One',sans-serif;font-size:clamp(30px,10vw,44px);color:#fff;letter-spacing:.04em;
+  text-shadow:-3px 0 rgba(255,46,136,.85),3px 0 rgba(38,224,255,.85);}
+.B .jp b{display:inline-block;font-weight:400;}
+.B .en{display:block;text-align:center;margin-top:6px;font:400 clamp(16px,5.4vw,22px) 'Anton',sans-serif;letter-spacing:.42em;color:var(--yel);}
+.B .glitch{position:absolute;left:0;right:0;height:10%;top:52%;z-index:4;background:rgba(255,255,255,.06);mix-blend-mode:screen;}
+.B.play .band{animation:bandIn .35s cubic-bezier(.2,.9,.3,1) both;}
+.B.play .jp b{animation:drop .4s cubic-bezier(.2,1.5,.4,1) both;animation-delay:calc(.25s + var(--i) * .05s);}
+.B.play .en{animation:fadeIn .3s ease-out .8s both;}
+.B.play .glitch{animation:gl 1.2s steps(6) .1s both;}
+@keyframes bandIn{0%{transform:skewY(-7deg) scaleY(0);}70%{transform:skewY(-7deg) scaleY(1.2);}100%{transform:skewY(-7deg) scaleY(1);}}
+@keyframes drop{0%{transform:translateY(-70px);opacity:0;}100%{transform:none;opacity:1;}}
+@keyframes gl{0%{top:10%;}20%{top:70%;}40%{top:30%;}60%{top:58%;}80%{top:40%;}100%{top:52%;opacity:0;}}
+
+/* ============ 案C：看板（グラフィティ寄りの大きな英字＋日本語の札） ============
+   大きな英字 EXMENT／MACHINA を斜体で重ね、蛍光の黄緑。日本語の正式名は黄色の札に黒字。網点のにじみと、スプレーの飛沫 */
+.C .wrap{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);width:92%;z-index:3;}
+.C .big{display:block;font:400 clamp(58px,19vw,86px)/.84 'Anton',sans-serif;color:var(--lime);letter-spacing:.01em;
+  transform:skewX(-10deg);text-shadow:4px 4px 0 #0a0a0a,7px 7px 0 var(--mag);}
+.C .big.l2{margin-left:14%;color:#fff;text-shadow:4px 4px 0 #0a0a0a,7px 7px 0 var(--cy);}
+.C .plate{display:inline-block;margin:12px 0 0 4%;padding:6px 12px 5px;background:var(--yel);color:#0a0a0a;
+  font:400 clamp(20px,6.6vw,28px) 'Dela Gothic One',sans-serif;letter-spacing:.06em;transform:rotate(-3deg);box-shadow:3px 3px 0 #0a0a0a;}
+.C .sub{display:block;margin:8px 0 0 5%;font:700 12px 'Chakra Petch';letter-spacing:.5em;color:var(--dim);}
+.C .spray{position:absolute;right:4%;top:18%;width:34%;aspect-ratio:1;z-index:2;opacity:.55;
+  background:radial-gradient(circle,var(--mag) 0 2px,transparent 3px) 0 0/11px 13px;
+  -webkit-mask:radial-gradient(circle,#000 20%,transparent 68%);mask:radial-gradient(circle,#000 20%,transparent 68%);}
+.C.play .big{animation:slideR .45s cubic-bezier(.2,1.1,.3,1) both;}
+.C.play .big.l2{animation-delay:.12s;}
+.C.play .plate{animation:stamp .35s cubic-bezier(.2,1.8,.4,1) .45s both;}
+.C.play .sub{animation:fadeIn .3s ease-out .7s both;}
+@keyframes slideR{0%{transform:skewX(-10deg) translateX(-120%);}100%{transform:skewX(-10deg);}}
+@keyframes stamp{0%{transform:rotate(-3deg) scale(2.2);opacity:0;}100%{transform:rotate(-3deg) scale(1);opacity:1;}}
+</style>
+</head>
+<body>
+<header>
+  <h1>題字の見比べ（案A・B・C）</h1>
+  <p>雰囲気の手本：ゼンレスゾーンゼロ（取るのは要素だけ。ロゴ・字体・意匠は写していません）。どれも1枚の画面の見本で、ゲーム本体にはまだ入っていません。<br>
+     「もう一度」で出てくる動きを見直せます。気に入った案、組み合わせたい部分（例：Aの縁取り＋Cの英字）を教えてください。</p>
+  <div class="bar"><button id="replay">もう一度（出てくる動き）</button></div>
+</header>
+<div class="grid">
+  <section class="card">
+    <h2>案A：ステッカー <small>街の壁に貼られた1枚</small></h2>
+    <div class="stage A" data-v>
+      <i class="hex"></i>
+      <span class="tag">DEFENSE SYS.</span>
+      <div class="wrap">
+        <i class="dots"></i><i class="tape t1"></i><i class="tape t2"></i>
+        <span class="jp"><span>エクスメント</span><span>マキナ</span></span>
+        <span class="en">RETRO DEFENDER</span>
+      </div>
+      <div class="tap">TAP TO START</div>
+    </div>
+    <div class="note">白い太字に黒い縁、黄色の影を斜めにずらしたステッカー。角にテープ、後ろに網点。いちばん「街」っぽい。</div>
+  </section>
+  <section class="card">
+    <h2>案B：放送の帯 <small>アナログテレビ／VHS</small></h2>
+    <div class="stage B" data-v>
+      <i class="hex"></i>
+      <div class="osd"><i></i>REC ▶ CH-03</div>
+      <div class="band"><span class="jp" id="bjp"></span><span class="en">RETRO DEFENDER</span></div>
+      <i class="glitch"></i>
+      <div class="osd2">SP 00:30:00</div>
+      <div class="tap">PRESS START</div>
+    </div>
+    <div class="note">斜めの黒い帯に白い太字。字は赤と青に割れて1字ずつ落ちる（ゲーム内の結果画面・ウェーブの帯と同じ語彙）。再起動のテレビとつながる。</div>
+  </section>
+  <section class="card">
+    <h2>案C：看板 <small>大きな英字＋日本語の札</small></h2>
+    <div class="stage C" data-v>
+      <i class="hex"></i><i class="spray"></i>
+      <div class="wrap">
+        <span class="big">EXMENT</span>
+        <span class="big l2">MACHINA</span>
+        <span class="plate">エクスメントマキナ</span>
+        <span class="sub">RETRO DEFENDER</span>
+      </div>
+      <div class="tap">TAP TO START</div>
+    </div>
+    <div class="note">大きな英字を斜体で重ね、日本語の正式名は黄色の札。遠目にいちばん目立つ。英字の綴り（EXMENT MACHINA）は仮なので、正式な英字名があれば差し替えます。</div>
+  </section>
+</div>
+<script>
+// 案Bの1字ずつ落ちる字
+const t = 'エクスメントマキナ';
+document.getElementById('bjp').innerHTML = [...t].map((ch, i) => '<b style="--i:' + i + '">' + ch + '</b>').join('');
+const play = () => document.querySelectorAll('[data-v]').forEach(s => { s.classList.remove('play'); void s.offsetWidth; s.classList.add('play'); });
+document.getElementById('replay').addEventListener('click', play);
+document.fonts && document.fonts.ready ? document.fonts.ready.then(play) : play();
+</script>
+</body>
+</html>
