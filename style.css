@@ -2796,3 +2796,11 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 .htitle{text-shadow:0 1px 0 rgba(0,0,0,.65);}
 /* 版（右上の ver …）：色が暗すぎて読めなかった（背景との比 2.2）。字体を数字の字体にし、比 5 前後まで明るくする。目立たせない小さい字のまま */
 #build{font-family:var(--font-num);font-weight:600;font-size:10px;color:#7d838f;}
+
+/* ===== 0929zi：数字の光のぼかしを、ホーム以外の窓からも消す（2026-09-30 ユーザー「数字のぼかしはまぁ同じように消しといてください」）=====
+   0929zg でホームの数字（.hpill）の光を消したのと同じ方針。光の text-shadow の代わりに、下へ1px の暗い影で輪郭を立てる。
+   対象：結果画面の獲得コイン・パックの台の所持数・カットインの番号・凸の札・覚醒とアセンションと読み込みの窓・開封の復号の数字・
+   スキルの前→後・アセンションの結果の行・編成の数の枠。数え終わる瞬間の光（rsCoinDone・gsTick）と、大きな見出しの光は演出なので残す */
+.rs-coin b,.gs-vfd b,#cutin .ci-n,.cfu-v,.cfu-v strong,.awk-vfd,.awk-vfd strong,.asc-vfd,.asc-vfd strong,.ld-n,.ld-n strong,
+.pfx-hud-c b,.skfx-read b,.skfx-band span b,.ra-h b,.ra-row b,.lo-num b,.tpoints b{text-shadow:0 1px 0 rgba(0,0,0,.65);}
+.lo-num b,.tpoints b{font-family:var(--font-num);font-variant-numeric:tabular-nums;}
