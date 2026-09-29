@@ -2128,7 +2128,9 @@ const UI = {
     body.appendChild(row);
     this.openModal(body, true);
     // 裏面は表が出たあとは要らない（動きが止まる端末でも、いつまでも表を隠さないように片付ける）
-    setTimeout(() => { body.querySelectorAll('.ch-back').forEach(x => x.remove()); }, 1200);
+    //   見出しの光の帯（.ch-sweep）も片付ける。動きの終わりに右の外（translateX 420%）で止まったまま残り、
+    //   箱が横にスクロールできてしまっていた（375px・エピック／レジェンド入りの3択で 386/345px。0929zd の作業で発見）
+    setTimeout(() => { body.querySelectorAll('.ch-back, .ch-sweep').forEach(x => x.remove()); }, 1200);
   },
 
   // 選んだ瞬間：カードの位置に六角の衝撃波。カードは上の武器の枠（連携は先頭の武器・武器に属さないものは「汎用」）へ吸い込まれ、枠の数が1つ増える

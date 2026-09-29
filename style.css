@@ -2760,3 +2760,12 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
   .draft .chrow{gap:4px;}
   .draft.fx::before{inset:-10px -6px;}   /* 六角の格子は箱の余白いっぱいまで（余白より外へ出すと箱が横にも縦にもスクロールしてしまう） */
 }
+/* 0929ze：3択の箱が横にスクロールしていた（375px・エピック／レジェンド入りで 369/345px）。
+   レジェンドのカードの後ろの六角の光（.ch-face.g3 の疑似要素）が箱より横に広がっていたため。横だけ切り取る（clip はスクロールの器を作らない） */
+.draft{overflow-x:clip;}
+/* 0929ze：本当の原因はカードそのもの。札の幅が 28vw（375px で 105px）の決め打ちで、器（313px）を見ていなかったので、
+   3枚とすき間で 325px になり3枚目が 12px はみ出していた。列を器の幅で割り、札はその列に収まる大きさ（最大は今までの大きさ）にする */
+.draft .chrow{grid-template-columns:repeat(3,minmax(0,1fr));}
+.draft .chcard.cfpick{min-width:0;}
+.draft .chcard.cfpick .ch-face{width:100%;max-width:clamp(96px,28vw,150px);}
+.draft .chcard.cfpick .cf{width:100%;}
