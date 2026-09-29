@@ -620,8 +620,9 @@ const Game = {
   },
 
   // ---------- 配置 ----------
-  // 保存形式： perm.placements[stageId] = [ {w, c, r, a, arc}, ... ]
-  //   w=武器id  c,r=タイル  a=向き(rad)  arc=射界の半角(rad)
+  // 保存形式： perm.placements[stageId] = [ {w, c, r, a, ax, ay}, ... ]
+  //   w=武器id  c,r=六角  a=向き(rad)  ax,ay=着弾点（指定攻撃だけ）
+  //   **射界（arc）は武器の固定値になったので保存しない**（2026-09-30 段1a）。古いセーブに残っている arc は読み捨てる
   placementsFor(stageId) {
     const p = this.perm.placements;
     if (!Array.isArray(p[stageId])) p[stageId] = [];
@@ -672,7 +673,7 @@ const Game = {
   },
 
   // ユニットを1つ作る。**置く（placeUnit）と読み戻す（restoreUnits）の両方がここを通る**
-  newUnit(weaponId, c, r, face, arc) {
+  newUnit(weaponId, c, r, face) {
     const def = WEAPONS[weaponId];
     const st = this.run.stage;
     const pos = st.hexCenter(c, r);
@@ -680,7 +681,7 @@ const Game = {
       id: weaponId, def, s: Object.assign({}, def.base), flags: {}, dyn: { heat: 0 }, n: 1,
       c, r, x: pos.x, y: pos.y,
       face: this.snapFace(face !== undefined ? face : this.defaultFacing(st, c, r, def)),   // 保存された向き（360度の頃のもの）も6方向に丸める
-      arc: arc !== undefined ? arc : def.base.arc,
+      arc: def.arcFix,   // 射界は武器ごとの固定値（2026-09-30 段1a）。保存された値は読まない
       angle: 0, cd: 0, target: null, aim: null, shots: 0, muzzle: 0,
     };
     u.angle = u.face;
@@ -818,60 +819,44 @@ const Game = {
     return true;
   },
 
-  // 絞れる幅は**武器ごとに違う**。
-  //   扇は「首振り扇風機」で、その範囲をずっと撫で続けるもの。
-  //   だから全部の武器が同じ幅に広げられると、常に広げたほうが得になってしまう。
-  //   スナイパーはほぼ直線まで絞れて貫通を活かす。火炎放射器は絞れず広く焼く
-  arcRange(def) {
-    return {
-      min: (def && def.arcMin !== undefined) ? def.arcMin : BAL.arcMin,
-      max: (def && def.arcMax !== undefined) ? def.arcMax : BAL.arcMax,
-    };
-  },
+  // **射界は武器ごとの固定値**（`WEAPONS[id].arcFix`）。プレイヤーが変える手段は無い（2026-09-30 段1a・設計書 §2-3）。
+  //   以前は武器ごとの可動幅（arcMin〜arcMax）をスライダーで動かせたが、実測で
+  //   「幅の選びだけで漏れが最大19.5倍動く」＝置く場所・向きより幅の選びが効いており、戦略を削っていた
+  //   （docs/audit/2026-09-29-measure.md §3）。`Game.setArc`・`Game.arcRange` は撤去した。
+  //   プレイヤーが決めるのは、置く場所・向き（六角の花）・指定攻撃の円の位置だけ
 
-  setArc(u, delta) {
-    if (!this.canBuild()) return false;
-    const r = this.arcRange(u.def);
-    u.arc = Util.clamp(u.arc + delta, r.min, r.max);
-    this.syncPlacements();
-    return true;
-  },
-
-  // スライダーの位置（0=最も絞る / 1=最も広げる）
+  // 射界カード（多銃身・暴発装薬・薙ぎ払い）が読む「広さ」（0〜1）。
+  //   **段3でカードを作り直すまでの橋。**幅は固定になったので、固定の幅が旧可動幅（`def.arcCard`）の
+  //   どこにあるかを返す（ガトリング 0.34 → 0.34、手裏剣 0.38 → 0.42）。arcCard が無い武器は 0
   arcT(u) {
-    const r = this.arcRange(u.def);
-    return Util.clamp((u.arc - r.min) / Math.max(0.001, r.max - r.min), 0, 1);
+    const r = u.def && u.def.arcCard;
+    if (!r) return 0;
+    return Util.clamp((u.arc - r[0]) / Math.max(0.001, r[1] - r[0]), 0, 1);
   },
 
-  // 扇の広さから集弾率を出す。**その武器が絞れる幅の中で**どれだけ絞れているか
+  // 集弾率。**幅に比例する罰は外した**（2026-09-30 段1a。固定の幅では罰の意味が無い）。
+  //   常に 1。例外は暴発装薬（looseGroup）だけで、これは「集弾が最低固定」の効果を持つカードの本体
   groupingOf(u) {
-    // 指定攻撃には掛けない。**あちらは着弾円の面積で密度が決まる**ので、
-    // ここで倍率も掛けると「絞ると強い」を二重取りすることになる
     if (this.usesAimPoint(u.def)) return 1;
-    // 暴発装薬：**絞っても散る。** 絞る意味が消えるので、広げる側が正解になる
     if (u.flags && u.flags.looseGroup) return 1 - BAL.spreadPenalty;
-    return 1 - this.arcT(u) * BAL.spreadPenalty;
+    return 1;
   },
 
-  // 指定攻撃の着弾円の半径。スライダーをそのまま半径に読み替える。
+  // 指定攻撃の着弾円の半径。**武器ごとの固定値**（`def.spot`・px）。プレイヤーは変えられない。
   //
-  // **下端は「1発ぶんの爆風」。** それより小さく絞っても、爆風どうしが
-  // 完全に重なるだけで密度は増えず、届く面だけが減る（＝絞り損）。
-  // 実測：迫撃砲を爆風の1/3まで絞ると、ちょうどいい幅の 33撃破 に対して 6撃破 だった。
-  // 爆風はカードで大きくなるので、下端もそれに追随させる
-  spotRange(def) { return (def && def.spot) || [30, 150]; },
+  // **「1発ぶんの爆風」を下回らない。** それより小さくしても、爆風どうしが
+  // 完全に重なるだけで密度は増えず、届く面だけが減る（＝絞り損。実測：迫撃砲を爆風の1/3まで絞ると
+  // ちょうどいい幅の 33撃破 に対して 6撃破）。爆風はカードで大きくなるので、円も追随させる
+  spotRange(def) { return (def && def.spot) || 30; },
   spotR(u) {
-    const s = this.spotRange(u.def);
-    const lo = Math.max(s[0], u.s.splash || 0);
-    const hi = Math.max(lo + 24, s[1]);
-    return lo + (hi - lo) * this.arcT(u);
+    return Math.max(this.spotRange(u.def), u.s.splash || 0);
   },
 
   syncPlacements() {
     const run = this.run;
     if (!run) return;
     this.perm.placements[run.stageId] = run.units.map(u => ({
-      w: u.id, c: u.c, r: u.r, a: +u.face.toFixed(4), arc: +u.arc.toFixed(4),
+      w: u.id, c: u.c, r: u.r, a: +u.face.toFixed(4),
       // 着弾点を持つ武器は、その点も覚える
       ax: (u.ax === undefined || u.ax === null) ? null : Math.round(u.ax),
       ay: (u.ay === undefined || u.ay === null) ? null : Math.round(u.ay),
@@ -934,7 +919,7 @@ const Game = {
       used[p.w] = (used[p.w] || 0) + 1;
       if (used[p.w] > this.unitCap(p.w)) continue;
       if (run.units.length >= this.slotsTotal()) continue;
-      const nu = this.newUnit(p.w, p.c, p.r, p.a, p.arc);
+      const nu = this.newUnit(p.w, p.c, p.r, p.a);   // p.arc（古いセーブの射界）は読まない
       if (p.ax !== undefined && p.ax !== null) { nu.ax = p.ax; nu.ay = p.ay; }
       run.units.push(nu);
       // 保存に着弾点が無い古いデータでも、必要な武器なら既定の点を入れておく
@@ -1027,9 +1012,8 @@ const Game = {
     run.mods = mods;
     run.st = mods.relic.st;
     for (const u of run.units) {
-      const keepArc = u.arc;
       u.s = Object.assign({}, u.def.base);
-      u.s.arc = keepArc;
+      u.s.arc = u.arc;
       // **武器カードの凸。**（ユーザー 2026-09-24「入手出来るカード全てに」）
       //   同じ武器カードが被るほど、その武器の基本ダメージが上がる。倍率は他のカードと同じ rankMul
       u.s.dmg *= this.rankMul('wc_' + u.id);

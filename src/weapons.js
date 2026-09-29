@@ -18,7 +18,7 @@ const CATEGORIES = {
   // ミサイルを指定攻撃へ移したので、いまここはスナイパー1本。
   // 「広い範囲を1基で見る」のは指定攻撃の仕事になったため、説明もそれに合わせた
   long:    { id: 'long',    name: '長射程',   icon: Icons.get('long'), color: '#6fe3ff',
-             desc: '遠くの一線を撃ち抜く。狙いを絞るほど報われる' },
+             desc: '遠くの一線を撃ち抜く。長い直線に置くほど報われる' },
   area:    { id: 'area',    name: '範囲攻撃', icon: Icons.get('area'), color: '#ff6a2a',
              desc: '一度に広い面を焼く。密集しているほど強い' },
   target:  { id: 'target',  name: '指定攻撃', icon: Icons.get('target'), color: '#c9a0ff',
@@ -59,8 +59,7 @@ function baseStats(o) {
     fieldR: 0,      // 設置する場の半径
     fieldDur: 0,    // 場の持続秒
     fieldVuln: 0,   // 場の中の敵が受けるダメージの増分（0.2 = +20%）
-    arc: 0.40,      // 射界の半角(rad)。プレイヤーが広げ狭めできる初期値
-                    // **指定攻撃ではこれが「着弾円の大きさ」のつまみになる**
+    arc: 0.40,      // 射界の半角(rad)。**武器ごとの固定値（`WEAPONS[id].arcFix`）が下のループで入る。プレイヤーは変えられない**
     turn: 7,        // 砲身が扇の中で振れる速さ(rad/s)。向きそのものは動かない
   }, o);
 }
@@ -74,10 +73,9 @@ function baseStats(o) {
 //   1. 砲弾は着弾するまで当たり判定を持たない。敵も壁も素通りする
 //      → 射線を持たないので、スナイパーやガトリングが欲しい地面を食わない。
 //        **好きな場所に置ける**のが、この分類の対価
-//   2. 円を絞るほど強い。**倍率は掛けていない。**
-//        絞る → 同じ発射数が狭い面に落ちる → 同じ敵に重なる
-//        広げる → 道を外した砲弾はただの空振りになる
-//   3. spot:[最小半径, 最大半径] が、そのつまみの効く幅（px）
+//   2. **円の大きさは武器ごとの固定値**（2026-09-30 段1a・スライダー撤去）。`spot` が半径（px）。
+//        爆風がカードで大きくなったときだけ、それに追随して広がる（`Game.spotR`）。
+//        プレイヤーが決めるのは円を置く位置だけ
 // ---------------------------------------------------------------
 
 
@@ -103,7 +101,7 @@ function baseStats(o) {
 const WEAPONS = {
   // ============ 初期装備 ============
   gatling: {
-    id: 'gatling', stock: 5, cat: 'mid', name: 'ガトリング', short: 'GAT', icon: Icons.get('gatling'), color: '#ffd24a', src: 'start', arcMin: 0.1, arcMax: 0.8,
+    id: 'gatling', stock: 5, cat: 'mid', name: 'ガトリング', short: 'GAT', icon: Icons.get('gatling'), color: '#ffd24a', src: 'start', arcFix: 0.34, arcCard: [0.1, 0.8],
     desc: '毎秒大量の小口径弾。単発は弱いが手数で押す。',
     //   **唯一の初期武器なので、これ1種で第1〜2章を持たせる必要がある。**（2026-09-21）
     //   ユーザー決定「初期武器はガトリングでよし」で初期所持を1種に絞ったが、
@@ -131,7 +129,7 @@ const WEAPONS = {
     //     **dmg9 貫通3 … 3,3,3,2,3,3,2,3,2,3（どのシードも2章以上）**
     //   ユーザー方針「プレイヤーを絞る方向で考えない」に従い、
     //   序盤を絞るのではなく**初期武器を上げて**合わせる
-    base: baseStats({ arc: 0.34, dmg: 9, rate: 5.5, range: 195, spread: 0.07, speed: 640, bulletR: 2.6, turn: 9, pierce: 3 }),
+    base: baseStats({ dmg: 9, rate: 5.5, range: 195, spread: 0.07, speed: 640, bulletR: 2.6, turn: 9, pierce: 3 }),
     fire(w, run) {
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n * 0.7 : 1);
@@ -151,7 +149,7 @@ const WEAPONS = {
   },
 
   sniper: {
-    id: 'sniper', stock: 8, cat: 'long', name: 'スナイパー', short: 'SNP', icon: Icons.get('sniper'), color: '#6fe3ff', src: 'stage', arcMin: 0.03, arcMax: 0.3,
+    id: 'sniper', stock: 8, cat: 'long', name: 'スナイパー', short: 'SNP', icon: Icons.get('sniper'), color: '#6fe3ff', src: 'stage', arcFix: 0.16,
     // **貫通役。** 並んだ敵を撃ち抜くのが仕事なので、狙うのは「敵が濃いほう」。
     // 以前は最も硬い敵（＝たいてい後方のタンク）を狙っていて、
     // 1.28秒に1発しかないのに目の前の群れを素通りしていた
@@ -176,7 +174,7 @@ const WEAPONS = {
     //   代わりに**弾を太く（4→20）して貫通を伸ばした（3→20）。**
     //   通路の幅ぶんを一撃で薙ぐ形になり、**レート据置のまま 439 → 31**。
     //   弾28・貫通30 まで広げても 33 で頭打ちなので、20/20 が折れ点
-    base: baseStats({ arc: 0.16, dmg: 34, rate: 0.78, range: 430, spread: 0.012, speed: 1500, pierce: 20, bulletR: 20, turn: 3.5 }),
+    base: baseStats({ dmg: 34, rate: 0.78, range: 430, spread: 0.012, speed: 1500, pierce: 20, bulletR: 20, turn: 3.5 }),
     fire(w, run) {
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (i === 0 ? 1 : w.n);
@@ -189,22 +187,22 @@ const WEAPONS = {
   // ============ ステージ報酬（王道TD＋化学兵器） ============
   missile: {
     id: 'missile', stock: 4, cat: 'target', name: 'ミサイル', short: 'MSL', icon: Icons.get('missile'), color: '#ff7a3c', src: 'stage',
-    arcMin: 0.08, arcMax: 0.42, aimPoint: true, spot: [72, 150],
-    desc: '置いた円の中へ爆撃を降らせ続ける。円を絞るほど一点に集まる。',
+    arcFix: 0.08, aimPoint: true, spot: 72,
+    desc: '置いた円の中へ爆撃を降らせ続ける。円の大きさは決まっていて、置く場所で決まる。',
     // **【2026-09-21】12種を同じ条件で測って、床を上げた。**
     //   第10章・単独編成・3シードの dps 中央値。刀68 → 触手9 で **7.6倍の開き**があった。
     //   ユーザー方針「プレイヤーを絞る方向で考えない／疑うべきは君のデフレ思考」に従い、
     //   **一番上（刀）は触らず、下だけ中央値（約26）へ引き上げる。**
     //   ミサイルは**第5章の突破報酬**なのに、12種中11位（13）だった。
     //   ダメージ16→26・レート1.0→1.4 で 26。実測 13 → 26
-    base: baseStats({ arc: 0.30, dmg: 26, rate: 1.4, range: 330, speed: 430, splash: 72, bulletR: 5, turn: 5 }),
+    base: baseStats({ dmg: 26, rate: 1.4, range: 330, speed: 430, splash: 72, bulletR: 5, turn: 5 }),
     // **ミサイルは噴射炎と煙を引く。**（ユーザー 2026-09-22「絵と中身の矛盾を解消して」）
     //   丸が滑っていくだけでは、名前がミサイルである理由が絵に出ない
     fire(w, run) { Combat.bombard(w, run, '#ff7a3c', { rocket: true }); },
   },
 
   tesla: {
-    id: 'tesla', stock: 6, cat: 'short', name: 'テスラコイル', short: 'TSL', icon: Icons.get('tesla'), color: '#b58bff', src: 'stage', arcMin: 0.3, arcMax: 1.1,
+    id: 'tesla', stock: 6, cat: 'short', name: 'テスラコイル', short: 'TSL', icon: Icons.get('tesla'), color: '#b58bff', src: 'stage', arcFix: 0.55,
     desc: '砲身の先へ即着の電撃。当たると次々に連鎖して、群れをまとめて焼く。',
     // **【2026-09-22】下から2番目だった**（第15章・単独・12シード・漏れの中央値 264）。
     //   振って確かめた（6シード・中央値）：
@@ -221,7 +219,7 @@ const WEAPONS = {
     //   スリップを実装したが、測ったら**感電を起こす武器が1つも無かった**
     //   （`shockDur` が0で、カード3枚と遺物1個でしか付かない）。
     //   電気の武器が感電させないのは、テーマと実装の食い違い。素で起こすようにする
-    base: baseStats({ arc: 0.55, dmg: 11, rate: 1.6, range: 200, chain: 8, chainFalloff: 0.95, shockDur: 1.2 }),
+    base: baseStats({ dmg: 11, rate: 1.6, range: 200, chain: 8, chainFalloff: 0.95, shockDur: 1.2 }),
     fire(w, run) {
       if (!w.target) return;
       Combat.chainLightning(w, run, w.target, w.s.chain, w.s.dmg);
@@ -230,10 +228,10 @@ const WEAPONS = {
   },
 
   flame: {
-    id: 'flame', wallThrough: true, /* 壁を抜ける：範囲もの */ stock: 1, cat: 'area', name: '火炎放射器', short: 'FLM', icon: Icons.get('flame'), color: '#ff6a2a', src: 'stage', arcMin: 0.45, arcMax: 1.4,
+    id: 'flame', wallThrough: true, /* 壁を抜ける：範囲もの */ stock: 1, cat: 'area', name: '火炎放射器', short: 'FLM', icon: Icons.get('flame'), color: '#ff6a2a', src: 'stage', arcFix: 0.45,
     desc: '短射程の扇状に炎を吹き続ける。当たった敵は燃え続ける。',
     // 火炎は 17（12種中9位）。ダメージ3.4→5・レート9→12 で 25。実測 17 → 25
-    base: baseStats({ arc: 0.50, dmg: 5, rate: 12, range: 130, cone: 0.42, burn: 0.55, burnDur: 3, turn: 5 }),
+    base: baseStats({ dmg: 5, rate: 12, range: 130, cone: 0.42, burn: 0.55, burnDur: 3, turn: 5 }),
     fire(w, run) {
       Combat.coneDamage(w, run, w.angle, w.s.cone, w.s.range, w.s.dmg, {
         color: '#ffb066', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur,
@@ -256,7 +254,7 @@ const WEAPONS = {
     //   雲を撒く武器なので、効いているのは雲の重なりと持続であって1発の威力ではない。
     //   凍結装置（35で単独突破する）・触手（16→26でも17止まり）と同じで、
     //   **この3種は「1秒あたりのダメージ」では測りきれない。**上げても無駄になる
-    id: 'gas', wallThrough: true, /* 壁を抜ける：範囲もの */ stock: 8, cat: 'area', name: '毒ガス散布機', short: 'GAS', icon: Icons.get('gas'), color: '#8fd94a', src: 'stage', arcMin: 0.38, arcMax: 1.25,
+    id: 'gas', wallThrough: true, /* 壁を抜ける：範囲もの */ stock: 8, cat: 'area', name: '毒ガス散布機', short: 'GAS', icon: Icons.get('gas'), color: '#8fd94a', src: 'stage', arcFix: 0.55,
     desc: '砲身の先へ毒の雲を撒き続ける。雲の中の敵は毒を受け続け、防御が落ちる。',
     // **【2026-09-22】狙撃たちを上げたら、今度はここが最下位になった**（第15章・12シード・中央値71）。
     //   ここでも威力は効かない（ダメージ 7→21 で 56 → **64**。上の2026-09-21 の観察どおり）。
@@ -266,7 +264,7 @@ const WEAPONS = {
     //     雲を長く 5.5→11 … 47
     //   **効くのは雲の広さ。**撒く武器なので当然で、
     //   1発の毒を濃くするより、通路をどれだけ覆えるかで決まる
-    base: baseStats({ arc: 0.55, dmg: 7, rate: 0.42, range: 300, speed: 260, bulletR: 5,
+    base: baseStats({ dmg: 7, rate: 0.42, range: 300, speed: 260, bulletR: 5,
                       fieldR: 130, fieldDur: 5.5, fieldVuln: 0.2, slow: 0.15, slowDur: 1 }),
     fire(w, run) {
       if (!w.target) return;
@@ -281,9 +279,9 @@ const WEAPONS = {
   },
 
   cryo: {
-    id: 'cryo', stock: 1, cat: 'support', name: '凍結装置', short: 'CRY', icon: Icons.get('cryo'), color: '#7fe6ff', src: 'stage', arcMin: 0.4, arcMax: 1.2,
+    id: 'cryo', stock: 1, cat: 'support', name: '凍結装置', short: 'CRY', icon: Icons.get('cryo'), color: '#7fe6ff', src: 'stage', arcFix: 0.75,
     desc: '周囲へ冷気を放つ。敵は大きく減速し、凍った敵は受けるダメージが増える。',
-    base: baseStats({ arc: 0.75, dmg: 6, rate: 0.9, range: 165, slow: 0.55, slowDur: 2.4 }),
+    base: baseStats({ dmg: 6, rate: 0.9, range: 165, slow: 0.55, slowDur: 2.4 }),
     fire(w, run) {
       Combat.pulse(w, run, w.s.range, w.s.dmg, {
         color: '#bff0ff', slow: w.s.slow, slowDur: w.s.slowDur, chill: true,
@@ -296,9 +294,9 @@ const WEAPONS = {
 
   // ============ パック限定（なんでもあり枠） ============
   katana: {
-    id: 'katana', wallThrough: true, /* 壁を抜ける：間合いの中をまとめて斬る */ stock: 5, cat: 'short', name: '刀', short: 'KTN', icon: Icons.get('katana'), color: '#f4f6fb', src: 'pack', arcMin: 0.35, arcMax: 1.25,
+    id: 'katana', wallThrough: true, /* 壁を抜ける：間合いの中をまとめて斬る */ stock: 5, cat: 'short', name: '刀', short: 'KTN', icon: Icons.get('katana'), color: '#f4f6fb', src: 'pack', arcFix: 0.80,
     desc: '間合いに入った敵をまとめて斬る。射程は短いが一撃が重く、会心が乗る。',
-    base: baseStats({ arc: 0.80, dmg: 58, rate: 1.5, range: 100, cone: 1.5, crit: 0.2, critMul: 2.5, turn: 12 }),
+    base: baseStats({ dmg: 58, rate: 1.5, range: 100, cone: 1.5, crit: 0.2, critMul: 2.5, turn: 12 }),
     fire(w, run) {
       // 二刀（ktn_twin）：1回の斬撃で斬る回数（count）
       const n = Math.max(1, w.n || 1);
@@ -314,9 +312,9 @@ const WEAPONS = {
   },
 
   shuriken: {
-    id: 'shuriken', stock: 4, cat: 'mid', name: '手裏剣', short: 'SHU', icon: Icons.get('shuriken'), color: '#cdd9e8', src: 'pack', arcMin: 0.15, arcMax: 0.7,
+    id: 'shuriken', stock: 4, cat: 'mid', name: '手裏剣', short: 'SHU', icon: Icons.get('shuriken'), color: '#cdd9e8', src: 'pack', arcFix: 0.38, arcCard: [0.15, 0.7],
     desc: '敵から敵へ跳ね回る投擲。密集しているほど手が付けられなくなる。',
-    base: baseStats({ arc: 0.38, dmg: 13, rate: 2.2, range: 230, speed: 520, bulletR: 5, bounce: 3, turn: 10 }),
+    base: baseStats({ dmg: 13, rate: 2.2, range: 230, speed: 520, bulletR: 5, bounce: 3, turn: 10 }),
     fire(w, run) {
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n : 1);
@@ -326,7 +324,7 @@ const WEAPONS = {
   },
 
   tentacle: {
-    id: 'tentacle', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ stock: 8, cat: 'support', name: '触手', short: 'TNT', icon: Icons.get('tentacle'), color: '#c85ab0', src: 'pack', arcMin: 0.2, arcMax: 0.8,
+    id: 'tentacle', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ stock: 8, cat: 'support', name: '触手', short: 'TNT', icon: Icons.get('tentacle'), color: '#c85ab0', src: 'pack', arcFix: 0.34,
     desc: '砲身の先にいる敵を掴んで来た道へ引き戻す。掴まれている間は削られ続ける。',
     // **【2026-09-22】同時に2体まで掴めなかったのが、そのまま弱さだった。**
     //   前は「1体ずつ掴む武器だから数字を上げても頭打ち」と書いて諦めていたが、
@@ -344,7 +342,7 @@ const WEAPONS = {
     //   ここでも**ダメージ26→78 は無反応（424→424）**で、効くのは掴む数だけ：
     //     3 → 424 ／ 4 → 73 ／ 5 → 50 ／ **6 → 24** ／ 7 → 13 ／ 8 → 23
     //   6 を採る（12種の真ん中は約37）
-    base: baseStats({ arc: 0.34, dmg: 26, rate: 1.2, range: 210, count: 6, knock: 105, knockDur: 1.3, turn: 9 }),
+    base: baseStats({ dmg: 26, rate: 1.2, range: 210, count: 6, knock: 105, knockDur: 1.3, turn: 9 }),
     fire(w, run) {
       const t = w.target;
       if (!t) return;
@@ -354,19 +352,19 @@ const WEAPONS = {
 
   bubble: {
     id: 'bubble', stock: 1, cat: 'target', name: '泡', short: 'BBL', icon: Icons.get('bubble'), color: '#8ad8ff', src: 'pack',
-    arcMin: 0.12, arcMax: 0.55, aimPoint: true, spot: [58, 120],
+    arcFix: 0.12, aimPoint: true, spot: 58,
     desc: '置いた円の中へ泡を降らせ、割れた場所の敵を閉じ込める。',
     // 泡は 15（12種中10位）。ダメージ10→16・レート1.1→1.5 で 26。実測 15 → 26
-    base: baseStats({ arc: 0.34, dmg: 16, rate: 1.5, range: 250, speed: 300, bulletR: 9,
+    base: baseStats({ dmg: 16, rate: 1.5, range: 250, speed: 300, bulletR: 9,
                       stunDur: 1.8, splash: 58, splashMul: 1.0 }),
     fire(w, run) { Combat.bombard(w, run, '#8ad8ff'); },
   },
 
   mortar: {
     id: 'mortar', stock: 7, cat: 'target', name: '迫撃砲', short: 'MTR', icon: Icons.get('mortar'), color: '#e0b060', src: 'stage',
-    arcMin: 0.08, arcMax: 0.45, aimPoint: true, spot: [96, 170],
+    arcFix: 0.08, aimPoint: true, spot: 96,
     desc: '置いた円の中へ重い砲弾を降らせ続ける。射程は長いが発射は遅い。',
-    base: baseStats({ arc: 0.26, dmg: 42, rate: 0.55, range: 420, speed: 240, bulletR: 6,
+    base: baseStats({ dmg: 42, rate: 0.55, range: 420, speed: 240, bulletR: 6,
                       splash: 96, splashMul: 1.0, turn: 2.4 }),
     fire(w, run) { Combat.bombard(w, run, '#e0b060'); },
   },
@@ -374,14 +372,16 @@ const WEAPONS = {
 
 const WEAPON_IDS = Object.keys(WEAPONS);
 
-// 初期の扇が、その武器の絞れる幅からはみ出していないか。
-// **はみ出していると、置いた瞬間だけ範囲外の値になる**ので起動時に潰す
+// **射界は武器ごとの固定値。**（2026-09-30 段1a・設計書 §2-3／§7-1）
+//   `arcFix` を初期の扇（`base.arc`）に入れる。プレイヤーが幅を変える手段は無い（スライダー・`Game.setArc` は撤去）。
+//   決め方（実測 `docs/audit/2026-09-29-measure.md` §3・第25章・12本）：
+//     火炎 0.45（可動幅の最小が3章とも最良）／ガトリング 0.34・刀 0.80（初期値が最良）／
+//     ミサイル・迫撃砲・泡は円が最小（`spot`）。**この3つの `arcFix` は旧可動幅の最小（0.08／0.08／0.12）**。
+//       指定攻撃は扇を持たないので arc は「置いた瞬間の向き」と測定器の自動配置の場所選びにしか効かない。
+//       着弾円を最小にした実測（§3）と同じ状態にそろえるため、旧可動幅の最小のままにした／スナイパー・テスラ・毒ガス・凍結・手裏剣・触手はこれまでの初期値のまま（段3で見直す）
+//   `arcCard` はカード3枚（多銃身・暴発装薬・薙ぎ払い）が「広さ」を読むための旧可動幅。段3でカードを作り直すまでの橋（`Game.arcT`）
 for (const wid of WEAPON_IDS) {
   const d = WEAPONS[wid];
-  const lo = d.arcMin !== undefined ? d.arcMin : BAL.arcMin;
-  const hi = d.arcMax !== undefined ? d.arcMax : BAL.arcMax;
-  if (d.base.arc < lo || d.base.arc > hi) {
-    console.error('武器の初期の扇が絞れる幅の外にある:', wid, d.base.arc, lo, hi);
-    d.base.arc = Math.min(hi, Math.max(lo, d.base.arc));
-  }
+  if (typeof d.arcFix !== 'number') { console.error('武器に固定の射界(arcFix)が無い:', wid); continue; }
+  d.base.arc = d.arcFix;
 }

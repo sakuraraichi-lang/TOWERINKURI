@@ -600,12 +600,14 @@ const Combat = {
     if (run.bullets.length > 1200) run.bullets.shift();
     o = o || {};
     const s = w.s;
-    // 扇を広げているほど弾がばらける。狭く絞れば一点に集まる
+    // 集弾率が1未満のときだけ弾がばらける。**射界は固定になった（2026-09-30 段1a）ので、幅に比例する罰は無い。**
+    // 1未満になるのは暴発装薬（looseGroup）だけ
     const g = w.group !== undefined ? w.group : 1;
     if (g < 1) angle += Util.rand(-1, 1) * (1 - g) * BAL.spreadRad;
     const speed = s.speed * (o.speedMul || 1);
     let dmg = s.dmg * (o.dmgMul || 1);
-    // 散撃砲身：**扇の広さがそのまま威力になる。** 広げる側にも見返りを置く
+    // 薙ぎ払い・暴発装薬：**扇の広さ（Game.arcT）が威力になる。** 幅は武器ごとの固定値なので、
+    // 乗る倍率は武器ごとに決まっている（段3でカードを作り直すまでの形）
     if (w.flags.wideDmg) dmg *= 1 + Game.arcT(w) * w.dyn.wideDmg;
     if (w.id === 'sniper' && run.resonance > 0) dmg *= (1 + run.resonance);
 
@@ -787,9 +789,8 @@ const Combat = {
   },
 
   // この発射で撃つ弾数。
-  // **扇を広げるのが得になるカード**（多銃身）がここに乗る。
-  // 広げるとカバー範囲は増えるが集弾率が落ちる、という一方通行だったので、
-  // 「広さそのものを利益に変える」道をカードで用意している
+  // 多銃身（gat_barrels）がここに乗る。扇の広さ（Game.arcT）に比例して増える。
+  // 幅は武器ごとの固定値になった（2026-09-30 段1a）ので、増える数もガトリングでは一定
   shotCount(w) {
     let n = w.s.count;
     if (w.flags.wideCount) n += Math.round(Game.arcT(w) * w.dyn.wideCount);
@@ -804,8 +805,8 @@ const Combat = {
   //   ・砲弾は **着弾するまで一切の当たり判定を持たない**（敵も壁も素通りする）。
   //     だから射線を持たず、スナイパーやガトリングが置きたい地面を食わない。
   //     好きな場所に置けるのが、この分類の強み
-  //   ・**円を絞るほど強い。** 倍率は掛けていない。同じ発射数が狭い面に落ちるので
-  //     同じ敵に重なるだけ。広げれば、道を外した砲弾はただの空振りになる
+  //   ・**円の大きさは武器ごとの固定値**（Game.spotR）。倍率は掛けていない。
+  //     円を道の多い所へ置くほど、同じ発射数が同じ敵に重なる。道を外した砲弾はただの空振りになる
   bombard(w, run, color, o) {
     const p = w.aim;
     if (!p) return;
@@ -1267,7 +1268,7 @@ const Combat = {
         w.cd = 1 / Math.max(0.02, rate);
         w.muzzle = 0.07;
         w.shots++;
-        w.group = Game.groupingOf(w);  // 扇の広さで決まる集弾率。fire から参照する
+        w.group = Game.groupingOf(w);  // 集弾率（常に1。暴発装薬だけ下がる）。fire から参照する
         w.n = this.shotCount(w);       // この発射で撃つ弾数。fire から参照する
         this._by = w.id;               // この発射で起きたダメージは、この武器のもの（damage の記録）
         w.def.fire(w, run);

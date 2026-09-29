@@ -763,14 +763,13 @@ const UI = {
     // 調整パネルが出ているあいだ、チュートリアルの帯は上に逃がす（重なるため）
     this.el.stage.classList.add('popopen');
 
-    // 指定攻撃は扇を持たない。**同じつまみが「着弾円の大きさ」になる**
+    // **射界も着弾円の大きさも、武器ごとの固定値**（2026-09-30 段1a・スライダー撤去）。ここは見せるだけ
     const spot = Game.usesAimPoint(u.def);
     const uInfoText = () => spot
       // **単位は六角。**盤に見えているのは六角で、タイル（40px）はもう画面に出ない。
       //   隣り合う六角の中心どうしは √3·R 離れているので、直径をそれで割る
       ? '着弾範囲 六角' + (Math.round(Game.spotR(u) * 2 / (Math.sqrt(3) * MapGen.HEX_R) * 10) / 10) + '個ぶん'
-      : '射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) +
-        '°　集弾 ' + Math.round(Game.groupingOf(u) * 100) + '%';
+      : '射界 ' + Math.round(u.arc * 2 * 180 / Math.PI) + '°';
 
     // 掴んで動かす取っ手。ここだけがドラッグを受ける
     const info = Util.el('div', 'usel uhandle');
@@ -780,31 +779,10 @@ const UI = {
     this.bindPopDrag(info);
     p.appendChild(info);
 
-    // **向きも射界もバーで決める。**なぞって向けるのはスマホでうまく効かなかった
-    const bar = (label, min, max, val, oninput) => {
-      const wrap = Util.el('label', 'ubar');
-      wrap.appendChild(Util.el('span', null, label));
-      const r = Util.el('input');
-      r.type = 'range'; r.min = min; r.max = max; r.step = 1; r.value = val;
-      r.disabled = !build;
-      r.addEventListener('input', () => oninput(+r.value));
-      wrap.appendChild(r);
-      return wrap;
-    };
     // **向きは六角の6方向から選ぶ。**（2026-09-25・プレイヤーの感想「360度ある意味がない」→ ユーザー採用）
     //   0929y：板の中の矢印ボタンの列をやめ、**選んだ武器の六角のまわりに、辺ごとに六角のボタンを出す**（盤の上・Render.dirRing。押す処理は Main.bindPlacement）。
-    //   向きの意味・保存（perm.placements の a）・射界の計算は前のまま
+    //   向きの意味・保存（perm.placements の a）は前のまま。**射界のスライダーは撤去した**（射界は武器ごとの固定値）
     if (build) p.appendChild(Util.el('div', 'udhint', '向き：まわりの六角をタップ'));
-    const ar = Game.arcRange(u.def);
-    const arcPct = Math.round(Game.arcT(u) * 100);
-    p.appendChild(bar(spot ? '着弾範囲' : '射界', 0, 100, arcPct, (v) => {
-      const want = ar.min + (ar.max - ar.min) * (v / 100);
-      Game.setArc(u, want - u.arc);
-      this.tutAimed = true;
-      const el = document.getElementById('uInfo');
-      if (el) el.textContent = uInfoText();
-      Game.save();
-    }));
 
     const row = Util.el('div', 'urow');
     const mk = (label, fn, cls) => {

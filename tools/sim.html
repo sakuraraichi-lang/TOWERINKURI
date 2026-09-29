@@ -207,27 +207,13 @@ function aimField(st, range, arc, thru) {
 }
 
 // ---------------------------------------------------------------
-// 扇の幅の実験（2026-09-19 追加）
+// 扇の幅（2026-09-30 段1a で「固定」に変えた）
 //
-// **これまで測定器は扇の幅を一度も変えていなかった。**
-// 「絞ると集弾率が上がる／広げると守備範囲が増える」という中核のメカニクスが
-// 測定にまったく入っていなかったので、幅を比べられるようにする。
-//
-// ARC_MODE
-//   'base'   … 武器の初期値のまま（これまでの挙動）
-//   'min'    … 最大まで絞る
-//   'max'    … 最大まで広げる
-//   'approx' … 下の近似評価で選ぶ
-//
-// **【重要】'approx' は近似です。**
-// 「扇に入る通路の重み × 集弾率」が最大になる幅を選ぶだけで、
-//   ・敵が実際にどこに固まるか
-//   ・弾が飛んでいる間に敵が動くこと
-//   ・味方同士の射線の重なり
-// を一切見ていません。**どの幅が本当に強いかは、実際に戦闘を回して比べます。**
-// 近似がその答えと一致するとは限らず、一致しない場合はそれ自体が結果です。
+// **射界は武器ごとの固定値（`WEAPONS[id].arcFix`）で、プレイヤーも測定器も動かせない。**
+// 以前ここにあった ARC_MODE（base／min／max／approx）・arcScores・applyArc・opts.arc は撤去した
+// （ユーザー「テストプレイをあなたにさせる時もその方がランダム性がなく良い」）。
+// 幅を選ぶ処理が無いので、置き方の差は「置く場所・向き・指定攻撃の円の位置」だけで出る。
 // ---------------------------------------------------------------
-let ARC_MODE = 'base';
 
 // 1回の出撃に許す実時間（ミリ秒）。超えたら 'slow' で打ち切る。
 // **測定器が帰ってこないほうが困る**ので、精度より打ち切りを優先する。
@@ -647,63 +633,6 @@ function reachStat(rows, key, noteKey) {
   };
 }
 
-// 幅の候補。BAL の刻みに合わせる
-function arcCandidates() {
-  const out = [];
-  for (let a = BAL.arcMin; a <= BAL.arcMax + 1e-9; a += BAL.arcStep) out.push(+a.toFixed(4));
-  if (out[out.length - 1] < BAL.arcMax - 1e-9) out.push(BAL.arcMax);
-  return out;
-}
-
-// 近似評価：その地点・その向きで、幅ごとの「通路の重み × 集弾率」
-function arcScores(st, c, r, face, range, _arcDef) {
-  // (c,r) は六角セル（2026-09-23）
-  const g = st.hexCenter(c, r);
-  const seen = [];
-  let maxD = 1;
-  for (let rr = 0; rr < st.rows; rr++) for (let cc = 0; cc < st.cols; cc++) {
-    if (!st.walkable(cc, rr)) continue;
-    const d = st.dist[st.idx(cc, rr)];
-    if (d < 1e9 && d > maxD) maxD = d;
-  }
-  for (let rr = 0; rr < st.rows; rr++) for (let cc = 0; cc < st.cols; cc++) {
-    if (!st.walkable(cc, rr)) continue;
-    const d = st.dist[st.idx(cc, rr)];
-    if (d >= 1e9) continue;
-    const p = st.center(cc, rr);
-    const dx = p.x - g.x, dy = p.y - g.y;
-    const dist = Math.hypot(dx, dy);
-    if (dist > range || dist < 1) continue;
-    let da = Math.atan2(dy, dx) - face;
-    while (da > Math.PI) da -= Math.PI * 2;
-    while (da < -Math.PI) da += Math.PI * 2;
-    seen.push({ da: Math.abs(da), w: 1 + (1 - d / maxD) });
-  }
-  return arcCandidates().map(arc => {
-    let cover = 0;
-    for (const t of seen) if (t.da <= arc) cover += t.w;
-    // 集弾率は本体と同じ式を使う（ui.js/state.js の groupingOf）
-    const grouping = Game.groupingOf({ arc, def: _arcDef });
-    return { arc, cover: +cover.toFixed(2), grouping: +grouping.toFixed(3),
-             score: +(cover * grouping).toFixed(2) };
-  });
-}
-
-// 置いたユニットに ARC_MODE の幅を与える
-function applyArc(u, st) {
-  if (ARC_MODE === 'base') return u.arc;
-  let want;
-  const _ar = Game.arcRange(u.def);
-  if (ARC_MODE === 'min') want = _ar.min;
-  else if (ARC_MODE === 'max') want = _ar.max;
-  else {
-    const rows = arcScores(st, u.c, u.r, u.face, u.s.range, u.def);
-    want = rows.reduce((a, b) => (b.score > a.score ? b : a), rows[0]).arc;
-  }
-  Game.setArc(u, want - u.arc);
-  return u.arc;
-}
-
 // ---------------------------------------------------------------
 // ウェーブ間の再配置（2026-09-19 追加）
 //
@@ -815,7 +744,6 @@ function replaceUnits(run) {
     if (!u) continue;
     taken[u.c + ',' + u.r] = 1;
     Game.aimUnit(u, pick.a);
-    applyArc(u, st);
   }
   // 置き直したユニットへのカードの掛け直しは、本体の applyMods がやる（2026-09-26）。
   //   前はここで run.coinMul などを戻して applyCard を全部呼び直していたが、本体の applyCard が
@@ -915,7 +843,6 @@ function autoPlaceRange(run) {
     if (!u) continue;
     taken[u.c + ',' + u.r] = 1;
     Game.aimUnit(u, pick.a);
-    applyArc(u, st);
   }
 }
 
@@ -962,12 +889,11 @@ function runStage(stageId, loadout, buys, opts) {
   // 前の測定が途中で打ち切られて BAL が汚れていたら、ここで戻す（上の注記）
   const dirty = balRestore();
   if (dirty.length) console.warn('[sim] 前の測定の BAL が残っていたので戻した:', dirty.join(', '));
-  const keepArc = ARC_MODE, keepRep = REPLACE_MODE;
-  if (opts.arc) ARC_MODE = opts.arc;
+  const keepRep = REPLACE_MODE;
   if (opts.replace !== undefined) REPLACE_MODE = opts.replace;
   try {
     return withBal(opts.bal, () => runStageInner(stageId, loadout, buys, opts));
-  } finally { ARC_MODE = keepArc; REPLACE_MODE = keepRep; }
+  } finally { REPLACE_MODE = keepRep; }
 }
 
 // **測りたい章を開けておく。**
@@ -1172,8 +1098,7 @@ function runStageInner(stageId, loadout, buys, opts) {
     death, offers, waves,
     // 「シナジーが弱い」のか「シナジーのカードが来ていない」のかを分けるため、
     // 実際に取れたカードと、その編成で出るはずのシナジーを両方残す
-    // どの幅で戦ったのか。近似の予測が当たっているかを見るのに要る
-    arcMode: ARC_MODE, replace: REPLACE_MODE,
+    replace: REPLACE_MODE,
     arcAvg: run.units.length ? +(run.units.reduce((a,u)=>a+u.arc,0)/run.units.length).toFixed(3) : 0,
     groupAvg: run.units.length ? +(run.units.reduce((a,u)=>a+Game.groupingOf(u),0)/run.units.length).toFixed(3) : 0,
     cards: Object.assign({}, run.cards),

@@ -57,25 +57,26 @@ const CARDS = {
     // 「置いておくだけで加速し続ける」になってしまう（BAL.heatCap で頭打ち）
     name: '加熱暴走', desc: '当て続けるほど発射レート上昇（上限 +120%）。当たらないと冷える',
     apply(run) { const w = run.wp('gatling'); if (w) { w.flags.heat = true; w.dyn.heatMax = BAL.heatCap; } } }),
-  // ---- 扇を「広げるほど得」にするカード ----
+  // ---- 射界の「広さ」を読むカード（多銃身・暴発装薬・薙ぎ払い） ----
   //
-  //   扇を広げるのは、これまで一方的に損だった（集弾率が落ちるだけ）。
-  //   広さそのものを利益に変える道を用意して、**絞る／広げるを選ばせる**。
-  //   広げても漏れやすさは変わらないので、そこが対価として残る。
+  //   **射界は武器ごとの固定値になった**（2026-09-30 段1a）。以前はプレイヤーが幅を動かし、
+  //   広げるほど効くカードだった。幅を選べなくなったので、**固定の幅が旧可動幅のどこにあるか**
+  //   （`Game.arcT`：ガトリング 0.34、手裏剣 0.42）で効く。**段3でカードそのものを作り直す**までの橋。
+  //   効果量は、初期の幅で置いていた頃と同じ（広げて得をする道だけが無くなった）
   gat_barrels: C({ id: 'gat_barrels', kind: 'mod', weapon: 'gatling', rarity: 'rare', maxStack: 2,
-    name: '多銃身', desc: '射界を広げているほど同時発射が増える（最大まで広げて +3）',
+    name: '多銃身', desc: '射界の広さに応じて同時発射が増える（ガトリングは +1。重ねるほど増える）',
     apply(run) { const w = run.wp('gatling'); if (w) { w.flags.wideCount = true; w.dyn.wideCount = (w.dyn.wideCount || 0) + Game.rki(3); } } }),
   gat_loose: C({ id: 'gat_loose', kind: 'mod', weapon: 'gatling', rarity: 'epic', maxStack: 1,
     // **ただの火力カードでは駄目だった。** 実測で、絞る 106漏れ／広げる 110漏れ と
     // ほぼ同じになり、「広げる理由」にならなかった（火力が上がるだけ）。
     // 火力の上がり方そのものを射界の広さに結び直した
-    name: '暴発装薬', desc: '集弾率が最低で固定される代わりに、射界を広げているほどダメージ（最大 ×1.8）',
+    name: '暴発装薬', desc: '集弾率が最低で固定される代わりに、射界の広さに応じてダメージ上昇（ガトリングは ×1.27）',
     apply(run) { const w = run.wp('gatling'); if (w) {
       w.flags.looseGroup = true;
       w.flags.wideDmg = true; w.dyn.wideDmg = (w.dyn.wideDmg || 0) + Game.rka(0.8);
     } } }),
   shk_sweep: C({ id: 'shk_sweep', kind: 'mod', weapon: 'shuriken', rarity: 'rare', maxStack: 3,
-    name: '薙ぎ払い', desc: '射界を広げているほどダメージが上がる（最大まで広げて ×1.6）',
+    name: '薙ぎ払い', desc: '射界の広さに応じてダメージが上がる（手裏剣は +25%。重ねるほど増える）',
     apply(run) { const w = run.wp('shuriken'); if (w) { w.flags.wideDmg = true; w.dyn.wideDmg = (w.dyn.wideDmg || 0) + Game.rka(0.6); } } }),
 
   gat_wall: C({ id: 'gat_wall', kind: 'mod', weapon: 'gatling', rarity: 'legendary', maxStack: 1,
