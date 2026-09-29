@@ -51,6 +51,8 @@ const UI = {
         return;
       }
       // **同じタブをもう一度押すと閉じる。** 閉じているあいだはステージだけが見える
+      // パックのタブへ入るときだけ、台に光が昇る演出（panelPacks が読んで消す）
+      this._gsFx = (b.dataset.tab === 'pack' && (this.tab !== 'pack' || this.tabsOff)) ? 'go' : null;
       this.tabsOff = (this.tab === b.dataset.tab) ? !this.tabsOff : false;
       this.tab = b.dataset.tab;
       this.syncTabsOff();
@@ -1649,33 +1651,54 @@ const UI = {
   //   ここはデザインが行き届いてないところです」）
   //   前は「パック名・説明・開封・×N」の行が縦に並ぶだけだった。
   //   選んだパックを舞台の真ん中に大きく置き、提供割合と引くボタンを添える。下の帯で別のパックに切り替える
-  panelPacks(p) {
-    const perm = Game.perm;
+  //   **【2026-09-29・0929u】台を「データの包みを読み込む装置」にした**（演出の方針：結果画面が基準）。
+  //   パックの下に六角の台座・後ろに中心から点く六角の格子・上の窓は VFD（「// DATA PACKAGE ／ 所持」）・開けるボタンは物理スイッチ（LED つき）。
+  //   パックを切り替える／タブに入ると、台座から光が昇って絵が差し替わる（fx = 'go'）。開け終わったあとは所持数の窓が光る（fx = 'tick'）。
+  //   選び方・開ける処理・まとめて開ける処理・所持数の数え方は変えていない。
+  //   demo（演出の確認室）：見本の perm・見本の選びで台を見せる。開けるボタンは demo.open1 / demo.openAll に繋がり、セーブは変わらない
+  panelPacks(p, demo) {
+    const st = demo || this;              // 選んでいるパックと演出の合図の置き場（見本のときは見本の側。本物の選びに触れない）
+    const perm = demo ? demo.perm : Game.perm;
+    const fx = st._gsFx || null; st._gsFx = null;
+    const rerender = () => demo ? demo.render() : this.renderPanel();
     const shown = PACK_IDS.filter(pid => pid !== 'relic' || Pack.isUnlocked(perm, pid));   // 遺物パックは初回転生まで存在も見せない
     const n = (pid) => perm.packs[pid] || 0;
     const open = (pid) => Pack.isUnlocked(perm, pid);
     // 選んでいるパック。**無ければ、開けられるもの → 開いているもの → 先頭**
-    if (!this.gachaPick || shown.indexOf(this.gachaPick) < 0) {
-      this.gachaPick = shown.find(pid => open(pid) && n(pid) > 0) || shown.find(open) || shown[0];
+    if (!st.gachaPick || shown.indexOf(st.gachaPick) < 0) {
+      st.gachaPick = shown.find(pid => open(pid) && n(pid) > 0) || shown.find(open) || shown[0];
     }
-    const pid = this.gachaPick, pk = PACKS[pid], have = n(pid), ok = open(pid);
+    const pid = st.gachaPick, pk = PACKS[pid], have = n(pid), ok = open(pid);
+    // 装置の状態：開けられる／空／未開放
+    const state = !ok ? ['LOCKED', '未開放', 'lock'] : have > 0 ? ['READY', '開けられます', 'ready'] : ['EMPTY', '所持なし', 'empty'];
 
-    const gs = Util.el('div', 'gs');
+    const gs = Util.el('div', 'gs' + (fx === 'go' ? ' fx-go' : fx === 'tick' ? ' fx-tick' : ''));
     gs.style.setProperty('--pc', pk.color);
     gs.style.setProperty('--best', pk.color);
-    // 舞台：光の筋と、浮かぶ金属の箱
+    // 舞台：後ろの六角の格子・光の柱・六角の台座・浮かぶ箱・状態と所持数の窓
     gs.innerHTML =
       '<div class="gs-stage' + (ok ? '' : ' locked') + '">' +
-        '<i class="gs-rays"></i><i class="gs-floor"></i>' +
+        '<i class="gs-grid"></i><i class="gs-beam"></i>' +
+        '<svg class="gs-dock" viewBox="0 0 220 76" aria-hidden="true">' +
+          '<polygon class="ds" points="14,46 60,20 160,20 206,46 160,72 60,72"/>' +
+          '<polygon class="d0" points="14,38 60,12 160,12 206,38 160,64 60,64"/>' +
+          '<polygon class="d1" points="44,38 76,22 144,22 176,38 144,54 76,54"/>' +
+          '<polygon class="d2" points="80,38 94,30 126,30 140,38 126,46 94,46"/>' +
+          '<polygon class="dp" points="14,38 60,12 160,12 206,38 160,64 60,64"/></svg>' +
+        (fx === 'go' ? '<i class="gs-sweep"></i>' : '') +
         '<div class="gs-box' + (PACK_IMG[pid] ? ' img' : '') + '"' + (PACK_IMG[pid] ? ' style="--pimg:url(' + PACK_IMG[pid] + ')"' : '') + '><div class="pfx-strip"></div>' +
           '<div class="pfx-body"><i class="pfx-rv a"></i><i class="pfx-rv b"></i><i class="pfx-rv c"></i><i class="pfx-rv d"></i>' +
           '<div class="pfx-emb"><div class="pfx-gear">' + Icons.get('gear') + '</div><div class="pfx-logo">' + CardFX.logoSvg() + '</div></div>' +
           '<div class="pfx-name">' + pk.name + '</div><div class="pfx-sub">' + pk.size + ' CARDS</div><i class="pfx-haz"></i></div></div>' +
-        '<div class="gs-have"><span>所持</span><b>×' + have + '</b></div>' +
+        '<div class="gs-stat ' + state[2] + '"><em>// ' + state[0] + '</em><span>' + state[1] + '</span></div>' +
+        '<div class="gs-have"><em>// DATA PACKAGE</em><div class="gs-vfd"><span>所持</span><b>×' + have + '</b></div></div>' +
         (ok ? '' : '<div class="gs-lock">' + Icons.get('lock') + Pack.lockReason(perm, pid) + '</div>') +
       '</div>' +
-      '<div class="gs-info"><b>' + pk.name + '</b><span>' + pk.desc + '</span></div>';
+      '<div class="gs-info"><i class="gs-lamp"></i><em>// ' + pid.toUpperCase() + ' ／ ' + pk.size + ' CARDS</em><b>' + pk.name + '</b><span>' + pk.desc + '</span></div>';
     // 提供割合（weights は合計100）
+    const sysR = Util.el('div', 'gs-sys');
+    sysR.innerHTML = '<em>// DROP RATE</em><span>提供割合</span>';
+    gs.appendChild(sysR);
     const rates = Util.el('div', 'gs-rates');
     for (const r of BAL.rarityOrder) {
       const w = pk.weights[r] || 0;
@@ -1685,38 +1708,53 @@ const UI = {
       rates.appendChild(d);
     }
     gs.appendChild(rates);
-    if (pk.guarantee) gs.appendChild(Util.el('div', 'gs-note', BAL.rarity[pk.guarantee].name + '以上 1枚確定'));
+    if (pk.guarantee) {
+      const note = Util.el('div', 'gs-note');
+      note.innerHTML = '<em>// GUARANTEE</em>' + BAL.rarity[pk.guarantee].name + '以上 1枚確定';
+      gs.appendChild(note);
+    }
 
-    // 引くボタン
+    // 引くボタン：物理スイッチの板（ネジ・LED つき）
     const btns = Util.el('div', 'gs-btns');
+    const sysB = Util.el('div', 'gs-sys full');
+    sysB.innerHTML = '<em>// OPEN</em><span>開封スイッチ</span>';
+    btns.appendChild(sysB);
     const b1 = Util.el('button', 'gs-pull one');
     b1.innerHTML = '<span>1個 開ける</span><b>' + pk.size + '枚</b>';
     b1.disabled = !ok || have <= 0;
-    b1.addEventListener('click', () => this.openPack(pid));
+    b1.addEventListener('click', () => demo ? demo.open1(pid) : this.openPack(pid));
     const bn = Util.el('button', 'gs-pull all');
     bn.innerHTML = '<span>まとめて開ける</span><b>×' + have + '</b>';
     bn.disabled = !ok || have <= 1;
-    bn.addEventListener('click', () => this.openPackBulk(pid));
+    bn.addEventListener('click', () => demo ? demo.openAll(pid) : this.openPackBulk(pid));
     btns.appendChild(b1); btns.appendChild(bn);
     gs.appendChild(btns);
 
-    // パックの切り替え
+    // パックの切り替え（持っているものは LED が灯る）
     const list = Util.el('div', 'gs-list');
     for (const id of shown) {
-      const c = Util.el('button', 'gs-tab' + (id === pid ? ' on' : '') + (open(id) ? '' : ' locked'));
+      const c = Util.el('button', 'gs-tab' + (id === pid ? ' on' : '') + (open(id) ? '' : ' locked') + (open(id) && n(id) > 0 ? ' has' : ''));
       c.style.setProperty('--pc', PACKS[id].color);
       c.innerHTML = CardFX.miniPack(PACKS[id]) + '<b>' + PACKS[id].name + '</b>' +
         (open(id) ? '<em' + (n(id) > 0 ? ' class="has"' : '') + '>×' + n(id) + '</em>' : '<em>' + Icons.get('lock') + '</em>');
-      c.addEventListener('click', () => { this.gachaPick = id; Snd.ui(); this.renderPanel(); });
+      c.addEventListener('click', () => { st.gachaPick = id; st._gsFx = id === pid ? null : 'go'; Snd.ui(); rerender(); });
       list.appendChild(c);
     }
     gs.appendChild(list);
     p.appendChild(gs);
 
+    // 光が昇る／所持数が変わった瞬間に、六角の衝撃波（台座の中心・所持数の窓）
+    if (fx) requestAnimationFrame(() => {
+      const t = gs.querySelector(fx === 'tick' ? '.gs-vfd' : '.gs-dock');
+      if (!t || !t.isConnected) return;
+      const q = t.getBoundingClientRect();
+      CardFX.hexShock(gs.querySelector('.gs-stage'), q.left + q.width / 2, q.top + q.height / 2, pk.color, 'sm');   // 舞台の中に出す（body 直下だと #app の下に隠れる）
+    });
+
     // パックの入手（ミッション）。畳んでおく
     const det = Util.el('details', 'gs-miss');
     const doneN = MISSIONS.filter(m => perm.missions[m.id]).length;
-    det.innerHTML = '<summary>パックの入手　ミッション <b>' + doneN + ' / ' + MISSIONS.length + '</b></summary>';
+    det.innerHTML = '<summary><em>// MISSION LOG</em>パックの入手　ミッション <b>' + doneN + ' / ' + MISSIONS.length + '</b></summary>';
     for (const m of MISSIONS) {
       const done = !!perm.missions[m.id];
       const row = Util.el('div', 'mrow' + (done ? ' done' : ''));
@@ -1760,6 +1798,7 @@ const UI = {
       BAL.rarityOrder.indexOf(CARDS[b.id].rarity) - BAL.rarityOrder.indexOf(CARDS[a.id].rarity));
     CardFX.openBulk(PACKS[pid], n, list, () => {
       this._opening = false;
+      this._gsFx = 'tick';
       this.renderPanel();
     });
   },
@@ -1793,6 +1832,7 @@ const UI = {
     // **開封は CardFX に任せる。**（ユーザー 2026-09-24「カードの演出そのものを作り直しませんか」）
     CardFX.open(PACKS[pid], ids, steps, isNew, () => {
       this._opening = false;
+      this._gsFx = 'tick';
       this.renderPanel();
     });
   },

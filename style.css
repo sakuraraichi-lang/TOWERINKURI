@@ -1283,20 +1283,8 @@ body:not(.on-home) #homeFx{display:none;}
   background:radial-gradient(ellipse at 50% 42%,color-mix(in srgb,var(--pc) 28%,#0c0e14) 0%,#07080c 70%);
   border:1px solid color-mix(in srgb,var(--pc) 35%,transparent);
   clip-path:polygon(0 0,calc(100% - 18px) 0,100% 18px,100% 100%,18px 100%,0 calc(100% - 18px));}
-.gs-rays{position:absolute;left:50%;top:44%;width:160%;aspect-ratio:1;transform:translate(-50%,-50%);pointer-events:none;
-  /* パックの後ろ：ハニカムの格子が息づく（前は回る集中線・2026-09-29 開封の場面とそろえた） */
-  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='52' height='90' viewBox='0 0 52 90'%3E%3Cpath d='M26 0l26 15v30L26 60 0 45V15zM26 60v30M0 45l-26 15M52 45l26 15' fill='none' stroke='%23ffffff' stroke-width='1'/%3E%3C/svg%3E") 50% 50%/40px 69px;opacity:.12;
-  -webkit-mask:radial-gradient(circle,#000 0%,transparent 55%);mask:radial-gradient(circle,#000 0%,transparent 55%);
-  animation:gshex 3.2s ease-in-out infinite;}
-@keyframes gshex{0%,100%{opacity:.08;}50%{opacity:.2;}}
-.gs-floor{position:absolute;left:15%;right:15%;bottom:9%;height:22px;border-radius:50%;
-  background:radial-gradient(ellipse,color-mix(in srgb,var(--pc) 55%,transparent) 0%,transparent 70%);filter:blur(2px);}
 .gs-box{position:relative;width:clamp(120px,34vw,150px);aspect-ratio:3/4.3;animation:gsfloat 3s ease-in-out infinite;}
 .gs-stage.locked .gs-box{filter:grayscale(.9) brightness(.45);animation:none;}
-.gs-have{position:absolute;right:12px;top:10px;display:flex;align-items:baseline;gap:4px;padding:4px 10px;
-  background:rgba(0,0,0,.55);border:1px solid color-mix(in srgb,var(--pc) 50%,transparent);}
-.gs-have span{font-size:9px;color:var(--dim);letter-spacing:.1em;}
-.gs-have b{font-size:20px;font-weight:900;color:#fff;text-shadow:0 0 10px var(--pc);}
 .gs-lock{position:absolute;left:0;right:0;bottom:12px;display:flex;align-items:center;justify-content:center;gap:6px;
   font-size:12px;font-weight:800;color:#fff;text-shadow:0 1px 3px #000;}
 .gs-lock .ico{width:14px;height:14px;}
@@ -2485,3 +2473,117 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 .srt.boss .srt-cover{background:
   url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='52' height='90' viewBox='0 0 52 90'%3E%3Cpath d='M26 0l26 15v30L26 60 0 45V15zM26 60v30M0 45l-26 15M52 45l26 15' fill='none' stroke='%23ff3d4d' stroke-opacity='.16' stroke-width='1'/%3E%3C/svg%3E") 50% 50%/52px 90px,
   radial-gradient(circle at 50% 46%,#140609,#050204 82%);}
+/* ===== パックのタブの作り直し（0929u・ui.js の panelPacks） =====
+   台を「データの包みを読み込む装置」に：パックの下に六角の台座（SVG）・後ろに中心から点く六角の格子・光の柱・
+   左上に状態の札（// READY）・右上に VFD の窓（// DATA PACKAGE ／ 所持）。開けるボタンは物理スイッチの板（ネジ・LED つき）。
+   切り替え・タブに入る（.gs.fx-go）：斜めの帯が走り、台座の輪が広がって光の柱が昇り、パックの絵が下から現れる。
+   開け終わったあと（.gs.fx-tick）：所持数の窓が光る。
+   出して消す：動きは全部 backwards（始まりの状態は動きの中だけ）。終わりは素の見た目か透明（.gs-sweep・.dp は素で透明） */
+.gs-stage{height:clamp(250px,68vw,316px);padding-bottom:34px;}
+.gs-grid{position:absolute;left:50%;top:44%;width:160%;aspect-ratio:1;transform:translate(-50%,-50%);pointer-events:none;
+  background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='52' height='90' viewBox='0 0 52 90'%3E%3Cpath d='M26 0l26 15v30L26 60 0 45V15zM26 60v30M0 45l-26 15M52 45l26 15' fill='none' stroke='%23ffffff' stroke-width='1'/%3E%3C/svg%3E") 50% 50%/40px 69px;opacity:.14;
+  -webkit-mask:radial-gradient(circle,#000 0%,transparent 55%) center/100% 100% no-repeat;mask:radial-gradient(circle,#000 0%,transparent 55%) center/100% 100% no-repeat;
+  animation:gshex 3.2s ease-in-out infinite;}
+@keyframes gshex{0%,100%{opacity:.09;}50%{opacity:.22;}}
+.gs-beam{position:absolute;left:50%;bottom:44px;width:44%;height:78%;margin-left:-22%;transform-origin:50% 100%;pointer-events:none;opacity:.16;
+  background:linear-gradient(0deg,color-mix(in srgb,var(--pc) 60%,transparent),transparent 88%);clip-path:polygon(16% 0,84% 0,100% 100%,0 100%);}
+/* 台座：厚みの影・外周・内側の面・中心の光る六角。.dp は広がる輪（ふだんは透明） */
+.gs-dock{position:absolute;left:50%;bottom:6px;width:min(72%,250px);margin-left:calc(min(72%,250px) / -2);aspect-ratio:220/76;overflow:visible;pointer-events:none;
+  filter:drop-shadow(0 0 10px color-mix(in srgb,var(--pc) 45%,transparent));}
+.gs-dock .ds{fill:#07080b;}
+.gs-dock .d0{fill:#12151b;stroke:var(--pc);stroke-width:1.4;}
+.gs-dock .d1{fill:color-mix(in srgb,var(--pc) 10%,#0d0f14);stroke:color-mix(in srgb,var(--pc) 65%,transparent);stroke-width:1;}
+.gs-dock .d2{fill:color-mix(in srgb,var(--pc) 55%,#0d0f14);stroke:var(--pc);stroke-width:1;animation:gsCore 2.4s ease-in-out infinite;}
+@keyframes gsCore{0%,100%{opacity:.55;}50%{opacity:1;}}
+.gs-dock .dp{fill:none;stroke:var(--pc);stroke-width:2.2;opacity:0;transform-box:fill-box;transform-origin:50% 50%;}
+.gs-stage.locked .gs-dock{filter:grayscale(1) brightness(.5);}
+.gs-stage.locked .gs-grid,.gs-stage.locked .gs-beam{filter:grayscale(1);}
+.gs-stage.locked .gs-dock .d2{animation:none;opacity:.35;}
+.gs-sweep{position:absolute;top:-10%;bottom:-10%;left:0;width:34%;pointer-events:none;opacity:0;transform:skewX(-20deg) translateX(-130%);
+  background:linear-gradient(90deg,transparent,color-mix(in srgb,var(--pc) 46%,transparent) 50%,transparent);}
+/* 状態の札（左上）と所持数の窓（右上）：機械の板 */
+.gs-stat,.gs-have{position:absolute;top:10px;display:flex;flex-direction:column;gap:3px;padding:5px 8px 6px;
+  border:1px solid #2e3139;border-radius:7px;background:var(--plate);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09),inset 0 -2px 0 rgba(0,0,0,.45),0 4px 10px rgba(0,0,0,.55);}
+.gs-stat{left:10px;padding-left:20px;}
+.gs-stat::before{content:'';position:absolute;left:8px;top:8px;width:6px;height:6px;border-radius:50%;background:var(--led-off);box-shadow:inset 0 1px 1px rgba(0,0,0,.6);}
+.gs-stat.ready::before{background:var(--led-on);box-shadow:0 0 6px var(--led-on),0 0 12px rgba(255,140,40,.6);}
+.gs-stat.lock::before{background:#ff4a66;box-shadow:0 0 6px #ff4a66;}
+.gs-stat em,.gs-have em,.gs-sys em,.gs-note em,.gs-info em,.gs-miss summary em{font:700 8px/1 var(--font-num);font-style:normal;letter-spacing:.2em;white-space:nowrap;}
+.gs-stat em{color:var(--dim);}
+.gs-stat.ready em{color:var(--led-on);text-shadow:0 0 6px rgba(255,140,40,.7);}
+.gs-stat.lock em{color:#ff6a80;}
+.gs-stat span{font-size:10px;font-weight:800;color:var(--txt2);}
+.gs-have{right:10px;}
+.gs-have em{color:var(--pc);text-shadow:0 0 6px var(--pc);}
+.gs-vfd{display:flex;align-items:baseline;justify-content:flex-end;gap:6px;padding:3px 8px 2px;border-radius:4px;
+  background:linear-gradient(180deg,#0b0a07,#15120c);border:1px solid #2a2418;box-shadow:inset 0 2px 6px rgba(0,0,0,.9),inset 0 0 0 1px rgba(255,190,90,.06);}
+.gs-vfd span{font-size:9px;letter-spacing:.1em;color:rgba(255,192,98,.6);}
+.gs-vfd b{font:400 26px/1 var(--font-num);color:var(--vfd);font-variant-numeric:tabular-nums;text-shadow:0 0 6px rgba(255,170,60,.9),0 0 14px rgba(255,140,40,.45);}
+.gs-lock{left:50%;right:auto;bottom:12px;transform:translateX(-50%);white-space:nowrap;padding:4px 12px;border-radius:5px;
+  background:rgba(8,9,12,.82);border:1px solid rgba(255,74,102,.55);}
+/* 名前の板 */
+.gs-info{position:relative;gap:4px;padding:8px 10px 10px 22px;border:1px solid #2e3139;border-radius:10px;background:var(--plate);overflow:hidden;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09),inset 0 -2px 0 rgba(0,0,0,.45);}
+.gs-lamp{position:absolute;left:0;top:0;bottom:0;width:12px;background:linear-gradient(90deg,var(--pc),color-mix(in srgb,var(--pc) 60%,#000));clip-path:polygon(0 0,100% 0,62% 100%,0 100%);}
+.gs-info em{align-self:flex-start;padding:3px 6px 3px 7px;border-radius:3px;background:#07080a;color:var(--pc);text-shadow:0 0 6px var(--pc);
+  box-shadow:inset 0 1px 3px rgba(0,0,0,.9),0 1px 0 rgba(255,255,255,.06);}
+.gs-info b{text-shadow:0 0 12px color-mix(in srgb,var(--pc) 40%,transparent);}
+/* 小さな英日の見出し行 */
+.gs-sys{display:flex;align-items:baseline;gap:8px;padding:0 2px;margin-bottom:-4px;}
+.gs-sys em{color:var(--pc);text-shadow:0 0 6px color-mix(in srgb,var(--pc) 70%,transparent);}
+.gs-sys span{font-size:10px;color:var(--dim);}
+.gs-note{display:flex;align-items:center;gap:8px;padding:5px 8px;border-radius:5px;background:#0e1016;border:1px solid #2a2418;}
+.gs-note em{color:#ffd24a;text-shadow:0 0 6px rgba(255,190,60,.6);}
+.gs-rate{border-radius:3px;}
+/* 開けるスイッチの板：四隅のネジ・LED */
+.gs-btns{position:relative;gap:6px 10px;padding:9px 14px 14px;border:1px solid #2e3139;border-radius:12px;
+  background:var(--screw) 8px 8px/8px 8px no-repeat,var(--screw) calc(100% - 8px) 8px/8px 8px no-repeat,
+             var(--screw) 8px calc(100% - 8px)/8px 8px no-repeat,var(--screw) calc(100% - 8px) calc(100% - 8px)/8px 8px no-repeat,var(--plate);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.09),inset 0 -2px 0 rgba(0,0,0,.5),0 8px 20px rgba(0,0,0,.5);}
+.gs-btns .gs-sys{grid-column:1/-1;margin:0 0 2px 10px;}
+.gs-pull{position:relative;}
+.gs-pull::before{content:'';position:absolute;left:9px;top:8px;width:6px;height:6px;border-radius:50%;background:rgba(60,20,0,.55);box-shadow:inset 0 1px 1px rgba(0,0,0,.6);}
+.gs-pull:not(:disabled)::before{background:#fff4d2;box-shadow:0 0 6px #fff4d2,0 0 12px rgba(255,220,120,.8);}
+.gs-pull:disabled::before{background:var(--led-off);}
+/* パックの切り替えの LED（持っているものが灯る） */
+.gs-tab{position:relative;}
+.gs-tab::after{content:'';position:absolute;right:6px;top:6px;width:5px;height:5px;border-radius:50%;background:var(--led-off);box-shadow:inset 0 1px 1px rgba(0,0,0,.6);}
+.gs-tab.has::after{background:var(--pc);box-shadow:0 0 6px var(--pc);}
+.gs-tab.locked::after{background:#5a1d26;}
+/* ミッションの板 */
+.gs-miss{border-radius:10px;border-color:#2e3139;background:var(--plate);box-shadow:inset 0 1px 0 rgba(255,255,255,.09),inset 0 -2px 0 rgba(0,0,0,.45);}
+.gs-miss summary em{display:block;margin-bottom:5px;color:var(--acc);}
+
+/* --- 動き --- */
+.gs.fx-go .gs-grid{animation:gshex 3.2s ease-in-out infinite,gsLit .9s cubic-bezier(.2,.7,.2,1) backwards;}
+@keyframes gsLit{0%{-webkit-mask-size:0% 0%;mask-size:0% 0%;}100%{-webkit-mask-size:100% 100%;mask-size:100% 100%;}}
+.gs.fx-go .gs-beam{animation:gsBeam .95s ease-out backwards;}
+@keyframes gsBeam{0%{opacity:0;transform:scaleY(.04);}22%{opacity:.9;transform:scaleY(1);}100%{opacity:.16;transform:scaleY(1);}}
+.gs.fx-go .gs-dock .dp{animation:gsRing .8s cubic-bezier(.2,.7,.2,1) backwards;}
+@keyframes gsRing{0%{opacity:.95;transform:scale(.55);}100%{opacity:0;transform:scale(1.5);}}
+.gs.fx-go .gs-dock .d1,.gs.fx-go .gs-dock .d0{animation:gsDockOn .5s steps(10) backwards;}
+@keyframes gsDockOn{0%{stroke:#fff;opacity:.2;}100%{opacity:1;}}
+.gs.fx-go .gs-sweep{animation:gsSweep .75s cubic-bezier(.3,.6,.2,1) backwards;}
+@keyframes gsSweep{0%{opacity:1;transform:skewX(-20deg) translateX(-130%);}100%{opacity:0;transform:skewX(-20deg) translateX(430%);}}
+.gs.fx-go .gs-box{animation:gsfloat 3s ease-in-out infinite,gsRise .55s cubic-bezier(.2,.8,.2,1) .16s backwards;}
+.gs.fx-go .gs-stage.locked .gs-box{animation:gsRise .55s cubic-bezier(.2,.8,.2,1) .16s backwards;}
+@keyframes gsRise{0%{clip-path:inset(100% -40px -40px -40px);opacity:.3;}100%{clip-path:inset(0 -40px -40px -40px);opacity:1;}}
+.gs.fx-go .gs-stat,.gs.fx-go .gs-have{animation:rsSys .4s steps(16) .2s backwards;}
+.gs.fx-go .gs-info em,.gs.fx-go .gs-sys em{animation:rsSys .4s steps(16) .25s backwards;}
+.gs.fx-go .gs-info b{animation:gsSplit .5s steps(1) .2s backwards;}
+@keyframes gsSplit{0%{text-shadow:6px 0 rgba(255,60,60,.85),-6px 0 rgba(60,200,255,.85),0 0 12px var(--pc);transform:translateX(-4px);}
+  30%{text-shadow:-4px 0 rgba(255,60,60,.8),4px 0 rgba(60,200,255,.8),0 0 12px var(--pc);transform:translateX(3px);opacity:.6;}
+  60%{text-shadow:2px 0 rgba(255,60,60,.6),-2px 0 rgba(60,200,255,.6),0 0 12px var(--pc);transform:none;opacity:1;}}
+.gs.fx-go .gs-rate i{animation:gsBar .5s steps(10) .3s backwards;}
+@keyframes gsBar{0%{clip-path:inset(0 100% 0 0);}100%{clip-path:inset(0 0 0 0);}}
+.gs.fx-tick .gs-vfd b{animation:gsTick .55s ease-out backwards;}
+@keyframes gsTick{0%{color:#fff;text-shadow:0 0 8px #fff,0 0 20px var(--vfd);transform:scale(1.3);}
+  100%{color:var(--vfd);text-shadow:0 0 6px rgba(255,170,60,.9),0 0 14px rgba(255,140,40,.45);transform:none;}}
+
+/* 確認室：パックのタブの見本（0929u）。全画面の板に、本物と同じ台を出す */
+.dbgpk{position:fixed;left:0;right:0;top:0;bottom:0;max-width:560px;margin:0 auto;z-index:47;overflow-x:hidden;overflow-y:auto;padding:0 0 18px;
+  background:radial-gradient(ellipse at 50% 0%,#241a10 0%,#0a0c11 60%);}
+.dbgpk .rs-ban{padding:22px 12px 14px;}
+.dbgpk .rs-ban b{font-size:clamp(20px,6.5vw,28px);}
+.dbgpk-b{padding:0 12px;}

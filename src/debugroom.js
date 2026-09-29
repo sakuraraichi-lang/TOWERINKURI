@@ -8,6 +8,7 @@
 //     ・再起動の確認は demo 付き（UI.confirmPrestige(true)）。押しても Game.prestige() は呼ばれない
 //     ・3択は demo 付き（UI.showDraft(ids)）。選んでもカードを取らず、戦闘も止めない
 //   帯（カットイン）と3択は盤の上に出るので、裏で戦闘の画面（準備フェーズ）を開いておき、下半分を確認室のパネルにする。
+//   パックのタブは UI.panelPacks(見本の入れ物, demo)：見本の perm・見本の選びで台を見せる（packTab）。
 //   凸・覚醒は CardFX.demoTotu(凸の数)（カード1枚のパックで、その凸に届く1枚を捲る）と、まとめて開封（覚醒あり）
 //     ・スキルツリーは見本のセーブ（Game.meta / Game.perm の写し）に読み出しのあいだだけ差し替えて、本物の札（UI.skillTrack）と買う処理（UI.skillBuy）をそのまま通す。実セーブは変わらない
 //   演出そのものは本物の関数を呼ぶだけ（見本のために別の絵を作らない）。演出を作り直したら、ここに並べる
@@ -131,6 +132,7 @@ const DebugRoom = {
         ['出撃の瞬間＋自動購入の通知', () => Sortie.demo(false, true)],
         ['再起動の場面（部屋）', () => Scenes.reboot(null)],
         ['指揮官の記録', () => UI.openProfile(true)],
+        ['パックのタブ（見本の所持数）', () => me.packTab()],
       ]],
     ];
   },
@@ -171,6 +173,36 @@ const DebugRoom = {
       this._skRapid = setInterval(() => { if (!this._skHost.isConnected || !press() || ++n >= 5) clearInterval(this._skRapid); }, 180);
     } else setTimeout(press, 450);
   },
+  // パックのタブの見本：本物の perm の写しに、見本の所持数と再起動の格を入れて、台を全画面の板に出す（セーブは変わらない）。
+  //   基本×5（開けられる）・兵装×0（空）・化学×1（まとめては開けられない）・常駐×2・連携（未開放）。
+  //   切り替え（台座から光が昇る）・開ける（見本の開封）・まとめて開ける（見本のまとめ開封）が押せる。開けても所持数は減らない
+  packTab() {
+    this.packTabClose();
+    const perm = JSON.parse(JSON.stringify(Game.perm));
+    perm.packs = { basic: 5, arms: 0, chem: 1, syn: 0, relic: 2 };
+    perm.deepest = 12; perm.prestiges = 3; perm.legacyDeep = 9;      // 格3：基本・兵装・化学・常駐が開き、連携（格4）だけ未開放
+    perm.missions = perm.missions || {};
+    const el = Util.el('div', 'rs fx dbgpk');
+    el.innerHTML = '<div class="rs-ban"><em>// DEBUG ROOM</em><b>パックのタブ（見本）</b><span>切り替える・開ける・まとめて開ける が押せます（セーブは変わりません）</span></div>';
+    const body = Util.el('div', 'dbgpk-b');
+    const demo = {
+      perm, gachaPick: 'basic', _gsFx: 'go',
+      render: () => { body.innerHTML = ''; UI.panelPacks(body, demo); },
+      open1: () => CardFX.demo('rare'),
+      openAll: () => this.bulk(),
+    };
+    demo.render();
+    el.appendChild(body);
+    const subs = Util.el('div', 'rs-subs');
+    const close = Util.el('button', 'rs-sub');
+    close.innerHTML = Icons.get('close') + '閉じる';
+    close.addEventListener('click', () => this.packTabClose());
+    subs.appendChild(close);
+    el.appendChild(subs);
+    document.body.appendChild(el);
+    this.pk = el;
+  },
+  packTabClose() { if (this.pk) { this.pk.remove(); this.pk = null; } },
 
   bulk(awake) {
     const by = (r, n) => this._cards(r, n);
@@ -291,6 +323,7 @@ const DebugRoom = {
     clearInterval(this._skRapid);
     UI.skillFxClear();
     this._skHost = null;
+    this.packTabClose();
     if (!this.el) return;
     this.el.remove();
     this.el = null;
