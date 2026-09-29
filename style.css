@@ -2644,3 +2644,106 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 .pfx.bulk .cf-holo{animation:none;background-position:60% 40%;}
 .pfx.bulk .cf-back .cf-backglow{animation:none;}
 .pfx.bulk .pfx-slot.landed::before{animation:none;opacity:.85;}
+
+/* ===== カードのレア度を、色の広さと彩度・明るさで見分ける（0929zb・ユーザー「レアリティの色要素が少なくなって全てのカードが同じ枠組みで見分けがつかなくなってる、
+   識別出来るようなカードデザイン(色や彩度)の上にオーバーレイ等カード演出を重ねる感じにして、また高レアは高レア感出して」）=====
+   枠の画像（assets/cardframes）はそのまま。**窓の中の地・名札・説明の板・枠の縁の色**をレア度ごとに敷き、演出（箔・角の飾り）はその色の上に重ねる。
+   4種の見分け方：コモン＝彩度の低い灰青の暗い地／レア＝澄んだ青／エピック＝濃い紫（角の飾りと箔）／レジェンド＝明るい金（名札も金・二重の縁・角の飾り・箔）。
+   **止まらない動きは足さない**（まとめて開けるときの重さの主因だった）。箔は止めた模様で、表になった瞬間だけ一度光が走る（終わる動き） */
+.cf,.cf-back{
+  --w1:#5d6e85;--w2:#3f4d61;--w3:#28323f;          /* 窓の地：上 → 中 → 下 */
+  --p1:#5d6e85;--p2:#3f4d61;--pt:#fff;              /* 名札の地（左 → 右）と文字 */
+  --edge:#c3d0de;--tint:.16;}                      /* 窓の縁の明るい線／枠の金属に混ぜる色の濃さ */
+.cf.r-rare,.cf-back.br-rare{--w1:#3d9bff;--w2:#1d66d6;--w3:#0f3d8f;--p1:#2268d0;--p2:#144aa8;--edge:#a6d4ff;--tint:.34;}
+.cf.r-epic,.cf-back.br-epic{--w1:#b866ff;--w2:#7b28d8;--w3:#43138c;--p1:#9541ee;--p2:#5a1caf;--edge:#e2c2ff;--tint:.44;}
+.cf.r-legendary,.cf-back.br-legendary{--w1:#ffe37f;--w2:#f4a91a;--w3:#a45a05;--p1:#ffe37f;--p2:#e6a024;--pt:#2a1600;--edge:#fff1b8;--tint:.5;}
+
+/* 枠の金属：レア度の色を混ぜる（枠の画像の透明なところには乗せない） */
+.cf::before{content:'';position:absolute;inset:0;pointer-events:none;background:var(--rc);opacity:var(--tint);
+  -webkit-mask:url(assets/cardframes/common.png) center/100% 100% no-repeat;mask:url(assets/cardframes/common.png) center/100% 100% no-repeat;}
+
+/* 窓の中：レア度の色の地（上が明るく下へ沈む）。細い縁の線と内側の光で、色の面を際立たせる */
+.cf-frame{background:linear-gradient(180deg,var(--w1) 0%,var(--w2) 52%,var(--w3) 100%);
+  box-shadow:inset 0 0 0 1px var(--edge),inset 0 0 12px color-mix(in srgb,var(--w1) 70%,transparent);}
+.cf.r-epic .cf-frame{box-shadow:inset 0 0 0 1px var(--edge),inset 0 0 0 2px var(--w3),inset 0 0 18px color-mix(in srgb,var(--w1) 85%,transparent);}
+.cf.r-legendary .cf-frame{box-shadow:inset 0 0 0 1px #fff6cf,inset 0 0 0 2px #b46a00,inset 0 0 0 3px var(--edge),inset 0 0 24px rgba(255,214,90,.75);}
+
+/* 名札：枠の画像の名札の窪みに合わせる（窪みは枠の上から 8.0〜15.1%・左右 22.5〜77%。前は上に約1.6%ずれて、上の光る線に重なっていた）。レア度の色の帯（コモン・レア・エピックは白い字・レジェンドは明るい金に濃い茶の字） */
+.cf-top{left:13.5%;right:13.5%;top:-10.9%;height:10.3%;background:linear-gradient(90deg,var(--p1),var(--p2));border-radius:3px;box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--edge) 55%,var(--p2));}
+.cf-name{line-height:1.1;color:var(--pt);text-shadow:0 1px 1px rgba(0,0,0,.55);}
+.cf.r-legendary .cf-name{text-shadow:0 1px 0 rgba(255,246,207,.7);}
+/* 名札の文字はカードの幅に比例（幅96pxでは名札の高さが約9pxしかなく、画面幅に比例する文字が名札からはみ出していた） */
+@supports (font-size:1cqw){.cf{container-type:inline-size;}.cf-name{font-size:8.4cqw;}
+  /* 種類の札（武器強化）も幅に比例して小さく：幅96pxで、3行の説明のせいで縮んだ絵の窓を覆わないように */
+  .cf-kind{font-size:clamp(6.5px,6.4cqw,9px);padding:1px 4px;left:3px;top:3px;}
+  .cf-new{font-size:clamp(7px,7cqw,9px);padding:1px 4px;right:3px;top:auto;bottom:3px;}   /* NEW は絵の窓の右下へ（左上の種類の札と重ならない） */
+  /* 説明・星・枚数の文字もカードの幅に比例（一覧の小さな札は幅75px前後。画面幅に比例する文字だと3行の説明が窓からあふれた） */
+  .cf-text{font-size:clamp(7.5px,9.4cqw,10.5px);}
+  .cf-stars{font-size:clamp(7.5px,8.6cqw,12px);}
+  .cf-count{font-size:clamp(7.5px,9cqw,9.5px);}
+}
+/* 幅92px以下の札は説明を2行までにして（全文は札を触ると開く）、絵の窓を残す */
+@container (max-width:92px){.cf-text{-webkit-line-clamp:2;}}
+
+/* 絵の窓：レア度の色の地を透かして、武器の色は中心のわずかな光にとどめる */
+.cf-art{background:
+    radial-gradient(circle at 50% 52%,color-mix(in srgb,var(--ac) 42%,transparent) 0%,transparent 58%),
+    radial-gradient(ellipse at 50% 38%,rgba(255,255,255,.26),transparent 72%),
+    repeating-linear-gradient(60deg,rgba(255,255,255,.07) 0 1px,transparent 1px 14px),
+    repeating-linear-gradient(-60deg,rgba(255,255,255,.07) 0 1px,transparent 1px 14px),
+    linear-gradient(180deg,rgba(0,0,0,.10),rgba(0,0,0,.30));
+  box-shadow:inset 0 0 0 1px color-mix(in srgb,var(--edge) 60%,transparent);}
+
+/* 説明と星の板：レア度の色を深く沈めた地に、白に近い字（文字と地の明るさの比は 4.5 以上に取る） */
+.cf-text,.cf-bottom{background:color-mix(in srgb,var(--w3) 46%,#04060a);}
+/* **説明が3行になっても、下の★の帯に隠れない**（0929zb・以前は絵の窓が縮まず、説明の欄が押しつぶされて3行目が★の帯の下に切れていた）。
+   説明と星の帯は縮まない高さ（flex 0 0 auto）にして、余りも不足も絵の窓だけが受ける（絵の窓は最小 34px） */
+.cf-art{flex:1 1 0;min-height:34px;margin:3px 3px 0;}
+.cf-text{flex:0 0 auto;margin:3px 3px 0;padding:2px 4px 0;line-height:1.28;min-height:2.56em;box-sizing:content-box;border-radius:3px 3px 0 0;color:#f2f5f9;border-top:1px solid color-mix(in srgb,var(--edge) 55%,transparent);}
+.cf-bottom{flex:0 0 auto;margin:0 3px 3px;padding:1px 4px 2px;border-radius:0 0 3px 3px;}
+.cf-stars i{color:#7c869d;}
+.cf-stars i.on{color:#ffc24a;}
+.cf-count{color:#c9ced8;}
+
+/* 箔：エピックとレジェンドは、絵の窓の上に止めた模様を重ねる（動きなし。表になった瞬間だけ一度光が走る）。文字の板にはかけず、種類の札（武器強化）の下に敷く（.cf-art::before は札より前に描かれる） */
+.cf-holo{display:none;}
+.cf.r-epic .cf-art::before,.cf.r-legendary .cf-art::before{content:'';position:absolute;inset:0;pointer-events:none;background-size:250% 100%,auto;background-position:60% 0,0 0;}
+.cf.r-epic .cf-art::before{background-image:
+    linear-gradient(115deg,transparent 14%,rgba(255,150,255,.30) 30%,rgba(150,230,255,.26) 42%,rgba(255,245,170,.22) 53%,transparent 68%),
+    repeating-linear-gradient(115deg,rgba(255,255,255,.06) 0 2px,transparent 2px 8px);
+  animation:foilOnce 1.1s ease-out .12s backwards;}
+.cf.r-legendary .cf-art::before{background-image:
+    linear-gradient(115deg,transparent 12%,rgba(255,255,255,.44) 30%,rgba(255,214,90,.40) 42%,rgba(255,150,255,.16) 52%,transparent 66%),
+    repeating-linear-gradient(115deg,rgba(255,255,255,.09) 0 2px,transparent 2px 7px);
+  animation:foilOnce 1.3s ease-out .12s backwards;}
+@keyframes foilOnce{0%{background-position:190% 0,0 0;}100%{background-position:60% 0,0 0;}}
+
+/* 角の飾り（エピック・レジェンド）：窓のすぐ外（枠の金属の上）の四隅にL字の金具を、レア度の色の光で。窓の中の文字にはかからない */
+.cf.r-epic::after,.cf.r-legendary::after{content:'';position:absolute;left:9.4%;right:9.9%;top:13.6%;bottom:12.6%;pointer-events:none;z-index:3;
+  --k:var(--edge);--n:11px;
+  background:
+    linear-gradient(var(--k),var(--k)) 0 0/var(--n) 2px no-repeat,linear-gradient(var(--k),var(--k)) 0 0/2px var(--n) no-repeat,
+    linear-gradient(var(--k),var(--k)) 100% 0/var(--n) 2px no-repeat,linear-gradient(var(--k),var(--k)) 100% 0/2px var(--n) no-repeat,
+    linear-gradient(var(--k),var(--k)) 0 100%/var(--n) 2px no-repeat,linear-gradient(var(--k),var(--k)) 0 100%/2px var(--n) no-repeat,
+    linear-gradient(var(--k),var(--k)) 100% 100%/var(--n) 2px no-repeat,linear-gradient(var(--k),var(--k)) 100% 100%/2px var(--n) no-repeat;
+  filter:drop-shadow(0 0 3px var(--rc));}
+.cf.r-epic::after{--k:var(--rc);--n:10px;}
+.cf.r-legendary::after{--n:14px;filter:drop-shadow(0 0 3px #ffb020);}
+
+/* レア度の札（下の COMMON/RARE/...）：地の色をレア度の面に */
+.cf-rar{background:linear-gradient(180deg,var(--p1),var(--p2));border:1px solid var(--edge);color:var(--pt);text-shadow:none;}
+
+/* 裏面：伏せていても縁と窓の色でレア度が分かる（色の上がり方＝溜めの演出は今までどおり裏の光で） */
+.cf-backin{background:
+    repeating-linear-gradient(60deg,rgba(255,255,255,.06) 0 1px,transparent 1px 12px),
+    repeating-linear-gradient(-60deg,rgba(255,255,255,.06) 0 1px,transparent 1px 12px),
+    radial-gradient(circle at 50% 50%,color-mix(in srgb,var(--w2) 55%,#0a0910) 0%,color-mix(in srgb,var(--w3) 70%,#05060a) 78%);
+  box-shadow:inset 0 0 0 1px var(--edge),inset 0 0 0 5px color-mix(in srgb,var(--w3) 60%,#05060a),inset 0 0 0 6px color-mix(in srgb,var(--edge) 55%,transparent);}
+
+/* 確認室のカードのレア度の見比べ（0929zb）：4種を並べる（2列×2。小さい段は実際の最小の幅 96px） */
+.dbgrar .rs-h{margin:12px 2px 6px;}
+.dbgrar-row{display:grid;gap:8px;justify-items:center;align-items:start;}
+.dbgrar-row.big{grid-template-columns:repeat(2,1fr);gap:24px 8px;}
+.dbgrar-row.small{grid-template-columns:repeat(2,96px);justify-content:center;gap:24px 24px;}
+.dbgrar-row.big .cf{width:min(40vw,168px);}
+.dbgrar-row.small .cf{width:96px;}

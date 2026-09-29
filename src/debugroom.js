@@ -189,6 +189,7 @@ const DebugRoom = {
         ['再起動の場面（部屋）', () => Scenes.reboot(null)],
         ['指揮官の記録', () => UI.openProfile(true)],
         ['パックのタブ（見本の所持数）', () => me.packTab()],
+        ['カードのレア度の見比べ（4種を並べる）', () => me.rarityView()],
       ]],
     ];
   },
@@ -259,6 +260,40 @@ const DebugRoom = {
     this.pk = el;
   },
   packTabClose() { if (this.pk) { this.pk.remove(); this.pk = null; } },
+
+  // カードのレア度の見比べ（0929zb・ユーザー「全てのカードが同じ枠組みで見分けがつかなくなってる」）：
+  //   4種（コモン・レア・エピック・レジェンド）を、表（1枚ずつの大きさ）・小さい表示（図鑑や装備の大きさ）・説明が長い札・凸つき・裏面で並べる。セーブは変わらない
+  rarityView() {
+    this.rarityClose();
+    const el = Util.el('div', 'rs fx dbgpk dbgrar');
+    el.innerHTML = '<div class="rs-ban"><em>// DEBUG ROOM</em><b>カードのレア度の見比べ</b><span>色と明るさで4種が見分けられるか（セーブは変わりません）</span></div>';
+    const body = Util.el('div', 'dbgpk-b');
+    const RO = BAL.rarityOrder;
+    const pool = (r) => CARD_IDS.filter(id => CARDS[id].rarity === r && !['weapon', 'perm', 'key'].includes(CARDS[id].kind));
+    // 説明がいちばん長い札を種類ごとに1枚（3行になるものが、下の★の帯に隠れないかを見る）
+    const longest = (r) => pool(r).sort((a, b) => UI.shortDesc(CARDS[b]).length - UI.shortDesc(CARDS[a]).length)[0];
+    const section = (title, cls, mk) => {
+      body.appendChild(Util.el('div', 'rs-h', title));
+      const row = Util.el('div', 'dbgrar-row ' + cls);
+      RO.forEach((r, i) => { const c = mk(r, i); if (c) row.appendChild(c); });
+      body.appendChild(row);
+    };
+    section('表（1枚ずつの大きさ）', 'big', (r) => CardFX.face(CARDS[pool(r)[0]], { count: 1 }));
+    section('説明がいちばん長い札', 'big', (r) => CardFX.face(CARDS[longest(r)], { count: 1 }));
+    section('小さい表示（図鑑・装備の大きさ）', 'small', (r) => CardFX.face(CARDS[pool(r)[0]], { count: 1 }));
+    section('凸（星が増える・覚醒）', 'small', (r, i) => CardFX.face(CARDS[pool(r)[0]], { count: [4, 8, 16, 32][i] }));
+    section('裏面', 'small', (r) => CardFX.back(r));
+    el.appendChild(body);
+    const subs = Util.el('div', 'rs-subs');
+    const close = Util.el('button', 'rs-sub');
+    close.innerHTML = Icons.get('close') + '閉じる';
+    close.addEventListener('click', () => this.rarityClose());
+    subs.appendChild(close);
+    el.appendChild(subs);
+    document.body.appendChild(el);
+    this.rv = el;
+  },
+  rarityClose() { if (this.rv) { this.rv.remove(); this.rv = null; } },
 
   bulk(awake) {
     const by = (r, n) => this._cards(r, n);
@@ -399,6 +434,7 @@ const DebugRoom = {
     UI.skillFxClear();
     this._skHost = null;
     this.packTabClose();
+    this.rarityClose();
     if (!this.el) return;
     this.el.remove();
     this.el = null;
