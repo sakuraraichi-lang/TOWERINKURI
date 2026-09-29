@@ -2747,3 +2747,16 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 .dbgrar-row.small{grid-template-columns:repeat(2,96px);justify-content:center;gap:24px 24px;}
 .dbgrar-row.big .cf{width:min(40vw,168px);}
 .dbgrar-row.small .cf{width:96px;}
+
+/* ===== 0929zd：小さい札の名札の文字が、名札の縁の明るい線に重なって読みにくくなっていたのを直す ＋ 幅320pxの3択の3枚目が画面の外に出ていたのを直す ===== */
+/* 名札の縁の線は、枠の内側（inset）に引いていた。幅96px の札では名札の高さが約9.7pxで文字が約8pxあり、文字の上下の端が縁の明るい線（エピック (165,119,219) など）にかかっていた
+   （白い文字と縁の線の明るさの比 エピック 3.35・レア／コモン 3.05）。線を名札の外側へ出す。名札の中は地の色だけになり、文字の後ろは白に対して 5.5 以上の暗さが保たれる */
+.cf-top{box-shadow:0 0 0 1px color-mix(in srgb,var(--edge) 55%,var(--p2));}
+/* 幅320px：3枚の最小の幅 96px × 3 ＋ すきま が、モーダルの余白 14px と箱の余白 16px を引いた 258px に入らず、3枚目が画面の右へ 9px 出ていた。
+   3択だけ、外側の余白と箱の余白を詰めて 298px にし（96×3＋4×2＝296）、札の大きさは変えない。幅 350px 以上は変わらない（341〜349px でも、3枚目が箱の右の縁から最大 2px はみ出していたので、同じ詰め方を 349px までかける） */
+@media(max-width:349px){
+  #modal:has(.draft){padding:4px;}
+  .mbox:has(.draft){padding:10px 6px;}
+  .draft .chrow{gap:4px;}
+  .draft.fx::before{inset:-10px -6px;}   /* 六角の格子は箱の余白いっぱいまで（余白より外へ出すと箱が横にも縦にもスクロールしてしまう） */
+}
