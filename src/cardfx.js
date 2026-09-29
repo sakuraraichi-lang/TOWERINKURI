@@ -98,7 +98,7 @@ const CardFX = {
   // 一覧に並べる小さなパック（開封画面の金属の箱の縮小版）
   miniPack(pk) {
     return '<div class="mpack' + (PACK_IMG[pk.id] ? ' img' : '') + '" style="--pc:' + pk.color + (PACK_IMG[pk.id] ? ';--pimg:url(' + PACK_IMG[pk.id] + ')' : '') + '"><i class="mpack-strip"></i>' +
-      '<i class="mpack-gear">' + Icons.get('gear') + '</i><i class="mpack-haz"></i></div>';
+      '<i class="mpack-mark">' + this.logoSvg() + '</i><i class="mpack-haz"></i></div>';
   },
 
   // 粒子。**数は抑える**（スマホで重くしない）
@@ -142,7 +142,7 @@ const CardFX = {
       '<i class="pfx-shock"></i>' +
       '<div class="pfx-pack"><div class="pfx-mouth"></div><div class="pfx-strip"></div><div class="pfx-seam"></div>' +
         '<div class="pfx-body"><i class="pfx-rv a"></i><i class="pfx-rv b"></i><i class="pfx-rv c"></i><i class="pfx-rv d"></i>' +
-        '<div class="pfx-emb"><div class="pfx-gear">' + Icons.get('gear') + '</div><div class="pfx-logo">' + this.logoSvg() + '</div></div>' +
+        '<div class="pfx-emb"><div class="pfx-logo">' + this.logoSvg() + '</div></div>' +
         '<div class="pfx-name">' + pk.name + '</div>' +
         '<div class="pfx-sub">' + sub + '</div><i class="pfx-haz"></i></div></div>' +
       '<div class="pfx-cards"></div>' +
