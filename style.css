@@ -499,13 +499,6 @@ body.tabsoff #homeMain{flex:1 1 auto;}
 #upop .ubar input[type=range]::-moz-range-thumb{width:20px;height:20px;border-radius:50%;
       background:var(--gold);border:2px solid #7a3406;}
 #upop .ubar input[type=range]:disabled{opacity:.4;}
-/* 向きの6方向ボタン（2026-09-25） */
-#upop .udirs{gap:4px;}
-#upop .udir{flex:1 1 0;min-width:0;height:26px;padding:0;font-size:14px;line-height:1;color:var(--txt2);
-  background:#1a1f28;border:1px solid var(--line2);cursor:pointer;}
-#upop .udir.on{color:#1a0d00;background:var(--acc);border-color:var(--acc);}
-#upop .udir:disabled{opacity:.4;cursor:default;}
-
 #upop .urow{display:flex;gap:5px;margin:8px 9px 0;}
 #upop .chip{flex:1 1 0;background:#14181f;border:1.5px solid var(--line2);
       min-height:32px;padding:5px 4px;font-size:11px;font-weight:800;}
@@ -1874,11 +1867,9 @@ body:not(.tabsoff) .hlogo{display:none;}
 #upop .ubar input[type=range]::-moz-range-track{height:6px;border-radius:3px;background:#050608;}
 #upop .ubar input[type=range]::-moz-range-thumb{width:14px;height:24px;border-radius:3px;border:1px solid #111;
   background:linear-gradient(180deg,#5a5e68 0%,#2c2f36 45%,#ff9a2e 46%,#ff9a2e 54%,#2c2f36 55%,#1d1f24 100%);}
-#upop .udir,#upop .chip{background:var(--key-face);border:1px solid var(--key-edge);border-radius:6px;
+#upop .chip{background:var(--key-face);border:1px solid var(--key-edge);border-radius:6px;
   box-shadow:var(--key-bevel),0 2px 0 #050608;transition:transform .08s ease-out,box-shadow .08s ease-out;}
-#upop .udir:active,#upop .chip:active{transform:translateY(2px);box-shadow:var(--key-press);}
-#upop .udir.on{color:var(--acc);background:linear-gradient(180deg,#1d1f25,#262930);border-color:#6a3408;transform:translateY(2px);
-  box-shadow:var(--key-press),0 0 8px rgba(255,138,31,.35);}
+#upop .chip:active{transform:translateY(2px);box-shadow:var(--key-press);}
 #upop .chip.danger{border-color:#6a1020;color:#ffb7bf;}
 /* チュートリアルの札：ラベル板 */
 #tut{clip-path:none;border-radius:9px;border:1px solid #3a2a14;background:var(--plate);}
@@ -2587,3 +2578,6 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 .dbgpk .rs-ban{padding:22px 12px 14px;}
 .dbgpk .rs-ban b{font-size:clamp(20px,6.5vw,28px);}
 .dbgpk-b{padding:0 12px;}
+
+/* 向きの指定（0929y）：向きは盤の上の六角の花で選ぶ。調整の板には一言だけ */
+#upop .udhint{margin:2px 9px 4px;font-size:10px;color:var(--acc);letter-spacing:.04em;}

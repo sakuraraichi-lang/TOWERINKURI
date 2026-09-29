@@ -777,26 +777,9 @@ const UI = {
       return wrap;
     };
     // **向きは六角の6方向から選ぶ。**（2026-09-25・プレイヤーの感想「360度ある意味がない」→ ユーザー採用）
-    //   バー（0〜359度）をやめ、隣の六角へ向かう6つのボタンにした。並びは時計回り（上から）
-    const dirs = Util.el('div', 'ubar udirs');
-    dirs.appendChild(Util.el('span', null, '向き'));
-    const ARROW = ['↑', '↗', '↘', '↓', '↙', '↖'];
-    const btns = [];
-    Game.FACES.forEach((a, i) => {
-      const b = Util.el('button', 'udir', ARROW[i]);
-      b.disabled = !build;
-      b.addEventListener('click', () => {
-        Game.aimUnit(u, a);
-        this.tutAimed = true;
-        btns.forEach((x, j) => x.classList.toggle('on', j === i));
-        Game.save();
-      });
-      btns.push(b);
-      dirs.appendChild(b);
-    });
-    const cur = Game.FACES.findIndex(a => Math.abs(Math.atan2(Math.sin(a - u.face), Math.cos(a - u.face))) < 0.01);
-    if (cur >= 0) btns[cur].classList.add('on');
-    p.appendChild(dirs);
+    //   0929y：板の中の矢印ボタンの列をやめ、**選んだ武器の六角のまわりに、辺ごとに六角のボタンを出す**（盤の上・Render.dirRing。押す処理は Main.bindPlacement）。
+    //   向きの意味・保存（perm.placements の a）・射界の計算は前のまま
+    if (build) p.appendChild(Util.el('div', 'udhint', '向き：まわりの六角をタップ'));
     const ar = Game.arcRange(u.def);
     const arcPct = Math.round(Game.arcT(u) * 100);
     p.appendChild(bar(spot ? '着弾範囲' : '射界', 0, 100, arcPct, (v) => {
@@ -856,8 +839,25 @@ const UI = {
       x = 10;
       y = host.height - h - 122;      // 操作列とチュートリアル帯の上
     }
-    p.style.left = Util.clamp(x, 6, Math.max(6, host.width - w - 6)) + 'px';
-    p.style.top = Util.clamp(y, 6, Math.max(6, host.height - h - 6)) + 'px';
+    x = Util.clamp(x, 6, Math.max(6, host.width - w - 6));
+    y = Util.clamp(y, 6, Math.max(6, host.height - h - 6));
+    // 向きの花（盤の上の六角ボタン）と重ならないようにする。**板が花を覆うと、覆われたボタンは押せない。**
+    //   覚えた位置（perm.upop）は書き換えず、そのときだけ別の隅へ逃がす（下・上の左右の順に、花と重ならない最初の隅）
+    const ring = Render.dirRing();
+    if (ring) {
+      const q = Render.toClient(ring.cx, ring.cy), s = Render.scale;
+      const par = (p.offsetParent || this.el.stage).getBoundingClientRect();
+      const fx = q.x - par.left, fy = q.y - par.top, fw = ring.hx * s + 4, fh = ring.hy * s + 4;
+      const hit = (px, py) => px < fx + fw && px + w > fx - fw && py < fy + fh && py + h > fy - fh;
+      if (hit(x, y)) {
+        const L = 10, Rt = Math.max(6, host.width - w - 10), B = Math.max(6, host.height - h - 122), T = 40;
+        for (const c of [[L, B], [Rt, B], [Rt, T], [L, T]]) {
+          if (!hit(c[0], c[1])) { x = c[0]; y = c[1]; break; }
+        }
+      }
+    }
+    p.style.left = x + 'px';
+    p.style.top = y + 'px';
   },
 
   // 取っ手を掴んで動かす。指を離したところを覚える
@@ -903,7 +903,7 @@ const UI = {
     // **敵の通り道（点線）を撃てるように置く、を教える。**（2026-09-26・ユーザー「敵が通るガイドをみて、そこを打つようにしておくと良いよ！みたいなチュートリアルを少し挟んであげると、親切なゲームになりそう」）
     //   オタクくんのテストプレイで、コアの周りに固めて置くと第1章を 12本中0本 しか越えられなかった
     { t: '点線が敵の通り道。その近くの光っている地面に置く', s: 'コアのすぐ横より、道の途中のほうが長く撃てる' },
-    { t: '矢印で向きを変え、扇（撃てる範囲）に点線を入れる', s: '扇に入る点線が長いほど、たくさん撃てる。向きは六角の6方向' },
+    { t: 'まわりの六角を押して向きを変え、扇（撃てる範囲）に点線を入れる', s: '扇に入る点線が長いほど、たくさん撃てる。向きは六角の6方向' },
     { t: '右下の「準備完了」で始まる',    s: '置き直しはウェーブの合間にできる' },
     { t: 'あとは眺めるだけ',            s: '倒すとコインが増える。負けても持ち帰れる' },
   ],

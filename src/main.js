@@ -184,7 +184,7 @@ const Main = {
   // ---------- 配置（地面の上・ビルドフェーズのみ） ----------
   // **なぞって向けるのはやめた。** スマホで狙いづらく、移動に使えるジェスチャも残らない。
   //   武器を選ぶ    → 置ける場所が光る → タップで設置
-  //   置いたものをタップ → 選択（向き・射界はバーで決める）
+  //   置いたものをタップ → 選択（向きはまわりに出る六角の花を押す・射界はバーで決める）
   //   「配置を変える」 → また光る → タップで移動
   bindPlacement(cv) {
     const unitAt = (c, r) => Game.unitAt(c, r);
@@ -194,6 +194,7 @@ const Main = {
     let down = null;
     cv.addEventListener('pointerdown', (e) => {
       down = { x: e.clientX, y: e.clientY, moved: false };
+      Render.dirPress = Render.dirHit(e.clientX, e.clientY);      // 向きの六角を押している間の見た目（-1 なら何も押していない）
       try { cv.setPointerCapture(e.pointerId); } catch (err) { /* 無視 */ }
     });
     cv.addEventListener('pointermove', (e) => {
@@ -202,18 +203,32 @@ const Main = {
       if (!down.moved && Math.hypot(dx, dy) < 9) return;
       if (!Render.canPan()) { down.moved = true; return; }
       down.moved = true;
+      Render.dirPress = -1;
       Render.panBy(e.clientX - down.x, e.clientY - down.y);
+      UI.placeUnitPop();                     // 向きの花が動くので、調整の板が重ならない位置を取り直す
       down.x = e.clientX; down.y = e.clientY;
       e.preventDefault();
     });
-    cv.addEventListener('pointercancel', () => { down = null; });
+    cv.addEventListener('pointercancel', () => { down = null; Render.dirPress = -1; });
 
     cv.addEventListener('pointerup', (e) => {
       const wasPan = down && down.moved;
       down = null;
+      Render.dirPress = -1;
       if (wasPan) return;                    // 動かしたときは選ばない
       const run = Game.run;
       if (!run || run.over) return;
+
+      // 向きの指定：選んでいるユニットのまわりの六角（花）を押したら、その方向が向きになる（Render.dirRing）
+      const di = Render.dirHit(e.clientX, e.clientY);
+      if (di >= 0) {
+        Game.aimUnit(UI.selected, Game.FACES[di]);
+        UI.tutAimed = true;
+        Snd.ui();
+        Game.save();
+        e.preventDefault();
+        return;
+      }
       const t = Render.tileAt(e.clientX, e.clientY);
       const onTile = unitAt(t.hc, t.hr);
 

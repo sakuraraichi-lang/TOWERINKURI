@@ -11,6 +11,7 @@
 //   パックのタブは UI.panelPacks(見本の入れ物, demo)：見本の perm・見本の選びで台を見せる（packTab）。
 //   凸・覚醒は CardFX.demoTotu(凸の数)（カード1枚のパックで、その凸に届く1枚を捲る）と、まとめて開封（覚醒あり）
 //     ・スキルツリーは見本のセーブ（Game.meta / Game.perm の写し）に読み出しのあいだだけ差し替えて、本物の札（UI.skillTrack）と買う処理（UI.skillBuy）をそのまま通す。実セーブは変わらない
+//     ・向きの指定（六角の花）は、裏の準備フェーズの盤に見本の武器を1基置いて選ぶ（dirDemo）。花は本物を押せる。片づけるとき配置の記録とチュートリアルの進みを書き戻す
 //   演出そのものは本物の関数を呼ぶだけ（見本のために別の絵を作らない）。演出を作り直したら、ここに並べる
 // ---------------------------------------------------------------
 'use strict';
@@ -58,6 +59,51 @@ const DebugRoom = {
     const stage = STAGES[MAIN_CHAPTERS] || STAGES[STAGES.length - 1];
     const res = this._res({ stage, stageGot: { first: true, perfect: false, cards: [], packs, stage, next: stage, asc: { exp, from, to, exp0, exp1, packs } } });
     UI.showResult(res); this._safe();
+  },
+
+  // 向きの指定（六角の花）の見本：裏の戦闘の画面（準備フェーズ）に見本の武器を1基置いて選ぶ。**花の六角は本物を押せる**（押した向きに武器が回り、射界の扇が回る）。
+  //   where … mid（見える範囲の真ん中）／left・right（左右の縁の真ん中）／tl・tr（上の角）。下半分は確認室のパネルが覆うので、上の半分から選ぶ。
+  //   **セーブを守る**：置く・向きを変えると配置の記録（perm.placements）とチュートリアルの進みが動くので、始める前の値を写し取り、片づけるとき（もう一度押す・片づける・部屋を閉じる）に書き戻す。
+  //   演出中は Game.save を止める。武器の数の上限・盤の枠には数えない（見本の1基は run.units に直接足す）
+  _dirEnd() {
+    if (!this._dirSnap) return;
+    const sn = this._dirSnap; this._dirSnap = null;
+    Game.save = sn.save;
+    const run = Game.run;
+    if (run && sn.unit) { const i = run.units.indexOf(sn.unit); if (i >= 0) run.units.splice(i, 1); }
+    Game.perm.placements = sn.placements; Game.perm.lastPlace = sn.lastPlace; Game.perm.tut = sn.tut;
+    if (UI.selected === sn.unit) UI.selected = null;
+    try { Game.applyMods(); } catch (e) {}
+    UI.renderTray();
+  },
+  dirDemo(where) {
+    this._dirEnd();
+    const run = Game.run;
+    if (!run || run.over || !Game.canBuild()) { UI.toastMsg('準備フェーズの盤がありません', '#ff4a66', 'error'); return; }
+    this._dirSnap = { placements: JSON.parse(JSON.stringify(Game.perm.placements)), lastPlace: JSON.parse(JSON.stringify(Game.perm.lastPlace || {})), tut: Game.perm.tut, save: Game.save, unit: null };
+    Game.save = () => {};
+    // 見える範囲（盤の画面の上から、確認室のパネルの上まで）を盤の座標にして、その中の目標に一番近い置ける六角を選ぶ
+    const cv = Render.canvas.getBoundingClientRect();
+    const panelTop = window.innerHeight - Math.min(window.innerHeight * 0.5, 440);
+    const a = Render.toStage(cv.left, cv.top), b = Render.toStage(cv.right, Math.min(cv.bottom, panelTop));
+    const st = run.stage, R = MapGen.HEX_R;
+    const x0 = Math.max(0, a.x), x1 = Math.min(st.w, b.x), y0 = Math.max(0, a.y), y1 = Math.min(st.h, b.y);
+    const goal = { mid: [(x0 + x1) / 2, (y0 + y1) / 2], left: [x0, (y0 + y1) / 2], right: [x1, (y0 + y1) / 2], tl: [x0, y0], tr: [x1, y0] }[where] || [(x0 + x1) / 2, (y0 + y1) / 2];
+    let best = null, bd = 1e18;
+    for (const h of st.hexCells()) {
+      const p = st.hexCenter(h.c, h.r);
+      if (p.x < x0 || p.x > x1 || p.y < y0 || p.y > y1 || Game.unitAt(h.c, h.r)) continue;
+      const d = (p.x - goal[0]) ** 2 + (p.y - goal[1]) ** 2;
+      if (d < bd) { bd = d; best = h; }
+    }
+    if (!best) { this._dirEnd(); UI.toastMsg('見える範囲に置ける六角がありません', '#ff4a66', 'error'); return; }
+    const u = Game.newUnit(Game.loadoutWeapons()[0] || Object.keys(WEAPONS)[0], best.c, best.r, Game.FACES[0]);
+    run.units.push(u);
+    Game.applyMods();
+    this._dirSnap.unit = u;
+    UI.placingType = null; UI.moving = null; UI.aiming = null;
+    UI.selected = u;
+    UI.renderTray();
   },
 
   // 一覧：[グループ名, [[ボタンの字, 押したときの関数], …]]
@@ -126,6 +172,14 @@ const DebugRoom = {
         ['取り切る（系統完了の帯）', () => me.skill('done')],
         ['連打（5つ続けて取る）', () => me.skill('rapid')],
       ], () => me._skHostEl()],
+      ['向きの指定（六角の花）', [
+        ['盤の真ん中に置く', () => me.dirDemo('mid')],
+        ['左の縁に置く', () => me.dirDemo('left')],
+        ['右の縁に置く', () => me.dirDemo('right')],
+        ['左上の角に置く', () => me.dirDemo('tl')],
+        ['右上の角に置く', () => me.dirDemo('tr')],
+        ['片づける', () => me._dirEnd()],
+      ]],
       ['場面・画面', [
         ['出撃の瞬間（幕・帯・衝撃波）', () => Sortie.demo()],
         ['出撃の瞬間（ボス章）', () => Sortie.demo(true)],
@@ -320,6 +374,7 @@ const DebugRoom = {
 
   close() {
     this._btEnd();
+    this._dirEnd();
     clearInterval(this._skRapid);
     UI.skillFxClear();
     this._skHost = null;

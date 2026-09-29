@@ -423,6 +423,7 @@ const Render = {
     this.units(ctx, run);
     this.effects(ctx, run);
     this.numbers(ctx, run);
+    this.dirRingDraw(ctx);
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.miniMap(ctx);
@@ -1373,6 +1374,113 @@ const Render = {
       ctx.fill();
       ctx.globalAlpha = 1;
     }
+  },
+
+  // ---------- 向きの指定（花）（0929y・ユーザー「一つのハニカムを中心に、それぞれの面に接するようにハニカムを置くと、直感的に6方向を選べるボタンが出来上がります」） ----------
+  //   選んでいるユニット（置いた直後もここ）の六角のまわりに、6つの辺に接する六角のボタンを出す。押した方向がそのまま向き。
+  //   ボタンの位置は盤の隣の六角と同じ（平らな頭の六角の隣＝上・右上・右下・下・左下・左上。Game.FACES と同じ並びで、同じ角度）。
+  //   **向きの意味・保存・射界の計算は変えない**（選び方と見せ方だけ。Game.aimUnit に FACES の角度を渡す）。
+  //   盤が縮んで隣の六角が指より小さいとき（スマホ幅で約28px）は、花ぜんたいを画面上で半径 BAL.dirRingPx 以上に大きくする（角度は同じ）。
+  //   盤の端で花が画面からはみ出すときは、全部が入るところまで花ごと内側へずらし、元の六角から細い線でつなぐ。
+  //   準備フェーズ・ウェーブの合間のあいだだけ（Game.canBuild）。置く場所・移動先・着弾円を選んでいる最中は出さない
+  dirRing() {
+    const u = UI.selected, run = Game.run;
+    if (!u || !run || run.over || !Game.canBuild()) return null;
+    if (UI.placingType || UI.moving || UI.aiming || !run.units.includes(u)) return null;
+    const s = this.scale, R = MapGen.HEX_R, G = BAL.dirRingGap, c30 = Math.sqrt(3) / 2;
+    const f = Math.max(1, BAL.dirRingPx / (R * G * s));
+    const D = Math.sqrt(3) * R * f, r = R * f * G;
+    const hx = c30 * D + r, hy = D + c30 * r;                     // 花の外形の半分（横・縦）
+    // 上は左上の「火力」の札を避ける。チュートリアルの帯が出ているあいだ（調整の板が開くと帯は上へ逃げる）は、その下まで
+    let topPx = 36;
+    const tut = UI.el && UI.el.tut;
+    if (tut && tut.classList.contains('on') && tut.offsetHeight) {
+      const tr = tut.getBoundingClientRect(), cr = this.canvas.getBoundingClientRect();
+      if (tr.top < cr.top + cr.height / 2) topPx = Math.max(topPx, tr.bottom - cr.top + 6);     // 下に出ているとき（板が開く前）は数えない
+    }
+    const pad = 4 / s, padTop = topPx / s;
+    const x0 = -this.offX / s + pad + hx, x1 = (this.cssW - this.offX) / s - pad - hx;
+    const y0 = -this.offY / s + padTop + hy, y1 = (this.cssH - this.offY) / s - pad - hy;
+    let cx = x0 <= x1 ? Util.clamp(u.x, x0, x1) : (x0 + x1) / 2;
+    let cy = y0 <= y1 ? Util.clamp(u.y, y0, y1) : (y0 + y1) / 2;
+    // 盤の上に重なって押せなくしている札（減速・加速の説明）があれば、それを避けて花をずらす（覆われたボタンは押せない）
+    const zt = UI.el && UI.el.zoneTip;
+    if (zt && zt.classList.contains('on') && zt.offsetHeight) {
+      const zr = zt.getBoundingClientRect(), a = this.toStage(zr.left, zr.top), z = this.toStage(zr.right, zr.bottom);
+      const hit = (X, Y) => X + hx > a.x && X - hx < z.x && Y + hy > a.y && Y - hy < z.y;
+      if (hit(cx, cy)) {
+        let best = null, bd = 1e18;
+        for (const o of [[cx, a.y - hy], [z.x + hx, cy], [a.x - hx, cy], [cx, z.y + hy]]) {
+          if (o[0] < x0 || o[0] > x1 || o[1] < y0 || o[1] > y1 || hit(o[0], o[1])) continue;
+          const d = Math.hypot(o[0] - u.x, o[1] - u.y);
+          if (d < bd) { bd = d; best = o; }
+        }
+        if (best) { cx = best[0]; cy = best[1]; }
+      }
+    }
+    const face = Game.snapFace(u.face);
+    const btns = Game.FACES.map((a) => ({ a, x: cx + Math.cos(a) * D, y: cy + Math.sin(a) * D }));
+    return { u, cx, cy, D, r, hx, hy, btns, cur: Game.FACES.indexOf(face), shifted: Math.hypot(cx - u.x, cy - u.y) > 0.5 };
+  },
+  // 画面の点がどのボタンか（無ければ -1）。**ボタンの六角の外側の隙間も、隣の六角の分まで受ける**（押しそこないを作らない）
+  dirHit(clientX, clientY) {
+    const g = this.dirRing();
+    if (!g) return -1;
+    const p = this.toStage(clientX, clientY), Rc = g.r / BAL.dirRingGap, c30 = Math.sqrt(3) / 2;
+    for (let i = 0; i < g.btns.length; i++) {
+      const dx = Math.abs(p.x - g.btns[i].x), dy = Math.abs(p.y - g.btns[i].y);
+      if (dy <= c30 * Rc && dx + dy / Math.sqrt(3) <= Rc) return i;
+    }
+    return -1;
+  },
+  dirRingDraw(ctx) {
+    const g = this.dirRing();
+    if (!g) { this._ringU = null; return; }
+    const now = performance.now(), px = 1 / this.scale;
+    if (this._ringU !== g.u) { this._ringU = g.u; this._ringT0 = now; }
+    const k = Math.min(1, (now - this._ringT0) / 160), e = 1 - (1 - k) * (1 - k);
+    ctx.save();
+    if (g.shifted) {                                       // ずらしたときは、元の六角から線でつなぐ
+      ctx.globalAlpha = 0.85 * e;
+      ctx.strokeStyle = '#ff8a1f'; ctx.lineWidth = 1.5 * px; ctx.setLineDash([4 * px, 4 * px]);
+      ctx.beginPath(); ctx.moveTo(g.u.x, g.u.y); ctx.lineTo(g.cx, g.cy); ctx.stroke();
+      ctx.setLineDash([]);
+      this.hexPathOn(ctx, g.cx, g.cy, g.r * 0.42);
+      ctx.fillStyle = 'rgba(8,10,15,0.9)'; ctx.fill(); ctx.stroke();
+    }
+    if (!g.shifted) {                                      // 中心の六角のふち。6つのボタンと合わせて、1つの花に見せる
+      this.hexPathOn(ctx, g.cx, g.cy, g.r);
+      ctx.globalAlpha = 0.3 * e; ctx.strokeStyle = '#ff8a1f'; ctx.lineWidth = 1 * px; ctx.stroke();
+    }
+    g.btns.forEach((b, i) => {
+      const on = i === g.cur, press = this.dirPress === i;
+      const rr = g.r * (0.55 + 0.45 * e) * (press ? 0.9 : 1);
+      ctx.save();
+      ctx.globalAlpha = e;
+      this.hexPathOn(ctx, b.x, b.y, rr);
+      if (on) {
+        ctx.shadowColor = '#ff8a1f'; ctx.shadowBlur = 14;
+        ctx.fillStyle = '#ff8a1f';
+      } else ctx.fillStyle = press ? 'rgba(60,32,10,0.95)' : 'rgba(8,10,15,0.9)';
+      ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = on ? '#ffe2bd' : 'rgba(255,138,31,0.8)'; ctx.lineWidth = (on ? 2.2 : 1.6) * px;
+      ctx.stroke();
+      if (!on) {                                            // 内側の細い縁（物理ボタンの面）
+        this.hexPathOn(ctx, b.x, b.y, rr - 3.5 * px);
+        ctx.strokeStyle = 'rgba(255,255,255,0.10)'; ctx.lineWidth = 1 * px; ctx.stroke();
+      }
+      // 外へ向かう矢じり
+      ctx.translate(b.x, b.y); ctx.rotate(b.a);
+      const L = rr * 0.5;
+      ctx.beginPath();
+      ctx.moveTo(L * 0.75, 0); ctx.lineTo(-L * 0.5, -L * 0.78); ctx.lineTo(-L * 0.18, 0); ctx.lineTo(-L * 0.5, L * 0.78);
+      ctx.closePath();
+      ctx.fillStyle = on ? '#1a0d00' : '#ffb35a';
+      ctx.fill();
+      ctx.restore();
+    });
+    ctx.restore();
   },
 
   // 指定攻撃の着弾円。**砲弾はこの円の中のどこかに落ちる。**
