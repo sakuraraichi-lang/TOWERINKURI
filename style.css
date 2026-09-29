@@ -812,9 +812,6 @@ body:not(.tabsoff) .bigstart s{width:28px;height:28px;font-size:13px;}
   background:radial-gradient(circle at 35% 35%,#f4f6fb 0,#9aa3b2 40%,#3b404c 75%);box-shadow:0 1px 2px rgba(0,0,0,.8);}
 .pfx-rv.a{left:9px;top:9px;}.pfx-rv.b{right:9px;top:9px;}.pfx-rv.c{left:12px;bottom:22px;}.pfx-rv.d{right:12px;bottom:22px;}
 .pfx-emb{position:relative;width:62%;aspect-ratio:1;display:grid;place-items:center;}
-.pfx-gear{position:absolute;inset:0;color:var(--pc);opacity:.85;animation:gearspin 9s linear infinite;
-  filter:drop-shadow(0 0 6px color-mix(in srgb,var(--pc) 80%,transparent));}
-.pfx-gear .ico{width:100%;height:100%;stroke-width:1.1;}
 .pfx-logo{width:58%;position:relative;}
 .pfx-logo .gamelogo{filter:drop-shadow(0 0 10px rgba(255,255,255,.6));}
 .pfx-name{font-size:16px;font-weight:900;color:#fff;letter-spacing:.1em;padding:3px 12px;
@@ -1081,11 +1078,7 @@ body:not(.on-home) #homeFx{display:none;}
   background:linear-gradient(170deg,#3a3f4b,#12141a);box-shadow:inset 0 0 0 1.5px color-mix(in srgb,var(--pc) 70%,transparent);}
 .mpack-strip{position:absolute;left:0;right:0;top:0;height:8px;
   background:linear-gradient(180deg,color-mix(in srgb,var(--pc) 75%,#fff),color-mix(in srgb,var(--pc) 70%,#000));border-bottom:1px dashed rgba(0,0,0,.6);}
-.mpack-gear{position:absolute;left:50%;top:55%;width:20px;height:20px;transform:translate(-50%,-50%);color:var(--pc);
-  filter:drop-shadow(0 0 3px color-mix(in srgb,var(--pc) 80%,transparent));}
-.mpack-gear .ico{width:100%;height:100%;}
 .mpack-haz{position:absolute;left:0;right:0;bottom:0;height:4px;background:repeating-linear-gradient(135deg,var(--pc) 0 3px,#111 3px 6px);}
-.prow.can .mpack-gear .ico{animation:gearspin 6s linear infinite;}
 
 /* 武器トレイ：アイコン＋略称 */
 
@@ -2820,8 +2813,9 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 .lo-num b,.tpoints b{font-family:var(--font-num);font-variant-numeric:tabular-nums;}
 
 /* ===== 0929zk：カードの裏面とパック開封の箱のロゴを、題字 X1 の六角の紋に（2026-09-30 ユーザー「はい、どちらも変えます」）=====
-   紋は回さない・光らせない（Scenes.markSvg の方針）。箱の上で紋のまわりを回っていた歯車は、旧ロゴの一部なので消す */
-.pfx-gear{display:none;}
+   紋は回さない・光らせない（Scenes.markSvg の方針）。箱の上で紋のまわりを回っていた歯車と、パック一覧の小さな箱の歯車は、旧ロゴの一部なので HTML と CSS ごと撤去（0929zl） */
+.mpack-mark{position:absolute;left:50%;top:55%;width:20px;height:20px;transform:translate(-50%,-50%);}
+.mpack-mark .gamelogo{width:100%;height:100%;filter:none;}
 .pfx-logo{width:74%;}
 .pfx-logo .gamelogo{filter:drop-shadow(0 2px 6px rgba(0,0,0,.6));}
 .cf-backin .gamelogo{width:70%;filter:drop-shadow(0 2px 4px rgba(0,0,0,.55));}
