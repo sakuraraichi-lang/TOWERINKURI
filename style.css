@@ -357,7 +357,7 @@ button{font-family:inherit;color:inherit;cursor:pointer;border:none;background:n
   background:#0e1116;border:1px solid var(--line);padding:5px 7px;white-space:nowrap;}
 #protoLink:active{color:var(--acc);}
 
-/* ============================================================
+/* =====================================================
    画面の切り替え
    **1画面にいっぺんに詰め込まない。**
    ホーム＝選んで始めるだけ／戦場＝盤面と最小限の表示だけ
@@ -2581,3 +2581,39 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 
 /* 向きの指定（0929y）：向きは盤の上の六角の花で選ぶ。調整の板には一言だけ */
 #upop .udhint{margin:2px 9px 4px;font-size:10px;color:var(--acc);letter-spacing:.04em;}
+=======
+/* =====================================================================
+   可読性の板（0929z・2026-09-29 ユーザー「リザルトで、背景のハニカムと文字が干渉して可読性が犠牲になっている、優れたデザインはとても素晴らしいものだが、
+   可読性を犠牲にしてはいけない」）。格子が点く演出はそのまま残し、文字のある段の下に暗い板を敷く。
+   実測（止めた状態で文字だけ透明にして撮り、枠の中の背景と文字色の明るさの比を出した）：数字の行のラベルが 悪い側5%点で 1.2〜2.9 まで落ちていた
+   （目安 4.5・大きい字は 3）。板を敷いてからは、どの字も 4.5 を超える。
+   決まり：**文字の後ろに格子や光を敷く画面は、文字の下に板（不透明度 .9 以上の暗い地）を置く。** 格子は板の外（すき間・縁）で見せる
+   ===================================================================== */
+.rs .rs-line{margin:0 14px;padding:4px 12px;background:rgba(7,9,13,.92);border-radius:6px;}
+.rs .rs-line span{color:#a9aeb6;}
+.rs .rs-h{width:fit-content;margin:0 14px;padding:3px 10px 3px 9px;background:rgba(7,9,13,.92);border-left:2px solid var(--rk);border-radius:3px;}
+.rs .rs-tip{background:rgba(7,9,13,.92);border-radius:0 4px 4px 0;}
+.rs .rs-pack{background:rgba(7,9,13,.92);border-color:rgba(255,255,255,.1);}
+.rs .rs-chip{background:#0a1512;}
+.rs .dmg-bars{margin:0 14px 2px;padding:6px 12px 6px 10px;background:rgba(7,9,13,.92);border-radius:6px;}
+/* 大きな字：縁を暗くして、後ろの光や格子から切り離す（光る影は残す） */
+.rs-ban b{text-shadow:0 0 2px rgba(0,0,0,.75),2px 0 rgba(255,60,60,.6),-2px 0 rgba(60,200,255,.6),0 0 18px var(--rk),0 0 42px var(--rk);}
+.awk-band .ch{text-shadow:0 0 2px rgba(0,0,0,.8),2px 0 rgba(255,60,60,.6),-2px 0 rgba(60,200,255,.6),0 0 16px #ffc24a,0 0 34px #ffb020;}
+.asc-band .ch{text-shadow:0 0 2px rgba(0,0,0,.8),2px 0 rgba(255,60,60,.6),-2px 0 rgba(60,200,255,.6),0 0 16px #6fe6ff,0 0 34px #2ab8dc;}
+/* カード3択：札の下の一言と、選択肢の理由にも板 */
+.draft .chcard.cfpick .chtype{color:var(--txt2);background:rgba(7,9,13,.9);border-radius:4px;padding:4px 6px 3px;}
+.draft .draftwhy{width:fit-content;max-width:100%;margin:0 auto 8px;padding:4px 10px;background:rgba(7,9,13,.92);border-radius:4px;}
+.draft .chslots{padding:6px 4px;background:rgba(7,9,13,.6);border-radius:8px;}
+/* 覚醒・アセンションのレベルアップ：暗くする幕を濃くして、下の画面の文字を格子の後ろに透かさない */
+.pfx-awaken,.pfx-ascup{background:rgba(3,4,8,.9);}
+.awk-hex,.asc-hex{opacity:.7;}
+/* 数値の「前」の値：暗く沈める色が地に負けていた（3.1 → 5.9） */
+.skfx-read b.a{color:#a08c5c;}
+.skfx-band span b.a{color:#a08c5c;}
+/* ボス章の「// WARNING」：赤が暗い地に沈んでいた */
+.srt.boss .srt-kick{color:#ff7b88;}
+/* パックのタブ（0929x）：赤い「まとめて開ける」の白い字は明るい面に負けていた（2.5〜3.0 → 5 以上）。ラベルの小さな英字はパックの色を白に寄せる */
+.gs-pull.all:not(:disabled){background:linear-gradient(180deg,#d94a36 0%,#bf2c42 50%,#8f1a33 100%);text-shadow:0 1px 1px rgba(0,0,0,.5);}
+.gs-have em,.gs-sys em{color:color-mix(in srgb,var(--pc) 62%,#fff);}
+/* 確認室のパックのタブ（見本の台）：外側の格子を薄くする（本物のパックのタブには外側の格子は無い） */
+.dbgpk.fx::before{opacity:.12;}

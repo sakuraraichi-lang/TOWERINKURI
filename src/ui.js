@@ -378,6 +378,15 @@ const UI = {
       el.addEventListener('click', () => { Game.perm.hideDmgNum = !Game.perm.hideDmgNum; Game.save(); Snd.ui(); this.renderCfg(); });
       b.appendChild(el);
     }
+    {
+      // 配置の通知（初期は出す。hidePlaceToast で消す・2026-09-29 ユーザー「ユニット設置時の右上の通知設定で消せるようにしといて、うざい」）
+      const on = !Game.perm.hidePlaceToast;
+      const el = Util.el('label', 'cfgrow' + (on ? ' on' : ''));
+      el.innerHTML = '<span class="box">' + (on ? Icons.get('check') : '') + '</span>' +
+        '<span><b>配置の通知を出す</b><span>武器を選んだとき、右上に「〜 を置く地面をタップ」と出します（置けない理由の警告は、切っても出ます）</span></span>';
+      el.addEventListener('click', () => { Game.perm.hidePlaceToast = !Game.perm.hidePlaceToast; Game.save(); Snd.ui(); this.renderCfg(); });
+      b.appendChild(el);
+    }
     // 自動化は開いてから出す（BAL.autoUnlock）
     if (Game.autoOpen('autoPlace')) b.appendChild(row('autoPlace', '自動設置',
       'この周でまだ触っていない章に、前の周の配置を置き直します'));
@@ -535,7 +544,7 @@ const UI = {
           this.tip = { wid: wid, t: def.name + '：' + this.WEAPON_TIP[wid] };
         }
         this.renderTray();
-        if (this.placingType) this.toastMsg(def.name + ' を置く地面をタップ', def.color, 'place');
+        if (this.placingType && !Game.perm.hidePlaceToast) this.toastMsg(def.name + ' を置く地面をタップ', def.color, 'place');
       });
       t.appendChild(b);
     }
@@ -690,6 +699,9 @@ const UI = {
     }));
     box.appendChild(btn(Game.perm.hideDmgNum ? '' : 'on', '<i class="bc-chk">' + (Game.perm.hideDmgNum ? '' : Icons.get('check')) + '</i><span>ダメージの数字を出す</span>', () => {
       Game.perm.hideDmgNum = !Game.perm.hideDmgNum; Game.save(); Snd.ui(); this.renderBattleCfg();
+    }));
+    box.appendChild(btn(Game.perm.hidePlaceToast ? '' : 'on', '<i class="bc-chk">' + (Game.perm.hidePlaceToast ? '' : Icons.get('check')) + '</i><span>配置の通知を出す</span>', () => {
+      Game.perm.hidePlaceToast = !Game.perm.hidePlaceToast; Game.save(); Snd.ui(); this.renderBattleCfg();
     }));
     // 減速・加速の説明の札（閉じたあとで、もう一度出せるように）
     box.appendChild(btn(Game.perm.zoneTipOff ? '' : 'on', '<i class="bc-chk">' + (Game.perm.zoneTipOff ? '' : Icons.get('check')) + '</i><span>減速・加速の説明を出す</span>', () => {
