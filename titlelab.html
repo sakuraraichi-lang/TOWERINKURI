@@ -134,18 +134,81 @@ h3.sec{max-width:1280px;margin:22px auto 10px;font-size:13px;color:var(--or);let
 .m-BC .pl{font:400 12px 'Dela Gothic One';background:var(--yel);color:var(--blk);padding:3px 6px;transform:rotate(-5deg);position:relative;z-index:1;margin-right:-4px;}
 .m-BC .mk{font:400 20px/1 'Anton';color:#fff;background:var(--blk);border-top:2px solid var(--or);border-bottom:2px solid #fff;padding:4px 10px;transform:skewY(-4deg);}
 .m-BC .mk em{font-style:normal;color:var(--or);}
+
+/* ================= 3回目：C3 × B1 の合わせ（ユーザー「ダントツでC3とB1が刺さっています」） ================= */
+/* X1：タイトルは B1 の放送の帯。帯の左端に C3 の紋を押す。ミニロゴは紋＋日本語（C3） */
+.X1 .osd{position:absolute;left:7%;top:7%;z-index:6;font:700 12px 'Chakra Petch';letter-spacing:.12em;color:#fff;}
+.X1 .osd i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--or2);margin-right:6px;animation:blink 1s steps(2) infinite;}
+.X1 .band{position:absolute;left:-6%;right:-6%;top:35%;z-index:3;transform:skewY(-7deg);padding:18px 0 14px 31%;background:var(--blk);border-top:4px solid var(--or);border-bottom:4px solid var(--yel);}
+.X1 .t{display:block;font-size:clamp(20px,6.6vw,30px);color:#fff;letter-spacing:.04em;text-shadow:-3px 0 rgba(255,138,31,.9),3px 0 rgba(255,210,31,.55);}
+.X1 .t b{display:inline-block;font-weight:400;}
+.X1 .e{display:block;margin-top:6px;font-size:clamp(13px,4.4vw,19px);letter-spacing:.4em;color:var(--or);}
+.X1 .emb{position:absolute;left:4%;top:calc(35% - 18px);z-index:5;}
+.X1 .hz{position:absolute;left:0;right:0;height:12px;z-index:2;background:repeating-linear-gradient(135deg,var(--yel) 0 10px,var(--blk) 10px 20px);opacity:.9;transform:skewY(-7deg);}
+.X1 .hz.h1{top:27%;}.X1 .hz.h2{top:63%;}
+.X1.play .band{animation:bandIn .35s cubic-bezier(.2,.9,.3,1) .15s both;}
+.X1.play .t b{animation:drop .4s cubic-bezier(.2,1.5,.4,1) both;animation-delay:calc(.4s + var(--i) * .05s);}
+.X1.play .emb{animation:stamp .4s cubic-bezier(.2,1.6,.4,1) both;}
+/* X2：タイトルは C3 の並び（紋が真ん中・上）。名前を B1 の帯に載せ、REC と警告の縞。ミニロゴは紋＋小さな帯 */
+.X2 .osd{position:absolute;left:7%;top:7%;z-index:6;font:700 12px 'Chakra Petch';letter-spacing:.12em;color:#fff;}
+.X2 .osd i{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--or2);margin-right:6px;animation:blink 1s steps(2) infinite;}
+.X2 .emb{position:absolute;left:50%;top:21%;transform:translateX(-50%);z-index:5;}
+.X2 .band{position:absolute;left:-6%;right:-6%;top:47%;z-index:3;transform:skewY(-6deg);padding:14px 0 12px;background:var(--blk);border-top:4px solid var(--or);border-bottom:4px solid var(--yel);text-align:center;}
+.X2 .t{display:block;font-size:clamp(26px,8.4vw,38px);color:#fff;letter-spacing:.04em;text-shadow:-3px 0 rgba(255,138,31,.9),3px 0 rgba(255,210,31,.55);}
+.X2 .t b{display:inline-block;font-weight:400;}
+.X2 .e{display:block;margin-top:5px;font-size:clamp(13px,4.4vw,19px);letter-spacing:.4em;color:var(--or);}
+.X2 .hz{position:absolute;left:0;right:0;top:72%;height:10px;z-index:2;background:repeating-linear-gradient(135deg,var(--yel) 0 10px,var(--blk) 10px 20px);opacity:.85;transform:skewY(-6deg);}
+.X2.play .emb{animation:stampC .45s cubic-bezier(.2,1.6,.4,1) both;}
+.X2.play .band{animation:bandIn .35s cubic-bezier(.2,.9,.3,1) .3s both;}
+.X2.play .t b{animation:drop .4s cubic-bezier(.2,1.5,.4,1) both;animation-delay:calc(.55s + var(--i) * .05s);}
+@keyframes stampC{0%{transform:translateX(-50%) scale(2.2) rotate(-20deg);opacity:0;}100%{transform:translateX(-50%) scale(1) rotate(0);opacity:1;}}
+.m-X2{display:flex;align-items:center;gap:0;}
+.m-X2 .emb{position:relative;z-index:1;margin-right:-10px;}
+.m-X2 .bd{background:var(--blk);border-top:2px solid var(--or);border-bottom:2px solid var(--yel);padding:4px 12px 4px 16px;transform:skewY(-4deg);}
+.m-X2 .bd span{font:400 16px 'Dela Gothic One';color:#fff;letter-spacing:.04em;text-shadow:-2px 0 rgba(255,138,31,.9);}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:0;}
+.pair .stage{aspect-ratio:9/15;}
+@media(max-width:520px){.pair{grid-template-columns:1fr;}}
 </style>
 </head>
 <body>
 <header>
-  <h1>題字の見比べ（2回目）</h1>
+  <h1>題字の見比べ（3回目：いちばん上に C3 × B1 の合わせ）</h1>
   <p>ユーザーの声：「BとCが同列で好き・Aの方向性は無い」「黒・オレンジ・白・黄色のコンセプトカラーを取り入れつつ、それのみに縛られないように」「ホームの出撃画面にも使うので、ミニロゴとして使いやすいもの」。<br>
      新しい案は5つ（C1・C2・C3・B1・BC）。それぞれの下に、**ホームの出撃画面に置いたときのミニロゴ**と、**アイコンの大きさ**を並べています。比べるために元のB・Cも下に残しています。<br>
      雰囲気の手本はゼンレスゾーンゼロ（要素だけ）。英字の綴り「EXMENT MACHINA」は仮です。</p>
   <div class="bar"><button id="replay">もう一度（出てくる動き）</button></div>
 </header>
 
-<h3 class="sec">新しい案（コンセプトカラー：黒・オレンジ・白・黄色）</h3>
+<h3 class="sec">3回目：C3 × B1 の合わせ（役割で分ける）</h3>
+<div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(340px,1fr))">
+  <section class="card">
+    <h2>X1：放送の帯に紋を押す <small>タイトル＝B1 ／ マーク＝C3</small></h2>
+    <div class="stage X1" data-v><i class="hex"></i><i class="hz h1"></i><i class="hz h2"></i>
+      <div class="osd"><i></i>REC ▶ CH-03</div>
+      <span class="emb" style="--s:96px" data-emb></span>
+      <div class="band"><span class="t jp" data-drop>エクスメントマキナ</span><span class="e an">RETRO DEFENDER</span></div>
+      <div class="tap">PRESS START</div></div>
+    <div class="minis"><span class="lab">ミニロゴ（ホームの出撃画面）＝C3 のまま</span>
+      <div class="homebar"><div class="m-C3"><span class="emb" style="--s:44px" data-emb></span><span class="pl">エクスメントマキナ<small>RETRO DEFENDER</small></span></div></div>
+      <div class="tiny"><span class="lab">アイコン</span><span class="ico"><span class="emb" style="--s:34px" data-emb></span></span></div></div>
+    <div class="note">タイトルは B1 の放送の帯（字が割れて1字ずつ落ちる・REC・警告の縞）。帯の左端に C3 の紋が先に押される。ホームとアイコンは C3 の紋＋日本語。「動き＝B1、看板＝C3」。</div>
+  </section>
+  <section class="card">
+    <h2>X2：紋の下に放送の帯 <small>並び＝C3 ／ 帯＝B1</small></h2>
+    <div class="stage X2" data-v><i class="hex"></i><i class="hz"></i>
+      <div class="osd"><i></i>REC ▶ CH-03</div>
+      <span class="emb" style="--s:118px" data-emb></span>
+      <div class="band"><span class="t jp" data-drop>エクスメントマキナ</span><span class="e an">RETRO DEFENDER</span></div>
+      <div class="tap">PRESS START</div></div>
+    <div class="minis"><span class="lab">ミニロゴ（ホームの出撃画面）＝紋＋小さな放送の帯</span>
+      <div class="homebar"><div class="m-X2"><span class="emb" style="--s:44px" data-emb></span><span class="bd"><span>エクスメントマキナ</span></span></div></div>
+      <div class="tiny"><span class="lab">アイコン</span><span class="ico"><span class="emb" style="--s:34px" data-emb></span></span></div></div>
+    <div class="note">紋が真ん中に押され、その下に B1 の帯が叩きつけられる。ミニロゴも「紋＋小さな帯」で、タイトルとホームが同じ形になる（いちばん統一感がある）。</div>
+  </section>
+</div>
+
+<h3 class="sec">2回目の案（コンセプトカラー：黒・オレンジ・白・黄色）</h3>
 <div class="grid">
   <section class="card">
     <h2>C1：オレンジの看板 <small>Cの色替え</small></h2>
