@@ -113,6 +113,12 @@ const Main = {
     UI.placingType = null;
     UI.selected = null;
     UI.moving = null;
+    // **コストの上限が前より上がっていたら、全撤去のボタンを光らせて知らせる**（2026-09-30 段1b・設計書 §2-10）。
+    //   準備フェーズの帯が抜けたあとに出す（重ねると読めない）
+    if (Game.checkCapUp()) {
+      const run = Game.run;
+      setTimeout(() => { if (UI._screen === 'battle' && Game.run === run && run.capUp && Game.canBuild()) UI.toastMsg('全撤去して置き直せます', '#ffc24a', 'capup'); }, (cutDelay > 0 ? cutDelay : 0) + 1700);
+    }
     UI.renderTray();
     this.syncStartButton();
     UI.closeBattleCfg();

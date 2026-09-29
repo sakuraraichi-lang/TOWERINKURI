@@ -509,7 +509,7 @@ async function progressAsync(seeds, opts) {
       const r = await lap('seed' + sd + ' 周' + L, L === 1);
       pg.now = 'seed' + sd + ' 周' + L + ' → ' + r.cleared + '章';
       got.push(r.cleared); mins.push(r.min); tries.push(r.tries); notes.push(r.note);
-      slots.push(Game.slotsTotal());        // その周の終わりに何基置けたか
+      slots.push(Game.costCap());           // その周の終わりのコストの上限（以前は置ける基数）
       // **章ごとの挑戦回数（tries）を残す。**
       //   0 はスキップ、1 は一発、2以上は詰まった章 ＝ ストップポイント。
       //   到達章の数字だけ見ていると「どこで詰まったか」が分からず、
@@ -703,6 +703,30 @@ function heatField(st, range, arc, traffic) {
   return out;
 }
 
+// **置く武器の並び（コスト制・段1b）。**武器1種の上限が無くなったので、「何を何基置くか」は測定器が決める。
+//   編成の種類ごとに使ったコストが等しくなるように、1基ずつ配る（使ったコストがいちばん少ない種類に次の1基。同じなら編成の順）。
+//   コストの上限に収まらなくなるまで。**これは「上手な混成」の代用**（1種だけ・安い武器だけを上限まで並べる置き方はしない）。
+//   すでに盤にある武器のコストは使用済みとして数える（ウェーブ間の置き直しは、先に全部外してから呼ぶ）
+function costWant() {
+  const types = Game.loadoutWeapons();
+  const cap = Game.costCap();
+  const spent = {};
+  for (const t of types) spent[t] = 0;
+  let used = 0;
+  for (const u of (Game.run ? Game.run.units : [])) { used += u.def.cost; if (spent[u.id] !== undefined) spent[u.id] += u.def.cost; }
+  const want = [];
+  for (;;) {
+    let best = null;
+    for (const t of types) {
+      if (used + WEAPONS[t].cost > cap) continue;
+      if (best === null || spent[t] < spent[best]) best = t;
+    }
+    if (!best) break;
+    want.push(best); spent[best] += WEAPONS[best].cost; used += WEAPONS[best].cost;
+  }
+  return want;
+}
+
 // ウェーブ間に置き直す。**全部どけてから、通行量を見て置き直す**
 function replaceUnits(run) {
   const st = run.stage;
@@ -713,11 +737,9 @@ function replaceUnits(run) {
     Skill.applyTo(fake, mods);
     return { range: fake.s.range, arc: fake.s.arc, thru: !!def.wallThrough };
   };
-  const want = [];
-  for (const wid of Game.loadoutWeapons()) for (let i = 0; i < Game.unitCap(wid); i++) want.push(wid);
+  for (const u of run.units.slice()) Game.removeUnit(u);   // 先に全部どける（costWant は盤にある分を使用済みと数える）
+  const want = costWant();
   want.sort((a, b) => statOf(b).range - statOf(a).range);
-
-  for (const u of run.units.slice()) Game.removeUnit(u);
 
   const taken = {};
   const far = (c, r, min2) => {
@@ -773,9 +795,7 @@ function autoPlaceHug(run) {
   }
   cand.sort((a, b) => a.near - b.near);
   if (!cand.length) return;
-  const types = Game.loadoutWeapons();
-  const want = [];
-  for (const wid of types) for (let i = 0; i < Game.unitCap(wid); i++) want.push(wid);
+  const want = costWant();
   const taken = {};
   want.forEach((wid, i) => {
     const idx = Math.min(cand.length - 1, Math.floor(cand.length * (i + 0.5) / want.length));
@@ -811,10 +831,7 @@ function autoPlaceRange(run) {
     return { range: fake.s.range, arc: fake.s.arc };
   };
 
-  const want = [];
-  for (const wid of Game.loadoutWeapons()) {
-    for (let i = 0; i < Game.unitCap(wid); i++) want.push(wid);
-  }
+  const want = costWant();
   // 射程の長いものから場所を取る。後回しにすると良い遠射点が埋まってしまう
   want.sort((a, b) => statOf(b).range - statOf(a).range);
 
@@ -861,7 +878,7 @@ function autoPlaceRange(run) {
 //   2026-09-23 に踏んだ：ブラウザから長い測定を流すと途中で打ち切られることがあり、
 //   **打ち切られると `finally` が走らず、`BAL` が差し替わったまま残る。**
 //   そのあとの測定は、黙って別のゲームを測っていた
-//   （`enemySpdCap` 260 のはずが 390、`slotsBase` 6 のはずが 34 のまま固定されていて、
+//   （`enemySpdCap` 260 のはずが 390、`slotsBase`（いまの costBase）6 のはずが 34 のまま固定されていて、
 //    同じ条件の数字が 5倍ずれた。その回の表は全部捨てた）。
 //   → **読み込み時に BAL の原本を取っておき、毎回の測定の入口で見張る。**
 const BAL_PRISTINE = JSON.parse(JSON.stringify(BAL));
@@ -1012,7 +1029,7 @@ function runStageInner(stageId, loadout, buys, opts) {
       dps: sec > 0 ? dealt / sec : 0,
       kills, leaked: run.leaked - wLeak, livesLost: run.livesLost - wLost,
       coins, cards: cardsTaken - wCards,
-      units: run.units.length,
+      units: run.units.length, cost: Game.costUsed(),
       coinRate: sec > 0 ? coins / sec : 0,
       killRate: sec > 0 ? kills / sec : 0,
       cleared,
@@ -1091,7 +1108,7 @@ function runStageInner(stageId, loadout, buys, opts) {
     kills: run.kills, leaked: run.leaked, livesLost: run.livesLost,
     livesLeft: Math.max(0, Math.ceil(run.lives)), livesMax: run.livesMax,
     coinsEarned: Math.round(earned), coinsSpent: Math.round(spent), skillsBought: bought,
-    cardsTaken, units: run.units.length, weapons: loadout.length,
+    cardsTaken, units: run.units.length, cost: Game.costUsed(), costCap: Game.costCap(), weapons: loadout.length,
     coinPerSec: +(earned / sec).toFixed(1),
     killPerSec: +(run.kills / sec).toFixed(1),
     dpsAvg: Math.round(run.dealt / sec),
@@ -1254,7 +1271,7 @@ function campaign() {
       power: cleared ? {
         lv: SKILLS.reduce((a, x) => a + Skill.lv(Game.meta, x.id), 0),
         mid: +m.cat.mid.dmg.toFixed(1), long: +m.cat.long.dmg.toFixed(1),
-        units: Skill.gsum(Game.meta, 'units'), lives: BAL.livesBase + m.lives,
+        units: Game.costCap(), lives: BAL.livesBase + m.lives,   // units はコストの上限
       } : null });
     if (!cleared) break;
   }

@@ -64,7 +64,7 @@ const DebugRoom = {
   // 向きの指定（六角の花）の見本：裏の戦闘の画面（準備フェーズ）に見本の武器を1基置いて選ぶ。**花の六角は本物を押せる**（押した向きに武器が回り、射界の扇が回る）。
   //   where … mid（見える範囲の真ん中）／left・right（左右の縁の真ん中）／tl・tr（上の角）。下半分は確認室のパネルが覆うので、上の半分から選ぶ。
   //   **セーブを守る**：置く・向きを変えると配置の記録（perm.placements）とチュートリアルの進みが動くので、始める前の値を写し取り、片づけるとき（もう一度押す・片づける・部屋を閉じる）に書き戻す。
-  //   演出中は Game.save を止める。武器の数の上限・盤の枠には数えない（見本の1基は run.units に直接足す）
+  //   演出中は Game.save を止める。コストの上限には数えない（見本の1基は run.units に直接足す）
   // 保存の差し替え：**本物の Game.save は最初の1回だけ控え、戻すのは差し替えを頼んだものが全部終わったとき。**
   //   （2026-09-29・前は見本ごとに「そのとき見えている Game.save」を控えていた。ボス戦の見本の途中で向きの花を出すと、
   //    花が控えたのは差し替え後の空の関数で、片づけたあとも保存が止まったままになり、記憶のセーブも見本の前と食い違った）
@@ -85,8 +85,18 @@ const DebugRoom = {
     if (run && sn.unit) { const i = run.units.indexOf(sn.unit); if (i >= 0) run.units.splice(i, 1); }
     Game.perm.placements = sn.placements; Game.perm.lastPlace = sn.lastPlace; Game.perm.tut = sn.tut;
     if (UI.selected === sn.unit) UI.selected = null;
+    if (run) run.capUp = false;   // 全撤去を光らせる見本（capDemo）の印
     try { Game.applyMods(); } catch (e) {}
     UI.renderTray();
+  },
+  // 「コストの上限が上がった直後」の見本：見本の武器を1基置き、全撤去のボタンを光らせて通知を出す（もう一度押す・片づけるで戻る）。
+  //   全撤去を押すと見本の武器も外れる（配置の記録は _dirEnd が書き戻す）
+  capDemo() {
+    this.dirDemo('mid');
+    const run = Game.run;
+    if (!this._dirSnap || !run) return;
+    run.capUp = true;
+    UI.toastMsg('全撤去して置き直せます', '#ffc24a', 'capup');
   },
   //   wid … 見本の武器（省くと編成の1つ目＝ふつうはガトリング）。0930：**向きが効かない武器（指定攻撃・凍結）は花が出ない**ので、その見本もここから出す
   dirDemo(where, wid) {
@@ -179,15 +189,16 @@ const DebugRoom = {
         ['置く地面をタップ', () => UI.toastMsg('刀 を置く地面をタップ', '#ff5a3c', 'place')],
         ['注意（編成なし）', () => UI.toastMsg('武器を1つ以上編成してください', '#ff8080', 'warn')],
         ['ロック（開いていない）', () => UI.toastMsg('第10章を突破すると開きます', '#ff8080', 'lock')],
-        ['置ける数がいっぱい', () => UI.toastMsg('盤に置ける数がいっぱいです（12基）', '#ff8080', 'limit')],
+        ['コストが足りない', () => UI.toastMsg('コストが足りません（ミサイルはコスト4・残り 2）', '#ff8080', 'limit')],
+        ['コストの上限が上がった（全撤去が光る）', () => me.capDemo()],
         ['システム', () => UI.toastMsg('処理の重さを表示', '#ff8a1f', 'sys')],
         ['エラー', () => UI.toastMsg('出せませんでした：見本', '#ff4a66', 'error')],
         ['連続で6個（差し替わる）', () => ['weapon', 'wave', 'buy', 'warn', 'card', 'lock'].forEach((k, i) => setTimeout(() =>
-          UI.toastMsg(['新しい武器 ガトリング', 'ウェーブ ' + (i + 1) + ' 突破', '3件 購入　コイン 900', '盤に置ける数がいっぱいです', '取得: 見本のカード', '開いていません'][i], '#ffc24a', k), i * 260))],
+          UI.toastMsg(['新しい武器 ガトリング', 'ウェーブ ' + (i + 1) + ' 突破', '3件 購入　コイン 900', 'コストが足りません', '取得: 見本のカード', '開いていません'][i], '#ffc24a', k), i * 260))],
       ]],
       ['スキルツリー（ノードを取った瞬間）', [
         ['1つ取る（火力の連なり）', () => me.skill('normal')],
-        ['設置枠を取る（増設完了の帯）', () => me.skill('units')],
+        ['コストの上限を取る（増設完了の帯）', () => me.skill('units')],
         ['取り切る（系統完了の帯）', () => me.skill('done')],
         ['連打（5つ続けて取る）', () => me.skill('rapid')],
       ], () => me._skHostEl()],

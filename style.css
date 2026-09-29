@@ -1499,6 +1499,20 @@ body:not(.tabsoff) .hlogo{display:none;}
 #tray .chip.unit u{display:block;text-decoration:none;font-size:9px;color:var(--dim);font-variant-numeric:tabular-nums;}
 #tray .chip.unit.on{background:#3a1c08;border-color:var(--acc)!important;box-shadow:0 0 12px rgba(255,138,31,.45);}
 #tray .chip.unit.full u{color:var(--danger);}
+#tray .chip.unit u s{text-decoration:none;margin-left:3px;color:var(--txt2);}
+#tray .chip.unit.full{opacity:.6;}   /* コストが足りず、もう置けない（押すと理由の通知が出る） */
+/* コストの表示と全撤去（盤の左上・置ける間だけ・2026-09-30 段1b） */
+.hcost{font-size:11px;font-weight:800;color:var(--txt2);background:rgba(10,12,17,.75);
+  border:1px solid var(--line2);padding:3px 7px;font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none;}
+.hcost.full{color:var(--acc);border-color:var(--acc);}
+.hclear{font-size:11px;font-weight:700;color:var(--txt2);background:rgba(10,12,17,.75);
+  border:1px solid var(--line2);padding:3px 8px;cursor:pointer;white-space:nowrap;
+  clip-path:polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px));}
+.hclear:disabled{opacity:.4;cursor:default;}
+.hclear.arm{color:#fff;background:#8a2030;border-color:#ff5a6e;}
+/* コストの上限が上がった直後：全撤去のボタンを光らせる（ふだんの見た目は変えない・動きの中だけ） */
+.hclear.glow{color:#1a0d00;background:var(--acc);border-color:var(--acc);animation:clearglow 1s ease-in-out infinite;}
+@keyframes clearglow{0%,100%{box-shadow:0 0 4px rgba(255,194,74,.5);}50%{box-shadow:0 0 14px 3px rgba(255,194,74,.95);}}
 #tray .chip.unit:disabled{opacity:.55;}
 .bbtm .readybtn{min-height:48px;}
 

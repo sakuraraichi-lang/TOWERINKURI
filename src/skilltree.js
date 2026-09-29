@@ -95,9 +95,9 @@ const SKILLS = [
   //   カテゴリ別のノードと同じ時期に開くと、1つの武器が一度に +2 されて
   //   「1基ずつ増える」感触にならない（実測：第4章と第8章で両方が同時に開いた）。
   //   cost0 を大きく取って、開き始めを中盤以降にずらす
-  //   **盤に置ける総数を増やす、唯一の節。**（2026-09-22）
+  //   **盤に置ける総数（いまはコストの上限）を増やす、唯一の節。**（2026-09-22）
   //   以前は「どの武器も +1」だったので、編成4種ぶん ＝ 盤の上では +4 になっていた。
-  //   いまは盤の総数（Game.slotsTotal）に +1。6基から始まって最大11基。
+  //   いまは盤のコストの上限（Game.costCap）に足す。以下の経緯の「基」は、段1b より前の基数の話
   //   **【2026-09-22・ユーザー指定】最終的に20基、クリア想定14基。**
   //   > 「最終的に上限20基で良いのですが、それはラスボス時にようやく
   //   >   到達できるくらいの窮屈さがよく、クリア想定は14基〜くらいが良いです」
@@ -132,9 +132,12 @@ const SKILLS = [
     //   **序盤の前進が 3→6→10 から 3→4→7 に落ちた。**
     //   **×9 は実測で選んだ曲線なので動かさない**（この上の掃引を参照）。
     //   1段の効果だけ倍にすれば、同じ間隔のまま天井が 20 → 34 になる
-    names: ['増設基盤', '第二基盤', '第三基盤', '拡張基盤', '重層基盤', '要塞化', '総力配備',
-            '前線拡張', '補給拠点', '常設陣地', '恒久基盤', '大増設', '過剰配備', '限界配備'],
-    steps: 14, eff: 2, mode: 'add', tmpl: '盤に置ける数が +{e} 基（全体）',
+    //   **【2026-09-30 段1b・設計書 §2-4】「基数」から「コストの上限」に置き換えた。**1段 +2基 → 1段 +BAL.costPerNode(4) コスト。
+    //   14段で 12 → 68（BAL.costBase）。**節の id（units1〜14）・費用の曲線（cost0 6e3・×9/段）は変えていない**（買ってあるセーブはそのまま効く。曲線は段2で引き直す）。
+    //   武器ごとのコストは weapons.js の `cost`（仮）。上の基数の経緯は、コストの上限にもそのまま当てはまる
+    names: ['容量増設I', '容量増設II', '容量増設III', '容量増設IV', '容量増設V', '容量増設VI', '容量増設VII',
+            '容量増設VIII', '容量増設IX', '容量増設X', '容量増設XI', '容量増設XII', '容量増設XIII', '容量増設XIV'],
+    steps: 14, eff: BAL.costPerNode, mode: 'add', tmpl: '盤に置ける武器のコストの上限が +{e}',
     cost0: 6e3, g: 9, unlock: 1 }),
 
   // ============ カテゴリ別：**取り切りで1段ずつ開く**（2026-09-21 作り直し）============
@@ -179,14 +182,8 @@ const SKILLS = [
   { id: 'short_dmg3', name: '近接極大', group: '短射程', cat: 'short', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '短射程カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'short_util' },
-  // **カテゴリの置ける数の節は6カテゴリそろえてある（2段・+1ずつ）。**（2026-09-24）
-  //   強さの差はカテゴリの中で大きく割れていて（支援：凍結3.5基／触手10基超）、カテゴリの平均はほぼ同じ。
-  //   なので上限の差は武器ごとの元の数（weapons.js の stock）で付ける
-  ...chain({ id: 'short_unit', gkey: 'short_unit', group: '短射程',
-    cat: 'short', key: 'units', names: ['前線基盤', '前線基盤II', '前線基盤III'],
-    steps: 2, eff: 1, mode: 'add',
-    tmpl: '短射程の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
-    cost0: 1400, g: 9, unlock: 0 }),
+  //   **カテゴリの「武器1種あたりの上限」の節（各カテゴリ2〜3段・12節）は撤去した。**（2026-09-30 段1b・武器1種の上限そのものを廃止）
+  //   買ってあるセーブの `meta.skills.<cat>_unit*` は、定義が無いので何も効かず・何も表示されない（読む側は SKILLS を回すだけ）
 
   { id: 'mid_dmg', name: '汎用兵装', group: '中射程', cat: 'mid', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
@@ -206,11 +203,6 @@ const SKILLS = [
   { id: 'mid_dmg3', name: '汎用極大', group: '中射程', cat: 'mid', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '中射程カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'mid_util' },
-  ...chain({ id: 'mid_unit', gkey: 'mid_unit', group: '中射程',
-    cat: 'mid', key: 'units', names: ['量産設備', '量産設備II', '量産設備III'],
-    steps: 2, eff: 1, mode: 'add',
-    tmpl: '中射程の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
-    cost0: 1400, g: 9, unlock: 0 }),
 
   { id: 'long_dmg', name: '徹甲兵装', group: '長射程', cat: 'long', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
@@ -230,11 +222,6 @@ const SKILLS = [
   { id: 'long_dmg3', name: '徹甲極大', group: '長射程', cat: 'long', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '長射程カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'long_util' },
-  ...chain({ id: 'long_unit', gkey: 'long_unit', group: '長射程',
-    cat: 'long', key: 'units', names: ['狙撃陣地', '狙撃陣地II', '狙撃陣地III'],
-    steps: 2, eff: 1, mode: 'add',
-    tmpl: '長射程の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
-    cost0: 1400, g: 9, unlock: 0 }),
 
   { id: 'area_dmg', name: '高熱兵装', group: '範囲攻撃', cat: 'area', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
@@ -254,11 +241,6 @@ const SKILLS = [
   { id: 'area_dmg3', name: '高熱極大', group: '範囲攻撃', cat: 'area', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '範囲攻撃カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'area_util' },
-  ...chain({ id: 'area_unit', gkey: 'area_unit', group: '範囲攻撃',
-    cat: 'area', key: 'units', names: ['散布基盤', '散布基盤II'],
-    steps: 2, eff: 1, mode: 'add',
-    tmpl: '範囲攻撃の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
-    cost0: 1400, g: 9, unlock: 0 }),
 
   { id: 'target_dmg', name: '成形兵装', group: '指定攻撃', cat: 'target', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
@@ -278,11 +260,6 @@ const SKILLS = [
   { id: 'target_dmg3', name: '成形極大', group: '指定攻撃', cat: 'target', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '指定攻撃カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'target_util' },
-  ...chain({ id: 'target_unit', gkey: 'target_unit', group: '指定攻撃',
-    cat: 'target', key: 'units', names: ['支持架台', '支持架台II'],
-    steps: 2, eff: 1, mode: 'add',
-    tmpl: '指定攻撃の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
-    cost0: 1400, g: 9, unlock: 0 }),
 
   { id: 'support_dmg', name: '制圧兵装', group: '支援', cat: 'support', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
@@ -302,11 +279,6 @@ const SKILLS = [
   { id: 'support_dmg3', name: '制圧極大', group: '支援', cat: 'support', key: 'dmg',
     eff: 3.5, mode: 'mul', tmpl: '支援カテゴリのダメージ ×{e}',
     cost0: 254804, costG: 1, max: 1, unlock: 0, needs: 'support_util' },
-  ...chain({ id: 'support_unit', gkey: 'support_unit', group: '支援',
-    cat: 'support', key: 'units', names: ['支援拠点', '支援拠点II'],
-    steps: 2, eff: 1, mode: 'add',
-    tmpl: '支援の武器1種あたりの上限 +{e} 基（盤の総数は増えない）',
-    cost0: 1400, g: 9, unlock: 0 }),
 
   // ============ カード側の枠を増やす ============
   //   **後ろへずらした。**（ユーザー 2026-09-24「3択のスキル選出が…5択、複数回選択出来るのは一体何の効果か
@@ -450,14 +422,13 @@ const Skill = {
     const plus = (label, unit) => ({ label, v: t => t, f: v => '+' + n(v) + (unit || '') });
     const G = s.gkey;
     if (G === 'coin')    return { label: '獲得コイン', v: t => 1 + t, f: v => '×' + n(v) };
-    if (G === 'units')   return { label: '盤に置ける数', v: t => BAL.slotsBase + t, f: v => n(v) + '基' };
+    if (G === 'units')   return { label: 'コストの上限', v: t => BAL.costBase + t, f: v => n(v) };
     if (G === 'picks')   return { label: '取れる枚数', v: t => 1 + t, f: v => n(v) + '枚' };
     if (G === 'choices') return { label: '提示枚数', v: t => BAL.draftSize + t, f: v => n(v) + '枚' };
     if (G === 'lure')    return { label: '敵の出現数', v: t => 1 + t, f: v => '×' + n(v) };
     if (G === 'regen')   return plus('突破ごとの回復');
     if (G === 'luck')    return plus('高レアの出やすさ');
     if (G === 'pack')    return plus('パックの等級');
-    if (s.key === 'units') return plus('武器1種の上限', '基');
     const L = { dmg: 'ダメージ', rate: '発射レート', range: '射程', size: '効果範囲', dur: '状態異常の持続',
       pierce: '貫通', crit: '会心率', count: '同時発射' }[s.key] || s.name;
     if (s.mode === 'mul') return { label: L, v: t => t, f: v => '×' + n(v) };
@@ -538,14 +509,6 @@ const Skill = {
     // **買った数だけを数える。** ここで Skill.lv を使うと遺物の下駄が二重に乗る
     meta.skills[id] = (meta.skills[id] || 0) + 1;
     return true;
-  },
-
-  // そのカテゴリの「置ける数」の加算ぶん。
-  // **設置数は倍率ではなく加算なので、mods を通さず直接引けるようにしておく**
-  unitBonusFor(meta, cat) {
-    let t = 0;
-    for (const s of SKILLS) if (s.cat === cat && s.key === 'units') t += Skill.amount(meta, s.id);
-    return t;
   },
 
   // 安い順にまとめ買いする。**周回のたびに同じ買い物を手で繰り返させないため。**

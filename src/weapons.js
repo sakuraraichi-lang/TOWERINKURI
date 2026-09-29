@@ -87,26 +87,24 @@ function baseStats(o) {
 // ---------------------------------------------------------------
 
 // ---------------------------------------------------------------
-// **置ける数（stock）で強さの釣り合いを取る。**（ユーザー 2026-09-24）
-//   > 「同じダメージ目標にせず、単純に強い奴は設置上限数が低く、ガトリングのような
-//   >   弱い手数武器は多く置ける分取り回しやすい、という方向に」
-//   上限 ＝ stock ＋ BAL.unitBonus(1) ＋ カテゴリの置ける数の節（2段）。
-//   **上限は「半分の回数で持ちこたえるのに要る基数」に比例させた**（ガトリング8基が基準）。
-//   実測（第15章・武器1種だけ・測定ごとに新しいセーブ・各12本。漏れ50以下を「持ちこたえた」）：
-//     凍結3.5 火炎3.7 泡4 ミサイル6.8 手裏剣6.8 ガトリング8 刀8.4 テスラ9 迫撃10 スナイパー/毒ガス/触手10超
-//   全部取ったときの上限：凍結4 火炎4 泡4 ミサイル7 手裏剣7 ガトリング8 刀8 テスラ9 迫撃10 スナイパー11 毒ガス11 触手11
-//   **カテゴリ単位では差を付けていない。**同じカテゴリの中で強弱が大きく割れているため
-//   （支援：凍結3.5／触手10超、範囲：火炎3.7／毒ガス10超、指定：泡4／迫撃10）
+// **設置は「コスト」で縛る。**（2026-09-30 段1b・設計書 docs/DESIGN-REBUILD-2026-09-29.md §2-4・§9）
+//   ユーザー「設置可能基数の数値を定めるのではなく、コストを設定します」
+//   武器ごとに `cost` を持ち、盤には「置いてあるコストの合計 ≦ コストの上限」だけで置ける
+//   （上限は始め BAL.costBase、スキルツリーの units の連なりで +BAL.costPerNode ずつ・第30章ごろに約70）。
+//   **以前の「武器1種の上限（stock + unitBonus + カテゴリの節）」は撤去した。**強弱の調整はコストの上下で行う。
+//   **【暫定値】**下のコストは段1b の仮の値。段3で武器の作り直しと一緒に引き直す：
+//     ガトリング・手裏剣 1（並べる武器）／毒ガス・触手・テスラ 2／スナイパー・刀・迫撃砲・火炎 3／ミサイル・凍結・泡 4
+//   目安：第25章の定石（ミサイル7・凍結4・泡4＝コスト60）が入る幅に、第25章ごろの上限が届くこと（ユーザーの答え2）
 // ---------------------------------------------------------------
 const WEAPONS = {
   // ============ 初期装備 ============
   gatling: {
-    id: 'gatling', stock: 5, cat: 'mid', name: 'ガトリング', short: 'GAT', icon: Icons.get('gatling'), color: '#ffd24a', src: 'start', arcFix: 0.34, arcCard: [0.1, 0.8],
+    id: 'gatling', cost: 1, cat: 'mid', name: 'ガトリング', short: 'GAT', icon: Icons.get('gatling'), color: '#ffd24a', src: 'start', arcFix: 0.34, arcCard: [0.1, 0.8],
     desc: '毎秒大量の小口径弾。単発は弱いが手数で押す。',
     //   **唯一の初期武器なので、これ1種で第1〜2章を持たせる必要がある。**（2026-09-21）
     //   ユーザー決定「初期武器はガトリングでよし」で初期所持を1種に絞ったが、
-    //   **設置上限は武器の種類ごと**（`Game.unitCap`）なので、
-    //   盤面が 8基 → 4基 に半減していた。しかも測定器だけスナイパーを
+    //   **設置数は武器の種類ごとの上限で縛られていた**ので、
+    //   盤面が 8基 → 4基 に半減していた（いまはコスト制・段1b）。しかも測定器だけスナイパーを
     //   最初から持っていたため、この状態が一度も測られていなかった。
     //
     //   実測（3シード・突破に何回挑戦したか）：
@@ -149,7 +147,7 @@ const WEAPONS = {
   },
 
   sniper: {
-    id: 'sniper', stock: 8, cat: 'long', name: 'スナイパー', short: 'SNP', icon: Icons.get('sniper'), color: '#6fe3ff', src: 'stage', arcFix: 0.16,
+    id: 'sniper', cost: 3, cat: 'long', name: 'スナイパー', short: 'SNP', icon: Icons.get('sniper'), color: '#6fe3ff', src: 'stage', arcFix: 0.16,
     // **貫通役。** 並んだ敵を撃ち抜くのが仕事なので、狙うのは「敵が濃いほう」。
     // 以前は最も硬い敵（＝たいてい後方のタンク）を狙っていて、
     // 1.28秒に1発しかないのに目の前の群れを素通りしていた
@@ -186,7 +184,7 @@ const WEAPONS = {
 
   // ============ ステージ報酬（王道TD＋化学兵器） ============
   missile: {
-    id: 'missile', stock: 4, cat: 'target', name: 'ミサイル', short: 'MSL', icon: Icons.get('missile'), color: '#ff7a3c', src: 'stage',
+    id: 'missile', cost: 4, cat: 'target', name: 'ミサイル', short: 'MSL', icon: Icons.get('missile'), color: '#ff7a3c', src: 'stage',
     arcFix: 0.08, aimPoint: true, spot: 72,
     desc: '置いた円の中へ爆撃を降らせ続ける。円の大きさは決まっていて、置く場所で決まる。',
     // **【2026-09-21】12種を同じ条件で測って、床を上げた。**
@@ -202,7 +200,7 @@ const WEAPONS = {
   },
 
   tesla: {
-    id: 'tesla', stock: 6, cat: 'short', name: 'テスラコイル', short: 'TSL', icon: Icons.get('tesla'), color: '#b58bff', src: 'stage', arcFix: 0.55,
+    id: 'tesla', cost: 2, cat: 'short', name: 'テスラコイル', short: 'TSL', icon: Icons.get('tesla'), color: '#b58bff', src: 'stage', arcFix: 0.55,
     desc: '砲身の先へ即着の電撃。当たると次々に連鎖して、群れをまとめて焼く。',
     // **【2026-09-22】下から2番目だった**（第15章・単独・12シード・漏れの中央値 264）。
     //   振って確かめた（6シード・中央値）：
@@ -228,7 +226,7 @@ const WEAPONS = {
   },
 
   flame: {
-    id: 'flame', wallThrough: true, /* 壁を抜ける：範囲もの */ stock: 1, cat: 'area', name: '火炎放射器', short: 'FLM', icon: Icons.get('flame'), color: '#ff6a2a', src: 'stage', arcFix: 0.45,
+    id: 'flame', wallThrough: true, /* 壁を抜ける：範囲もの */ cost: 3, cat: 'area', name: '火炎放射器', short: 'FLM', icon: Icons.get('flame'), color: '#ff6a2a', src: 'stage', arcFix: 0.45,
     desc: '短射程の扇状に炎を吹き続ける。当たった敵は燃え続ける。',
     // 火炎は 17（12種中9位）。ダメージ3.4→5・レート9→12 で 25。実測 17 → 25
     base: baseStats({ dmg: 5, rate: 12, range: 130, cone: 0.42, burn: 0.55, burnDur: 3, turn: 5 }),
@@ -254,7 +252,7 @@ const WEAPONS = {
     //   雲を撒く武器なので、効いているのは雲の重なりと持続であって1発の威力ではない。
     //   凍結装置（35で単独突破する）・触手（16→26でも17止まり）と同じで、
     //   **この3種は「1秒あたりのダメージ」では測りきれない。**上げても無駄になる
-    id: 'gas', wallThrough: true, /* 壁を抜ける：範囲もの */ stock: 8, cat: 'area', name: '毒ガス散布機', short: 'GAS', icon: Icons.get('gas'), color: '#8fd94a', src: 'stage', arcFix: 0.55,
+    id: 'gas', wallThrough: true, /* 壁を抜ける：範囲もの */ cost: 2, cat: 'area', name: '毒ガス散布機', short: 'GAS', icon: Icons.get('gas'), color: '#8fd94a', src: 'stage', arcFix: 0.55,
     desc: '砲身の先へ毒の雲を撒き続ける。雲の中の敵は毒を受け続け、防御が落ちる。',
     // **【2026-09-22】狙撃たちを上げたら、今度はここが最下位になった**（第15章・12シード・中央値71）。
     //   ここでも威力は効かない（ダメージ 7→21 で 56 → **64**。上の2026-09-21 の観察どおり）。
@@ -281,7 +279,7 @@ const WEAPONS = {
   cryo: {
     // **noFace：向きが攻撃に関係しない**（0930）。fire は `Combat.pulse`（全周・角度の判定なし・w.target も読まない）なので、
     //   向きも扇も効かない。盤の上は射程の円で見せ、向きの花は出さない（`Game.usesFace`）。arcFix は置く瞬間の向きの選びにだけ残る
-    id: 'cryo', noFace: true, stock: 1, cat: 'support', name: '凍結装置', short: 'CRY', icon: Icons.get('cryo'), color: '#7fe6ff', src: 'stage', arcFix: 0.75,
+    id: 'cryo', noFace: true, cost: 4, cat: 'support', name: '凍結装置', short: 'CRY', icon: Icons.get('cryo'), color: '#7fe6ff', src: 'stage', arcFix: 0.75,
     desc: '周囲へ冷気を放つ。敵は大きく減速し、凍った敵は受けるダメージが増える。',
     base: baseStats({ dmg: 6, rate: 0.9, range: 165, slow: 0.55, slowDur: 2.4 }),
     fire(w, run) {
@@ -296,7 +294,7 @@ const WEAPONS = {
 
   // ============ パック限定（なんでもあり枠） ============
   katana: {
-    id: 'katana', wallThrough: true, /* 壁を抜ける：間合いの中をまとめて斬る */ stock: 5, cat: 'short', name: '刀', short: 'KTN', icon: Icons.get('katana'), color: '#f4f6fb', src: 'pack', arcFix: 0.80,
+    id: 'katana', wallThrough: true, /* 壁を抜ける：間合いの中をまとめて斬る */ cost: 3, cat: 'short', name: '刀', short: 'KTN', icon: Icons.get('katana'), color: '#f4f6fb', src: 'pack', arcFix: 0.80,
     desc: '間合いに入った敵をまとめて斬る。射程は短いが一撃が重く、会心が乗る。',
     base: baseStats({ dmg: 58, rate: 1.5, range: 100, cone: 1.5, crit: 0.2, critMul: 2.5, turn: 12 }),
     fire(w, run) {
@@ -314,7 +312,7 @@ const WEAPONS = {
   },
 
   shuriken: {
-    id: 'shuriken', stock: 4, cat: 'mid', name: '手裏剣', short: 'SHU', icon: Icons.get('shuriken'), color: '#cdd9e8', src: 'pack', arcFix: 0.38, arcCard: [0.15, 0.7],
+    id: 'shuriken', cost: 1, cat: 'mid', name: '手裏剣', short: 'SHU', icon: Icons.get('shuriken'), color: '#cdd9e8', src: 'pack', arcFix: 0.38, arcCard: [0.15, 0.7],
     desc: '敵から敵へ跳ね回る投擲。密集しているほど手が付けられなくなる。',
     base: baseStats({ dmg: 13, rate: 2.2, range: 230, speed: 520, bulletR: 5, bounce: 3, turn: 10 }),
     fire(w, run) {
@@ -326,7 +324,7 @@ const WEAPONS = {
   },
 
   tentacle: {
-    id: 'tentacle', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ stock: 8, cat: 'support', name: '触手', short: 'TNT', icon: Icons.get('tentacle'), color: '#c85ab0', src: 'pack', arcFix: 0.34,
+    id: 'tentacle', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ cost: 2, cat: 'support', name: '触手', short: 'TNT', icon: Icons.get('tentacle'), color: '#c85ab0', src: 'pack', arcFix: 0.34,
     desc: '砲身の先にいる敵を掴んで来た道へ引き戻す。掴まれている間は削られ続ける。',
     // **【2026-09-22】同時に2体まで掴めなかったのが、そのまま弱さだった。**
     //   前は「1体ずつ掴む武器だから数字を上げても頭打ち」と書いて諦めていたが、
@@ -353,7 +351,7 @@ const WEAPONS = {
   },
 
   bubble: {
-    id: 'bubble', stock: 1, cat: 'target', name: '泡', short: 'BBL', icon: Icons.get('bubble'), color: '#8ad8ff', src: 'pack',
+    id: 'bubble', cost: 4, cat: 'target', name: '泡', short: 'BBL', icon: Icons.get('bubble'), color: '#8ad8ff', src: 'pack',
     arcFix: 0.12, aimPoint: true, spot: 58,
     desc: '置いた円の中へ泡を降らせ、割れた場所の敵を閉じ込める。',
     // 泡は 15（12種中10位）。ダメージ10→16・レート1.1→1.5 で 26。実測 15 → 26
@@ -363,7 +361,7 @@ const WEAPONS = {
   },
 
   mortar: {
-    id: 'mortar', stock: 7, cat: 'target', name: '迫撃砲', short: 'MTR', icon: Icons.get('mortar'), color: '#e0b060', src: 'stage',
+    id: 'mortar', cost: 3, cat: 'target', name: '迫撃砲', short: 'MTR', icon: Icons.get('mortar'), color: '#e0b060', src: 'stage',
     arcFix: 0.08, aimPoint: true, spot: 96,
     desc: '置いた円の中へ重い砲弾を降らせ続ける。射程は長いが発射は遅い。',
     base: baseStats({ dmg: 42, rate: 0.55, range: 420, speed: 240, bulletR: 6,

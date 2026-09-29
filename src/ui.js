@@ -25,7 +25,7 @@ const UI = {
       panel: q('panel'), tabs: q('tabs'), modal: q('modal'),
       toast: q('toast'), badgePack: q('badgePack'),
       upop: q('upop'), stage: q('stage'), tut: q('tut'), perf: q('perf'),
-      btnDmg: q('btnDmg'), dmgpop: q('dmgpop'),
+      btnDmg: q('btnDmg'), dmgpop: q('dmgpop'), hudCost: q('hudCost'), btnClear: q('btnClear'),
       build: q('build'), buildNote: q('buildNote'),
       btnCfg: q('btnCfg'), cfgBox: q('cfgBox'),
       btnStart: q('btnStart'),
@@ -63,6 +63,26 @@ const UI = {
     // 「残り◯」をタップすると、処理の重さの表示が出入りする
     if (this.el.hudWaveTxt) this.el.hudWaveTxt.addEventListener('click', () => this.togglePerf());
     // 戦闘中の火力の内訳（ユーザー 2026-09-25「ゲーム中に武器ごとのダメージランキングの表示」）。押したときだけ出す
+    // **全撤去**（2026-09-30 段1b）。盤の武器を全部外す。元に戻す手段が無いので、1回目は確認の一言、2秒以内の2回目で外す
+    if (this.el.btnClear) this.el.btnClear.addEventListener('click', () => {
+      if (!Game.canBuild() || !Game.run || !Game.run.units.length) return;
+      if (!this._clearArm) {
+        this._clearArm = true;
+        this.el.btnClear.classList.add('arm');
+        this.el.btnClear.textContent = '本当に外す？';
+        clearTimeout(this._clearT);
+        this._clearT = setTimeout(() => this.disarmClear(), 2200);
+        Snd.ui();
+        return;
+      }
+      this.disarmClear();
+      const n = Game.clearUnits();
+      this.selected = null; this.moving = null; this.aiming = null;
+      Game.save();
+      this.renderTray();
+      Snd.ui();
+      if (n) this.toastMsg(n + '基を外しました。置き直せます', '#ff8a1f', 'sys');
+    });
     if (this.el.btnDmg) this.el.btnDmg.addEventListener('click', () => {
       Snd.resume(); Snd.ui();
       Game.perm.dmgOpen = !Game.perm.dmgOpen;
@@ -481,8 +501,35 @@ const UI = {
         lb.classList.toggle('low', k < 0.34);
       }
     }
+    this.renderCost();
     this.renderDmg(false);
     this.renderZoneTip();
+  },
+
+  disarmClear() {
+    this._clearArm = false;
+    clearTimeout(this._clearT);
+    const b = this.el.btnClear;
+    if (b) { b.classList.remove('arm'); b.textContent = '全撤去'; }
+  },
+
+  // **盤の左上の「コスト 使用/上限」と「全撤去」。**（2026-09-30 段1b）準備フェーズとウェーブの合間（置ける間）だけ出す。
+  //   コストの上限が前に見たときより上がっていたら（run.capUp・Game.checkCapUp）、全撤去のボタンを光らせる
+  renderCost() {
+    const c = this.el.hudCost, b = this.el.btnClear, r = Game.run;
+    if (!c || !b) return;
+    const show = !!r && !r.over && Game.canBuild();
+    const disp = show ? '' : 'none';
+    if (c.style.display !== disp) { c.style.display = disp; b.style.display = disp; }
+    if (!show) { if (this._clearArm) this.disarmClear(); return; }
+    const used = Game.costUsed(), cap = Game.costCap();
+    const t = 'コスト ' + used + '/' + cap;
+    if (c.textContent !== t) c.textContent = t;
+    c.classList.toggle('full', used >= cap);
+    const none = !r.units.length;
+    if (b.disabled !== none) b.disabled = none;
+    b.classList.toggle('glow', !!r.capUp && !none);
+    if (none && this._clearArm) this.disarmClear();
   },
 
   // 盤の右上の火力の内訳。開いているあいだだけ、0.5秒ごとに組み直す
@@ -516,25 +563,21 @@ const UI = {
     this.renderUnitPop();
     this.renderTut();
 
-    // **盤に置ける総数。**種類ごとの上限とは別に、盤全体で頭打ちになる
-    const slotsLeft = Game.slotsTotal() - Game.slotsUsed();
+    // **コストの上限だけで縛る。**（2026-09-30 段1b・武器1種の上限は無い）札には、その武器のコストと置いてある数を出す
     for (const wid of Game.loadoutWeapons()) {
       const def = WEAPONS[wid];
       const have = Game.unitCount(wid);
-      const cap = Game.unitCap(wid);
-      const full = have >= cap || slotsLeft <= 0;
+      const full = !Game.canAfford(wid);
       const b = Util.el('button', 'chip unit' + (this.placingType === wid ? ' on' : '') + (full ? ' full' : '') +
         (this.isNew('w_' + wid) && this.WEAPON_TIP[wid] ? ' new' : ''));
       b.style.borderColor = def.color;
       b.innerHTML = '<i class="uico" style="color:' + def.color + '">' + def.icon + '</i>' +
         '<b style="color:' + def.color + '">' + def.short + '</b>' +
-        '<u>' + have + '/' + cap + '</u>';
+        '<u>コスト' + def.cost + '<s>×' + have + '</s></u>';
       b.disabled = !build;
       b.addEventListener('click', () => {
         if (full) {
-          this.toastMsg(slotsLeft <= 0
-            ? '盤に置ける数がいっぱいです（' + Game.slotsTotal() + '基）'
-            : def.name + ' はこれ以上置けません', '#ff8080', 'limit');
+          this.toastMsg('コストが足りません（' + def.name + ' はコスト' + def.cost + '・残り ' + (Game.costCap() - Game.costUsed()) + '）', '#ff8080', 'limit');
           return;
         }
         this.placingType = (this.placingType === wid) ? null : wid;
@@ -1139,13 +1182,13 @@ const UI = {
   //     上の目的タブ（武器／拠点／カード／危険） → 武器なら分類の切り替え → 連なりごとの札
   //     札 … 名前と進み（3/5）、節の粒（取った／次／まだ）、選んだ節（ふつうは次の1つ）の中身と取るボタン
   SKILL_TABS: [
-    { id: 'weapon', name: '武器',   sub: '分類ごとの火力と置ける数',       groups: ['短射程', '中射程', '長射程', '範囲攻撃', '指定攻撃', '支援'] },
-    { id: 'base',   name: '拠点',   sub: 'コイン・修理・盤に置ける数',     groups: ['資源', '拠点'] },
+    { id: 'weapon', name: '武器',   sub: '分類ごとの火力とレート',       groups: ['短射程', '中射程', '長射程', '範囲攻撃', '指定攻撃', '支援'] },
+    { id: 'base',   name: '拠点',   sub: 'コイン・修理・コストの上限',     groups: ['資源', '拠点'] },
     { id: 'card',   name: 'カード', sub: '3択の枚数・選択肢・運・パック',  groups: ['カード'] },
     { id: 'risk',   name: '危険',   sub: '敵を増やしてコインを稼ぐ',       groups: ['危険'] },
   ],
   // 連なりの名前（gkey ごと。分類の節は「火力」「設置」）
-  CHAIN_NAME: { coin: '資源', regen: '修理', units: '盤に置ける数', picks: '取れる枚数', choices: '選択肢',
+  CHAIN_NAME: { coin: '資源', regen: '修理', units: 'コストの上限', picks: '取れる枚数', choices: '選択肢',
     luck: '運', pack: '解析', lure: '誘引' },
 
   // 目的タブ → 連なりの一覧。連なり＝needs でつながった節の列
@@ -1155,14 +1198,14 @@ const UI = {
       const map = {};
       for (const s of SKILLS) {
         if (s.group !== g) continue;
-        // 分類の節は gkey を持たない（火力の列）。設置の列は short_unit などの gkey
+        // 分類の節は gkey を持たない（火力の列）
         const k = s.gkey || (s.cat + '_main');
         if (!map[k]) { map[k] = { key: k, group: g, cat: s.cat || null, nodes: [] }; out.push(map[k]); }
         map[k].nodes.push(s);
       }
     }
     for (const ch of out) {
-      ch.name = this.CHAIN_NAME[ch.key] || (/_unit$/.test(ch.key) ? '設置' : /_main$/.test(ch.key) ? '火力' : ch.group);
+      ch.name = this.CHAIN_NAME[ch.key] || (/_main$/.test(ch.key) ? '火力' : ch.group);
     }
     return out;
   },
@@ -1463,9 +1506,9 @@ const UI = {
     const battle = Game.phase === 'battle';
     const hero = Util.el('div', 'lo-hero');
     hero.innerHTML =
-      '<div><b>編成</b><span>使う武器の<em>種類</em>を選ぶ。同じ武器は上限まで何基でも置ける</span></div>' +
+      '<div><b>編成</b><span>使う武器の<em>種類</em>を選ぶ。置けるかどうかは<em>コスト</em>の合計で決まる</span></div>' +
       '<div class="lo-num"><i>種類</i><b>' + Game.loadoutWeapons().length + '<small>/' + nOpen + '</small></b></div>' +
-      '<div class="lo-num"><i>盤に置ける</i><b>' + Game.slotsTotal() + '<small>基</small></b></div>';
+      '<div class="lo-num"><i>コストの上限</i><b>' + Game.costCap() + '</b></div>';
     p.appendChild(hero);
 
     const slots = Util.el('div', 'lo-slots');
@@ -1486,7 +1529,7 @@ const UI = {
         s.style.setProperty('--wc', w.color);
         s.appendChild(CardFX.face(c, { count: Game.own(cid) }));
         s.insertAdjacentHTML('beforeend', '<div class="lo-cap"><span style="color:' + cat.color + '">' + cat.icon + cat.name + '</span>' +
-          '<b>最大 ' + Game.unitCap(w.id) + '基</b></div>');
+          '<b>コスト ' + w.cost + '</b></div>');
       } else {
         s.innerHTML = '<div class="lo-ph"><i class="lo-plus">＋</i><b>武器を選ぶ</b><span>' + (i + 1) + '種目</span></div>';
       }
@@ -1577,7 +1620,7 @@ const UI = {
         const b = Util.el('button', 'wp-card' + (cur ? ' cur' : '') + (used ? ' used' : '') + (have ? '' : ' miss'));
         b.appendChild(CardFX.face(CARDS[cid], { count: Game.own(cid), dim: !have }));
         b.insertAdjacentHTML('beforeend', '<div class="wp-tag">' + (cur ? '装備中' : used ? '他の枠' :
-          !have ? (w.src === 'stage' ? '章の突破で入手' : 'パックで入手') : '最大 ' + Game.unitCap(wid) + '基') + '</div>');
+          !have ? (w.src === 'stage' ? '章の突破で入手' : 'パックで入手') : 'コスト ' + w.cost) + '</div>');
         b.disabled = !have || used;
         if (have && !used) b.addEventListener('click', () => pick(cid));
         grid.appendChild(b);
@@ -2282,6 +2325,7 @@ const UI = {
     warn:   ['WARNING', '#ff5566', 1.9],
     lock:   ['LOCKED', '#ff5566', 1.9],
     limit:  ['LIMIT', '#ff5566', 1.9],
+    capup:  ['CAPACITY UP', '#ffc24a', 2.8],
     error:  ['ERROR', '#ff4a66', 2.2],
     demo:   ['DEMO', '#ffc24a', 2.2],
     sys:    ['SYSTEM', '#9fb2c4', 1.5],

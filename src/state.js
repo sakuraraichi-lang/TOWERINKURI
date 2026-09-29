@@ -629,24 +629,30 @@ const Game = {
     return p[stageId];
   },
 
-  // **盤に置ける総数。**（2026-09-22・プレイヤー報告「置けすぎ」）
-  //
-  //   > 「今20基置いて30ステージまで楽勝になってしまってます、
-  //   >   現実的にはスキルでもっと大量に置けます、これはおかしいです」
-  //
-  //   **枠が「武器の種類ごと」だったのが原因。**編成は4種なので、
-  //   1つの節で +1 すると盤の上では +4 になる。上限まで取ると **52基**だった
-  //   （実測：stock3 + unitBonus1 + カテゴリ節4 + 共通節5 ＝ 13基 × 4種）。
-  //   種類ごとの上限をいくら刻んでも、4倍されるので効かない。
-  //
-  //   **盤全体の総数で持つ。** ここだけ見れば「何基置けるか」が決まる。
-  //   種類ごとの上限（unitCap）は「1種類で埋め尽くさせない」ためだけに残す
-  slotsTotal() {
+  // **盤に置ける「コストの上限」と、置いてあるコスト。**（2026-09-30 段1b・設計書 §2-4）
+  //   ユーザー「設置可能基数の数値を定めるのではなく、コストを設定します」
+  //   武器ごとに `WEAPONS[id].cost`（仮）があり、**置いてあるコストの合計 ≦ 上限** だけで置ける。
+  //   上限 ＝ BAL.costBase ＋ スキルツリー units の連なり（1段 +BAL.costPerNode）。遺物・カードでは増えない（Skill.lv の isUnitNode）。
+  //   **武器1種の上限（stock + unitBonus + カテゴリの節）は撤去した。**強弱の調整はコストの上下で行う。
+  //   （以前の経緯：2026-09-22「置けすぎ」で、種類ごとの枠を刻んでも編成の種類数倍されて効かなかったので、盤全体の数で持つ形にした。
+  //     いまは全体のコストで持つので、その心配は同じく無い）
+  costCap() {
     // 取り切りの連なりに割ったので、合計は gkey で取る（skilltree.js の chain）
-    return BAL.slotsBase + Skill.gsum(this.meta, 'units');
+    return BAL.costBase + Skill.gsum(this.meta, 'units');
   },
 
-  slotsUsed() { return this.run ? this.run.units.length : 0; },
+  costOf(weaponId) { const d = WEAPONS[weaponId]; return d ? d.cost : 0; },
+
+  costUsed() {
+    const run = this.run;
+    if (!run) return 0;
+    let n = 0;
+    for (const u of run.units) n += (u.def && u.def.cost) || 0;
+    return n;
+  },
+
+  // その武器をもう1基置いてもコストの上限に収まるか
+  canAfford(weaponId) { return this.costUsed() + this.costOf(weaponId) <= this.costCap(); },
 
   // ---------- 設置は六角1つ。**武器の大きさという概念は無い** ----------
   //
@@ -688,26 +694,7 @@ const Game = {
     return u;
   },
 
-  // その武器を何基まで置けるか。**盤の総数とは別の縛り。**
-  //   1種類だけで盤を埋めると編成の意味が消えるので、種類ごとにも天井を置く
-  unitCap(weaponId) {
-    const def = WEAPONS[weaponId];
-    if (!def) return 0;
-    // **【調べて、直さないことにした 2026-09-22】**
-    //   盤の枠を 6 → 20 → 40 と上げても、置けた数は 22基のまま動かなかった。
-    //   `stock + unitBonus + skill` は武器あたり4〜5なので、
-    //   編成5種では合計22で頭打ちになる。
-    //   **ただし、いまの天井（20枠）では、この頭打ちは効いていない**
-    //   （4〜5 × 5種 = 20〜25 ≥ 20）。40枠という、実際には到達しない値で
-    //   測ったから見えただけだった。
-    //   **「公平な取り分の1.5倍までは置ける」に直したら、通しが遅くなった**
-    //   （同じ3シードで 105〜155分 → 147〜181分。全シードで悪化）。
-    //   1種類が盤を占められるようになると、編成の噛み合わせが崩れるため。
-    //   **盤の天井を20より上げるときは、ここも一緒に見ること**
-    return Math.min(this.slotsTotal(),
-                    def.stock + BAL.unitBonus + Skill.unitBonusFor(this.meta, def.cat));
-  },
-
+  // （その武器を何基まで置けるか、の上限は撤去した：2026-09-30 段1b。置けるかどうかはコストの合計だけで決まる → costCap / canAfford）
   unitCount(weaponId) {
     const run = this.run;
     if (!run) return 0;
@@ -769,8 +756,7 @@ const Game = {
     const run = this.run;
     if (!run || !this.canBuild()) return null;
     if (!this.canPlaceAt(c, r)) return null;
-    if (this.unitCount(weaponId) >= this.unitCap(weaponId)) return null;
-    if (this.slotsUsed() >= this.slotsTotal()) return null;      // 盤全体の枠
+    if (!WEAPONS[weaponId] || !this.canAfford(weaponId)) return null;      // コストの上限（武器1種の上限は無い）
 
     const u = this.newUnit(weaponId, c, r);
     // 着弾点を持つ武器は、置いた瞬間に既定の点を決める（空撃ちを避ける）
@@ -800,6 +786,32 @@ const Game = {
     run.units.splice(i, 1);
     this.syncPlacements();
     return true;
+  },
+
+  // **全撤去。**（2026-09-30 段1b・設計書 §2-10・ユーザー「基数が増えるタイミングで武器の全撤去が出来るようになるといいですね」）
+  //   盤の武器を全部外す。コストの上限が上がったあとに置き直すための操作。**外した数を返す**（0 なら何もしていない）
+  clearUnits() {
+    const run = this.run;
+    if (!run || !this.canBuild()) return 0;
+    const n = run.units.length;
+    if (!n) return 0;
+    run.units.length = 0;
+    run.capUp = false;
+    this.syncPlacements();   // 保存する配置も空になる（自動設置の元 lastPlace は、空のときは覚え直さない）
+    return n;
+  },
+
+  // **コストの上限が、前に見たときより上がっているか。**（準備の画面を開くたびに main.toPrep が呼ぶ）
+  //   上がっていて、盤に武器があるなら run.capUp を立てる（全撤去のボタンを光らせ、通知を出す）。
+  //   初めて見るとき・下がっているとき（再起動でツリーが戻った）は、覚え直すだけで立てない
+  checkCapUp() {
+    const run = this.run;
+    if (!run) return false;
+    run.capUp = false;
+    const cap = this.costCap(), seen = this.perm.capSeen;
+    if (typeof seen !== 'number' || cap < seen) { this.perm.capSeen = cap; return false; }
+    if (cap > seen) { this.perm.capSeen = cap; run.capUp = run.units.length > 0; }
+    return run.capUp;
   },
 
   // **向きは六角の6方向だけ。**（2026-09-25・プレイヤーの感想「向き設定をハニカムの6方向固定にして欲しい、360度ある意味がない」→ ユーザー採用）
@@ -918,14 +930,15 @@ const Game = {
     const last = this.perm.lastPlace && this.perm.lastPlace[run.stageId];
     const saved = (!touched && this.autoOpen('autoPlace') && this.perm.autoPlace && last && last.length)
       ? last : this.placementsFor(run.stageId);
-    const used = {};
+    //   **コストの上限を超える分は、後ろから外す。**（保存された並びの順に入れ、収まらなくなったところで打ち切る。
+    //   以前の基数の配置が、上限の変わったセーブでそのまま入りきらないことがある）
+    let cost = 0;
     for (const p of saved) {
       if (!WEAPONS[p.w] || allowed.indexOf(p.w) < 0) continue;
       // 置ける六角で、先に読み戻したものと重なっていないこと（this.run === run）
       if (!this.canPlaceAt(p.c, p.r)) continue;
-      used[p.w] = (used[p.w] || 0) + 1;
-      if (used[p.w] > this.unitCap(p.w)) continue;
-      if (run.units.length >= this.slotsTotal()) continue;
+      if (cost + WEAPONS[p.w].cost > this.costCap()) break;
+      cost += WEAPONS[p.w].cost;
       const nu = this.newUnit(p.w, p.c, p.r, p.a);   // p.arc（古いセーブの射界）は読まない
       if (p.ax !== undefined && p.ax !== null) { nu.ax = p.ax; nu.ay = p.ay; }
       run.units.push(nu);
@@ -1206,6 +1219,7 @@ const Game = {
     // 遺物「初動資金」のぶんだけ、次の周は資金を持って始まる
     this.meta.coins = Relic.mods(this.perm).seed;
     this.meta.skills = {};
+    this.perm.capSeen = this.costCap();   // ツリーが戻ったので、見たコストの上限も戻す（次に上がったとき、全撤去を光らせるため）
     // **ステージ進行も戻す。** もう一度突破すれば初回報酬と初回完璧の報酬を取り直せる。
     // deepest（到達した深さ）だけは戻さないので、パックの解放は保たれる
     this.perm.stages = {};
