@@ -179,6 +179,7 @@ const DebugRoom = {
         ['ボスの帯', () => { UI.cutinBoss(W); setTimeout(() => UI.sysWarn('boss'), 2100); }],
         ['BOSS DOWN（あと2体）', () => UI.cutinBossDown(2)],
         ['ボス戦の見本（第10章・2体）', () => me.bossBattle()],
+        ['レーザーライフルの光線（壁で2回はね返る）', () => me.laserDemo()],
       ]],
       ['通知（トースト）', [
         ['新しい武器', () => UI.toastMsg('新しい武器 ガトリング', '#ffb43c', 'weapon')],
@@ -382,6 +383,55 @@ const DebugRoom = {
     this._saveRelease();
     try { Relic.invalidate(); } catch (e) {}
   },
+  // レーザーライフルの光線の見本（2026-09-30 段3）。裏の準備フェーズの盤で、**本物の光線の経路（Combat.laserPath）**を引いて見せる。
+  //   敵にも盤にも触らない（fx を足して、消えるまでの時間だけ進める）。撃ち口は「壁の上で、隣に通路があるタイル」のうち、
+  //   2回折り返して長く伸びる所を選ぶ（見える範囲の上の半分から。下半分は確認室のパネルが覆う）
+  laserDemo() {
+    const run = Game.run;
+    if (!run || !run.stage) return;
+    const st = run.stage;
+    const w = { x: 0, y: 0, s: { range: WEAPONS.sniper.base.range, reflect: WEAPONS.sniper.base.reflect } };
+    let best = null;
+    for (let r = 1; r < Math.floor(st.rows * 0.55); r++) for (let c = 1; c < st.cols - 1; c++) {
+      if (st.walkable(c, r)) continue;
+      if (!(st.walkable(c + 1, r) || st.walkable(c - 1, r) || st.walkable(c, r + 1) || st.walkable(c, r - 1))) continue;
+      w.x = (c + 0.5) * TILE; w.y = (r + 0.5) * TILE;
+      for (let k = 0; k < 16; k++) {
+        const a = k / 16 * Math.PI * 2 + 0.2;
+        const p = Combat.laserPath(w, run, a);
+        if (!p) continue;
+        let len = 0;
+        for (let i = 1; i < p.length; i++) len += Math.hypot(p[i].x - p[i - 1].x, p[i].y - p[i - 1].y);
+        const sc = (p.length - 2) * 1000 + len;
+        if (!best || sc > best.sc) best = { sc, x: w.x, y: w.y, a };
+      }
+    }
+    if (!best) return;
+    w.x = best.x; w.y = best.y;
+    const color = WEAPONS.sniper.color;
+    let n = 0;
+    const shoot = () => {
+      const p = Combat.laserPath(w, run, best.a + (n % 2 ? 0.03 : 0));
+      if (p) run.fx.push({ type: 'laser', pts: p, w: WEAPONS.sniper.base.bulletR, n: 3, color, life: 0.26, t: 0 });
+      n++;
+    };
+    shoot();
+    clearInterval(this._lz);
+    let last = performance.now(), t = 0;
+    this._lz = setInterval(() => {
+      const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+      if (Game.run !== run) { clearInterval(this._lz); return; }
+      if (n < 4 && t > n * 0.7) shoot();
+      for (let i = run.fx.length - 1; i >= 0; i--) {
+        const f = run.fx[i];
+        if (f.type !== 'laser') continue;
+        f.t += dt;
+        if (f.t >= f.life) run.fx.splice(i, 1);
+      }
+      if (n >= 4 && !run.fx.some(f => f.type === 'laser')) clearInterval(this._lz);
+    }, 16);
+  },
+
   bossBattle() {
     this._btEnd();
     this._dirEnd();     // 向きの花の見本が出ていたら先に片づける（配置の記録の写しが、ボス戦のあとの書き戻しと食い違わないように）

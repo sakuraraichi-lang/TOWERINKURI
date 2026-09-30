@@ -157,6 +157,8 @@ const BAL = {
   enemySpdCap: 390,     // 2026-09-24 ユーザー「上げて良いよ」。260 だと第15章で頭打ちだった（390 で第21章まで伸びる）
   //   敵の攻撃力（旧 enemyDpsBase / enemyDpsGrowth）は 2026-09-24 に削除した。計算していたがどこからも読まれず、
   //   漏れの重さは章によらず1体＝ライフ1（下の `leakLives`・確定方針）なので、置き場所が無い
+  // レーザーライフルの光線の長さの合計（射程の何倍か・折り返しを含む）。Combat.laserPath
+  laserLenMul: 1.8,
   enemyCoinBase: 2.4,
   enemyCoinGrowth: 1.19,
   nestHp: 0.6,          // 入れ子の中身のHP（外側の何倍か）。層ごとに掛かる（3層なら 1 → 0.6 → 0.36）

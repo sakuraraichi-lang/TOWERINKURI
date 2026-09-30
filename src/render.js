@@ -2554,6 +2554,25 @@ const Render = {
         ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(f.x2, f.y2); ctx.stroke();
         ctx.lineCap = 'butt';
+      } else if (f.type === 'laser') {
+        // レーザーライフルの光線（2026-09-30 段3）。**折れ線のまま描く**ので、壁で折り返したのが見える。
+        //   外側の光（太い・薄い）→ 色の芯 → 白い芯。貫いた数だけ少し太くなる。消えるときは細くなりながら薄れる
+        const pts = f.pts;
+        const wd = (f.w || 20) * (1 - k * 0.6) * (1 + Math.min(f.n || 0, 10) * 0.03);
+        ctx.save();
+        ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+        ctx.beginPath();
+        for (let i = 0; i < pts.length; i++) i ? ctx.lineTo(pts[i].x, pts[i].y) : ctx.moveTo(pts[i].x, pts[i].y);
+        ctx.globalAlpha = (1 - k) * 0.22; ctx.strokeStyle = f.color; ctx.lineWidth = wd * 2;   ctx.stroke();
+        ctx.globalAlpha = (1 - k) * 0.85; ctx.lineWidth = wd * 0.7; ctx.stroke();
+        ctx.globalAlpha = (1 - k);        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.5, wd * 0.22); ctx.stroke();
+        // 折り返した点に小さな火花
+        ctx.fillStyle = '#ffffff';
+        for (let i = 1; i < pts.length - 1; i++) {
+          ctx.globalAlpha = (1 - k) * 0.9;
+          ctx.beginPath(); ctx.arc(pts[i].x, pts[i].y, wd * 0.45 * (1 - k * 0.5), 0, Math.PI * 2); ctx.fill();
+        }
+        ctx.restore();
       } else if (f.type === 'bolt') {
         ctx.globalAlpha = 1 - k;
         ctx.save();

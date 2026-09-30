@@ -50,6 +50,7 @@ function baseStats(o) {
     shockDur: 0,    // 感電付与秒
     execThr: 0,     // 処刑閾値(残HP割合)
     bounce: 0,      // 跳弾回数
+    reflect: 0,     // 壁で折り返す回数（レーザーライフル）
     slow: 0,        // 減速の強さ(0-1)
     slowDur: 0,     // 減速の持続秒
     stunDur: 0,     // 拘束の持続秒
@@ -147,11 +148,14 @@ const WEAPONS = {
   },
 
   sniper: {
-    id: 'sniper', cost: 3, cat: 'long', name: 'スナイパー', short: 'SNP', icon: Icons.get('sniper'), color: '#6fe3ff', src: 'stage', arcFix: 0.16,
+    // **【2026-09-30 段3】スナイパー → レーザーライフル。**id は 'sniper' のまま（セーブ・カード・連携の互換のため。画面の名前だけ変える）。
+    //   弾を飛ばさず、壁で2回折り返す光線を引く（Combat.laser）。線の上の敵を全部貫く。太さは前の弾（当たり半径20）より少し太い 24。
+    //   ユーザーの答え4（設計書 DESIGN-REBUILD §7）。下の「スナイパー」の経緯は、弾だった頃の測定として残す
+    id: 'sniper', cost: 3, cat: 'long', name: 'レーザーライフル', short: 'LSR', icon: Icons.get('sniper'), color: '#6fe3ff', src: 'stage', arcFix: 0.16,
     // **貫通役。** 並んだ敵を撃ち抜くのが仕事なので、狙うのは「敵が濃いほう」。
     // 以前は最も硬い敵（＝たいてい後方のタンク）を狙っていて、
     // 1.28秒に1発しかないのに目の前の群れを素通りしていた
-    desc: '長射程・高威力の単発。太い一撃で、並んだ敵をまとめて撃ち抜く。',
+    desc: '光線を撃つ。壁で2回はね返り、線の上の敵をすべて貫く。まっすぐな道が無くても奥まで届く。',
     // **【2026-09-22】12種で断トツの最下位だった。**
     //   第15章・単独・12シード・ライフを厚くして5ウェーブ回した漏れの中央値：
     //   スナイパー **439**（次に悪い触手が231、真ん中は44、一番良い火炎は0）。
@@ -172,11 +176,13 @@ const WEAPONS = {
     //   代わりに**弾を太く（4→20）して貫通を伸ばした（3→20）。**
     //   通路の幅ぶんを一撃で薙ぐ形になり、**レート据置のまま 439 → 31**。
     //   弾28・貫通30 まで広げても 33 で頭打ちなので、20/20 が折れ点
-    base: baseStats({ dmg: 34, rate: 0.78, range: 430, spread: 0.012, speed: 1500, pierce: 20, bulletR: 20, turn: 3.5 }),
+    //   レーザー：bulletR は光線の太さの半分・reflect は壁で折り返す回数・range は最初の直線の目安（線の長さの合計は range × BAL.laserLenMul）
+    base: baseStats({ dmg: 34, rate: 0.78, range: 430, spread: 0.012, speed: 1500, pierce: 20, bulletR: 24, reflect: 2, turn: 3.5 }),
     fire(w, run) {
+      // 同時発射（count）が増えたら、少しずつ角度をずらして線を増やす
       for (let i = 0; i < w.n; i++) {
-        const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (i === 0 ? 1 : w.n);
-        Combat.spawnBullet(w, run, a, { color: '#6fe3ff', long: true });
+        const a = w.angle + (i === 0 ? 0 : ((i % 2) ? 1 : -1) * Math.ceil(i / 2) * 0.06);
+        Combat.laser(w, run, a);
       }
       Combat.shake(run, 2.2);
     },

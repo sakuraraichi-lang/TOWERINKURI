@@ -788,6 +788,99 @@ const Combat = {
     this.shake(run, Math.min(10, radius * 0.06));
   },
 
+  // ================= レーザーライフル（旧スナイパー・2026-09-30 段3） =================
+  //
+  //   ユーザー（2026-09-29）「スナイパー → レーザーライフル（壁で反射する）。『直線が無いから使えない』を無くす」
+  //   答え4（2026-09-30）：壁で2回反射（カードで増やせる）・線の上を全部貫く・いまの弾より少し太い・コアと味方の武器には当たらない
+  //
+  //   **弾を飛ばさず、その場で線を引く。**線は撃ち口から砲身の向きへ進み、壁に入ったら折り返す。
+  //   折り返しは `w.s.reflect` 回まで。最後の折り返しのあとは、次の壁で止まる。線の長さの合計は射程 × BAL.laserLenMul まで。
+  //   **壁は六角（絵と同じ）で見る。**通路の六角（`stage.vec.hexes`）から出たら、出ていった六角の辺で折り返す
+  //   （隣の六角の中心どうしを結ぶ向きが、その辺の法線）。最初はタイル（経路探索の層）で折り返していて、
+  //   光線が絵の上では壁の中を通っていた（確認室で見て直した・CLAUDE.md「盤の縁で絵と規則を食い違わせない」）。
+  //   六角の一覧が無い盤では、タイルの判定に戻る
+  _roadHex(st) {
+    if (st._roadHex !== undefined) return st._roadHex;
+    const hx = st.vec && st.vec.hexes;
+    if (!hx || !hx.length) return (st._roadHex = null);
+    const set = new Set();
+    for (const h of hx) set.add(h.c + ',' + h.r);
+    return (st._roadHex = set);
+  },
+  laserPath(w, run, angle) {
+    const st = run.stage;
+    const road = this._roadHex(st);
+    const pts = [{ x: w.x, y: w.y }];
+    let x = w.x, y = w.y;
+    let vx = Math.cos(angle), vy = Math.sin(angle);
+    let left = w.s.range * (BAL.laserLenMul || 1.8);
+    let refl = Math.max(0, Math.round(w.s.reflect || 0));
+    const step = TILE * 0.2;
+    const cellOf = (px, py) => road ? MapGen.hexPick(px, py) : { c: (px / TILE) | 0, r: (py / TILE) | 0 };
+    const isOpen = (c) => road ? road.has(c.c + ',' + c.r) : st.walkable(c.c, c.r);
+    const center = (c) => road ? MapGen.hexAt(c.c, c.r) : { x: (c.c + 0.5) * TILE, y: (c.r + 0.5) * TILE };
+    // **撃ち口の足元は壁**（武器は通路でない六角の上に立つ）。通路に一度出るまでは壁で止めない（最大 2.5タイル）
+    let out = false;
+    for (let d = 0; d < TILE * 2.5 && left > 0; d += step) {
+      x += vx * step; y += vy * step; left -= step;
+      if (isOpen(cellOf(x, y))) { out = true; break; }
+    }
+    if (!out) return null;
+    let cur = cellOf(x, y);
+    while (left > 0) {
+      const nx = x + vx * step, ny = y + vy * step;
+      const nc = cellOf(nx, ny);
+      if (isOpen(nc)) { x = nx; y = ny; cur = nc; left -= step; continue; }
+      // 壁に入る。出ていく六角の中心から、入ろうとした六角の中心への向きが、その辺の法線
+      pts.push({ x, y });
+      if (refl <= 0) return pts;
+      refl--;
+      const a = center(cur), b = center(nc);
+      let ex = b.x - a.x, ey = b.y - a.y;
+      const el = Math.hypot(ex, ey) || 1;
+      ex /= el; ey /= el;
+      const dot = vx * ex + vy * ey;
+      vx -= 2 * dot * ex; vy -= 2 * dot * ey;
+      // 折り返した直後にまた同じ壁へ入る（角をかすめた）ときは、来た向きへそのまま戻す
+      if (!isOpen(cellOf(x + vx * step, y + vy * step))) { vx = -(vx + 2 * dot * ex); vy = -(vy + 2 * dot * ey); }
+    }
+    pts.push({ x, y });
+    return pts;
+  },
+
+  laser(w, run, angle) {
+    Snd.shot(w.id);
+    const pts = this.laserPath(w, run, angle);
+    if (!pts || pts.length < 2) return;
+    const s = w.s;
+    let dmg = s.dmg;
+    if (run.resonance > 0) dmg *= (1 + run.resonance);      // 弾道共鳴（ガトリング＋レーザー）
+    const half = s.bulletR;                                   // 線の太さの半分
+    const hit = new Set();
+    let hits = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      const len = Math.hypot(b.x - a.x, b.y - a.y);
+      const near = Grid.query((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, len * 0.5 + half + 24, _q);
+      for (const e of near) {
+        if (e.dead || hit.has(e)) continue;
+        const reach = e.r + half;
+        if (Util.segDist2(a.x, a.y, b.x, b.y, e.x, e.y) > reach * reach) continue;
+        hit.add(e);
+        hits++;
+        this.damage(run, e, dmg, {
+          crit: s.crit, critMul: s.critMul, exec: s.execThr, shock: s.shockDur,
+          slow: s.slow, slowDur: s.slowDur,
+          burn: s.burn ? s.dmg * s.burn : 0, burnDur: s.burnDur, color: w.def.color,
+          forceCrit: !!(w.flags.frostCrit && e.chill > 0),
+        });
+        // 曳光指示・狙撃指示：レーザーが通った敵に印が残る
+        if (w.flags.spot && !e.dead) e.spotT = 3;
+      }
+    }
+    this.fx(run, { type: 'laser', pts, w: half, n: hits, color: w.def.color, life: 0.26 });
+  },
+
   // この発射で撃つ弾数。
   // 多銃身（gat_barrels）がここに乗る。扇の広さ（Game.arcT）に比例して増える。
   // 幅は武器ごとの固定値になった（2026-09-30 段1a）ので、増える数もガトリングでは一定

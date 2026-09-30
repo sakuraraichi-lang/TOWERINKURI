@@ -30,7 +30,7 @@ const CARDS = {
 
   // ============ 武器カード ============
   wc_gatling:  C({ id: 'wc_gatling',  kind: 'weapon', weapon: 'gatling',  rarity: 'common', name: 'ガトリング砲',   desc: '編成枠に装備。毎秒大量の小口径弾。' }),
-  wc_sniper:   C({ id: 'wc_sniper',   kind: 'weapon', weapon: 'sniper',   rarity: 'common', name: '狙撃タレット',   desc: '編成枠に装備。長射程・高威力の単発。' }),
+  wc_sniper:   C({ id: 'wc_sniper',   kind: 'weapon', weapon: 'sniper',   rarity: 'common', name: 'レーザーライフル', desc: '編成枠に装備。壁で2回はね返る光線で、線の上の敵をすべて貫く。' }),
   wc_missile:  C({ id: 'wc_missile',  kind: 'weapon', weapon: 'missile',  rarity: 'rare',   name: 'ミサイルポッド', desc: '編成枠に装備。置いた円の中へ爆撃を降らせ続ける。' }),
   wc_tesla:    C({ id: 'wc_tesla',    kind: 'weapon', weapon: 'tesla',    rarity: 'rare',   name: 'テスラコイル',   desc: '編成枠に装備。砲身の先へ即着の連鎖電撃。' }),
   wc_flame:    C({ id: 'wc_flame',    kind: 'weapon', weapon: 'flame',    rarity: 'epic',   name: '火炎放射器',     desc: '編成枠に装備。扇状に炎を吹き、燃焼を残す。' }),
@@ -85,19 +85,20 @@ const CARDS = {
 
   // ============ スナイパー ============
   snp_scope: C({ id: 'snp_scope', kind: 'mod', weapon: 'sniper', rarity: 'common', maxStack: 5,
-    name: '高倍率スコープ', desc: 'スナイパーのダメージ ×1.10',
+    name: '高倍率スコープ', desc: 'レーザーのダメージ ×1.10',
     apply(run) { const w = run.wp('sniper'); if (w) { w.s.dmg *= Game.rk(1.10); } } }),
   snp_he: C({ id: 'snp_he', kind: 'mod', weapon: 'sniper', rarity: 'common', maxStack: 5,
-    name: '徹甲榴弾', desc: 'スナイパーのダメージ ×1.55',
+    name: '徹甲榴弾', desc: 'レーザーのダメージ ×1.55',
     apply(run) { const w = run.wp('sniper'); if (w) w.s.dmg *= Game.rk(1.55); } }),
   snp_weak: C({ id: 'snp_weak', kind: 'mod', weapon: 'sniper', rarity: 'rare', maxStack: 3,
-    name: '弱点狙撃', desc: 'スナイパーに 会心率 +25% / 会心倍率 +1.0',
+    name: '弱点狙撃', desc: 'レーザーに 会心率 +25% / 会心倍率 +1.0',
     apply(run) { const w = run.wp('sniper'); if (w) { w.s.crit += Game.rka(0.25); w.s.critMul += Game.rka(1.0); } } }),
   snp_rail: C({ id: 'snp_rail', kind: 'mod', weapon: 'sniper', rarity: 'epic', maxStack: 2,
-    name: '貫通レールガン', desc: 'スナイパー弾が並んだ敵を全て貫通。弾速 ×1.6 / ダメージ ×1.3',
-    apply(run) { const w = run.wp('sniper'); if (w) { w.s.pierce += 99; w.s.speed *= Game.rk(1.6); w.s.dmg *= Game.rk(1.3); } } }),
+    // **【2026-09-30】レーザーになって、光線は元から全部貫く。**「全て貫通・弾速」は意味を失ったので、折り返し +1 に替えた（id はそのまま）
+    name: '多重反射', desc: 'レーザーが壁で折り返す回数 +1、ダメージ ×1.3',
+    apply(run) { const w = run.wp('sniper'); if (w) { w.s.reflect += Game.rki(1); w.s.dmg *= Game.rk(1.3); } } }),
   snp_exec: C({ id: 'snp_exec', kind: 'mod', weapon: 'sniper', rarity: 'legendary', maxStack: 1,
-    name: '執行', desc: 'スナイパーが命中させた敵は、残りHP18%以下なら即死',
+    name: '執行', desc: 'レーザーが当たった敵は、残りHP18%以下なら即死',
     apply(run) { const w = run.wp('sniper'); if (w) w.s.execThr = Math.max(w.s.execThr, Game.rka(0.18)); } }),
 
   // ============ ミサイル ============
@@ -285,7 +286,7 @@ const CARDS = {
   syn_spotter: C({ id: 'syn_spotter', kind: 'synergy', requires: ['sniper', 'missile'], rarity: 'rare', maxStack: 3,
     // **狙いは動かさない。** どこへ落とすかはプレイヤーが決めるものなので、
     // 「印の付いた敵に落ちたときだけ効く」形にしてある
-    name: '曳光指示', desc: '【スナイパー＋ミサイル】スナイパーが撃ち抜いた敵に印が残り、そこへの着弾 ×1.6',
+    name: '曳光指示', desc: '【レーザー＋ミサイル】レーザーが通った敵に印が残り、そこへの着弾 ×1.6',
     apply(run) { const s = run.wp('sniper'), m = run.wp('missile');
       if (s) s.flags.spot = true;
       if (m) m.dyn.spotMul = (m.dyn.spotMul || 1) * Game.rk(1.6); } }),
@@ -293,7 +294,7 @@ const CARDS = {
     name: '電磁爆縮', desc: '【ミサイル＋テスラ】ミサイルの爆発が感電を付与する',
     apply(run) { const m = run.wp('missile'); if (m) { m.flags.implode = true; m.s.shockDur = Math.max(m.s.shockDur, Game.rka(2.5)); } } }),
   syn_resonance: C({ id: 'syn_resonance', kind: 'synergy', requires: ['gatling', 'sniper'], rarity: 'epic', maxStack: 2,
-    name: '弾道共鳴', desc: '【ガトリング＋スナイパー】ガトリング命中ごとにスナイパーのダメージ +0.6%（上限 +400%）',
+    name: '弾道共鳴', desc: '【ガトリング＋レーザー】ガトリング命中ごとにレーザーのダメージ +0.6%（上限 +400%）',
     apply(run) { const g = run.wp('gatling'); if (g) { g.flags.resonance = true;
       run.resonanceStep = Math.max(run.resonanceStep || 0, Game.rka(0.006));
       run.resonanceMax = Math.max(run.resonanceMax || 0, Game.rka(4.0)); } } }),
@@ -342,7 +343,7 @@ const CARDS = {
     name: '雷刃', desc: '【手裏剣＋テスラ】手裏剣が当たった敵から2連鎖の電撃が走る',
     apply(run) { const w = run.wp('shuriken'); if (w) { w.flags.charged = true; w.dyn.chargedChain = (w.dyn.chargedChain || 0) + Game.rki(2); } } }),
   syn_spotblade: C({ id: 'syn_spotblade', kind: 'synergy', requires: ['sniper', 'katana'], rarity: 'epic', maxStack: 2,
-    name: '狙撃指示', desc: '【スナイパー＋刀】スナイパーが撃ち抜いた敵への斬撃 ×1.6、刀の会心率 +20%',
+    name: '狙撃指示', desc: '【レーザー＋刀】レーザーが通った敵への斬撃 ×1.6、刀の会心率 +20%',
     apply(run) { const s = run.wp('sniper'), k = run.wp('katana');
       if (s) s.flags.spot = true;
       if (k) { k.dyn.spotMul = (k.dyn.spotMul || 1) * Game.rk(1.6); k.s.crit += Game.rka(0.20); } } }),
