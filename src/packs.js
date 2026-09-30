@@ -155,6 +155,7 @@ const Pack = {
     const pool = CARD_IDS.filter(id => {
       const c = CARDS[id];
       if (c.rarity !== r) return false;
+      if (c.upper) return false;          // 上位札はパックから出ない（3択で前提を取ると出る）
       if (!pack.accepts(c)) return false;
       // **武器カードも被らせる。被ると武器そのものが凸る。**（ユーザー 2026-09-24
       //   「武器パックからガトリングが出てガトリングを凸るような」）
@@ -165,7 +166,7 @@ const Pack = {
     });
     if (pool.length) return pool;
     // 尽きたら、そのパックの分野の強化カードで埋める
-    const fb = CARD_IDS.filter(id => CARDS[id].kind !== 'weapon' && pack.accepts(CARDS[id]));
+    const fb = CARD_IDS.filter(id => CARDS[id].kind !== 'weapon' && !CARDS[id].upper && pack.accepts(CARDS[id]));
     return fb.length ? fb : CARD_IDS.filter(id => CARDS[id].kind === 'generic');
   },
 

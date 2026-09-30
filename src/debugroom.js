@@ -21,7 +21,7 @@ const DebugRoom = {
 
   // 手札に依らない見本のカード（種類ごとに先頭のもの）
   _cards(rar, n) {
-    return CARD_IDS.filter(id => CARDS[id].rarity === rar && !['weapon', 'perm', 'key'].includes(CARDS[id].kind)).slice(0, n || 1);
+    return CARD_IDS.filter(id => CARDS[id].rarity === rar && !CARDS[id].upper && !['weapon', 'perm', 'key'].includes(CARDS[id].kind)).slice(0, n || 1);
   },
 
   // 結果画面の見本
@@ -173,6 +173,7 @@ const DebugRoom = {
       ['戦闘の上に出るもの', [
         ['カード3択', () => UI.showDraft(me._cards('rare', 1).concat(me._cards('common', 2)))],
         ['3択（エピック・レジェンド入り）', () => UI.showDraft(me._cards('rare', 1).concat(me._cards('epic', 1), me._cards('legendary', 1)))],
+        ['3択（上位札・連携の上位札入り）', () => UI.showDraft(['up_gat_mount', 'up_syn_conduct'].concat(me._cards('common', 1)))],
         ['準備フェーズの帯', cut('準備フェーズ', '武器を置いて「準備完了」', 'prep')],
         ['ウェーブの帯', cut('WAVE 3<em> / ' + W + '</em>', '', 'wave')],
         ['最終ウェーブの帯', cut('WAVE ' + W + '<em> / ' + W + '</em>', '最終ウェーブ', 'last')],

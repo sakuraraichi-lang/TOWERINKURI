@@ -324,6 +324,45 @@ const CARDS = {
     name: '照準固定', desc: '【触手＋迫撃砲】掴まれて足が止まった敵への着弾ダメージ ×1.5',
     apply(run) { const m = run.wp('mortar'); if (m) m.dyn.grabMul = (m.dyn.grabMul || 1) * Game.rk(1.5); } }),
 
+  // ============ 上位札（前提のある札・2026-09-30 段3・設計書 DESIGN-STAGE3 §7） ============
+  //   > ユーザー「特定のカードを取るとピックに出現するような、前提スキルが必要となるスキルカードも実装していいです、
+  //   >   これらを一枚しか取る事が出来ないようにするなどの制限を用いれば、私が最初に禁止した範囲や射程を広げるなどのスキルをプレイヤーに与えることが出来ます」
+  //   > 「前提札が単独武器種ではなく、２種の前提を取ったら使える連携スキルなども良いですね」
+  //   **その出撃で `needs` の札を両方取っていると、3択に出る。1枚だけ（maxStack 1）。パックからは出ない**（持っていなくても出る・packs.js で除外）。
+  //   出る確率はエピックの枠（10%）。**射程・範囲を広げるのはここだけ**：`w.s.range` などを直接書き換える
+  //   （射程を読む所＝狙い・扇の絵・攻撃の範囲が同じ値を見るので、見た目と当たりが食い違わない。以前の足し算の仕組み addPct の轍を踏まない）
+  up_gat_mount: C({ id: 'up_gat_mount', upper: true, noRank: true, needs: ['gat_belt', 'gat_cool'], kind: 'mod', weapon: 'gatling', rarity: 'epic', maxStack: 1,
+    name: '据置き銃架', desc: 'ガトリングの射程 +30%',
+    apply(run) { const w = run.wp('gatling'); if (w) w.s.range *= 1.3; } }),
+  up_tsl_tower: C({ id: 'up_tsl_tower', upper: true, noRank: true, needs: ['tsl_coil', 'tsl_chain'], kind: 'mod', weapon: 'tesla', rarity: 'epic', maxStack: 1,
+    name: '送電塔', desc: 'テスラの射程 +25%、連鎖 +2',
+    apply(run) { const w = run.wp('tesla'); if (w) { w.s.range *= 1.25; w.s.chain += 2; } } }),
+  up_flm_lance: C({ id: 'up_flm_lance', upper: true, noRank: true, needs: ['flm_fuel', 'flm_spread'], kind: 'mod', weapon: 'flame', rarity: 'epic', maxStack: 1,
+    name: '長柄ノズル', desc: '火炎の届く距離 +30%',
+    apply(run) { const w = run.wp('flame'); if (w) w.s.range *= 1.3; } }),
+  up_gas_wide: C({ id: 'up_gas_wide', upper: true, noRank: true, needs: ['gas_wide', 'gas_corrode'], kind: 'mod', weapon: 'gas', rarity: 'epic', maxStack: 1,
+    name: '広域散布', desc: '毒の雲の広さ +40%',
+    apply(run) { const w = run.wp('gas'); if (w) w.s.fieldR *= 1.4; } }),
+  up_cry_wave: C({ id: 'up_cry_wave', upper: true, noRank: true, needs: ['cry_deep', 'cry_shatter'], kind: 'mod', weapon: 'cryo', rarity: 'epic', maxStack: 1,
+    name: '寒波', desc: '冷気の届く半径 +25%',
+    apply(run) { const w = run.wp('cryo'); if (w) w.s.range *= 1.25; } }),
+  up_ktn_long: C({ id: 'up_ktn_long', upper: true, noRank: true, needs: ['ktn_edge', 'ktn_iai'], kind: 'mod', weapon: 'katana', rarity: 'epic', maxStack: 1,
+    name: '長巻', desc: '刀の間合い +30%',
+    apply(run) { const w = run.wp('katana'); if (w) w.s.range *= 1.3; } }),
+  up_mtr_big: C({ id: 'up_mtr_big', upper: true, noRank: true, needs: ['mtr_shell', 'mtr_rapid'], kind: 'mod', weapon: 'mortar', rarity: 'epic', maxStack: 1,
+    name: '大口径化', desc: '迫撃砲の爆風の半径 +30%',
+    apply(run) { const w = run.wp('mortar'); if (w) w.s.splash *= 1.3; } }),
+  // ---- 2種の武器の札を前提にする連携の上位札（ユーザー「２種の前提を取ったら使える連携スキル」）----
+  up_syn_conduct: C({ id: 'up_syn_conduct', upper: true, noRank: true, needs: ['gat_ap', 'tsl_shock'], kind: 'synergy', requires: ['gatling', 'tesla'], rarity: 'epic', maxStack: 1,
+    name: '導電弾', desc: '【ガトリング＋テスラ】ガトリングの弾が当たった敵を感電させる（2秒）',
+    apply(run) { const w = run.wp('gatling'); if (w) w.s.shockDur = Math.max(w.s.shockDur, 2); } }),
+  up_syn_resonate: C({ id: 'up_syn_resonate', upper: true, noRank: true, needs: ['snp_he', 'tsl_chain'], kind: 'synergy', requires: ['sniper', 'tesla'], rarity: 'epic', maxStack: 1,
+    name: '共振光線', desc: '【レーザー＋テスラ】レーザーが通った敵を感電させる（2秒）',
+    apply(run) { const w = run.wp('sniper'); if (w) w.s.shockDur = Math.max(w.s.shockDur, 2); } }),
+  up_syn_venomfire: C({ id: 'up_syn_venomfire', upper: true, noRank: true, needs: ['flm_fuel', 'gas_corrode'], kind: 'synergy', requires: ['flame', 'gas'], rarity: 'epic', maxStack: 1,
+    name: '毒炎', desc: '【火炎放射器＋毒ガス】火炎の燃焼ダメージ ×2',
+    apply(run) { const w = run.wp('flame'); if (w) w.s.burn *= 2; } }),
+
   // ============ 鍵（kind:'key'）============
   //   **3択にもパックにも出ない。** 章の報酬でしか手に入らない、機能を開ける札。
   //   遺物（kind:'perm'）と分けてあるのは、Relic.mods が数値を合計する側だから
@@ -516,6 +555,12 @@ const CARDS = {
 const OFF_CARD_KEYS = ['range', 'size'];
 for (const id of Object.keys(CARDS)) {
   if (OFF_CARD_KEYS.indexOf(CARDS[id].key) >= 0) delete CARDS[id];
+}
+
+// 上位札の説明に前提の札の名前を足す（「前提：給弾ベルト＋冷却フィン」）
+for (const id of Object.keys(CARDS)) {
+  const c = CARDS[id];
+  if (c.upper && c.needs) c.desc += '（前提：' + c.needs.map(n => CARDS[n] ? CARDS[n].name : n).join('＋') + '）';
 }
 
 const CARD_IDS = Object.keys(CARDS);

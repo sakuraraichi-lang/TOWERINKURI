@@ -1644,8 +1644,9 @@ const UI = {
 
   // ================= コレクション =================
   panelCollection(p) {
-    const total = CARD_IDS.length;
-    const have = CARD_IDS.filter(id => Game.own(id) > 0).length;
+    const IDS = CARD_IDS.filter(id => !CARDS[id].upper);   // 上位札は持ち物ではない（下の節で別に見せる）
+    const total = IDS.length;
+    const have = IDS.filter(id => Game.own(id) > 0).length;
     const head = Util.el('div', 'phead');
     head.innerHTML = '<b>カードコレクション</b><span class="sub">' + have + ' / ' + total +
       ' 種類　永久資源。同じカードを重ねるほど凸が上がって強くなる</span>';
@@ -1663,17 +1664,20 @@ const UI = {
       { kind: 'generic', name: '汎用',       sub: '3択に出る。どの編成でも効く' },
       { kind: 'perm',    name: '常駐',       sub: '持っているだけで常に効く。凸で強くなる' },
       { kind: 'key',     name: '鍵',         sub: '機能を開く' },
+      { kind: 'upper',   name: '上位札',     sub: '前提の2枚をその出撃で取ると3択に出る。1枚だけ。パックからは出ない' },
     ];
     for (const sec of sections) {
-      const ids = CARD_IDS.filter(id => CARDS[id].kind === sec.kind).sort((a, b) =>
+      const up = sec.kind === 'upper';
+      const ids = CARD_IDS.filter(id => up ? CARDS[id].upper : (!CARDS[id].upper && CARDS[id].kind === sec.kind)).sort((a, b) =>
         (BAL.rarityOrder.indexOf(CARDS[b].rarity) - BAL.rarityOrder.indexOf(CARDS[a].rarity)) || a.localeCompare(b));
       if (!ids.length) continue;
       const got = ids.filter(id => Game.own(id) > 0).length;
       const g = Util.el('div', 'csec k-' + sec.kind);
-      g.innerHTML = '<b>' + sec.name + '</b><span>' + sec.sub + '</span><em>' + got + ' / ' + ids.length + '</em>';
+      g.innerHTML = '<b>' + sec.name + '</b><span>' + sec.sub + '</span><em>' + (up ? ids.length + ' 種' : got + ' / ' + ids.length) + '</em>';
       p.appendChild(g);
       const grid = Util.el('div', 'cgrid');
-      for (const id of ids) grid.appendChild(CardFX.face(CARDS[id], { count: Game.own(id), dim: Game.own(id) === 0, tap: true }));
+      for (const id of ids) grid.appendChild(up ? CardFX.face(CARDS[id], { count: 1, noCount: true, tap: true })
+                                                : CardFX.face(CARDS[id], { count: Game.own(id), dim: Game.own(id) === 0, tap: true }));
       p.appendChild(grid);
     }
   },
@@ -2118,6 +2122,7 @@ const UI = {
       el.insertAdjacentHTML('beforeend',
         this.stackPips({ have: run.cards[id] || 0, limit: Game.stackLimit(id) }) +
         '<div class="chtype">' + (c.kind === 'weapon' ? '武器を編成に追加'
+          : c.upper ? '上位札（1枚だけ）'
           : c.kind === 'synergy' ? 'シナジー'
           : (c.weapon ? WEAPONS[c.weapon].name + ' 強化' : '全体強化')) + '</div>');
       el.addEventListener('click', () => {
