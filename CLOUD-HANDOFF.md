@@ -13,7 +13,7 @@ git diff main origin/claude/dreamy-gauss-4eus46 --stat
 git merge origin/claude/dreamy-gauss-4eus46                 # 取り込むなら（main に push すると本番に出る）
 ```
 
-土台は `main` の 5e7b289（ver 0929zl）。そこから先の `main` の変更とは衝突しうる：`src/balance.js`（BUILD と chapterMul のあたり）・`src/skilltree.js`・`docs/PATCHNOTES.md`（先頭）・`docs/DESIGN-REBUILD-2026-09-29.md`（§13・§14）。
+土台は `main` の 5e7b289（ver 0929zl）。ブランチの版は **0929zn**。そこから先の `main` の変更とは衝突しうる：`src/balance.js`（BUILD と chapterMul のあたり）・`src/skilltree.js`・`docs/PATCHNOTES.md`（先頭）・`docs/DESIGN-REBUILD-2026-09-29.md`（§13・§14）。
 
 ## やったこと
 
@@ -22,6 +22,7 @@ git merge origin/claude/dreamy-gauss-4eus46                 # 取り込むなら
 | **段2：数値の圧縮** | 敵の伸び 1.40→1.19・lateEnemyMul を外す・chapterMul を D(n)=1.15^(n−1)（第30章は第29章と同じ）・カテゴリの節の費用を第30章まで。**ver 0929zm** | `src/balance.js`・`src/skilltree.js`・`docs/PATCHNOTES.md`・設計書 §13-4 |
 | **カードの仕分け** | 117枚を「生／同／半死／死」に。**コードを読んだ判定で、実測ではない** | `docs/audit/2026-09-30-cards.md` |
 | **段3の設計書（草案）** | 重ね取りの式・凸・遺物・カードの作り直し・前提のある上位札・敵の耐性・レーザー／ミサイル／触手。**§11 の9問にユーザーの答えが要る**。1出撃の中の伸び方の実測（通し2本）つき | `docs/DESIGN-STAGE3-2026-09-30.md` |
+| **レーザーライフル（段3の一部）** | スナイパーを置き換え。六角の壁で2回反射・線の上を全部貫く・太さ24。確認室に見本。**ver 0929zn**。第25章・単独・12本で 719.5 → 495.5 | `src/combat.js`（laserPath・laser）・`src/weapons.js`・`src/render.js`・`src/debugroom.js`・`src/cards.js` |
 | **他のタワーディフェンスの調べもの** | 耐性（BTD6・Kingdom Rush・Arknights・Legion TD 2・Defense Grid）・重ね取りの式（Risk of Rain 2・Path of Exile・Balatro）・前提のある札（Hades・Vampire Survivors・BTD6・Rogue Tower） | `docs/audit/2026-09-30-td-research.md` |
 
 **やらなかったこと**
