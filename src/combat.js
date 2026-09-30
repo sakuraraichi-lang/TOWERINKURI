@@ -881,6 +881,55 @@ const Combat = {
     this.fx(run, { type: 'laser', pts, w: half, n: hits, color: w.def.color, life: 0.26 });
   },
 
+  // ================= 触手の6種の攻撃（2026-09-30 段3・weapons.js の tentacle） =================
+  //   t … 砲身の線の上の敵（狙いの基準）。k … 攻撃の種類（TNT_ATTACKS）。i … 同時に出したときの何番目か（名前の表示をずらす）
+  //   大きさは BAL.tnt*。締め上げ（カード）は突き刺しと一閃の倍率（w.dyn.tntStabMul）、剛腕は壁の持続にも効く（knockDur の比）
+  TNT_NAMES: { pull: '引き寄せ', stab: '突き刺し', sweep: '薙ぎ払い', wall: '触手の壁', ink: 'タコ墨', cut: '一閃' },
+  tentacleAttack(w, run, t, k, i) {
+    const s = w.s, col = w.def.color;
+    const sharp = w.dyn.tntStabMul || 1;
+    if (k === 'pull') {
+      this.grab(w, run, t, s.knock, s.knockDur, s.dmg);
+    } else if (k === 'stab') {
+      const o = BAL.tntStab, L = s.range * o.len;
+      const x2 = w.x + Math.cos(w.angle) * L, y2 = w.y + Math.sin(w.angle) * L;
+      this.lineHit(run, w.x, w.y, x2, y2, o.half, s.dmg * o.dmg * sharp, { color: col, crit: s.crit, critMul: s.critMul });
+      this.fx(run, { type: 'laser', pts: [{ x: w.x, y: w.y }, { x: x2, y: y2 }], w: o.half, n: 0, color: col, life: 0.22 });
+    } else if (k === 'sweep') {
+      const o = BAL.tntSweep;
+      this.coneDamage(w, run, w.angle, o.arc, s.range * o.len, s.dmg * o.dmg, { color: col });
+      this.fx(run, { type: 'slash', x: w.x, y: w.y, a: w.angle, arc: o.arc, r: s.range * o.len, color: col, life: 0.24 });
+    } else if (k === 'wall') {
+      const o = BAL.tntWall, dur = o.dur * (s.knockDur / (w.def.base.knockDur || 1));
+      this.spawnField(run, t.x, t.y, { kind: 'tentwall', r: o.r, dur, dps: s.dmg * o.dps, slow: BAL.slowMax, color: col });
+    } else if (k === 'ink') {
+      const o = BAL.tntInk;
+      this.explode(run, t.x, t.y, o.r, s.dmg * o.dmg, { color: '#8a6cff' });
+      this.spawnField(run, t.x, t.y, { kind: 'ink', r: o.r, dur: o.dur, dps: s.dmg * o.dps, slow: o.slow, color: '#8a6cff' });
+    } else if (k === 'cut') {
+      const o = BAL.tntCut;
+      this.explode(run, t.x, t.y, o.r, s.dmg * o.dmg * sharp, { color: '#ffffff', crit: s.crit, critMul: s.critMul });
+      this.fx(run, { type: 'slash', x: t.x, y: t.y, a: w.angle + Math.PI / 2, arc: 1.3, r: o.r, color: '#ffffff', life: 0.2 });
+    }
+    // 出た攻撃の名前（何が出たか分かるように）。数字の表示と同じ仕組みで、触手の上に一瞬
+    if (run.nums.length < 40) run.nums.push({ x: w.x, y: w.y - 22 - i * 14, t: 0, life: 0.7, txt: this.TNT_NAMES[k] || k, crit: false, color: '#ff9ae8' });
+  },
+
+  // 線の上の敵に1回ずつ当てる（触手の突き刺し）。壁は見ない（腕なので回り込める）
+  lineHit(run, x1, y1, x2, y2, half, dmg, opts) {
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    const near = Grid.query((x1 + x2) * 0.5, (y1 + y2) * 0.5, len * 0.5 + half + 24, _q);
+    let hits = 0;
+    for (const e of near) {
+      if (e.dead) continue;
+      const reach = e.r + half;
+      if (Util.segDist2(x1, y1, x2, y2, e.x, e.y) > reach * reach) continue;
+      this.damage(run, e, dmg, opts);
+      hits++;
+    }
+    return hits;
+  },
+
   // この発射で撃つ弾数。
   // 多銃身（gat_barrels）がここに乗る。扇の広さ（Game.arcT）に比例して増える。
   // 幅は武器ごとの固定値になった（2026-09-30 段1a）ので、増える数もガトリングでは一定
@@ -1188,7 +1237,7 @@ const Combat = {
             e.poisonBy = f.by;
             e.poisonT = Math.max(e.poisonT || 0, BAL.poisonDur + run.st.burnDur);
           }
-          this.damage(run, e, f.dps * step, { color: f.kind === 'gas' ? '#c6ff7a' : '#ffb066', dot: true, by: f.by });
+          this.damage(run, e, f.dps * step, { color: f.kind === 'gas' ? '#c6ff7a' : (f.kind === 'ink' || f.kind === 'tentwall') ? f.color : '#ffb066', dot: true, by: f.by });
         }
       }
     }

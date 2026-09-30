@@ -27,6 +27,8 @@ const CATEGORIES = {
              desc: '直接は倒さない。足を止め、他の武器の時間を作る' },
 };
 const CATEGORY_IDS = ['short', 'mid', 'long', 'area', 'target', 'support'];
+// 触手の攻撃の種類（2026-09-30 段3）。名前は Combat.tentacleAttack
+const TNT_ATTACKS = ['pull', 'stab', 'sweep', 'wall', 'ink', 'cut'];
 
 function baseStats(o) {
   return Object.assign({
@@ -330,29 +332,28 @@ const WEAPONS = {
   },
 
   tentacle: {
-    id: 'tentacle', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ cost: 2, cat: 'support', name: '触手', short: 'TNT', icon: Icons.get('tentacle'), color: '#c85ab0', src: 'pack', arcFix: 0.34,
-    desc: '砲身の先にいる敵を掴んで来た道へ引き戻す。掴まれている間は削られ続ける。',
-    // **【2026-09-22】同時に2体まで掴めなかったのが、そのまま弱さだった。**
-    //   前は「1体ずつ掴む武器だから数字を上げても頭打ち」と書いて諦めていたが、
-    //   **上げる場所が違った。**掴める数（count）がそれ。
-    //
-    //   測り方も変えた。dps ではなく**漏らした数**で見る（武器の仕事はこれ）。
-    //   第10章・単独・4シード・ライフを厚くして必ず5ウェーブ回した合計：
-    //     掴む数1 → 1,710  ／ 2 → 291  ／ **3 → 35**  ／ 4 → 13
-    //   1のままだと12種で断トツの最下位（次に悪いガトリングが581）。
-    //   3で手裏剣（33）と並ぶ。4だと上位に行きすぎる
-    //
-    // **【2026-09-22・上の調整は章が浅すぎた】**
-    //   第10章は12種のうち半分が漏れ0になる＝**飽和していて差が出ない**。
-    //   第15章で測り直すと、掴む3のままでは中央値 231（12種で下から2番目）。
-    //   ここでも**ダメージ26→78 は無反応（424→424）**で、効くのは掴む数だけ：
-    //     3 → 424 ／ 4 → 73 ／ 5 → 50 ／ **6 → 24** ／ 7 → 13 ／ 8 → 23
-    //   6 を採る（12種の真ん中は約37）
-    base: baseStats({ dmg: 26, rate: 1.2, range: 210, count: 6, knock: 105, knockDur: 1.3, turn: 9 }),
+    // **【2026-09-30 段3】作り直し：「支援」をやめ、毎回何が出るか分からないピーキーな武器に。**（親の設計書 DESIGN-REBUILD §12-1・ユーザー指定）
+    //   > 「何が出るかさっぱりわからないから置き場所に困るものの、基本性能の高いピーキーな武器に仕上げましょう」
+    //   火力・範囲は平均以上、レートは控えめ。撃つたびに6種の攻撃から1つ（BAL.tntWeights の重み）：
+    //     pull 引き寄せ（掴んで来た道へ引き戻す・前の触手の形）／stab 突き刺し（長い線の高火力）／sweep 薙ぎ払い（目の前の扇）／
+    //     wall 触手の壁（道に強い減速の場）／ink タコ墨（広い範囲の攻撃＋減速の場）／cut 一閃（小さい範囲の高火力）
+    //   倍率・大きさは BAL.tnt*。**出た攻撃の名前を触手の上に一瞬出す**（何が出たか分かるように）。
+    //   前の触手（掴むだけ・掴む数6）は第25章の単独 12種中10位・カードを全部積んでも ×0.41（measure.md）。
+    //   コスト：ユーザー「コストも高め」（§12-1）。武器の設計から決める（答え8「コストで強弱の帳尻を合わせない」）
+    id: 'tentacle', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ cost: 3, cat: 'support', name: '触手', short: 'TNT', icon: Icons.get('tentacle'), color: '#c85ab0', src: 'pack', arcFix: 0.34,
+    desc: '撃つたびに6種の攻撃のどれかが出る（引き寄せ・突き刺し・薙ぎ払い・触手の壁・タコ墨・一閃）。何が出るかは分からないが、どれも強い。',
+    base: baseStats({ dmg: 40, rate: 0.8, range: 230, count: 4, knock: 105, knockDur: 1.3, turn: 9 }),
     fire(w, run) {
       const t = w.target;
       if (!t) return;
-      Combat.grab(w, run, t, w.s.knock, w.s.knockDur, w.s.dmg);
+      // 二連撃・八腕（カード）：2種を同時に出す
+      const n = (w.dyn.tntDouble && Util.chance(w.dyn.tntDouble)) ? 2 : 1;
+      const done = {};
+      for (let i = 0; i < n; i++) {
+        let k = Util.weighted(TNT_ATTACKS.filter(a => !done[a]), a => BAL.tntWeights[a] || 1);
+        done[k] = true;
+        Combat.tentacleAttack(w, run, t, k, i);
+      }
     },
   },
 

@@ -157,6 +157,15 @@ const BAL = {
   enemySpdCap: 390,     // 2026-09-24 ユーザー「上げて良いよ」。260 だと第15章で頭打ちだった（390 で第21章まで伸びる）
   //   敵の攻撃力（旧 enemyDpsBase / enemyDpsGrowth）は 2026-09-24 に削除した。計算していたがどこからも読まれず、
   //   漏れの重さは章によらず1体＝ライフ1（下の `leakLives`・確定方針）なので、置き場所が無い
+  // --- 触手（2026-09-30 段3・weapons.js の tentacle・Combat.tentacleAttack）---
+  //   6種の出る重み（均等から始める）と、攻撃ごとの大きさ。ダメージは武器のダメージ（w.s.dmg）の何倍か。長さ・半径は射程の何倍か
+  tntWeights: { pull: 1, stab: 1, sweep: 1, wall: 1, ink: 1, cut: 1 },
+  tntStab: { dmg: 3.0, len: 1.5, half: 14 },          // 突き刺し：線の長さ（射程×）と太さの半分(px)
+  tntSweep: { dmg: 1.5, len: 0.8, arc: 1.1 },         // 薙ぎ払い：扇の半径（射程×）と半角(rad)
+  tntWall: { dps: 0.6, r: 48, dur: 3.2 },             // 触手の壁：道に置く場（減速は BAL.slowMax・ボスは遅くならない）
+  tntInk: { dmg: 1.0, dps: 0.6, r: 95, dur: 4, slow: 0.45 },  // タコ墨：着弾で1回＋減速の場
+  tntCut: { dmg: 4.0, r: 44 },                        // 一閃：小さい範囲
+
   // レーザーライフルの光線の長さの合計（射程の何倍か・折り返しを含む）。Combat.laserPath
   laserLenMul: 1.8,
   enemyCoinBase: 2.4,

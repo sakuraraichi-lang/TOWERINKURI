@@ -180,6 +180,7 @@ const DebugRoom = {
         ['BOSS DOWN（あと2体）', () => UI.cutinBossDown(2)],
         ['ボス戦の見本（第10章・2体）', () => me.bossBattle()],
         ['レーザーライフルの光線（壁で2回はね返る）', () => me.laserDemo()],
+        ['触手の6種の攻撃（順番に出す）', () => me.tentacleDemo()],
       ]],
       ['通知（トースト）', [
         ['新しい武器', () => UI.toastMsg('新しい武器 ガトリング', '#ffb43c', 'weapon')],
@@ -429,6 +430,40 @@ const DebugRoom = {
         if (f.t >= f.life) run.fx.splice(i, 1);
       }
       if (n >= 4 && !run.fx.some(f => f.type === 'laser')) clearInterval(this._lz);
+    }, 16);
+  },
+
+  // 触手の6種の攻撃の見本（2026-09-30 段3）。**本物の攻撃（Combat.tentacleAttack）を順番に呼ぶ。**
+  //   盤に敵はいないので当たりは出ない（形・場・名前の表示だけ見える）。狙いの敵は「倒れている見本」を渡すので、
+  //   引き寄せの掴み（Combat.grab）は何もしない。代わりに腕の絵だけを同じ fx で出す。セーブにも盤にも触らない（場と fx は消えるまで進めて片づける）
+  tentacleDemo() {
+    const run = Game.run;
+    if (!run || !run.stage) return;
+    const st = run.stage, hx = (st.vec && st.vec.hexes) || [];
+    const cx = st.w / 2;
+    let h = null;
+    for (const c of hx) { if (c.y > st.h * 0.5 || c.y < 90) continue; if (!h || Math.abs(c.x - cx) < Math.abs(h.x - cx)) h = c; }
+    if (!h) return;
+    const def = WEAPONS.tentacle;
+    const w = { id: 'tentacle', def, x: h.x, y: h.y - 95, angle: Math.PI / 2, s: Object.assign({}, def.base), dyn: {}, flags: {} };
+    const t = { x: h.x, y: h.y + 20, r: 10, dead: true };
+    const order = ['pull', 'stab', 'sweep', 'wall', 'ink', 'cut'];
+    let n = 0, last = performance.now(), el = 0;
+    const fire = () => {
+      const k = order[n++];
+      Combat.tentacleAttack(w, run, t, k, 0);
+      if (k === 'pull') run.fx.push({ type: 'tentacle', x1: w.x, y1: w.y, e: { x: t.x, y: t.y, r: 10, dead: false }, color: def.color, ph: 0, life: 0.6, t: 0 });
+    };
+    fire();
+    clearInterval(this._tn);
+    this._tn = setInterval(() => {
+      const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now; el += dt;
+      if (Game.run !== run) { clearInterval(this._tn); return; }
+      if (n < order.length && el > n * 1.1) fire();
+      for (let i = run.fx.length - 1; i >= 0; i--) { const f = run.fx[i]; f.t += dt; if (f.t >= f.life) run.fx.splice(i, 1); }
+      for (let i = run.fields.length - 1; i >= 0; i--) { const f = run.fields[i]; if (f.kind !== 'tentwall' && f.kind !== 'ink') continue; f.t += dt; if (f.t >= f.dur) run.fields.splice(i, 1); }
+      for (let i = run.nums.length - 1; i >= 0; i--) { const q = run.nums[i]; q.t += dt; q.y -= dt * 34; if (q.t >= q.life) run.nums.splice(i, 1); }
+      if (n >= order.length && !run.fx.length && !run.fields.some(f => f.kind === 'tentwall' || f.kind === 'ink') && !run.nums.length) clearInterval(this._tn);
     }, 16);
   },
 

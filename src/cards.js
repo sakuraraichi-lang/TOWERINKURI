@@ -226,22 +226,24 @@ const CARDS = {
     apply(run) { const w = run.wp('shuriken'); if (w) { w.s.count += Game.rki(4); w.s.pierce += Game.rki(1); w.s.spread = Math.max(w.s.spread, 0.12); } } }),
 
   // ============ 触手 ============
+  //   **【2026-09-30 段3】触手の作り直しに合わせて作り直した。**触手は撃つたびに6種の攻撃のどれかが出る（weapons.js）。
+  //   前の札（掴む数・掴む時間）は「引き寄せ」が出たときにしか効かず、掴む時間は1体8秒の打ち止め（ccMaxSec）に当たっていた。
+  //   いまは**ピーキーさを尖らせる**方向（設計書 DESIGN-STAGE3 §9-3）：同時に2種・刺す／斬る攻撃を尖らせる・引き寄せと壁を太く。id はそのまま
   tnt_grip: C({ id: 'tnt_grip', kind: 'mod', weapon: 'tentacle', rarity: 'common', maxStack: 5,
-    name: '握力', desc: '触手のダメージ ×1.60',
-    apply(run) { const w = run.wp('tentacle'); if (w) w.s.dmg *= Game.rk(1.60); } }),
+    name: '握力', desc: '触手のダメージ ×1.40',
+    apply(run) { const w = run.wp('tentacle'); if (w) w.s.dmg *= Game.rk(1.40); } }),
   tnt_long: C({ id: 'tnt_long', kind: 'mod', weapon: 'tentacle', rarity: 'rare', maxStack: 3,
-    name: '剛腕', desc: '触手が引き戻す力 ×1.35、掴む時間 ×1.2',
-    apply(run) { const w = run.wp('tentacle'); if (w) { w.s.knock *= Game.rk(1.35); w.s.knockDur *= Game.rk(1.2); } } }),
-  tnt_many: C({ id: 'tnt_many', kind: 'mod', weapon: 'tentacle', rarity: 'epic', maxStack: 2,
-    name: '多腕', desc: '同時に掴める敵 +1',
-    apply(run) { const w = run.wp('tentacle'); if (w) w.s.count += Game.rki(1); } }),
-
+    name: '剛腕', desc: '引き寄せの力 ×1.35、触手の壁の持続 ×1.3、掴める数 +1',
+    apply(run) { const w = run.wp('tentacle'); if (w) { w.s.knock *= Game.rk(1.35); w.s.knockDur *= Game.rk(1.3); w.s.count += Game.rki(1); } } }),
   tnt_squeeze: C({ id: 'tnt_squeeze', kind: 'mod', weapon: 'tentacle', rarity: 'rare', maxStack: 3,
-    name: '締め上げ', desc: '掴む時間 +0.5秒',
-    apply(run) { const w = run.wp('tentacle'); if (w) w.s.knockDur += Game.rka(0.5); } }),
-  tnt_octo: C({ id: 'tnt_octo', kind: 'mod', weapon: 'tentacle', rarity: 'legendary', maxStack: 1,
-    name: '八腕', desc: '同時に掴める敵 +3',
-    apply(run) { const w = run.wp('tentacle'); if (w) w.s.count += Game.rki(3); } }),
+    name: '締め上げ', desc: '突き刺しと一閃のダメージ ×1.5',
+    apply(run) { const w = run.wp('tentacle'); if (w) w.dyn.tntStabMul = (w.dyn.tntStabMul || 1) * Game.rk(1.5); } }),
+  tnt_many: C({ id: 'tnt_many', kind: 'mod', weapon: 'tentacle', rarity: 'epic', maxStack: 2,
+    name: '二連撃', desc: '35%の確率で、違う攻撃を2つ同時に出す',
+    apply(run) { const w = run.wp('tentacle'); if (w) w.dyn.tntDouble = Math.min(1, (w.dyn.tntDouble || 0) + Game.rka(0.35)); } }),
+  tnt_octo: C({ id: 'tnt_octo', noRank: true, kind: 'mod', weapon: 'tentacle', rarity: 'legendary', maxStack: 1,
+    name: '八腕', desc: '毎回、違う攻撃を2つ同時に出す。発射レート ×0.8',
+    apply(run) { const w = run.wp('tentacle'); if (w) { w.dyn.tntDouble = 1; w.s.rate *= 0.8; } } }),
 
   // ============ 泡 ============
   bbl_big: C({ id: 'bbl_big', kind: 'mod', weapon: 'bubble', rarity: 'common', maxStack: 5,
