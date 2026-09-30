@@ -1680,6 +1680,26 @@ const UI = {
                                                 : CardFX.face(CARDS[id], { count: Game.own(id), dim: Game.own(id) === 0, tap: true }));
       p.appendChild(grid);
     }
+
+    // **敵の図鑑**（2026-09-30 段3・ユーザー「今の敵はどいつがどんな能力なのかわからないので、今のやつにつけて図鑑などに載せたって良いですね」）
+    //   名前・能力・耐性（付き始める章）・出始める章。出始める章は通算ウェーブ（ENEMY_TYPES.from）から出す
+    const eh = Util.el('div', 'csec k-enemy');
+    eh.innerHTML = '<b>敵</b><span>侵入してくるプログラム。縁の色の切れた輪が耐性の印</span><em>' + Object.keys(ENEMY_TYPES).length + ' 種</em>';
+    p.appendChild(eh);
+    const el = Util.el('div', 'elist');
+    for (const t of Object.values(ENEMY_TYPES)) {
+      const ch = Math.ceil(t.from / BAL.wavesPerStage);
+      const res = Object.keys(t.res || {}).map(k => {
+        const ri = RESIST_INFO[k];
+        return '<i class="eres" style="--c:' + ri.color + '">' + ri.jp + '<u>第' + t.res[k] + '章から</u></i><small>' + ri.desc + '</small>';
+      }).join('');
+      const row = Util.el('div', 'erow');
+      row.innerHTML = '<span class="edot" style="background:' + t.color + '"></span>' +
+        '<div class="ebody"><b>' + (t.jp || t.name) + '<em>' + (t.en || '') + '</em><u>第' + ch + '章から</u></b>' +
+        '<p>' + (t.desc || '') + '</p>' + res + '</div>';
+      el.appendChild(row);
+    }
+    p.appendChild(el);
   },
 
   // ================= ガチャ（パック） =================

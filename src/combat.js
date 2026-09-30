@@ -27,19 +27,40 @@
 //
 //   weight は出やすさ。合計で正規化される（Util.weighted）
 const ENEMY_TYPES = {
-  grunt:  { name: 'grunt',  hp: 1.0, spd: 1.0,  r: 10, coin: 1.0,  color: '#ff5b6e', from: 1,  weight: 58 },
-  swift:  { name: 'swift',  hp: 0.5, spd: 1.9,  r: 8,  coin: 1.15, color: '#ff9cf0', from: 3,  weight: 28 },
-  tank:   { name: 'tank',   hp: 3.4, spd: 0.58, r: 15, coin: 2.5,  color: '#c8a05a', from: 6,  weight: 22 },
+  // **【2026-09-30 段3】耐性（res）と、図鑑に出す名前（jp・en）と説明（desc）を足した。**（設計書 DESIGN-STAGE3 §8・§12）
+  //   ユーザー「今の敵はどいつがどんな能力なのかわからないので、今のやつにつけて図鑑などに載せたって良いですね」
+  //   「武器を貰った直後2章は気持ちよく使わせるべきです」
+  //   res の値は**その耐性が付き始める章**。その武器が使えるようになった章から2章たってから付く
+  //   （火炎は第11章の報酬＝第12章から使える → 耐火は第14章から／テスラ 第9章から → 耐電 第11章／凍結 第18章から → 耐寒 第20章）。
+  //   効き方は「効きにくい」まで（BAL.resMul 倍）。無効は作らない。名前は世界観（侵入プログラムに昔のゲームの敵の皮・企画書 §13）に合わせた
+  grunt:  { name: 'grunt',  hp: 1.0, spd: 1.0,  r: 10, coin: 1.0,  color: '#ff5b6e', from: 1,  weight: 58,
+    jp: 'パケット', en: 'PACKET', desc: 'ふつうの敵。' },
+  swift:  { name: 'swift',  hp: 0.5, spd: 1.9,  r: 8,  coin: 1.15, color: '#ff9cf0', from: 3,  weight: 28,
+    jp: 'スクリプト', en: 'SCRIPT', desc: '速い。HPは低い。' },
+  tank:   { name: 'tank',   hp: 3.4, spd: 0.58, r: 15, coin: 2.5,  color: '#c8a05a', from: 6,  weight: 22,
+    jp: 'ブロック', en: 'BLOCK', desc: '硬くて遅い。', res: { heavy: 8 } },
   // 1発あたり「そのウェーブの雑魚HPの armor 割」を引く。小さい弾ほど損をする
-  shield: { name: 'shield', hp: 1.6, spd: 0.80, r: 12, coin: 1.9,  color: '#7fb3ff', from: 16, weight: 16, armor: 0.06 },
+  shield: { name: 'shield', hp: 1.6, spd: 0.80, r: 12, coin: 1.9,  color: '#7fb3ff', from: 16, weight: 16, armor: 0.06,
+    jp: 'ファイアウォール', en: 'FIREWALL', desc: '装甲：1発ごとにダメージを引く（最低15%は通る）。1発の重い武器が効く。' },
   // 1回の湧きで burst 体まとめて出る。1体は小さい
-  swarm:  { name: 'swarm',  hp: 0.22, spd: 1.45, r: 6, coin: 0.45, color: '#ffe08a', from: 26, weight: 14, burst: 5 },
+  swarm:  { name: 'swarm',  hp: 0.22, spd: 1.45, r: 6, coin: 0.45, color: '#ffe08a', from: 26, weight: 14, burst: 5,
+    jp: 'ボット群', en: 'BOTNET', desc: '小さいのがまとめて出る。', res: { fire: 14 } },
   // 毎秒 maxHp の regen 割を回復。**燃えている間は回復しない**
-  regen:  { name: 'regen',  hp: 1.3, spd: 0.85, r: 11, coin: 1.8,  color: '#7fe3a0', from: 36, weight: 14, regen: 0.055 },
+  regen:  { name: 'regen',  hp: 1.3, spd: 0.85, r: 11, coin: 1.8,  color: '#7fe3a0', from: 36, weight: 14, regen: 0.055,
+    jp: 'リカバリ', en: 'RECOVERY', desc: 'HPが戻る。燃えている間は戻らない。', res: { elec: 11 } },
   // 倒すと split 体に割れる（割れた子はもう割れない）
-  split:  { name: 'split',  hp: 2.2, spd: 0.90, r: 13, coin: 2.0,  color: '#d08aff', from: 46, weight: 12, split: 2 },
+  split:  { name: 'split',  hp: 2.2, spd: 0.90, r: 13, coin: 2.0,  color: '#d08aff', from: 46, weight: 12, split: 2,
+    jp: 'フォーク', en: 'FORK', desc: '倒すと2つに割れる。', res: { cold: 20 } },
   // 倒すと中身が1体出てくる（nest 層まで。中身は BAL.nestHp 倍のHPで、少し小さく少し速い）
-  nest:   { name: 'nest',   hp: 1.6, spd: 0.75, r: 17, coin: 1.2,  color: '#ff9a5c', from: 61, weight: 12, nest: 3 },
+  nest:   { name: 'nest',   hp: 1.6, spd: 0.75, r: 17, coin: 1.2,  color: '#ff9a5c', from: 61, weight: 12, nest: 3,
+    jp: 'アーカイブ', en: 'ARCHIVE', desc: '倒すと中から次の層が出てくる（3層）。', res: { heavy: 13 } },
+};
+// 耐性の名前と中身（図鑑・Render の縁の色）
+const RESIST_INFO = {
+  fire:  { jp: '耐火', desc: '火炎のダメージと燃えている間のダメージが半分', color: '#6fb8ff' },
+  elec:  { jp: '耐電', desc: 'テスラのダメージと感電が半分。連鎖がそこで止まる', color: '#ffe24a' },
+  cold:  { jp: '耐寒', desc: '凍らない。減速が半分', color: '#e8f6ff' },
+  heavy: { jp: '重量', desc: '掴む・引き戻す・閉じ込めるが半分', color: '#9aa0a8' },
 };
 
 // 敵同士の押し合い（2026-09-19 取り込み）
@@ -350,6 +371,7 @@ const Combat = {
       // **装甲は「そのウェーブの雑魚HPの何割か」**。固定値にすると章が進んだ瞬間に
       //   意味が消えるし、割合にすると大きい弾も同じだけ削られて意味が出ない
       armor: t.armor ? base * t.armor : 0,
+      res: this.resOf(run, t),         // 耐性（その章で付いているものだけ）
       regen: t.regen ? hp * t.regen : 0,
       split: gen ? 0 : (t.split || 0),   // 割れた子はもう割れない
       nest: t.nest || 0,                 // 入れ子の残りの層（中身は1つ少ない・kill で出す）
@@ -361,6 +383,15 @@ const Combat = {
       grabT: 0, grabV: 0, spotT: 0, dist: 1e9, counted: false,
       hitFlash: 0, dead: false, ang: 0,
     };
+  },
+
+  // その章で付いている耐性。**ボスは付かない**（ボスは grunt の形で作る・足止めが効かないのは別の決まり）
+  resOf(run, t) {
+    const out = {};
+    if (!t.res) return out;
+    const ch = run.stageIdx + 1;
+    for (const k in t.res) if (ch >= t.res[k]) out[k] = true;
+    return out;
   },
 
   spawnEnemy(run) {
@@ -443,6 +474,12 @@ const Combat = {
     }
     opts = opts || {};
     let dmg = amount * this.vuln(run, e);
+    // **耐性**（2026-09-30 段3）。効きにくいだけで、無効にはしない（BAL.resMul）
+    const res = e.res, by0 = opts.by || this._by;
+    if (res) {
+      if (res.fire && (by0 === 'flame' || opts.burnTick)) dmg *= BAL.resMul;
+      if (res.elec && (by0 === 'tesla' || opts.shockTick)) dmg *= BAL.resMul;
+    }
     // **装甲は1発ごとに引く。** 手数の武器ほど損をする。
     //   引ききっても最低 15% は通す（完全無敵にすると詰む）
     if (e.armor > 0 && !opts.dot) dmg = Math.max(dmg * 0.15, dmg - e.armor);
@@ -468,7 +505,7 @@ const Combat = {
     //   永久に切れなくなるので、付与（*Grant）は素の攻撃だけに掛ける
     const sc = this.statusScale(e);
     const st = run.st;
-    if (opts.shock) { e.shock = Math.max(e.shock, opts.shock * sc + st.shockDur); e.shockBy = by; }
+    if (opts.shock) { e.shock = Math.max(e.shock, (opts.shock * sc + st.shockDur) * (res && res.elec ? BAL.resMul : 1)); e.shockBy = by; }
 
     let sl = opts.slow || 0, slD = (opts.slowDur || 0) * sc, ch = !!opts.chill;
     if (st.chillGrant > 0 && !opts.dot) {           // 霜結：どの武器でも凍る
@@ -477,14 +514,18 @@ const Combat = {
       ch = true;
     }
     if (sl > 0) {
+      // 耐寒（2026-09-30 段3）：凍らない・冷気の減速は強さも時間も半分（凍結装置・霜結の遺物・凍らせる札）
+      const coldRes = res && res.cold && (ch || by === 'cryo');
+      const cm = coldRes ? BAL.resMul : 1;
       // ボスは遅くならない（凍った印・被ダメージの増えは乗る）。遅くできると制限時間が伸びて DPS チェックでなくなる
-      if (!e.boss) e.slow = Math.max(e.slow, Math.min(BAL.slowMax, sl + st.slowAdd));
-      const d = (slD || 1) + st.chillDur;
+      if (!e.boss) e.slow = Math.max(e.slow, Math.min(BAL.slowMax, (sl + st.slowAdd) * cm));
+      const d = ((slD || 1) + st.chillDur) * cm;
       e.slowT = Math.max(e.slowT, d);
-      if (ch) e.chill = Math.max(e.chill, d);
+      if (ch && !coldRes) e.chill = Math.max(e.chill, d);
     }
 
-    if (opts.stun && (e.ccUsed || 0) < BAL.ccMaxSec) { e.stun = Math.max(e.stun, opts.stun * sc + st.stunDur); e.stunBy = by; }
+    // 重量（2026-09-30 段3）：閉じ込めは半分
+    if (opts.stun && (e.ccUsed || 0) < BAL.ccMaxSec) { e.stun = Math.max(e.stun, (opts.stun * sc + st.stunDur) * (res && res.heavy ? BAL.resMul : 1)); e.stunBy = by; }
 
     let bn = opts.burn || 0, bd = opts.burnDur || 0;
     if (st.burnGrant > 0 && !opts.dot) {            // 熾火：どの武器でも燃える
@@ -736,8 +777,10 @@ const Combat = {
       // バリアの中の敵は掴めない（掴んで引き戻すとバリアの中へ戻し続け、ウェーブが終わらなくなった）
       if (this.inShield(run, t)) { t.shieldT = 0.15; continue; }
       // 止めておける合計の秒数を使い切った敵は、もう掴めない（BAL.ccMaxSec）。削りだけ入る
-      if ((t.ccUsed || 0) < BAL.ccMaxSec) t.grabT = Math.max(t.grabT, dur * this.statusScale(t));
-      t.grabV = power;
+      // 重量（2026-09-30 段3）：掴む時間も引き戻す力も半分
+      const hv = (t.res && t.res.heavy) ? BAL.resMul : 1;
+      if ((t.ccUsed || 0) < BAL.ccMaxSec) t.grabT = Math.max(t.grabT, dur * this.statusScale(t) * hv);
+      t.grabV = power * hv;
       this.damage(run, t, dmg, { color: '#ffb0e8' });
       this.fx(run, { type: 'tentacle', x1: w.x, y1: w.y, e: t, color: '#c85ab0',
                      ph: Math.random() * 6.28, life: Math.min(0.6, dur) });
@@ -756,6 +799,7 @@ const Combat = {
       pts.push({ x: cur.x, y: cur.y });
       this.damage(run, cur, d, { shock: w.s.shockDur, color: '#d8c7ff', crit: w.s.crit, critMul: w.s.critMul });
       d *= w.s.chainFalloff;
+      if (cur.res && cur.res.elec) break;   // 耐電（2026-09-30 段3）：連鎖はそこで止まる
       const near = Grid.query(cur.x, cur.y, 150, _q);
       let best = null, bd = 1e9;
       for (const e of near) {
@@ -1266,7 +1310,7 @@ const Combat = {
         e.burnT -= dt;
         // 焼き締め（syn_searbind）：掴まれている敵は炎上ダメージに倍率
         const gb = (run.grabBurn && e.grabT > 0) ? run.grabBurn : 1;
-        this.damage(run, e, e.burn * dt * gb, { color: '#ff8a3a', dot: true, by: e.burnBy });
+        this.damage(run, e, e.burn * dt * gb, { color: '#ff8a3a', dot: true, by: e.burnBy, burnTick: true });
         if (e.dead) continue;
       }
       // **毒のスリップダメージ。**（ユーザー要望8・2026-09-22）
@@ -1281,7 +1325,7 @@ const Combat = {
       //   **ボスには効かせない。**（2026-09-28）ボスはHPを制限時間内に削り切れるかを問う敵なので、割合で削るとHPが意味を持たない。
       //   倍率×8でも第15章から先のボスは口を出てすぐ倒れ、受けたダメージの 0〜93%（6本）が感電のスリップだった
       if (e.shock > 0 && BAL.shockDps && !e.boss) {
-        this.damage(run, e, e.maxHp * BAL.shockDps * dt, { color: '#c9b3ff', dot: true, by: e.shockBy });
+        this.damage(run, e, e.maxHp * BAL.shockDps * dt, { color: '#c9b3ff', dot: true, by: e.shockBy, shockTick: true });
         if (e.dead) continue;
       }
       if (e.stun > 0 && BAL.stunDps && !e.boss) {

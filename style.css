@@ -2819,3 +2819,16 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 .pfx-logo{width:74%;}
 .pfx-logo .gamelogo{filter:drop-shadow(0 2px 6px rgba(0,0,0,.6));}
 .cf-backin .gamelogo{width:70%;filter:drop-shadow(0 2px 4px rgba(0,0,0,.55));}
+
+/* 敵の図鑑（2026-09-30 段3・ui.js の panelCollection） */
+.csec.k-enemy{border-bottom-color:rgba(255,91,110,.45);}
+.elist{display:grid;gap:6px;margin:0 0 18px;}
+.erow{display:grid;grid-template-columns:14px 1fr;gap:10px;align-items:start;padding:8px 10px;background:rgba(10,12,16,.92);border:1px solid rgba(255,255,255,.08);border-radius:6px;}
+.edot{width:12px;height:12px;border-radius:50%;margin-top:4px;box-shadow:0 0 6px currentColor;}
+.ebody b{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;font-size:13px;font-weight:900;color:var(--txt);}
+.ebody b em{font-style:normal;font-size:10px;letter-spacing:.12em;color:var(--dim);}
+.ebody b u{text-decoration:none;margin-left:auto;font-size:10px;color:var(--acc);}
+.ebody p{margin:3px 0 0;font-size:11px;line-height:1.5;color:var(--dim);}
+.eres{display:inline-block;margin:5px 6px 0 0;padding:1px 7px;font-style:normal;font-size:10px;font-weight:800;color:var(--c);border:1px solid var(--c);border-radius:3px;}
+.eres u{text-decoration:none;margin-left:5px;font-weight:600;opacity:.85;}
+.erow small{display:block;margin-top:2px;font-size:10px;color:var(--dim);}

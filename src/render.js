@@ -2068,6 +2068,18 @@ const Render = {
       }
       ctx.restore();
 
+      // 耐性（2026-09-30 段3）：縁に耐性の色の短い弧を3本（RESIST_INFO の色）。感電の輪（1周）と見分けられるよう、切れた輪にする
+      if (e.res) {
+        for (const k in e.res) {
+          const ri = RESIST_INFO[k];
+          if (!ri) continue;
+          ctx.strokeStyle = ri.color; ctx.lineWidth = k === 'heavy' ? 3 : 1.8;
+          ctx.beginPath();
+          for (let i = 0; i < 3; i++) { const a0 = i * 2.094 + 0.35; ctx.moveTo(e.x + Math.cos(a0) * (e.r + 2.5), e.y + Math.sin(a0) * (e.r + 2.5)); ctx.arc(e.x, e.y, e.r + 2.5, a0, a0 + 1.2); }
+          ctx.stroke();
+        }
+      }
+
       if (e.stun > 0) {   // 泡に閉じ込められている（輪はあとでまとめて塗る）
         stun.push(e);
       } else if (e.shock > 0) {
