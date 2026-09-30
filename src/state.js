@@ -580,7 +580,25 @@ const Game = {
     p.units = [u];
     p.wp = (w) => (u.id === w ? u : null);
     p.unitsOf = (w) => (u.id === w ? [u] : []);
+    // **重ね取りの式（2026-09-30 段3・設計書 DESIGN-STAGE3 §3・ユーザー承認「式はそれで構いません」）**
+    //   カードの中身は `w.s.dmg *= …` の掛け算で書いてあるので、掛ける前と後を比べて「その札の増分」を取り出し、
+    //   **同じ軸（ダメージ・レート）の増分は足し算でまとめて、最後に1回だけ掛ける**（Path of Exile の increased の形）。
+    //   ・レートだけは上限に近づく：×(1 ＋ R×S/(S＋R))。S＝増分の合計・R＝BAL.cardRateCap（2 ＝ 最大 ×3）
+    //   ・**レジェンドは別枠の掛け算のまま**（「この1枚で激変」を残す）。×1未満の代償も掛け算のまま
+    //   前は全部が掛け算で、冷却フィン（×1.25）5枚で ×3.05、10凸なら ×43 まで伸びた
+    const s = u.s;
+    if (!u.cardBase) { u.cardBase = { dmg: s.dmg, rate: s.rate }; u.cAdd = { dmg: 0, rate: 0 }; u.cMul = { dmg: 1, rate: 1 }; }
+    const d0 = s.dmg, r0 = s.rate;
     this.withRank(id, u._rkAcc || (u._rkAcc = {}), () => CARDS[id].apply(p));
+    const more = CARDS[id].rarity === 'legendary';
+    for (const [k, v0] of [['dmg', d0], ['rate', r0]]) {
+      const f = v0 > 0 ? s[k] / v0 : 1;
+      if (!(f > 0) || f === 1) continue;
+      if (more || f < 1) u.cMul[k] *= f; else u.cAdd[k] += f - 1;
+    }
+    const R = BAL.cardRateCap, S = u.cAdd.rate;
+    s.dmg = u.cardBase.dmg * (1 + u.cAdd.dmg) * u.cMul.dmg;
+    s.rate = u.cardBase.rate * (1 + (S > 0 ? R * S / (S + R) : 0)) * u.cMul.rate;
   },
 
   ownedWeaponIds() { return WEAPON_IDS.filter(wid => this.own('wc_' + wid) > 0); },
@@ -1046,6 +1064,7 @@ const Game = {
       u.flags = {};
       u.dyn = { heat: d.heat || 0, tracer: d.tracer || 0 };
       u._rkAcc = {};
+      u.cardBase = null;       // 重ね取りの基準（applyCardUnit）も、組み直した値から取り直す
       for (const id of (run.cardLog || [])) this.applyCardUnit(id, run, u);
     }
     const lost = run.livesMax > 0 ? (run.livesMax - run.lives) : 0;
