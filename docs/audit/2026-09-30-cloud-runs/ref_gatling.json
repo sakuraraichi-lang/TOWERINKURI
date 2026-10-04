@@ -1,0 +1,32 @@
+{
+ "median": 0.5,
+ "leaked": [
+  0,
+  1,
+  1,
+  1,
+  0,
+  1,
+  0,
+  0,
+  0,
+  2,
+  0,
+  2
+ ],
+ "kills": [
+  5623,
+  5866,
+  5756,
+  5716,
+  5857,
+  5716,
+  5551,
+  5653,
+  5749,
+  5687,
+  5589,
+  5549
+ ],
+ "res": "clearclearclearclearclearclearclearclearclearclearclearclear"
+}

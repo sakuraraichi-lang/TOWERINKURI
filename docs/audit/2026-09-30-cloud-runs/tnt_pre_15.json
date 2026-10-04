@@ -1,0 +1,32 @@
+{
+ "median": 4.5,
+ "leaked": [
+  3,
+  5,
+  4,
+  6,
+  2,
+  4,
+  2,
+  6,
+  5,
+  5,
+  8,
+  4
+ ],
+ "kills": [
+  1840,
+  1944,
+  1909,
+  1953,
+  1973,
+  1915,
+  1921,
+  1909,
+  1950,
+  2005,
+  1933,
+  1849
+ ],
+ "res": "clearclearclearclearclearclearclearclearclearclearclearclear"
+}
