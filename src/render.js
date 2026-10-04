@@ -7,6 +7,7 @@
 const _bulGroups = new Map();
 // 毒・閉じ込めの印をまとめて塗るための置き場（Render.enemies。毎フレーム使い回して確保を避ける）
 const _poisonBuf = [], _stunBuf = [], _fieldBuf = [];
+const _armX = new Array(13), _armY = new Array(13), _armW = new Array(13);   // 触手の腕の1本ぶんの作業用（Render.tentArm）
 
 const _spins = [];        // 手裏剣のまとめ描き用（毎フレーム作り直さない）
 const _spinPts = new Float32Array(16);
@@ -1051,29 +1052,73 @@ const Render = {
   // 触手。**根元が太く、先へ細くなる、うねった腕。**
   //   線1本だと「掴んでいる」ようには見えない（ユーザー 2026-09-22）
   tentacle(ctx, f, k) {
-    const x0 = f.x1, y0 = f.y1, x1 = f.e.x, y1 = f.e.y;
+    // **伸びる → 手繰り寄せる**（0929zq）。最初の2割で先が敵まで届き、そのあとは腕に沿って根元へ向かう矢じりが流れる＝「引き寄せ」と読める
+    const rch = k < 0.2 ? 1 - Math.pow(1 - k / 0.2, 3) : 1;
+    const x0 = f.x1, y0 = f.y1, x1 = f.x1 + (f.e.x - f.x1) * rch, y1 = f.y1 + (f.e.y - f.y1) * rch;
     const dx = x1 - x0, dy = y1 - y0;
     const L = Math.hypot(dx, dy) || 1;
-    const nx = -dy / L, ny = dx / L;        // 腕に垂直な向き
-    const N = 12;
-    const amp = Math.min(26, L * 0.16) * (1 - k * 0.55);   // 掴んだ直後ほど大きくうねる
-    const ptx = [], pty = [], wid = [];
+    // 掴んだ直後ほど大きくうねる。根元 7.5px → 先 1.4px。吸盤は根元寄りの太いところにだけ（**腕であることは、ここで決まる**）
+    //   前半はそのまま見せ、後半で薄れる（以前は出た瞬間から薄れて、盤の縮んだ画面では細い線にしか見えなかった）
+    const al = k < 0.55 ? 1 : 1 - (k - 0.55) / 0.45;
+    // 腕の後ろに、引き寄せの印の色の太い光の筋（引く向きが分かる）
+    ctx.globalAlpha = al * 0.28; ctx.strokeStyle = '#ff8ae0'; ctx.lineWidth = 15; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(x0, y0); ctx.lineTo(x1, y1); ctx.stroke(); ctx.lineCap = 'butt';
+    this.tentArm(ctx, x0, y0, x1, y1, { amp: Math.min(26, L * 0.16) * (1 - k * 0.55), ph: f.ph, tw: k * 7, w0: 11 * (1 - k * 0.25), alpha: al, color: f.color, suck: true });
+    // 先端は敵に巻き付く：輪と、その外の六角の錠
+    ctx.globalAlpha = al * 0.95;
+    ctx.strokeStyle = '#ffd0f2'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(x1, y1, (f.e.r || 8) + 3, f.ph, f.ph + 4.4); ctx.stroke();
+    if (rch >= 1) {
+      ctx.strokeStyle = '#ff8ae0'; ctx.lineWidth = 2; ctx.globalAlpha = al * 0.8;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + Math.PI / 3 * i, hr = (f.e.r || 8) + 10; const px = x1 + Math.cos(a) * hr, py = y1 + Math.sin(a) * hr; i ? ctx.lineTo(px, py) : ctx.moveTo(px, py); }
+      ctx.closePath(); ctx.stroke();
+    }
+    // 手繰る矢じり：敵から根元へ向かって3つ流れる（届いたあとだけ）。腕のうねりには乗せず、中心線の上
+    if (rch >= 1 && L > 40) {
+      ctx.fillStyle = '#ff8ae0';
+      const ux = dx / L, uy = dy / L, q = (k - 0.2) / 0.8;
+      for (let j = 0; j < 3; j++) {
+        const t = 1 - ((q * 1.6 + j / 3) % 1);       // 1（敵）→ 0（根元）
+        const px = x0 + dx * t, py = y0 + dy * t, sz = 9 * (1 - k * 0.4);
+        ctx.globalAlpha = al * Math.min(1, t * 4, (1 - t) * 4) * 0.95;
+        ctx.beginPath();
+        ctx.moveTo(px - ux * sz, py - uy * sz);
+        ctx.lineTo(px + ux * sz * 0.4 - uy * sz, py + uy * sz * 0.4 + ux * sz);
+        ctx.lineTo(px + ux * sz * 0.4 + uy * sz, py + uy * sz * 0.4 - ux * sz);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  // ================= 触手の6種の攻撃の絵（0929zq・見た目の仕上げ） =================
+  //   形が一目で分かること。1回の攻撃の絵は一度きり・短く（0.34〜0.5秒）。色は 触手のピンクの体 ＋ 攻撃ごとの印の色（Combat.TNT_COL）。
+  //   突き刺し（tntStab）＝細く長い槍が伸びて引っ込む ／ 薙ぎ払い（tntSweep）＝扇に払う残像 ／ 一閃（tntCut）＝赤と青に割れる斬線
+  //   触手の壁・タコ墨は場なので fields() から（tntWall・tntInk）。引き寄せは tentacle()（伸びて手繰る）。名前の札は tntTag
+
+  // 先細りのうねる腕1本。引き寄せ・薙ぎ払い・触手の壁が同じ描き方を共有する
+  //   o: amp うねりの大きさ／ph 位相／tw うねりの進み／w0 根元の太さ／alpha／color／suck 吸盤を付ける／tip 先の太さの割合（既定 0.18）
+  tentArm(ctx, x0, y0, x1, y1, o) {
+    const dx = x1 - x0, dy = y1 - y0;
+    const L = Math.hypot(dx, dy) || 1;
+    const nx = -dy / L, ny = dx / L;
+    const N = 12, tip = o.tip === undefined ? 0.18 : o.tip;
+    const ptx = _armX, pty = _armY, wid = _armW;
     for (let i = 0; i <= N; i++) {
       const t = i / N;
-      // 端は動かさない（砲身と敵から離れると、掴んでいるように見えない）
-      const sway = Math.sin(t * 5.2 + f.ph + k * 7) * amp * Math.sin(t * Math.PI);
+      const sway = Math.sin(t * 5.2 + o.ph + (o.tw || 0)) * o.amp * Math.sin(t * Math.PI);
       ptx[i] = x0 + dx * t + nx * sway;
       pty[i] = y0 + dy * t + ny * sway;
-      wid[i] = (7.5 * (1 - t * 0.82)) * (1 - k * 0.3);     // 根元 7.5px → 先 1.4px
+      wid[i] = o.w0 * (1 - t * (1 - tip));
     }
-    // 片側を往き、もう片側を戻って閉じる＝先細りの帯
     ctx.beginPath();
     for (let i = 0; i <= N; i++) {
       const i0 = Math.max(0, i - 1), i1 = Math.min(N, i + 1);
       const tx = ptx[i1] - ptx[i0], ty = pty[i1] - pty[i0];
       const m = Math.hypot(tx, ty) || 1;
-      const ox = -ty / m * wid[i], oy = tx / m * wid[i];
-      i ? ctx.lineTo(ptx[i] + ox, pty[i] + oy) : ctx.moveTo(ptx[i] + ox, pty[i] + oy);
+      const px = ptx[i] - ty / m * wid[i], py = pty[i] + tx / m * wid[i];
+      i ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
     }
     for (let i = N; i >= 0; i--) {
       const i0 = Math.max(0, i - 1), i1 = Math.min(N, i + 1);
@@ -1082,22 +1127,249 @@ const Render = {
       ctx.lineTo(ptx[i] + ty / m * wid[i], pty[i] - tx / m * wid[i]);
     }
     ctx.closePath();
-    ctx.globalAlpha = (1 - k) * 0.92;
-    ctx.fillStyle = f.color; ctx.fill();
+    ctx.globalAlpha = o.alpha * 0.92;
+    ctx.fillStyle = o.color; ctx.fill();
     ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 1; ctx.stroke();
-    // 吸盤。根元寄りの太いところにだけ。**腕であることは、ここで決まる**
-    ctx.globalAlpha = (1 - k) * 0.7;
-    ctx.fillStyle = '#ffd0f2';
-    for (let i = 1; i < N - 2; i += 2) {
-      ctx.beginPath();
-      ctx.arc(ptx[i], pty[i], Math.max(0.8, wid[i] * 0.34), 0, Math.PI * 2);
-      ctx.fill();
+    if (o.suck) {
+      ctx.globalAlpha = o.alpha * 0.7;
+      ctx.fillStyle = '#ffd0f2';
+      for (let i = 1; i < N - 2; i += 2) {
+        ctx.beginPath();
+        ctx.arc(ptx[i], pty[i], Math.max(0.8, wid[i] * 0.34), 0, Math.PI * 2);
+        ctx.fill();
+      }
     }
-    // 先端は敵に巻き付く
-    ctx.globalAlpha = (1 - k) * 0.85;
-    ctx.strokeStyle = f.color; ctx.lineWidth = 2.2;
-    ctx.beginPath(); ctx.arc(x1, y1, (f.e.r || 8) + 3, f.ph, f.ph + 4.4); ctx.stroke();
     ctx.globalAlpha = 1;
+  },
+
+  tntStab(ctx, f, k) {
+    const dx = f.x2 - f.x1, dy = f.y2 - f.y1, L = Math.hypot(dx, dy) || 1;
+    const ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+    // 伸びる（0〜26%）→ 止まる（〜44%）→ 引っ込む
+    const p = k < 0.26 ? 1 - Math.pow(1 - k / 0.26, 3) : k < 0.44 ? 1 : 1 - Math.pow((k - 0.44) / 0.56, 2);
+    const tx = f.x1 + ux * L * p, ty = f.y1 + uy * L * p;
+    ctx.save();
+    // 当たりの幅（薄い帯）：ダメージが入る太さを見せる
+    if (k > 0.08 && k < 0.5) {
+      ctx.globalAlpha = 0.2 * (1 - (k - 0.08) / 0.42);
+      ctx.fillStyle = f.acc;
+      const h = f.half;
+      ctx.beginPath();
+      ctx.moveTo(f.x1 + nx * h, f.y1 + ny * h); ctx.lineTo(f.x2 + nx * h, f.y2 + ny * h);
+      ctx.lineTo(f.x2 - nx * h, f.y2 - ny * h); ctx.lineTo(f.x1 - nx * h, f.y1 - ny * h);
+      ctx.closePath(); ctx.fill();
+    }
+    // 槍の軸：根元が太く、穂先は尖る（先細りのくさび）
+    const W = 13, a = k < 0.44 ? 1 : 1 - (k - 0.44) / 0.56 * 0.5;
+    ctx.globalAlpha = a * 0.95;
+    ctx.fillStyle = f.color;
+    ctx.beginPath();
+    ctx.moveTo(f.x1 + nx * W, f.y1 + ny * W); ctx.lineTo(tx, ty); ctx.lineTo(f.x1 - nx * W, f.y1 - ny * W);
+    ctx.closePath(); ctx.fill();
+    ctx.strokeStyle = f.acc; ctx.lineWidth = 2; ctx.stroke();
+    // 節（吸盤の代わりの刻み）：軸を横切る短い線を等間隔に
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)'; ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    for (let i = 1; i < 8; i++) {
+      const t = i / 8 * p, bx = f.x1 + ux * L * t, by = f.y1 + uy * L * t, w = W * (1 - i / 8 * p) * 0.8;
+      ctx.moveTo(bx + nx * w, by + ny * w); ctx.lineTo(bx - nx * w, by - ny * w);
+    }
+    ctx.stroke();
+    // 白い芯
+    ctx.globalAlpha = a; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.8; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.moveTo(f.x1, f.y1); ctx.lineTo(tx, ty); ctx.stroke();
+    // 穂先の閃光：伸びきったあたりで十字に光り、輪が広がる
+    if (k > 0.18 && k < 0.6) {
+      const q = (k - 0.18) / 0.42, sz = 20 * (1 - q);
+      ctx.globalAlpha = 1 - q; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(f.x2 - sz, f.y2); ctx.lineTo(f.x2 + sz, f.y2); ctx.moveTo(f.x2, f.y2 - sz); ctx.lineTo(f.x2, f.y2 + sz);
+      ctx.stroke();
+      ctx.strokeStyle = f.acc; ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(f.x2, f.y2, 6 + q * 22, 0, Math.PI * 2); ctx.stroke();
+    }
+    ctx.restore();
+  },
+
+  tntSweep(ctx, f, k) {
+    const a0 = f.a - f.arc, a1 = f.a + f.arc;
+    const q = Math.min(1, k / 0.5), phi = a0 + (a1 - a0) * (1 - Math.pow(1 - q, 3));
+    const fade = k < 0.5 ? 1 : 1 - (k - 0.5) / 0.5;
+    const R = f.r, r0 = R * 0.2;
+    ctx.save();
+    // 残像：払った跡の扇を9つに分け、先頭に近いほど濃い（払った向きが分かる）
+    ctx.fillStyle = f.acc;
+    for (let j = 0; j < 9; j++) {
+      const s0 = a0 + (phi - a0) * j / 9, s1 = a0 + (phi - a0) * (j + 1) / 9;
+      ctx.globalAlpha = fade * (0.04 + 0.055 * (j + 1));
+      ctx.beginPath(); ctx.arc(f.x, f.y, R, s0, s1); ctx.arc(f.x, f.y, r0, s1, s0, true); ctx.closePath(); ctx.fill();
+    }
+    // 外縁の光る弧（払った跡の端）
+    ctx.globalAlpha = fade * 0.9; ctx.strokeStyle = f.acc; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(f.x, f.y, R, a0, phi); ctx.stroke();
+    ctx.globalAlpha = fade; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(f.x, f.y, R, Math.max(a0, phi - 0.5), phi); ctx.stroke();
+    // 先頭の腕：根元から払う向きへ。先は払う向きと逆へ遅れてしなる
+    const hx = f.x + Math.cos(phi) * R * 0.98, hy = f.y + Math.sin(phi) * R * 0.98;
+    this.tentArm(ctx, f.x, f.y, hx, hy, { amp: -R * 0.12 * (1 - q * 0.6), ph: 0.8, tw: 0, w0: 10, alpha: fade, color: f.color, suck: true });
+    ctx.globalAlpha = fade; ctx.fillStyle = '#ffffff';
+    ctx.beginPath(); ctx.arc(hx, hy, 4.5, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  },
+
+  tntCut(ctx, f, k) {
+    const L = f.r * 2.7, ux = Math.cos(f.a), uy = Math.sin(f.a), nx = -uy, ny = ux;
+    const head = Math.min(1, k / 0.24), hp = 1 - Math.pow(1 - head, 3);     // 先頭（0〜1・速く走る）
+    const tail = k < 0.2 ? 0 : Math.pow(Math.min(1, (k - 0.2) / 0.65), 2);   // 尻尾（遅れて追う＝消えていく）
+    ctx.save();
+    // 小さな六角の衝撃波（当たりの大きさ）
+    {
+      const kk = Math.min(1, k / 0.5), hr = f.r * (0.35 + 0.65 * kk);
+      ctx.globalAlpha = (1 - kk) * 0.8;
+      ctx.strokeStyle = f.acc; ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) { const a = Math.PI / 6 + Math.PI / 3 * i; const x = f.x + Math.cos(a) * hr, y = f.y + Math.sin(a) * hr; i ? ctx.lineTo(x, y) : ctx.moveTo(x, y); }
+      ctx.closePath(); ctx.stroke();
+    }
+    // 斬線：真ん中が太く両端が尖る。赤と青にずれて（結果画面の字と同じ）、芯は白
+    const s0 = tail, s1 = hp;
+    if (s1 > s0 + 0.01) {
+      const N = 10, W = 10;
+      const passes = [[-2.6, '#ff3c5a', 0.8, 1], [2.6, '#3cdcff', 0.8, 1], [0, '#ffffff', 1, 0.45]];
+      for (const [off, col, al, wm] of passes) {
+        ctx.globalAlpha = al * (k < 0.5 ? 1 : 1 - (k - 0.5) / 0.5 * 0.6);
+        ctx.fillStyle = col;
+        ctx.beginPath();
+        for (let i = 0; i <= N; i++) {
+          const s = s0 + (s1 - s0) * i / N, w = W * Math.pow(Math.sin(Math.PI * s), 0.8) * wm;
+          const c = (s - 0.5) * L, x = f.x + ux * c + nx * (off + w), y = f.y + uy * c + ny * (off + w);
+          i ? ctx.lineTo(x, y) : ctx.moveTo(x, y);
+        }
+        for (let i = N; i >= 0; i--) {
+          const s = s0 + (s1 - s0) * i / N, w = W * Math.pow(Math.sin(Math.PI * s), 0.8) * wm;
+          const c = (s - 0.5) * L;
+          ctx.lineTo(f.x + ux * c + nx * (off - w), f.y + uy * c + ny * (off - w));
+        }
+        ctx.closePath(); ctx.fill();
+      }
+    }
+    ctx.restore();
+  },
+
+  // 名前の札：触手の上に、斜めの小さな暗い板。左の太い縁と上の「// STAB」が攻撃の印の色、下の日本語は白の太字。
+  //   出る：左から滑り込む（最初の一瞬だけ赤と青にずれる）／残る／薄れる。画面の上の大きさを一定にする（ダメージ数字と同じ）
+  tntTag(ctx, f, k) {
+    const s = Math.max(0.2, this.scale || 1), u = 1 / s, st = this.stage || { w: 1e9 };
+    const MONO = '"Share Tech Mono",ui-monospace,Consolas,monospace', JP = '"Hiragino Kaku Gothic ProN","Noto Sans JP",system-ui,sans-serif';
+    const pin = Math.min(1, k / 0.12), pe = 1 - Math.pow(1 - pin, 3);
+    const out = k < 0.72 ? 0 : (k - 0.72) / 0.28;
+    ctx.save();
+    ctx.font = '700 ' + (9 * u) + 'px ' + MONO;
+    const ew = ctx.measureText('// ' + f.en).width;
+    ctx.font = '900 ' + (13 * u) + 'px ' + JP;
+    const jw = ctx.measureText(f.jp).width;
+    const w = Math.max(ew, jw) + 20 * u, h = 30 * u;
+    let x = f.x, y = f.y - (30 + (f.slot || 0) * 34) * u;
+    x = Math.max(w / 2 + 6 * u, Math.min(st.w - w / 2 - 6 * u, x));
+    y = Math.max(h / 2 + 46 * u, y);
+    ctx.translate(x - (1 - pe) * 18 * u - out * 4 * u, y - out * 6 * u);
+    ctx.transform(1, 0, -0.2, 1, 0, 0);                    // 斜体（太い斜めの板）
+    const al = pe * (1 - out * out);
+    // 板：暗い地・印の色の縁
+    ctx.globalAlpha = al * 0.94; ctx.fillStyle = 'rgb(8,8,14)'; ctx.fillRect(-w / 2, -h / 2, w, h);
+    ctx.globalAlpha = al * 0.9; ctx.strokeStyle = f.acc; ctx.lineWidth = 1 * u; ctx.strokeRect(-w / 2, -h / 2, w, h);
+    ctx.globalAlpha = al; ctx.fillStyle = f.acc; ctx.fillRect(-w / 2, -h / 2, 5 * u, h);
+    // 字
+    ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
+    const tx = -w / 2 + 11 * u;
+    ctx.font = '700 ' + (9 * u) + 'px ' + MONO;
+    ctx.fillStyle = f.acc; ctx.fillText('// ' + f.en, tx, -h / 2 + 8.5 * u);
+    ctx.font = '900 ' + (13 * u) + 'px ' + JP;
+    if (k < 0.16) {                                        // 出た瞬間だけ、赤と青にずれる
+      const d = 1.8 * u * (1 - k / 0.16);
+      ctx.fillStyle = 'rgba(255,60,90,0.8)'; ctx.fillText(f.jp, tx - d, h / 2 - 9 * u);
+      ctx.fillStyle = 'rgba(60,220,255,0.8)'; ctx.fillText(f.jp, tx + d, h / 2 - 9 * u);
+    }
+    ctx.fillStyle = '#ffffff'; ctx.fillText(f.jp, tx, h / 2 - 9 * u);
+    ctx.restore();
+  },
+
+  // 触手の壁（場）：進む向きに対して横に、触手の柱が5本立つ。根元から伸び、ゆれて、最後は引っ込む。柱の先どうしを線でつなぐ
+  tntWall(ctx, f) {
+    const t = f.t, grow = 1 - Math.pow(1 - Math.min(1, t / 0.28), 3), left = Math.min(1, Math.max(0, (f.dur - t) / 0.45));
+    const g = grow * left, al = Math.min(1, left * 1.4);
+    const a = f.a || 0, dx = Math.cos(a), dy = Math.sin(a), nx = -dy, ny = dx;
+    const R = f.r;
+    ctx.save();
+    // 場の足元：薄いピンクの面と、立ち上がりの輪
+    ctx.globalAlpha = 0.14 * al; ctx.fillStyle = '#c85ab0';
+    ctx.beginPath(); ctx.arc(f.x, f.y, R, 0, Math.PI * 2); ctx.fill();
+    if (t < 0.3) { ctx.globalAlpha = (1 - t / 0.3) * 0.8; ctx.strokeStyle = '#7ee3a0'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(f.x, f.y, R * (0.4 + 0.8 * t / 0.3), 0, Math.PI * 2); ctx.stroke(); }
+    // 柱：根元は壁の線の上、先は敵が来る側へ反りながら伸びる
+    const N = 5, tipx = [], tipy = [];
+    for (let i = 0; i < N; i++) {
+      const o = (i - (N - 1) / 2) / ((N - 1) / 2) * R * 0.78;        // 壁の線の上の位置（-0.78R〜+0.78R）
+      const bx = f.x + nx * o - dx * R * 0.3, by = f.y + ny * o - dy * R * 0.3;
+      const len = R * (0.85 + 0.2 * Math.cos(o / R * 1.2)) * g;
+      const ex = bx + dx * len, ey = by + dy * len;
+      tipx[i] = ex; tipy[i] = ey;
+      this.tentArm(ctx, bx, by, ex, ey, { amp: R * 0.16, ph: i * 1.7 + t * 3.2, tw: t * 2, w0: 9, alpha: al, color: '#c85ab0', suck: true, tip: 0.3 });
+      // 根元の吸盤の輪（地面に張り付いている印）
+      ctx.globalAlpha = al * 0.9; ctx.strokeStyle = '#ffd0f2'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(bx, by, 6.5, 0, Math.PI * 2); ctx.stroke();
+    }
+    // 先どうしをつなぐ線（壁の面）
+    ctx.globalAlpha = al * 0.75; ctx.strokeStyle = '#7ee3a0'; ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let i = 0; i < N; i++) i ? ctx.lineTo(tipx[i], tipy[i]) : ctx.moveTo(tipx[i], tipy[i]);
+    ctx.stroke();
+    ctx.fillStyle = '#e8fff0';
+    for (let i = 0; i < N; i++) { ctx.beginPath(); ctx.arc(tipx[i], tipy[i], 3, 0, Math.PI * 2); ctx.fill(); }
+    ctx.restore();
+  },
+
+  // タコ墨（場）：着弾でぱっと広がる濃い墨だまり。暗い藍の塊を重ね、縁を明るい紫の線で見せる（暗い盤の上でも見える）。しぶきの点と、最初の一瞬だけ放射状の筋
+  tntInk(ctx, f) {
+    const t = f.t, k = t / f.dur;
+    const sp = 1 - Math.pow(1 - Math.min(1, t / 0.22), 3);                   // 広がる（0.22秒）
+    const al = Math.min(1, (1 - k) / 0.12);                                   // 最後の1割で薄れる（塊が重なっているので、薄くしすぎると重なりが透ける）
+    const R = f.r * (0.9 + 0.1 * sp) * sp * (k < 0.7 ? 1 : 0.7 + 0.3 * (1 - k) / 0.3);   // 最後の3割は縮んでいく
+    const sd = Math.abs(Math.sin(f.x * 12.9898 + f.y * 78.233)) * 6.28;
+    ctx.save();
+    ctx.globalAlpha = al;
+    // 放射状の筋（最初の0.3秒）
+    if (t < 0.3) {
+      ctx.fillStyle = 'rgba(30,14,64,0.9)';
+      for (let i = 0; i < 9; i++) {
+        const a = sd + i * 0.698 + Math.sin(i * 7.1) * 0.2, L = f.r * (0.85 + 0.35 * ((i * 37) % 7) / 7) * sp, w = 7 * (1 - t / 0.3);
+        ctx.beginPath();
+        ctx.moveTo(f.x + Math.cos(a + 1.5708) * w, f.y + Math.sin(a + 1.5708) * w);
+        ctx.lineTo(f.x + Math.cos(a) * L, f.y + Math.sin(a) * L);
+        ctx.lineTo(f.x + Math.cos(a - 1.5708) * w, f.y + Math.sin(a - 1.5708) * w);
+        ctx.closePath(); ctx.fill();
+      }
+    }
+    // 墨だまり：塊を重ねる（縁の紫 → 内側の暗い藍の順に、同じ塊を2回なぞると塊が溶け合って1つのたまりに見える）
+    const blobs = [];
+    for (let i = 0; i < 9; i++) {
+      const a = sd + i * 2.399, d = R * (i === 0 ? 0 : 0.3 + 0.38 * ((i * 53) % 7) / 7);
+      const rad = R * (i === 0 ? 0.5 : 0.24 + 0.2 * ((i * 37) % 11) / 11) * (1 + 0.05 * Math.sin(t * 3 + i));
+      blobs.push([f.x + Math.cos(a) * d, f.y + Math.sin(a) * d, rad]);
+    }
+    ctx.fillStyle = 'rgba(154,124,255,0.85)';
+    for (const b of blobs) { ctx.beginPath(); ctx.arc(b[0], b[1], b[2] + 2.5, 0, Math.PI * 2); ctx.fill(); }
+    ctx.fillStyle = 'rgba(20,9,44,0.96)';
+    for (const b of blobs) { ctx.beginPath(); ctx.arc(b[0], b[1], b[2], 0, Math.PI * 2); ctx.fill(); }
+    // つや：中心の塊の左上に細い明るい弧
+    ctx.strokeStyle = 'rgba(200,180,255,0.7)'; ctx.lineWidth = 2; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(blobs[0][0], blobs[0][1], blobs[0][2] * 0.7, 3.5, 4.5); ctx.stroke();
+    // しぶき：外へ飛んだ小さな点
+    ctx.fillStyle = 'rgba(30,14,64,0.95)'; ctx.strokeStyle = 'rgba(154,124,255,0.8)'; ctx.lineWidth = 1.2;
+    for (let i = 0; i < 10; i++) {
+      const a = sd + i * 0.628 + 0.3, d = f.r * (0.92 + 0.22 * ((i * 71) % 9) / 9) * sp, r = (2.5 + ((i * 29) % 5)) * Math.min(1, sp * 1.3);
+      ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d, r, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    ctx.restore();
   },
 
   // 凍結装置の冷気。**輪1本では「冷気を放った」ようには見えない。**
@@ -1192,8 +1464,10 @@ const Render = {
     const m = ctx.getTransform();
     lc.setTransform(m.a * Q, m.b * Q, m.c * Q, m.d * Q, m.e * Q, m.f * Q);
     let layered = 0;
+    let tnt = null;   // 触手の壁・タコ墨（専用の絵。雲の層には入れない）
     for (const d of drawn) {
       const f = d.f;
+      if (f.kind === 'tentwall' || f.kind === 'ink') { (tnt || (tnt = [])).push(f); continue; }
       const k = f.t / f.dur;
       const fire = f.kind === 'fire';
       const fade = Math.min(1, (1 - k * 0.65) * (fire ? glare : 1) * (1 + 0.25 * (Math.min(d.n, 5) - 1)));
@@ -1230,6 +1504,7 @@ const Render = {
       ctx.drawImage(L, 0, 0, cv.width, cv.height);
       ctx.restore();
     }
+    if (tnt) for (const f of tnt) { if (f.kind === 'ink') this.tntInk(ctx, f); else this.tntWall(ctx, f); }
     // 縁。**どこまでが場なのかは、遊ぶうえで必要な情報**なので必ず出す（盤へ直接・くっきり）
     //   **実線にした。**前は雲の縁を流れる点線（setLineDash）で描いていて、場が数十あると点線だけで重かった
     //   （実測：敵308・場71を止めた同じ盤で、点線 54.3fps → 実線 59.5fps）
@@ -2073,10 +2348,13 @@ const Render = {
         for (const k in e.res) {
           const ri = RESIST_INFO[k];
           if (!ri) continue;
-          ctx.strokeStyle = ri.color; ctx.lineWidth = k === 'heavy' ? 3 : 1.8;
+          // 暗い縁取りの上に色の弧（暗い盤の上でも明るい敵の上でも見える。以前は細い1本で、重量の灰色が特に埋もれていた）
           ctx.beginPath();
-          for (let i = 0; i < 3; i++) { const a0 = i * 2.094 + 0.35; ctx.moveTo(e.x + Math.cos(a0) * (e.r + 2.5), e.y + Math.sin(a0) * (e.r + 2.5)); ctx.arc(e.x, e.y, e.r + 2.5, a0, a0 + 1.2); }
-          ctx.stroke();
+          for (let i = 0; i < 3; i++) { const a0 = i * 2.094 + 0.35; ctx.moveTo(e.x + Math.cos(a0) * (e.r + 3), e.y + Math.sin(a0) * (e.r + 3)); ctx.arc(e.x, e.y, e.r + 3, a0, a0 + 1.3); }
+          ctx.lineCap = 'round';
+          ctx.strokeStyle = 'rgba(0,0,0,0.7)'; ctx.lineWidth = k === 'heavy' ? 5.2 : 4.2; ctx.stroke();
+          ctx.strokeStyle = ri.color; ctx.lineWidth = k === 'heavy' ? 3.2 : 2.4; ctx.stroke();
+          ctx.lineCap = 'butt';
         }
       }
 
@@ -2468,6 +2746,14 @@ const Render = {
         ctx.beginPath();
         ctx.arc(f.x, f.y, R + W * 0.5, a0, a1);
         ctx.stroke();
+      } else if (f.type === 'tntStab') {
+        this.tntStab(ctx, f, k);
+      } else if (f.type === 'tntSweep') {
+        this.tntSweep(ctx, f, k);
+      } else if (f.type === 'tntCut') {
+        this.tntCut(ctx, f, k);
+      } else if (f.type === 'tntTag') {
+        this.tntTag(ctx, f, k);
       } else if (f.type === 'tentacle') {
         // **「掴んで引き戻す」武器が、ただの線だった。**（ユーザー 2026-09-22）
         //   根元が太く先が細い、うねった腕として描く。吸盤も付ける

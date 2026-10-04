@@ -761,6 +761,7 @@ const Combat = {
       x, y, r: o.r, dur: o.dur, t: 0, tick: 0,
       dps: o.dps, slow: o.slow || 0, vuln: o.vuln || 0,
       color: o.color, kind: o.kind || 'gas', by: this._by,
+      a: o.a,                       // 触手の壁の向き（絵だけが読む）
     });
   },
 
@@ -929,6 +930,9 @@ const Combat = {
   //   t … 砲身の線の上の敵（狙いの基準）。k … 攻撃の種類（TNT_ATTACKS）。i … 同時に出したときの何番目か（名前の表示をずらす）
   //   大きさは BAL.tnt*。締め上げ（カード）は突き刺しと一閃の倍率（w.dyn.tntStabMul）、剛腕は壁の持続にも効く（knockDur の比）
   TNT_NAMES: { pull: '引き寄せ', stab: '突き刺し', sweep: '薙ぎ払い', wall: '触手の壁', ink: 'タコ墨', cut: '一閃' },
+  //   名札（render.js の tntTag）の英字と、6種を見分ける印の色（見た目だけ。数値は BAL.tnt*）
+  TNT_EN: { pull: 'PULL', stab: 'STAB', sweep: 'SWEEP', wall: 'WALL', ink: 'INK', cut: 'SLASH' },
+  TNT_COL: { pull: '#ff8ae0', stab: '#ff4a66', sweep: '#ffc24a', wall: '#7ee3a0', ink: '#9a7cff', cut: '#7ae8ff' },
   tentacleAttack(w, run, t, k, i) {
     const s = w.s, col = w.def.color;
     const sharp = w.dyn.tntStabMul || 1;
@@ -938,14 +942,14 @@ const Combat = {
       const o = BAL.tntStab, L = s.range * o.len;
       const x2 = w.x + Math.cos(w.angle) * L, y2 = w.y + Math.sin(w.angle) * L;
       this.lineHit(run, w.x, w.y, x2, y2, o.half, s.dmg * o.dmg * sharp, { color: col, crit: s.crit, critMul: s.critMul });
-      this.fx(run, { type: 'laser', pts: [{ x: w.x, y: w.y }, { x: x2, y: y2 }], w: o.half, n: 0, color: col, life: 0.22 });
+      this.fx(run, { type: 'tntStab', x1: w.x, y1: w.y, x2, y2, half: o.half, color: col, acc: this.TNT_COL.stab, life: 0.5 });
     } else if (k === 'sweep') {
       const o = BAL.tntSweep;
       this.coneDamage(w, run, w.angle, o.arc, s.range * o.len, s.dmg * o.dmg, { color: col });
-      this.fx(run, { type: 'slash', x: w.x, y: w.y, a: w.angle, arc: o.arc, r: s.range * o.len, color: col, life: 0.24 });
+      this.fx(run, { type: 'tntSweep', x: w.x, y: w.y, a: w.angle, arc: o.arc, r: s.range * o.len, color: col, acc: this.TNT_COL.sweep, life: 0.5 });
     } else if (k === 'wall') {
       const o = BAL.tntWall, dur = o.dur * (s.knockDur / (w.def.base.knockDur || 1));
-      this.spawnField(run, t.x, t.y, { kind: 'tentwall', r: o.r, dur, dps: s.dmg * o.dps, slow: BAL.slowMax, color: col });
+      this.spawnField(run, t.x, t.y, { kind: 'tentwall', r: o.r, dur, dps: s.dmg * o.dps, slow: BAL.slowMax, color: col, a: t.ang });
     } else if (k === 'ink') {
       const o = BAL.tntInk;
       this.explode(run, t.x, t.y, o.r, s.dmg * o.dmg, { color: '#8a6cff' });
@@ -953,10 +957,12 @@ const Combat = {
     } else if (k === 'cut') {
       const o = BAL.tntCut;
       this.explode(run, t.x, t.y, o.r, s.dmg * o.dmg * sharp, { color: '#ffffff', crit: s.crit, critMul: s.critMul });
-      this.fx(run, { type: 'slash', x: t.x, y: t.y, a: w.angle + Math.PI / 2, arc: 1.3, r: o.r, color: '#ffffff', life: 0.2 });
+      this.fx(run, { type: 'tntCut', x: t.x, y: t.y, a: w.angle + 0.62, r: o.r, acc: this.TNT_COL.cut, life: 0.34 });
     }
-    // 出た攻撃の名前（何が出たか分かるように）。数字の表示と同じ仕組みで、触手の上に一瞬
-    if (run.nums.length < 40) run.nums.push({ x: w.x, y: w.y - 22 - i * 14, t: 0, life: 0.7, txt: this.TNT_NAMES[k] || k, crit: false, color: '#ff9ae8' });
+    // 出た攻撃の名前の札（何が出たか分かるように）。触手の上に斜めの小さな札を一瞬（render.js の tntTag）。同時に出ている札は6枚まで
+    let tags = 0;
+    for (const f of run.fx) if (f.type === 'tntTag') tags++;
+    if (tags < 6) this.fx(run, { type: 'tntTag', x: w.x, y: w.y, slot: i, en: this.TNT_EN[k], jp: this.TNT_NAMES[k] || k, acc: this.TNT_COL[k], life: 1.0 });
   },
 
   // 線の上の敵に1回ずつ当てる（触手の突き刺し）。壁は見ない（腕なので回り込める）

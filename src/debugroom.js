@@ -174,6 +174,7 @@ const DebugRoom = {
         ['カード3択', () => UI.showDraft(me._cards('rare', 1).concat(me._cards('common', 2)))],
         ['3択（エピック・レジェンド入り）', () => UI.showDraft(me._cards('rare', 1).concat(me._cards('epic', 1), me._cards('legendary', 1)))],
         ['3択（上位札・連携の上位札入り）', () => UI.showDraft(['up_gat_mount', 'up_syn_conduct'].concat(me._cards('common', 1)))],
+        ['3択（連携の上位札3枚・前提の行が長い）', () => UI.showDraft(['up_syn_resonate', 'up_syn_venomfire', 'up_syn_conduct'])],
         ['準備フェーズの帯', cut('準備フェーズ', '武器を置いて「準備完了」', 'prep')],
         ['ウェーブの帯', cut('WAVE 3<em> / ' + W + '</em>', '', 'wave')],
         ['最終ウェーブの帯', cut('WAVE ' + W + '<em> / ' + W + '</em>', '最終ウェーブ', 'last')],
@@ -182,6 +183,13 @@ const DebugRoom = {
         ['ボス戦の見本（第10章・2体）', () => me.bossBattle()],
         ['レーザーライフルの光線（壁で2回はね返る）', () => me.laserDemo()],
         ['触手の6種の攻撃（順番に出す）', () => me.tentacleDemo()],
+        ['触手：引き寄せ', () => me.tentacleDemo('pull')],
+        ['触手：突き刺し', () => me.tentacleDemo('stab')],
+        ['触手：薙ぎ払い', () => me.tentacleDemo('sweep')],
+        ['触手：触手の壁', () => me.tentacleDemo('wall')],
+        ['触手：タコ墨', () => me.tentacleDemo('ink')],
+        ['触手：一閃', () => me.tentacleDemo('cut')],
+        ['敵の耐性の輪（盤に8種を並べる・もう一度押すと片づく）', () => me.resDemo()],
       ]],
       ['通知（トースト）', [
         ['新しい武器', () => UI.toastMsg('新しい武器 ガトリング', '#ffb43c', 'weapon')],
@@ -226,6 +234,7 @@ const DebugRoom = {
         ['再起動の場面（部屋）', () => Scenes.reboot(null)],
         ['指揮官の記録', () => UI.openProfile(true)],
         ['パックのタブ（見本の所持数）', () => me.packTab()],
+        ['図鑑（下へ送ると「敵」「上位札」の節）', () => me.collTab()],
         ['カードのレア度の見比べ（4種を並べる）', () => me.rarityView()],
       ]],
     ];
@@ -297,6 +306,45 @@ const DebugRoom = {
     this.pk = el;
   },
   packTabClose() { if (this.pk) { this.pk.remove(); this.pk = null; } },
+
+  // 図鑑の見本（0929zq）：本物のカード図鑑（UI.panelCollection）を全画面の板に出す。見るだけ（セーブは変わらない）。下へ送ると「敵」「上位札」の節がある
+  collTab() {
+    this.collTabClose();
+    const el = Util.el('div', 'rs fx dbgpk dbgcoll');
+    el.innerHTML = '<div class="rs-ban"><em>// DEBUG ROOM</em><b>図鑑（見本）</b><span>上位札の節・敵の節まで下へ送って確かめる</span></div>';
+    const body = Util.el('div', 'dbgpk-b');
+    UI.panelCollection(body);
+    el.appendChild(body);
+    const subs = Util.el('div', 'rs-subs');
+    const close = Util.el('button', 'rs-sub');
+    close.innerHTML = Icons.get('close') + '閉じる';
+    close.addEventListener('click', () => this.collTabClose());
+    subs.appendChild(close);
+    el.appendChild(subs);
+    document.body.appendChild(el);
+    this.cl = el;
+  },
+  collTabClose() { if (this.cl) { this.cl.remove(); this.cl = null; } },
+
+  // 敵の耐性の輪の見本（0929zq）：盤の上に8種の敵を1列に並べ、耐性の輪（縁の色の切れた輪）を全部付ける。もう一度押すと片づく。
+  //   本物の敵（Combat.makeEnemy）を作って run.enemies に足すだけ（動かない・戦闘は始めない）。耐性は「その種類が持つもの全部」を付ける（章に関係なく）
+  resDemo() {
+    const run = Game.run;
+    if (!run || !run.stage) return;
+    if (this._resEn) { run.enemies = run.enemies.filter(e => !this._resEn.includes(e)); this._resEn = null; return; }
+    const st = run.stage, hx = (st.vec && st.vec.hexes) || [], cx = st.w / 2;
+    let h = null;
+    for (const c of hx) { if (c.y > st.h * 0.5 || c.y < 90) continue; if (!h || Math.abs(c.x - cx) < Math.abs(h.x - cx)) h = c; }
+    if (!h) return;
+    const types = Object.values(ENEMY_TYPES);
+    this._resEn = [];
+    types.forEach((t, i) => {
+      const e = Combat.makeEnemy(run, t, 30, h.x - 110 + (i % 4) * 70, h.y + 20 + Math.floor(i / 4) * 46, 0);
+      e.res = {}; for (const k in (t.res || {})) e.res[k] = true;
+      if (t.armor) e.armor = 1;
+      run.enemies.push(e); this._resEn.push(e);
+    });
+  },
 
   // カードのレア度の見比べ（0929zb・ユーザー「全てのカードが同じ枠組みで見分けがつかなくなってる」）：
   //   4種（コモン・レア・エピック・レジェンド）を、表（1枚ずつの大きさ）・小さい表示（図鑑や装備の大きさ）・説明が長い札・凸つき・裏面で並べる。セーブは変わらない
@@ -437,7 +485,7 @@ const DebugRoom = {
   // 触手の6種の攻撃の見本（2026-09-30 段3）。**本物の攻撃（Combat.tentacleAttack）を順番に呼ぶ。**
   //   盤に敵はいないので当たりは出ない（形・場・名前の表示だけ見える）。狙いの敵は「倒れている見本」を渡すので、
   //   引き寄せの掴み（Combat.grab）は何もしない。代わりに腕の絵だけを同じ fx で出す。セーブにも盤にも触らない（場と fx は消えるまで進めて片づける）
-  tentacleDemo() {
+  tentacleDemo(only) {
     const run = Game.run;
     if (!run || !run.stage) return;
     const st = run.stage, hx = (st.vec && st.vec.hexes) || [];
@@ -447,13 +495,13 @@ const DebugRoom = {
     if (!h) return;
     const def = WEAPONS.tentacle;
     const w = { id: 'tentacle', def, x: h.x, y: h.y - 95, angle: Math.PI / 2, s: Object.assign({}, def.base), dyn: {}, flags: {} };
-    const t = { x: h.x, y: h.y + 20, r: 10, dead: true };
-    const order = ['pull', 'stab', 'sweep', 'wall', 'ink', 'cut'];
+    const t = { x: h.x, y: h.y + 20, r: 10, dead: true, ang: Math.PI / 2 };   // ang … 敵の進む向き（触手の壁の向き）。見本は下向き
+    const order = only ? [only] : ['pull', 'stab', 'sweep', 'wall', 'ink', 'cut'];
     let n = 0, last = performance.now(), el = 0;
     const fire = () => {
       const k = order[n++];
       Combat.tentacleAttack(w, run, t, k, 0);
-      if (k === 'pull') run.fx.push({ type: 'tentacle', x1: w.x, y1: w.y, e: { x: t.x, y: t.y, r: 10, dead: false }, color: def.color, ph: 0, life: 0.6, t: 0 });
+      if (k === 'pull') run.fx.push({ type: 'tentacle', x1: w.x, y1: w.y, e: { x: t.x, y: t.y + 70, r: 10, dead: false }, color: def.color, ph: 0, life: 0.6, t: 0 });   // 掴まれた敵に見立てた点（遠めに置く）
     };
     fire();
     clearInterval(this._tn);

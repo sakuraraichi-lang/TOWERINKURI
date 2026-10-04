@@ -1676,8 +1676,15 @@ const UI = {
       g.innerHTML = '<b>' + sec.name + '</b><span>' + sec.sub + '</span><em>' + (up ? ids.length + ' 種' : got + ' / ' + ids.length) + '</em>';
       p.appendChild(g);
       const grid = Util.el('div', 'cgrid');
-      for (const id of ids) grid.appendChild(up ? CardFX.face(CARDS[id], { count: 1, noCount: true, tap: true })
-                                                : CardFX.face(CARDS[id], { count: Game.own(id), dim: Game.own(id) === 0, tap: true }));
+      for (const id of ids) {
+        if (!up) { grid.appendChild(CardFX.face(CARDS[id], { count: Game.own(id), dim: Game.own(id) === 0, tap: true })); continue; }
+        // 上位札は札の下に前提の2枚を別の行で（説明に混ぜると途中で切れていた）
+        const w = Util.el('div', 'upwrap');
+        w.appendChild(CardFX.face(CARDS[id], { count: 1, noCount: true, tap: true }));
+        const need = Util.el('div', 'upneed'); need.innerHTML = this.upperNeed(CARDS[id]);
+        w.appendChild(need);
+        grid.appendChild(w);
+      }
       p.appendChild(grid);
     }
 
@@ -1691,10 +1698,12 @@ const UI = {
       const ch = Math.ceil(t.from / BAL.wavesPerStage);
       const res = Object.keys(t.res || {}).map(k => {
         const ri = RESIST_INFO[k];
-        return '<i class="eres" style="--c:' + ri.color + '">' + ri.jp + '<u>第' + t.res[k] + '章から</u></i><small>' + ri.desc + '</small>';
+        return '<i class="eres" style="--c:' + ri.color + '">' + this.ringGlyph(ri.color, 7) + ri.jp + '<u>第' + t.res[k] + '章から</u></i><small>' + ri.desc + '</small>';
       }).join('');
       const row = Util.el('div', 'erow');
-      row.innerHTML = '<span class="edot" style="background:' + t.color + '"></span>' +
+      // 左の印：敵の色の点と、耐性の輪（盤の上と同じ「切れた輪」を3本の弧で）。耐性の無い敵は点だけ
+      const rk = Object.keys(t.res || {})[0];
+      row.innerHTML = '<span class="edot">' + this.ringGlyph(rk ? RESIST_INFO[rk].color : null, 10, t.color) + '</span>' +
         '<div class="ebody"><b>' + (t.jp || t.name) + '<em>' + (t.en || '') + '</em><u>第' + ch + '章から</u></b>' +
         '<p>' + (t.desc || '') + '</p>' + res + '</div>';
       el.appendChild(row);
@@ -2141,10 +2150,10 @@ const UI = {
       el.appendChild(face);
       el.insertAdjacentHTML('beforeend',
         this.stackPips({ have: run.cards[id] || 0, limit: Game.stackLimit(id) }) +
-        '<div class="chtype">' + (c.kind === 'weapon' ? '武器を編成に追加'
-          : c.upper ? '上位札（1枚だけ）'
-          : c.kind === 'synergy' ? 'シナジー'
-          : (c.weapon ? WEAPONS[c.weapon].name + ' 強化' : '全体強化')) + '</div>');
+        (c.upper ? '<div class="chtype up"><em>// UPPER</em><b>上位札</b><small>' + this.upperNeed(c) + '</small></div>'
+          : '<div class="chtype">' + (c.kind === 'weapon' ? '武器を編成に追加'
+            : c.kind === 'synergy' ? 'シナジー'
+            : (c.weapon ? WEAPONS[c.weapon].name + ' 強化' : '全体強化')) + '</div>'));
       el.addEventListener('click', () => {
         if (row.classList.contains('done')) return;   // 二度押しで2枚取らせない
         // **選んだ瞬間を目で分からせる。** 選んだ1枚が残り、他が退く
@@ -2284,6 +2293,15 @@ const UI = {
   // 長い文章は、読もうとしてタップしたときだけ出す
   shortDesc(c) {
     let s = c.desc || '';
+    // 上位札：前提は札の下の別の行に出す（upperNeed）ので、説明からは外す。連携の上位札は【武器＋武器】も絵の2つの武器が示すので外す（説明が途中で切れていた）
+    if (c.upper) {
+      s = s.replace(/（前提：[^）]*）$/, '');
+      if (c.kind === 'synergy') {
+        s = s.replace(/^【[^】]*】/, '');
+        const w0 = WEAPONS[(c.requires || [])[0]];
+        if (w0) s = s.replace(new RegExp('^' + w0.name + 'の'), '');     // 「ガトリングの弾が…」→「弾が…」（絵が2つの武器を示す）
+      }
+    }
     if (c.weapon && WEAPONS[c.weapon]) {
       s = s.replace(new RegExp('^' + WEAPONS[c.weapon].name + 'の?'), '');
       s = s.replace(new RegExp('^' + WEAPONS[c.weapon].name + '弾が?'), '');
@@ -2292,6 +2310,27 @@ const UI = {
     const cut = s.indexOf('。');
     if (cut > 0) s = s.slice(0, cut);
     return s;
+  },
+
+  // 敵の印（図鑑）：色の点（dot）と、盤の上の耐性の輪と同じ形の3本の弧（color があるとき）。r は輪の半径
+  ringGlyph(color, r, dot) {
+    let s = '<svg class="rg" viewBox="-14 -14 28 28" aria-hidden="true">';
+    if (dot) s += '<circle r="5.2" fill="' + dot + '"/>';
+    if (color) {
+      for (let i = 0; i < 3; i++) {
+        const a0 = i * 2.094 + 0.35, a1 = a0 + 1.3;
+        s += '<path d="M' + (Math.cos(a0) * r).toFixed(2) + ' ' + (Math.sin(a0) * r).toFixed(2) + 'A' + r + ' ' + r + ' 0 0 1 ' + (Math.cos(a1) * r).toFixed(2) + ' ' + (Math.sin(a1) * r).toFixed(2) +
+          '" fill="none" stroke="' + color + '" stroke-width="2.6" stroke-linecap="round"/>';
+      }
+    }
+    return s + '</svg>';
+  },
+
+  // 上位札の前提（札の下の別の行・図鑑）。「前提 給弾ベルト＋冷却フィン」
+  upperNeed(c) {
+    // 1枚ずつ折り返さない塊にする（「高圧燃料＋腐 / 食」のように札の名前の途中で切れていた）。HTML で返す
+    const nm = (c.needs || []).map(n => CARDS[n] ? CARDS[n].name : n);
+    return '前提 ' + nm.map((n, i) => '<span class="nd">' + n + (i < nm.length - 1 ? '＋' : '') + '</span>').join('');
   },
 
   // この出撃で何枚積んだか（3択のカードの下の丸）。塗り＝積み済み、白抜き＝いま押すと埋まる枠
