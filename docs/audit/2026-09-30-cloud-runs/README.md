@@ -1,7 +1,7 @@
 # クラウドのセッションの測定の生データ（2026-09-29〜30）
 
 報告書 `docs/REPORT-CLOUD-2026-09-30.md` の数字は、すべてこのフォルダの JSON から出した。
-ひな形は `tools/measure/`（`node tools/measure/run.js …`）。`.err` は標準エラー（空なら正常）。
+ひな形は `tools/measure/`（`node tools/measure/run.js …`）。標準エラー（.err）は空だったので入れていない（どの測定もエラーなし）。
 
 ## 通し（`campaign.js`・`progressAsync` laps 12・REAL_MS 600000）
 | ファイル | 版（コミット） | シード | 中身 |
