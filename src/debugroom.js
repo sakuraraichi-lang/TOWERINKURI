@@ -21,7 +21,7 @@ const DebugRoom = {
 
   // 手札に依らない見本のカード（種類ごとに先頭のもの）
   _cards(rar, n) {
-    return CARD_IDS.filter(id => CARDS[id].rarity === rar && !['weapon', 'perm', 'key'].includes(CARDS[id].kind)).slice(0, n || 1);
+    return CARD_IDS.filter(id => CARDS[id].rarity === rar && !CARDS[id].upper && !['weapon', 'perm', 'key'].includes(CARDS[id].kind)).slice(0, n || 1);
   },
 
   // 結果画面の見本
@@ -173,12 +173,23 @@ const DebugRoom = {
       ['戦闘の上に出るもの', [
         ['カード3択', () => UI.showDraft(me._cards('rare', 1).concat(me._cards('common', 2)))],
         ['3択（エピック・レジェンド入り）', () => UI.showDraft(me._cards('rare', 1).concat(me._cards('epic', 1), me._cards('legendary', 1)))],
+        ['3択（上位札・連携の上位札入り）', () => UI.showDraft(['up_gat_mount', 'up_syn_conduct'].concat(me._cards('common', 1)))],
+        ['3択（連携の上位札3枚・前提の行が長い）', () => UI.showDraft(['up_syn_resonate', 'up_syn_venomfire', 'up_syn_conduct'])],
         ['準備フェーズの帯', cut('準備フェーズ', '武器を置いて「準備完了」', 'prep')],
         ['ウェーブの帯', cut('WAVE 3<em> / ' + W + '</em>', '', 'wave')],
         ['最終ウェーブの帯', cut('WAVE ' + W + '<em> / ' + W + '</em>', '最終ウェーブ', 'last')],
         ['ボスの帯', () => { UI.cutinBoss(W); setTimeout(() => UI.sysWarn('boss'), 2100); }],
         ['BOSS DOWN（あと2体）', () => UI.cutinBossDown(2)],
         ['ボス戦の見本（第10章・2体）', () => me.bossBattle()],
+        ['レーザーライフルの光線（壁で2回はね返る）', () => me.laserDemo()],
+        ['触手の6種の攻撃（順番に出す）', () => me.tentacleDemo()],
+        ['触手：引き寄せ', () => me.tentacleDemo('pull')],
+        ['触手：突き刺し', () => me.tentacleDemo('stab')],
+        ['触手：薙ぎ払い', () => me.tentacleDemo('sweep')],
+        ['触手：触手の壁', () => me.tentacleDemo('wall')],
+        ['触手：タコ墨', () => me.tentacleDemo('ink')],
+        ['触手：一閃', () => me.tentacleDemo('cut')],
+        ['敵の耐性の輪（盤に8種を並べる・もう一度押すと片づく）', () => me.resDemo()],
       ]],
       ['通知（トースト）', [
         ['新しい武器', () => UI.toastMsg('新しい武器 ガトリング', '#ffb43c', 'weapon')],
@@ -223,6 +234,7 @@ const DebugRoom = {
         ['再起動の場面（部屋）', () => Scenes.reboot(null)],
         ['指揮官の記録', () => UI.openProfile(true)],
         ['パックのタブ（見本の所持数）', () => me.packTab()],
+        ['図鑑（下へ送ると「敵」「上位札」の節）', () => me.collTab()],
         ['カードのレア度の見比べ（4種を並べる）', () => me.rarityView()],
       ]],
     ];
@@ -294,6 +306,45 @@ const DebugRoom = {
     this.pk = el;
   },
   packTabClose() { if (this.pk) { this.pk.remove(); this.pk = null; } },
+
+  // 図鑑の見本（0929zq）：本物のカード図鑑（UI.panelCollection）を全画面の板に出す。見るだけ（セーブは変わらない）。下へ送ると「敵」「上位札」の節がある
+  collTab() {
+    this.collTabClose();
+    const el = Util.el('div', 'rs fx dbgpk dbgcoll');
+    el.innerHTML = '<div class="rs-ban"><em>// DEBUG ROOM</em><b>図鑑（見本）</b><span>上位札の節・敵の節まで下へ送って確かめる</span></div>';
+    const body = Util.el('div', 'dbgpk-b');
+    UI.panelCollection(body);
+    el.appendChild(body);
+    const subs = Util.el('div', 'rs-subs');
+    const close = Util.el('button', 'rs-sub');
+    close.innerHTML = Icons.get('close') + '閉じる';
+    close.addEventListener('click', () => this.collTabClose());
+    subs.appendChild(close);
+    el.appendChild(subs);
+    document.body.appendChild(el);
+    this.cl = el;
+  },
+  collTabClose() { if (this.cl) { this.cl.remove(); this.cl = null; } },
+
+  // 敵の耐性の輪の見本（0929zq）：盤の上に8種の敵を1列に並べ、耐性の輪（縁の色の切れた輪）を全部付ける。もう一度押すと片づく。
+  //   本物の敵（Combat.makeEnemy）を作って run.enemies に足すだけ（動かない・戦闘は始めない）。耐性は「その種類が持つもの全部」を付ける（章に関係なく）
+  resDemo() {
+    const run = Game.run;
+    if (!run || !run.stage) return;
+    if (this._resEn) { run.enemies = run.enemies.filter(e => !this._resEn.includes(e)); this._resEn = null; return; }
+    const st = run.stage, hx = (st.vec && st.vec.hexes) || [], cx = st.w / 2;
+    let h = null;
+    for (const c of hx) { if (c.y > st.h * 0.5 || c.y < 90) continue; if (!h || Math.abs(c.x - cx) < Math.abs(h.x - cx)) h = c; }
+    if (!h) return;
+    const types = Object.values(ENEMY_TYPES);
+    this._resEn = [];
+    types.forEach((t, i) => {
+      const e = Combat.makeEnemy(run, t, 30, h.x - 110 + (i % 4) * 70, h.y + 20 + Math.floor(i / 4) * 46, 0);
+      e.res = {}; for (const k in (t.res || {})) e.res[k] = true;
+      if (t.armor) e.armor = 1;
+      run.enemies.push(e); this._resEn.push(e);
+    });
+  },
 
   // カードのレア度の見比べ（0929zb・ユーザー「全てのカードが同じ枠組みで見分けがつかなくなってる」）：
   //   4種（コモン・レア・エピック・レジェンド）を、表（1枚ずつの大きさ）・小さい表示（図鑑や装備の大きさ）・説明が長い札・凸つき・裏面で並べる。セーブは変わらない
@@ -382,6 +433,89 @@ const DebugRoom = {
     this._saveRelease();
     try { Relic.invalidate(); } catch (e) {}
   },
+  // レーザーライフルの光線の見本（2026-09-30 段3）。裏の準備フェーズの盤で、**本物の光線の経路（Combat.laserPath）**を引いて見せる。
+  //   敵にも盤にも触らない（fx を足して、消えるまでの時間だけ進める）。撃ち口は「壁の上で、隣に通路があるタイル」のうち、
+  //   2回折り返して長く伸びる所を選ぶ（見える範囲の上の半分から。下半分は確認室のパネルが覆う）
+  laserDemo() {
+    const run = Game.run;
+    if (!run || !run.stage) return;
+    const st = run.stage;
+    const w = { x: 0, y: 0, s: { range: WEAPONS.sniper.base.range, reflect: WEAPONS.sniper.base.reflect } };
+    let best = null;
+    for (let r = 1; r < Math.floor(st.rows * 0.55); r++) for (let c = 1; c < st.cols - 1; c++) {
+      if (st.walkable(c, r)) continue;
+      if (!(st.walkable(c + 1, r) || st.walkable(c - 1, r) || st.walkable(c, r + 1) || st.walkable(c, r - 1))) continue;
+      w.x = (c + 0.5) * TILE; w.y = (r + 0.5) * TILE;
+      for (let k = 0; k < 16; k++) {
+        const a = k / 16 * Math.PI * 2 + 0.2;
+        const p = Combat.laserPath(w, run, a);
+        if (!p) continue;
+        let len = 0;
+        for (let i = 1; i < p.length; i++) len += Math.hypot(p[i].x - p[i - 1].x, p[i].y - p[i - 1].y);
+        const sc = (p.length - 2) * 1000 + len;
+        if (!best || sc > best.sc) best = { sc, x: w.x, y: w.y, a };
+      }
+    }
+    if (!best) return;
+    w.x = best.x; w.y = best.y;
+    const color = WEAPONS.sniper.color;
+    let n = 0;
+    const shoot = () => {
+      const p = Combat.laserPath(w, run, best.a + (n % 2 ? 0.03 : 0));
+      if (p) run.fx.push({ type: 'laser', pts: p, w: WEAPONS.sniper.base.bulletR, n: 3, color, life: 0.26, t: 0 });
+      n++;
+    };
+    shoot();
+    clearInterval(this._lz);
+    let last = performance.now(), t = 0;
+    this._lz = setInterval(() => {
+      const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now; t += dt;
+      if (Game.run !== run) { clearInterval(this._lz); return; }
+      if (n < 4 && t > n * 0.7) shoot();
+      for (let i = run.fx.length - 1; i >= 0; i--) {
+        const f = run.fx[i];
+        if (f.type !== 'laser') continue;
+        f.t += dt;
+        if (f.t >= f.life) run.fx.splice(i, 1);
+      }
+      if (n >= 4 && !run.fx.some(f => f.type === 'laser')) clearInterval(this._lz);
+    }, 16);
+  },
+
+  // 触手の6種の攻撃の見本（2026-09-30 段3）。**本物の攻撃（Combat.tentacleAttack）を順番に呼ぶ。**
+  //   盤に敵はいないので当たりは出ない（形・場・名前の表示だけ見える）。狙いの敵は「倒れている見本」を渡すので、
+  //   引き寄せの掴み（Combat.grab）は何もしない。代わりに腕の絵だけを同じ fx で出す。セーブにも盤にも触らない（場と fx は消えるまで進めて片づける）
+  tentacleDemo(only) {
+    const run = Game.run;
+    if (!run || !run.stage) return;
+    const st = run.stage, hx = (st.vec && st.vec.hexes) || [];
+    const cx = st.w / 2;
+    let h = null;
+    for (const c of hx) { if (c.y > st.h * 0.5 || c.y < 90) continue; if (!h || Math.abs(c.x - cx) < Math.abs(h.x - cx)) h = c; }
+    if (!h) return;
+    const def = WEAPONS.tentacle;
+    const w = { id: 'tentacle', def, x: h.x, y: h.y - 95, angle: Math.PI / 2, s: Object.assign({}, def.base), dyn: {}, flags: {} };
+    const t = { x: h.x, y: h.y + 20, r: 10, dead: true, ang: Math.PI / 2 };   // ang … 敵の進む向き（触手の壁の向き）。見本は下向き
+    const order = only ? [only] : ['pull', 'stab', 'sweep', 'wall', 'ink', 'cut'];
+    let n = 0, last = performance.now(), el = 0;
+    const fire = () => {
+      const k = order[n++];
+      Combat.tentacleAttack(w, run, t, k, 0);
+      if (k === 'pull') run.fx.push({ type: 'tentacle', x1: w.x, y1: w.y, e: { x: t.x, y: t.y + 70, r: 10, dead: false }, color: def.color, ph: 0, life: 0.6, t: 0 });   // 掴まれた敵に見立てた点（遠めに置く）
+    };
+    fire();
+    clearInterval(this._tn);
+    this._tn = setInterval(() => {
+      const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now; el += dt;
+      if (Game.run !== run) { clearInterval(this._tn); return; }
+      if (n < order.length && el > n * 1.1) fire();
+      for (let i = run.fx.length - 1; i >= 0; i--) { const f = run.fx[i]; f.t += dt; if (f.t >= f.life) run.fx.splice(i, 1); }
+      for (let i = run.fields.length - 1; i >= 0; i--) { const f = run.fields[i]; if (f.kind !== 'tentwall' && f.kind !== 'ink') continue; f.t += dt; if (f.t >= f.dur) run.fields.splice(i, 1); }
+      for (let i = run.nums.length - 1; i >= 0; i--) { const q = run.nums[i]; q.t += dt; q.y -= dt * 34; if (q.t >= q.life) run.nums.splice(i, 1); }
+      if (n >= order.length && !run.fx.length && !run.fields.some(f => f.kind === 'tentwall' || f.kind === 'ink') && !run.nums.length) clearInterval(this._tn);
+    }, 16);
+  },
+
   bossBattle() {
     this._btEnd();
     this._dirEnd();     // 向きの花の見本が出ていたら先に片づける（配置の記録の写しが、ボス戦のあとの書き戻しと食い違わないように）

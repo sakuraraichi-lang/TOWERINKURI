@@ -60,7 +60,7 @@ const CardFX = {
     const R = BAL.rarity[c.rarity];
     const t = (o.count && !c.noRank) ? Game.totuOf(o.count) : 0;
     const el = Util.el('div', 'cf r-' + c.rarity + ' k-' + c.kind + (t >= BAL.totuBigFrom ? ' awake' : '') +
-      (o.dim ? ' dim' : ''));
+      (c.upper ? ' up' : '') + (o.dim ? ' dim' : ''));
     if (o.tap) el.addEventListener('click', () => el.classList.toggle('full'));
     el.style.setProperty('--rc', R.color);
     el.style.setProperty('--ac', this.artColor(c));
@@ -69,6 +69,7 @@ const CardFX = {
         '<div class="cf-top"><span class="cf-name">' + c.name + '</span></div>' +
         '<div class="cf-art"><div class="cf-icon' + ((c.kind === 'synergy' && (c.requires || []).length > 1) ? ' dual' : '') + '">' + this.artHtml(c) + '</div>' +
           '<div class="cf-kind">' + (this.KIND_NAME[c.kind] || '') + '</div>' +
+          (c.upper ? '<div class="cf-upr"><i>▲</i>UPPER</div>' : '') +
           (o.isNew ? '<div class="cf-new">NEW</div>' : '') + '</div>' +
         '<div class="cf-text">' + UI.shortDesc(c) + '</div>' +
         '<div class="cf-bottom"><span class="cf-stars">' + (c.noRank ? '' : this.starsHtml(t)) + '</span>' +

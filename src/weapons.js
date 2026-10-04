@@ -27,6 +27,8 @@ const CATEGORIES = {
              desc: '直接は倒さない。足を止め、他の武器の時間を作る' },
 };
 const CATEGORY_IDS = ['short', 'mid', 'long', 'area', 'target', 'support'];
+// 触手の攻撃の種類（2026-09-30 段3）。名前は Combat.tentacleAttack
+const TNT_ATTACKS = ['pull', 'stab', 'sweep', 'wall', 'ink', 'cut'];
 
 function baseStats(o) {
   return Object.assign({
@@ -50,6 +52,7 @@ function baseStats(o) {
     shockDur: 0,    // 感電付与秒
     execThr: 0,     // 処刑閾値(残HP割合)
     bounce: 0,      // 跳弾回数
+    reflect: 0,     // 壁で折り返す回数（レーザーライフル）
     slow: 0,        // 減速の強さ(0-1)
     slowDur: 0,     // 減速の持続秒
     stunDur: 0,     // 拘束の持続秒
@@ -147,11 +150,14 @@ const WEAPONS = {
   },
 
   sniper: {
-    id: 'sniper', cost: 3, cat: 'long', name: 'スナイパー', short: 'SNP', icon: Icons.get('sniper'), color: '#6fe3ff', src: 'stage', arcFix: 0.16,
+    // **【2026-09-30 段3】スナイパー → レーザーライフル。**id は 'sniper' のまま（セーブ・カード・連携の互換のため。画面の名前だけ変える）。
+    //   弾を飛ばさず、壁で2回折り返す光線を引く（Combat.laser）。線の上の敵を全部貫く。太さは前の弾（当たり半径20）より少し太い 24。
+    //   ユーザーの答え4（設計書 DESIGN-REBUILD §7）。下の「スナイパー」の経緯は、弾だった頃の測定として残す
+    id: 'sniper', cost: 3, cat: 'long', name: 'レーザーライフル', short: 'LSR', icon: Icons.get('sniper'), color: '#6fe3ff', src: 'stage', arcFix: 0.16,
     // **貫通役。** 並んだ敵を撃ち抜くのが仕事なので、狙うのは「敵が濃いほう」。
     // 以前は最も硬い敵（＝たいてい後方のタンク）を狙っていて、
     // 1.28秒に1発しかないのに目の前の群れを素通りしていた
-    desc: '長射程・高威力の単発。太い一撃で、並んだ敵をまとめて撃ち抜く。',
+    desc: '光線を撃つ。壁で2回はね返り、線の上の敵をすべて貫く。まっすぐな道が無くても奥まで届く。',
     // **【2026-09-22】12種で断トツの最下位だった。**
     //   第15章・単独・12シード・ライフを厚くして5ウェーブ回した漏れの中央値：
     //   スナイパー **439**（次に悪い触手が231、真ん中は44、一番良い火炎は0）。
@@ -172,11 +178,13 @@ const WEAPONS = {
     //   代わりに**弾を太く（4→20）して貫通を伸ばした（3→20）。**
     //   通路の幅ぶんを一撃で薙ぐ形になり、**レート据置のまま 439 → 31**。
     //   弾28・貫通30 まで広げても 33 で頭打ちなので、20/20 が折れ点
-    base: baseStats({ dmg: 34, rate: 0.78, range: 430, spread: 0.012, speed: 1500, pierce: 20, bulletR: 20, turn: 3.5 }),
+    //   レーザー：bulletR は光線の太さの半分・reflect は壁で折り返す回数・range は最初の直線の目安（線の長さの合計は range × BAL.laserLenMul）
+    base: baseStats({ dmg: 34, rate: 0.78, range: 430, spread: 0.012, speed: 1500, pierce: 20, bulletR: 24, reflect: 2, turn: 3.5 }),
     fire(w, run) {
+      // 同時発射（count）が増えたら、少しずつ角度をずらして線を増やす
       for (let i = 0; i < w.n; i++) {
-        const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (i === 0 ? 1 : w.n);
-        Combat.spawnBullet(w, run, a, { color: '#6fe3ff', long: true });
+        const a = w.angle + (i === 0 ? 0 : ((i % 2) ? 1 : -1) * Math.ceil(i / 2) * 0.06);
+        Combat.laser(w, run, a);
       }
       Combat.shake(run, 2.2);
     },
@@ -324,29 +332,28 @@ const WEAPONS = {
   },
 
   tentacle: {
-    id: 'tentacle', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ cost: 2, cat: 'support', name: '触手', short: 'TNT', icon: Icons.get('tentacle'), color: '#c85ab0', src: 'pack', arcFix: 0.34,
-    desc: '砲身の先にいる敵を掴んで来た道へ引き戻す。掴まれている間は削られ続ける。',
-    // **【2026-09-22】同時に2体まで掴めなかったのが、そのまま弱さだった。**
-    //   前は「1体ずつ掴む武器だから数字を上げても頭打ち」と書いて諦めていたが、
-    //   **上げる場所が違った。**掴める数（count）がそれ。
-    //
-    //   測り方も変えた。dps ではなく**漏らした数**で見る（武器の仕事はこれ）。
-    //   第10章・単独・4シード・ライフを厚くして必ず5ウェーブ回した合計：
-    //     掴む数1 → 1,710  ／ 2 → 291  ／ **3 → 35**  ／ 4 → 13
-    //   1のままだと12種で断トツの最下位（次に悪いガトリングが581）。
-    //   3で手裏剣（33）と並ぶ。4だと上位に行きすぎる
-    //
-    // **【2026-09-22・上の調整は章が浅すぎた】**
-    //   第10章は12種のうち半分が漏れ0になる＝**飽和していて差が出ない**。
-    //   第15章で測り直すと、掴む3のままでは中央値 231（12種で下から2番目）。
-    //   ここでも**ダメージ26→78 は無反応（424→424）**で、効くのは掴む数だけ：
-    //     3 → 424 ／ 4 → 73 ／ 5 → 50 ／ **6 → 24** ／ 7 → 13 ／ 8 → 23
-    //   6 を採る（12種の真ん中は約37）
-    base: baseStats({ dmg: 26, rate: 1.2, range: 210, count: 6, knock: 105, knockDur: 1.3, turn: 9 }),
+    // **【2026-09-30 段3】作り直し：「支援」をやめ、毎回何が出るか分からないピーキーな武器に。**（親の設計書 DESIGN-REBUILD §12-1・ユーザー指定）
+    //   > 「何が出るかさっぱりわからないから置き場所に困るものの、基本性能の高いピーキーな武器に仕上げましょう」
+    //   火力・範囲は平均以上、レートは控えめ。撃つたびに6種の攻撃から1つ（BAL.tntWeights の重み）：
+    //     pull 引き寄せ（掴んで来た道へ引き戻す・前の触手の形）／stab 突き刺し（長い線の高火力）／sweep 薙ぎ払い（目の前の扇）／
+    //     wall 触手の壁（道に強い減速の場）／ink タコ墨（広い範囲の攻撃＋減速の場）／cut 一閃（小さい範囲の高火力）
+    //   倍率・大きさは BAL.tnt*。**出た攻撃の名前を触手の上に一瞬出す**（何が出たか分かるように）。
+    //   前の触手（掴むだけ・掴む数6）は第25章の単独 12種中10位・カードを全部積んでも ×0.41（measure.md）。
+    //   コスト：ユーザー「コストも高め」（§12-1）。武器の設計から決める（答え8「コストで強弱の帳尻を合わせない」）
+    id: 'tentacle', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ cost: 3, cat: 'support', name: '触手', short: 'TNT', icon: Icons.get('tentacle'), color: '#c85ab0', src: 'pack', arcFix: 0.34,
+    desc: '撃つたびに6種の攻撃のどれかが出る（引き寄せ・突き刺し・薙ぎ払い・触手の壁・タコ墨・一閃）。何が出るかは分からないが、どれも強い。',
+    base: baseStats({ dmg: 40, rate: 1.0, range: 230, count: 4, knock: 105, knockDur: 1.3, turn: 9 }),
     fire(w, run) {
       const t = w.target;
       if (!t) return;
-      Combat.grab(w, run, t, w.s.knock, w.s.knockDur, w.s.dmg);
+      // 二連撃・八腕（カード）：2種を同時に出す
+      const n = (w.dyn.tntDouble && Util.chance(w.dyn.tntDouble)) ? 2 : 1;
+      const done = {};
+      for (let i = 0; i < n; i++) {
+        let k = Util.weighted(TNT_ATTACKS.filter(a => !done[a]), a => BAL.tntWeights[a] || 1);
+        done[k] = true;
+        Combat.tentacleAttack(w, run, t, k, i);
+      }
     },
   },
 

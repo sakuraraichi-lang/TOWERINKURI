@@ -27,19 +27,40 @@
 //
 //   weight は出やすさ。合計で正規化される（Util.weighted）
 const ENEMY_TYPES = {
-  grunt:  { name: 'grunt',  hp: 1.0, spd: 1.0,  r: 10, coin: 1.0,  color: '#ff5b6e', from: 1,  weight: 58 },
-  swift:  { name: 'swift',  hp: 0.5, spd: 1.9,  r: 8,  coin: 1.15, color: '#ff9cf0', from: 3,  weight: 28 },
-  tank:   { name: 'tank',   hp: 3.4, spd: 0.58, r: 15, coin: 2.5,  color: '#c8a05a', from: 6,  weight: 22 },
+  // **【2026-09-30 段3】耐性（res）と、図鑑に出す名前（jp・en）と説明（desc）を足した。**（設計書 DESIGN-STAGE3 §8・§12）
+  //   ユーザー「今の敵はどいつがどんな能力なのかわからないので、今のやつにつけて図鑑などに載せたって良いですね」
+  //   「武器を貰った直後2章は気持ちよく使わせるべきです」
+  //   res の値は**その耐性が付き始める章**。その武器が使えるようになった章から2章たってから付く
+  //   （火炎は第11章の報酬＝第12章から使える → 耐火は第14章から／テスラ 第9章から → 耐電 第11章／凍結 第18章から → 耐寒 第20章）。
+  //   効き方は「効きにくい」まで（BAL.resMul 倍）。無効は作らない。名前は世界観（侵入プログラムに昔のゲームの敵の皮・企画書 §13）に合わせた
+  grunt:  { name: 'grunt',  hp: 1.0, spd: 1.0,  r: 10, coin: 1.0,  color: '#ff5b6e', from: 1,  weight: 58,
+    jp: 'パケット', en: 'PACKET', desc: 'ふつうの敵。' },
+  swift:  { name: 'swift',  hp: 0.5, spd: 1.9,  r: 8,  coin: 1.15, color: '#ff9cf0', from: 3,  weight: 28,
+    jp: 'スクリプト', en: 'SCRIPT', desc: '速い。HPは低い。' },
+  tank:   { name: 'tank',   hp: 3.4, spd: 0.58, r: 15, coin: 2.5,  color: '#c8a05a', from: 6,  weight: 22,
+    jp: 'ブロック', en: 'BLOCK', desc: '硬くて遅い。', res: { heavy: 8 } },
   // 1発あたり「そのウェーブの雑魚HPの armor 割」を引く。小さい弾ほど損をする
-  shield: { name: 'shield', hp: 1.6, spd: 0.80, r: 12, coin: 1.9,  color: '#7fb3ff', from: 16, weight: 16, armor: 0.06 },
+  shield: { name: 'shield', hp: 1.6, spd: 0.80, r: 12, coin: 1.9,  color: '#7fb3ff', from: 16, weight: 16, armor: 0.06,
+    jp: 'ファイアウォール', en: 'FIREWALL', desc: '装甲：1発ごとにダメージを引く（最低15%は通る）。1発の重い武器が効く。' },
   // 1回の湧きで burst 体まとめて出る。1体は小さい
-  swarm:  { name: 'swarm',  hp: 0.22, spd: 1.45, r: 6, coin: 0.45, color: '#ffe08a', from: 26, weight: 14, burst: 5 },
+  swarm:  { name: 'swarm',  hp: 0.22, spd: 1.45, r: 6, coin: 0.45, color: '#ffe08a', from: 26, weight: 14, burst: 5,
+    jp: 'ボット群', en: 'BOTNET', desc: '小さいのがまとめて出る。', res: { fire: 14 } },
   // 毎秒 maxHp の regen 割を回復。**燃えている間は回復しない**
-  regen:  { name: 'regen',  hp: 1.3, spd: 0.85, r: 11, coin: 1.8,  color: '#7fe3a0', from: 36, weight: 14, regen: 0.055 },
+  regen:  { name: 'regen',  hp: 1.3, spd: 0.85, r: 11, coin: 1.8,  color: '#7fe3a0', from: 36, weight: 14, regen: 0.055,
+    jp: 'リカバリ', en: 'RECOVERY', desc: 'HPが戻る。燃えている間は戻らない。', res: { elec: 11 } },
   // 倒すと split 体に割れる（割れた子はもう割れない）
-  split:  { name: 'split',  hp: 2.2, spd: 0.90, r: 13, coin: 2.0,  color: '#d08aff', from: 46, weight: 12, split: 2 },
+  split:  { name: 'split',  hp: 2.2, spd: 0.90, r: 13, coin: 2.0,  color: '#d08aff', from: 46, weight: 12, split: 2,
+    jp: 'フォーク', en: 'FORK', desc: '倒すと2つに割れる。', res: { cold: 20 } },
   // 倒すと中身が1体出てくる（nest 層まで。中身は BAL.nestHp 倍のHPで、少し小さく少し速い）
-  nest:   { name: 'nest',   hp: 1.6, spd: 0.75, r: 17, coin: 1.2,  color: '#ff9a5c', from: 61, weight: 12, nest: 3 },
+  nest:   { name: 'nest',   hp: 1.6, spd: 0.75, r: 17, coin: 1.2,  color: '#ff9a5c', from: 61, weight: 12, nest: 3,
+    jp: 'アーカイブ', en: 'ARCHIVE', desc: '倒すと中から次の層が出てくる（3層）。', res: { heavy: 13 } },
+};
+// 耐性の名前と中身（図鑑・Render の縁の色）
+const RESIST_INFO = {
+  fire:  { jp: '耐火', desc: '火炎のダメージと燃えている間のダメージが半分', color: '#6fb8ff' },
+  elec:  { jp: '耐電', desc: 'テスラのダメージと感電が半分。連鎖がそこで止まる', color: '#ffe24a' },
+  cold:  { jp: '耐寒', desc: '凍らない。減速が半分', color: '#e8f6ff' },
+  heavy: { jp: '重量', desc: '掴む・引き戻す・閉じ込めるが半分', color: '#9aa0a8' },
 };
 
 // 敵同士の押し合い（2026-09-19 取り込み）
@@ -350,6 +371,7 @@ const Combat = {
       // **装甲は「そのウェーブの雑魚HPの何割か」**。固定値にすると章が進んだ瞬間に
       //   意味が消えるし、割合にすると大きい弾も同じだけ削られて意味が出ない
       armor: t.armor ? base * t.armor : 0,
+      res: this.resOf(run, t),         // 耐性（その章で付いているものだけ）
       regen: t.regen ? hp * t.regen : 0,
       split: gen ? 0 : (t.split || 0),   // 割れた子はもう割れない
       nest: t.nest || 0,                 // 入れ子の残りの層（中身は1つ少ない・kill で出す）
@@ -361,6 +383,15 @@ const Combat = {
       grabT: 0, grabV: 0, spotT: 0, dist: 1e9, counted: false,
       hitFlash: 0, dead: false, ang: 0,
     };
+  },
+
+  // その章で付いている耐性。**ボスは付かない**（ボスは grunt の形で作る・足止めが効かないのは別の決まり）
+  resOf(run, t) {
+    const out = {};
+    if (!t.res) return out;
+    const ch = run.stageIdx + 1;
+    for (const k in t.res) if (ch >= t.res[k]) out[k] = true;
+    return out;
   },
 
   spawnEnemy(run) {
@@ -443,6 +474,12 @@ const Combat = {
     }
     opts = opts || {};
     let dmg = amount * this.vuln(run, e);
+    // **耐性**（2026-09-30 段3）。効きにくいだけで、無効にはしない（BAL.resMul）
+    const res = e.res, by0 = opts.by || this._by;
+    if (res) {
+      if (res.fire && (by0 === 'flame' || opts.burnTick)) dmg *= BAL.resMul;
+      if (res.elec && (by0 === 'tesla' || opts.shockTick)) dmg *= BAL.resMul;
+    }
     // **装甲は1発ごとに引く。** 手数の武器ほど損をする。
     //   引ききっても最低 15% は通す（完全無敵にすると詰む）
     if (e.armor > 0 && !opts.dot) dmg = Math.max(dmg * 0.15, dmg - e.armor);
@@ -468,7 +505,7 @@ const Combat = {
     //   永久に切れなくなるので、付与（*Grant）は素の攻撃だけに掛ける
     const sc = this.statusScale(e);
     const st = run.st;
-    if (opts.shock) { e.shock = Math.max(e.shock, opts.shock * sc + st.shockDur); e.shockBy = by; }
+    if (opts.shock) { e.shock = Math.max(e.shock, (opts.shock * sc + st.shockDur) * (res && res.elec ? BAL.resMul : 1)); e.shockBy = by; }
 
     let sl = opts.slow || 0, slD = (opts.slowDur || 0) * sc, ch = !!opts.chill;
     if (st.chillGrant > 0 && !opts.dot) {           // 霜結：どの武器でも凍る
@@ -477,14 +514,18 @@ const Combat = {
       ch = true;
     }
     if (sl > 0) {
+      // 耐寒（2026-09-30 段3）：凍らない・冷気の減速は強さも時間も半分（凍結装置・霜結の遺物・凍らせる札）
+      const coldRes = res && res.cold && (ch || by === 'cryo');
+      const cm = coldRes ? BAL.resMul : 1;
       // ボスは遅くならない（凍った印・被ダメージの増えは乗る）。遅くできると制限時間が伸びて DPS チェックでなくなる
-      if (!e.boss) e.slow = Math.max(e.slow, Math.min(BAL.slowMax, sl + st.slowAdd));
-      const d = (slD || 1) + st.chillDur;
+      if (!e.boss) e.slow = Math.max(e.slow, Math.min(BAL.slowMax, (sl + st.slowAdd) * cm));
+      const d = ((slD || 1) + st.chillDur) * cm;
       e.slowT = Math.max(e.slowT, d);
-      if (ch) e.chill = Math.max(e.chill, d);
+      if (ch && !coldRes) e.chill = Math.max(e.chill, d);
     }
 
-    if (opts.stun && (e.ccUsed || 0) < BAL.ccMaxSec) { e.stun = Math.max(e.stun, opts.stun * sc + st.stunDur); e.stunBy = by; }
+    // 重量（2026-09-30 段3）：閉じ込めは半分
+    if (opts.stun && (e.ccUsed || 0) < BAL.ccMaxSec) { e.stun = Math.max(e.stun, (opts.stun * sc + st.stunDur) * (res && res.heavy ? BAL.resMul : 1)); e.stunBy = by; }
 
     let bn = opts.burn || 0, bd = opts.burnDur || 0;
     if (st.burnGrant > 0 && !opts.dot) {            // 熾火：どの武器でも燃える
@@ -720,6 +761,7 @@ const Combat = {
       x, y, r: o.r, dur: o.dur, t: 0, tick: 0,
       dps: o.dps, slow: o.slow || 0, vuln: o.vuln || 0,
       color: o.color, kind: o.kind || 'gas', by: this._by,
+      a: o.a,                       // 触手の壁の向き（絵だけが読む）
     });
   },
 
@@ -736,8 +778,10 @@ const Combat = {
       // バリアの中の敵は掴めない（掴んで引き戻すとバリアの中へ戻し続け、ウェーブが終わらなくなった）
       if (this.inShield(run, t)) { t.shieldT = 0.15; continue; }
       // 止めておける合計の秒数を使い切った敵は、もう掴めない（BAL.ccMaxSec）。削りだけ入る
-      if ((t.ccUsed || 0) < BAL.ccMaxSec) t.grabT = Math.max(t.grabT, dur * this.statusScale(t));
-      t.grabV = power;
+      // 重量（2026-09-30 段3）：掴む時間も引き戻す力も半分
+      const hv = (t.res && t.res.heavy) ? BAL.resMul : 1;
+      if ((t.ccUsed || 0) < BAL.ccMaxSec) t.grabT = Math.max(t.grabT, dur * this.statusScale(t) * hv);
+      t.grabV = power * hv;
       this.damage(run, t, dmg, { color: '#ffb0e8' });
       this.fx(run, { type: 'tentacle', x1: w.x, y1: w.y, e: t, color: '#c85ab0',
                      ph: Math.random() * 6.28, life: Math.min(0.6, dur) });
@@ -756,6 +800,7 @@ const Combat = {
       pts.push({ x: cur.x, y: cur.y });
       this.damage(run, cur, d, { shock: w.s.shockDur, color: '#d8c7ff', crit: w.s.crit, critMul: w.s.critMul });
       d *= w.s.chainFalloff;
+      if (cur.res && cur.res.elec) break;   // 耐電（2026-09-30 段3）：連鎖はそこで止まる
       const near = Grid.query(cur.x, cur.y, 150, _q);
       let best = null, bd = 1e9;
       for (const e of near) {
@@ -786,6 +831,153 @@ const Combat = {
     }
     this.fx(run, { type: 'boom', x, y, r: radius, color: opts.color || '#ff9a4a', life: 0.3 });
     this.shake(run, Math.min(10, radius * 0.06));
+  },
+
+  // ================= レーザーライフル（旧スナイパー・2026-09-30 段3） =================
+  //
+  //   ユーザー（2026-09-29）「スナイパー → レーザーライフル（壁で反射する）。『直線が無いから使えない』を無くす」
+  //   答え4（2026-09-30）：壁で2回反射（カードで増やせる）・線の上を全部貫く・いまの弾より少し太い・コアと味方の武器には当たらない
+  //
+  //   **弾を飛ばさず、その場で線を引く。**線は撃ち口から砲身の向きへ進み、壁に入ったら折り返す。
+  //   折り返しは `w.s.reflect` 回まで。最後の折り返しのあとは、次の壁で止まる。線の長さの合計は射程 × BAL.laserLenMul まで。
+  //   **壁は六角（絵と同じ）で見る。**通路の六角（`stage.vec.hexes`）から出たら、出ていった六角の辺で折り返す
+  //   （隣の六角の中心どうしを結ぶ向きが、その辺の法線）。最初はタイル（経路探索の層）で折り返していて、
+  //   光線が絵の上では壁の中を通っていた（確認室で見て直した・CLAUDE.md「盤の縁で絵と規則を食い違わせない」）。
+  //   六角の一覧が無い盤では、タイルの判定に戻る
+  _roadHex(st) {
+    if (st._roadHex !== undefined) return st._roadHex;
+    const hx = st.vec && st.vec.hexes;
+    if (!hx || !hx.length) return (st._roadHex = null);
+    const set = new Set();
+    for (const h of hx) set.add(h.c + ',' + h.r);
+    return (st._roadHex = set);
+  },
+  laserPath(w, run, angle) {
+    const st = run.stage;
+    const road = this._roadHex(st);
+    const pts = [{ x: w.x, y: w.y }];
+    let x = w.x, y = w.y;
+    let vx = Math.cos(angle), vy = Math.sin(angle);
+    let left = w.s.range * (BAL.laserLenMul || 1.8);
+    let refl = Math.max(0, Math.round(w.s.reflect || 0));
+    const step = TILE * 0.2;
+    const cellOf = (px, py) => road ? MapGen.hexPick(px, py) : { c: (px / TILE) | 0, r: (py / TILE) | 0 };
+    const isOpen = (c) => road ? road.has(c.c + ',' + c.r) : st.walkable(c.c, c.r);
+    const center = (c) => road ? MapGen.hexAt(c.c, c.r) : { x: (c.c + 0.5) * TILE, y: (c.r + 0.5) * TILE };
+    // **撃ち口の足元は壁**（武器は通路でない六角の上に立つ）。通路に一度出るまでは壁で止めない（最大 2.5タイル）
+    let out = false;
+    for (let d = 0; d < TILE * 2.5 && left > 0; d += step) {
+      x += vx * step; y += vy * step; left -= step;
+      if (isOpen(cellOf(x, y))) { out = true; break; }
+    }
+    if (!out) return null;
+    let cur = cellOf(x, y);
+    while (left > 0) {
+      const nx = x + vx * step, ny = y + vy * step;
+      const nc = cellOf(nx, ny);
+      if (isOpen(nc)) { x = nx; y = ny; cur = nc; left -= step; continue; }
+      // 壁に入る。出ていく六角の中心から、入ろうとした六角の中心への向きが、その辺の法線
+      pts.push({ x, y });
+      if (refl <= 0) return pts;
+      refl--;
+      const a = center(cur), b = center(nc);
+      let ex = b.x - a.x, ey = b.y - a.y;
+      const el = Math.hypot(ex, ey) || 1;
+      ex /= el; ey /= el;
+      const dot = vx * ex + vy * ey;
+      vx -= 2 * dot * ex; vy -= 2 * dot * ey;
+      // 折り返した直後にまた同じ壁へ入る（角をかすめた）ときは、来た向きへそのまま戻す
+      if (!isOpen(cellOf(x + vx * step, y + vy * step))) { vx = -(vx + 2 * dot * ex); vy = -(vy + 2 * dot * ey); }
+    }
+    pts.push({ x, y });
+    return pts;
+  },
+
+  laser(w, run, angle) {
+    Snd.shot(w.id);
+    const pts = this.laserPath(w, run, angle);
+    if (!pts || pts.length < 2) return;
+    const s = w.s;
+    let dmg = s.dmg;
+    if (run.resonance > 0) dmg *= (1 + run.resonance);      // 弾道共鳴（ガトリング＋レーザー）
+    const half = s.bulletR;                                   // 線の太さの半分
+    const hit = new Set();
+    let hits = 0;
+    for (let i = 1; i < pts.length; i++) {
+      const a = pts[i - 1], b = pts[i];
+      const len = Math.hypot(b.x - a.x, b.y - a.y);
+      const near = Grid.query((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, len * 0.5 + half + 24, _q);
+      for (const e of near) {
+        if (e.dead || hit.has(e)) continue;
+        const reach = e.r + half;
+        if (Util.segDist2(a.x, a.y, b.x, b.y, e.x, e.y) > reach * reach) continue;
+        hit.add(e);
+        hits++;
+        this.damage(run, e, dmg, {
+          crit: s.crit, critMul: s.critMul, exec: s.execThr, shock: s.shockDur,
+          slow: s.slow, slowDur: s.slowDur,
+          burn: s.burn ? s.dmg * s.burn : 0, burnDur: s.burnDur, color: w.def.color,
+          forceCrit: !!(w.flags.frostCrit && e.chill > 0),
+        });
+        // 曳光指示・狙撃指示：レーザーが通った敵に印が残る
+        if (w.flags.spot && !e.dead) e.spotT = 3;
+      }
+    }
+    this.fx(run, { type: 'laser', pts, w: half, n: hits, color: w.def.color, life: 0.26 });
+  },
+
+  // ================= 触手の6種の攻撃（2026-09-30 段3・weapons.js の tentacle） =================
+  //   t … 砲身の線の上の敵（狙いの基準）。k … 攻撃の種類（TNT_ATTACKS）。i … 同時に出したときの何番目か（名前の表示をずらす）
+  //   大きさは BAL.tnt*。締め上げ（カード）は突き刺しと一閃の倍率（w.dyn.tntStabMul）、剛腕は壁の持続にも効く（knockDur の比）
+  TNT_NAMES: { pull: '引き寄せ', stab: '突き刺し', sweep: '薙ぎ払い', wall: '触手の壁', ink: 'タコ墨', cut: '一閃' },
+  //   名札（render.js の tntTag）の英字と、6種を見分ける印の色（見た目だけ。数値は BAL.tnt*）
+  TNT_EN: { pull: 'PULL', stab: 'STAB', sweep: 'SWEEP', wall: 'WALL', ink: 'INK', cut: 'SLASH' },
+  TNT_COL: { pull: '#ff8ae0', stab: '#ff4a66', sweep: '#ffc24a', wall: '#7ee3a0', ink: '#9a7cff', cut: '#7ae8ff' },
+  tentacleAttack(w, run, t, k, i) {
+    const s = w.s, col = w.def.color;
+    const sharp = w.dyn.tntStabMul || 1;
+    if (k === 'pull') {
+      this.grab(w, run, t, s.knock, s.knockDur, s.dmg);
+    } else if (k === 'stab') {
+      const o = BAL.tntStab, L = s.range * o.len;
+      const x2 = w.x + Math.cos(w.angle) * L, y2 = w.y + Math.sin(w.angle) * L;
+      this.lineHit(run, w.x, w.y, x2, y2, o.half, s.dmg * o.dmg * sharp, { color: col, crit: s.crit, critMul: s.critMul });
+      this.fx(run, { type: 'tntStab', x1: w.x, y1: w.y, x2, y2, half: o.half, color: col, acc: this.TNT_COL.stab, life: 0.5 });
+    } else if (k === 'sweep') {
+      const o = BAL.tntSweep;
+      this.coneDamage(w, run, w.angle, o.arc, s.range * o.len, s.dmg * o.dmg, { color: col });
+      this.fx(run, { type: 'tntSweep', x: w.x, y: w.y, a: w.angle, arc: o.arc, r: s.range * o.len, color: col, acc: this.TNT_COL.sweep, life: 0.5 });
+    } else if (k === 'wall') {
+      const o = BAL.tntWall, dur = o.dur * (s.knockDur / (w.def.base.knockDur || 1));
+      this.spawnField(run, t.x, t.y, { kind: 'tentwall', r: o.r, dur, dps: s.dmg * o.dps, slow: BAL.slowMax, color: col, a: t.ang });
+    } else if (k === 'ink') {
+      const o = BAL.tntInk;
+      this.explode(run, t.x, t.y, o.r, s.dmg * o.dmg, { color: '#8a6cff' });
+      this.spawnField(run, t.x, t.y, { kind: 'ink', r: o.r, dur: o.dur, dps: s.dmg * o.dps, slow: o.slow, color: '#8a6cff' });
+    } else if (k === 'cut') {
+      const o = BAL.tntCut;
+      this.explode(run, t.x, t.y, o.r, s.dmg * o.dmg * sharp, { color: '#ffffff', crit: s.crit, critMul: s.critMul });
+      this.fx(run, { type: 'tntCut', x: t.x, y: t.y, a: w.angle + 0.62, r: o.r, acc: this.TNT_COL.cut, life: 0.34 });
+    }
+    // 出た攻撃の名前の札（何が出たか分かるように）。触手の上に斜めの小さな札を一瞬（render.js の tntTag）。同時に出ている札は6枚まで
+    let tags = 0;
+    for (const f of run.fx) if (f.type === 'tntTag') tags++;
+    if (tags < 6) this.fx(run, { type: 'tntTag', x: w.x, y: w.y, slot: i, en: this.TNT_EN[k], jp: this.TNT_NAMES[k] || k, acc: this.TNT_COL[k], life: 1.0 });
+  },
+
+  // 線の上の敵に1回ずつ当てる（触手の突き刺し）。壁は見ない（腕なので回り込める）
+  lineHit(run, x1, y1, x2, y2, half, dmg, opts) {
+    const len = Math.hypot(x2 - x1, y2 - y1);
+    const near = Grid.query((x1 + x2) * 0.5, (y1 + y2) * 0.5, len * 0.5 + half + 24, _q);
+    let hits = 0;
+    for (const e of near) {
+      if (e.dead) continue;
+      const reach = e.r + half;
+      if (Util.segDist2(x1, y1, x2, y2, e.x, e.y) > reach * reach) continue;
+      this.damage(run, e, dmg, opts);
+      hits++;
+    }
+    return hits;
   },
 
   // この発射で撃つ弾数。
@@ -1095,7 +1287,7 @@ const Combat = {
             e.poisonBy = f.by;
             e.poisonT = Math.max(e.poisonT || 0, BAL.poisonDur + run.st.burnDur);
           }
-          this.damage(run, e, f.dps * step, { color: f.kind === 'gas' ? '#c6ff7a' : '#ffb066', dot: true, by: f.by });
+          this.damage(run, e, f.dps * step, { color: f.kind === 'gas' ? '#c6ff7a' : (f.kind === 'ink' || f.kind === 'tentwall') ? f.color : '#ffb066', dot: true, by: f.by });
         }
       }
     }
@@ -1124,7 +1316,7 @@ const Combat = {
         e.burnT -= dt;
         // 焼き締め（syn_searbind）：掴まれている敵は炎上ダメージに倍率
         const gb = (run.grabBurn && e.grabT > 0) ? run.grabBurn : 1;
-        this.damage(run, e, e.burn * dt * gb, { color: '#ff8a3a', dot: true, by: e.burnBy });
+        this.damage(run, e, e.burn * dt * gb, { color: '#ff8a3a', dot: true, by: e.burnBy, burnTick: true });
         if (e.dead) continue;
       }
       // **毒のスリップダメージ。**（ユーザー要望8・2026-09-22）
@@ -1139,7 +1331,7 @@ const Combat = {
       //   **ボスには効かせない。**（2026-09-28）ボスはHPを制限時間内に削り切れるかを問う敵なので、割合で削るとHPが意味を持たない。
       //   倍率×8でも第15章から先のボスは口を出てすぐ倒れ、受けたダメージの 0〜93%（6本）が感電のスリップだった
       if (e.shock > 0 && BAL.shockDps && !e.boss) {
-        this.damage(run, e, e.maxHp * BAL.shockDps * dt, { color: '#c9b3ff', dot: true, by: e.shockBy });
+        this.damage(run, e, e.maxHp * BAL.shockDps * dt, { color: '#c9b3ff', dot: true, by: e.shockBy, shockTick: true });
         if (e.dead) continue;
       }
       if (e.stun > 0 && BAL.stunDps && !e.boss) {

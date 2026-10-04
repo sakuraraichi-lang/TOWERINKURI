@@ -20,7 +20,9 @@ const Draft = {
       if (c.kind === 'weapon') return false;        // 武器そのものはパックから
       if (c.kind === 'perm') return false;          // 遺物は3択に出さない（転生でしか増えない）
       if (c.kind === 'key') return false;           // 鍵は章の報酬でしか手に入らない
-      if (Game.own(id) <= 0) return false;
+      // 上位札（2026-09-30 段3）：持っていなくても、その出撃で前提の札を全部取っていれば出る
+      if (c.upper) { if (!(c.needs || []).every(n => (run.cards[n] || 0) > 0)) return false; }
+      else if (Game.own(id) <= 0) return false;
       if ((run.cards[id] || 0) >= Game.stackLimit(id)) return false;
       if (c.kind === 'mod') return ids.includes(c.weapon);
       if (c.kind === 'synergy') return c.requires.every(w => ids.includes(w));
