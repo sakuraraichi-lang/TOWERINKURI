@@ -45,7 +45,7 @@ const CardFX = {
   //   ユーザー「それぞれ違う必要はありません、汎用アイコンとか武器アイコンを貼り付ければいい」「漫画っぽいやつにしましょう」
   //   武器と武器強化はその武器、連携は関わる2つの武器を並べる（条件が一目で分かる）、常駐はフロッピー、ほかは光るチップ
   artHtml(c) {
-    const img = (id) => '<img class="cimg" src="assets/icons/' + id + '.png" alt="" draggable="false">';
+    const img = (id) => '<img class="cimg" src="assets/icons/' + id + '.png" alt="" draggable="false" decoding="async">';
     if (c.kind === 'perm') return img('perm');
     if (c.kind === 'synergy') { const r = (c.requires || []).filter(w => WEAPONS[w]); return r.length ? r.map(img).join('') : img('synergy'); }
     if (c.weapon && WEAPONS[c.weapon]) return img(c.weapon);
