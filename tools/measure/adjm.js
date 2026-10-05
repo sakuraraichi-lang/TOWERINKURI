@@ -3,7 +3,7 @@
 //   1本の呼び出し＝1章・1シード。型3つ（mono 泡15基／cheap ガトリング・手裏剣・毒ガス・テスラ／mix m2p＝刀・迫撃砲・ミサイル・凍結・火炎・毒ガス＋札）
 //   × 条件4つ（adjBonus 0／0.15 × 置き方 range／adj）を、型ごとに 4条件を順に回す（シードごとに交互）
 //   BAL と BAL_PRISTINE の両方に adjBonus を入れる。測定ごとに Game.newSave()・ライフ 1e6・5ウェーブ最後まで・AIM_SMART
-//   返すもの：条件ごとの 漏れ・結果(res)・置いた基数・隣の異種の数の分布（置いた直後・adjTypesAt）・u.adjMul の分布（戦闘開始後の最初の1回）
+//   返すもの：条件ごとの 漏れ・結果(res)・置いた基数・隣の異種の数の分布（置いた直後・adjTypesAt）・u.adjAdd の分布（戦闘開始後の最初の1回）
 REAL_MS = 600000;
 const CH = '__CH__', D = __D__, CAP = __CAP__, SD = __SD__;
 Game.costCap = function () { return CAP; };
@@ -23,7 +23,7 @@ function wrap(f) {
     const d = [0, 0, 0, 0];
     for (const u of run.units) d[Math.min(3, Game.adjTypesAt(u.c, u.r, u.id, run.units, u).length)]++;
     lastDist = d;
-    const m = {}; for (const u of run.units) { const k = (u.adjMul || 1).toFixed(2); m[k] = (m[k] || 0) + 1; }
+    const m = {}; for (const u of run.units) { const k = (u.adjAdd || 0).toFixed(2); m[k] = (m[k] || 0) + 1; }
     lastAdjMul = m;
   };
 }

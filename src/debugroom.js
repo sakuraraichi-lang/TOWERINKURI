@@ -90,7 +90,7 @@ const DebugRoom = {
     UI.renderTray();
   },
   // 「隣り合う異種で強め合う」の見本（2026-10-05）：真ん中の武器のまわりに、違う種類を3つ・同じ種類を1つ置く。
-  //   線（違う種類の隣どうし）・武器の詳細の内訳「隣の異種 火力+45%」が見える。同じ種類は線も数にも入らない。もう一度押す・片づけるで戻る
+  //   線（違う種類の隣どうし）・武器の詳細の内訳「隣の異種 レート+45%」が見える。同じ種類は線も数にも入らない。もう一度押す・片づけるで戻る
   adjDemo() {
     this.dirDemo('mid');
     const run = Game.run;
@@ -110,7 +110,7 @@ const DebugRoom = {
     for (const o of extra) if (Game.usesAimPoint(o.def)) { const ap = Game.defaultAimPoint(o); o.ax = ap.x; o.ay = ap.y; }
     UI.renderTray();
     UI.renderUnitPop();
-    console.log('adjDemo', run.units.map(x => x.id + ':' + (x.adjTypes || []).length + ':' + (x.adjMul || 1).toFixed(2)).join(' '));
+    console.log('adjDemo', run.units.map(x => x.id + ':' + (x.adjTypes || []).length + ':' + (x.adjAdd || 0).toFixed(2)).join(' '));
   },
   // 「コストの上限が上がった直後」の見本：見本の武器を1基置き、全撤去のボタンを光らせて通知を出す（もう一度押す・片づけるで戻る）。
   //   全撤去を押すと見本の武器も外れる（配置の記録は _dirEnd が書き戻す）
@@ -255,7 +255,7 @@ const DebugRoom = {
         ['ロック（開いていない）', () => UI.toastMsg('第10章を突破すると開きます', '#ff8080', 'lock')],
         ['コストが足りない', () => UI.toastMsg('コストが足りません（ミサイルはコスト4・残り 2）', '#ff8080', 'limit')],
         ['コストの上限が上がった（全撤去が光る）', () => me.capDemo()],
-        ['隣り合う異種で強め合う（線・+45%・同じ種類は数えない）', () => me.adjDemo()],
+        ['隣り合う異種で強め合う（線・レート+45%・同じ種類は数えない）', () => me.adjDemo()],
         ['システム', () => UI.toastMsg('処理の重さを表示', '#ff8a1f', 'sys')],
         ['エラー', () => UI.toastMsg('出せませんでした：見本', '#ff4a66', 'error')],
         ['連続で6個（差し替わる）', () => ['weapon', 'wave', 'buy', 'warn', 'card', 'lock'].forEach((k, i) => setTimeout(() =>

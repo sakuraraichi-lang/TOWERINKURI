@@ -589,7 +589,7 @@ const Render = {
         if (ok) {
           const n = Math.min(BAL.adjMax, Game.adjTypesAt(h.c, h.r, def.id, adjUnits, UI.moving || null).length);
           if (n > 0) {
-            const t = '+' + Math.round(BAL.adjBonus * n * 100) + '%';
+            const t = 'レート+' + Math.round(BAL.adjBonus * n * 100) + '%';
             ctx.font = '900 ' + adjFs + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
             ctx.lineWidth = 3 / (this.scale || 1) + 1; ctx.strokeStyle = 'rgba(4,8,13,0.95)'; ctx.strokeText(t, p.x, p.y);
             ctx.fillStyle = '#ffe38a'; ctx.fillText(t, p.x, p.y);

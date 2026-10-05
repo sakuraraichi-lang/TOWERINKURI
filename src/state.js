@@ -616,7 +616,7 @@ const Game = {
     //   ・**レジェンドは別枠の掛け算のまま**（「この1枚で激変」を残す）。×1未満の代償も掛け算のまま
     //   前は全部が掛け算で、冷却フィン（×1.25）5枚で ×3.05、10凸なら ×43 まで伸びた
     const s = u.s;
-    if (!u.cardBase) { u.cardBase = { dmg: s.dmg / (u.adjMul || 1), rate: s.rate }; u.cAdd = { dmg: 0, rate: 0 }; u.cMul = { dmg: 1, rate: 1 }; }
+    if (!u.cardBase) { u.cardBase = { dmg: s.dmg, rate: s.rate / this.rateFx(u.adjAdd || 0) }; u.cAdd = { dmg: 0, rate: 0 }; u.cMul = { dmg: 1, rate: 1 }; }
     const d0 = s.dmg, r0 = s.rate;
     this.withRank(id, u._rkAcc || (u._rkAcc = {}), () => CARDS[id].apply(p));
     const more = CARDS[id].rarity === 'legendary';
@@ -625,10 +625,13 @@ const Game = {
       if (!(f > 0) || f === 1) continue;
       if (more || f < 1) u.cMul[k] *= f; else u.cAdd[k] += f - 1;
     }
-    const R = BAL.cardRateCap, S = u.cAdd.rate;
-    s.dmg = u.cardBase.dmg * (1 + u.cAdd.dmg) * u.cMul.dmg * (u.adjMul || 1);   // 隣り合う異種の倍率（Game.updateAdj）は札とは別の掛け算
-    s.rate = u.cardBase.rate * (1 + (S > 0 ? R * S / (S + R) : 0)) * u.cMul.rate;
+    s.dmg = u.cardBase.dmg * (1 + u.cAdd.dmg) * u.cMul.dmg;
+    // 隣り合う異種のレート（u.adjAdd・Game.updateAdj）は、札のレートの足し算 S の中に入れる（同じ上限 ×(1+R) に近づく）
+    s.rate = u.cardBase.rate * this.rateFx(u.cAdd.rate + (u.adjAdd || 0)) * u.cMul.rate;
   },
+
+  // レートの足し算 S（札の増分の合計＋隣り合う異種の増分）を倍率にする：×(1 ＋ R×S/(S＋R))。R＝BAL.cardRateCap（2 ＝ 最大 ×3）
+  rateFx(S) { const R = BAL.cardRateCap; return 1 + (S > 0 ? R * S / (S + R) : 0); },
 
   ownedWeaponIds() { return WEAPON_IDS.filter(wid => this.own('wc_' + wid) > 0); },
 
@@ -1068,8 +1071,9 @@ const Game = {
   },
 
   // ---------- 隣り合う異種で強め合う（2026-10-05・設計書 DESIGN-IDEAS §2） ----------
-  //   武器の六角の隣6つにある、**自分と違う種類**の武器の種類数（同じ種類は数えない）。1種類につき火力 +BAL.adjBonus、BAL.adjMax 種類まで。
-  //   札の重ね取り（applyCardUnit）とは別の掛け算：u.adjMul に持ち、u.s.dmg へは「前の倍率で割って新しい倍率を掛ける」で入れる。
+  //   武器の六角の隣6つにある、**自分と違う種類**の武器の種類数（同じ種類は数えない）。1種類につき発射レート +BAL.adjBonus、BAL.adjMax 種類まで。
+  //   **火力には掛けない。**（ユーザー 2026-10-06）札のレートの足し算（applyCardUnit の cAdd.rate）の中に入れ、同じ上限（cardRateCap・最大 ×3）に近づく。
+  //   u.adjAdd（足し算の分）に持ち、u.s.rate へは「前の rateFx で割って新しい rateFx を掛ける」で入れる（札の足し算 cAdd.rate はそのまま使う）。
   //   **置く・動かす・撤去する・全撤去・組み直し（applyMods）のたびに全部の基で数え直す**
   //   （applyMods が s を土台から組み直しても、札と同じく最後に掛け直すので消えない）
   adjTypesAt(c, r, selfId, units, ignore) {
@@ -1081,15 +1085,15 @@ const Game = {
     }
     return Object.keys(seen);
   },
-  adjMulOf(n) { return 1 + BAL.adjBonus * Math.min(n, BAL.adjMax); },
+  adjAddOf(n) { return BAL.adjBonus * Math.min(n, BAL.adjMax); },
   updateAdj(run) {
     run = run || this.run;
     if (!run) return;
     for (const u of run.units) {
       u.adjTypes = this.adjTypesAt(u.c, u.r, u.id, run.units, u);
-      const m = this.adjMulOf(u.adjTypes.length), old = u.adjMul || 1;
-      if (m !== old && u.s) u.s.dmg = u.s.dmg / old * m;
-      u.adjMul = m;
+      const a = this.adjAddOf(u.adjTypes.length), old = u.adjAdd || 0, S = (u.cAdd ? u.cAdd.rate : 0);
+      if (a !== old && u.s) u.s.rate = u.s.rate / this.rateFx(S + old) * this.rateFx(S + a);
+      u.adjAdd = a;
     }
   },
 
@@ -1115,7 +1119,7 @@ const Game = {
       u.flags = {};
       u.dyn = { heat: d.heat || 0, tracer: d.tracer || 0 };
       u._rkAcc = {};
-      u.adjMul = 1;            // 隣り合う異種の倍率は、土台に戻したのでここで1に。最後に updateAdj が掛け直す
+      u.adjAdd = 0;            // 隣り合う異種のレートは、土台に戻したのでここで0に。最後に updateAdj が掛け直す
       u.cardBase = null;       // 重ね取りの基準（applyCardUnit）も、組み直した値から取り直す
       for (const id of (run.cardLog || [])) this.applyCardUnit(id, run, u);
     }
