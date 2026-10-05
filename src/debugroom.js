@@ -208,6 +208,9 @@ const DebugRoom = {
         ['徹甲榴弾（迫撃砲・装甲の的）', () => me.cardDemo('mtr_wide')],
         ['焼夷弾（迫撃砲）', () => me.cardDemo('mtr_barrage')],
         ['装甲貫通（全武器・装甲の的）', () => me.cardDemo('gen_ap')],
+        ['貫通弾頭（ミサイル・装甲の的）', () => me.cardDemo('msl_multi')],
+        ['クラスター弾（ミサイル・3発に1発子を撒く）', () => me.cardDemo('msl_cluster')],
+        ['戦術核（ミサイル・被爆の輪）', () => me.cardDemo('msl_nuke')],
       ]],
       ['通知（トースト）', [
         ['新しい武器', () => UI.toastMsg('新しい武器 ガトリング', '#ffb43c', 'weapon')],
@@ -581,7 +584,7 @@ const DebugRoom = {
     const orig = run.units; run.units = [u];
     for (let i = 0; i < n; i++) { Game.applyCardRun(cardId, run); Game.applyCardUnit(cardId, run, u); }
     // 的
-    const armor = ['gat_barrels', 'gas_toxic', 'mtr_wide', 'gen_ap'].includes(cardId), fire = cardId === 'flm_inferno';
+    const armor = ['gat_barrels', 'gas_toxic', 'mtr_wide', 'gen_ap', 'msl_multi'].includes(cardId), fire = cardId === 'flm_inferno';
     const t = armor ? ENEMY_TYPES.shield : fire ? ENEMY_TYPES.swarm : ENEMY_TYPES.grunt;
     const g = Math.max(Combat.gw(run), fire ? 26 : armor ? 16 : 1);
     const enemies = [];

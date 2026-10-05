@@ -97,22 +97,32 @@ const CARDS = {
     name: '執行', desc: 'レーザーが当たった敵は、残りHP18%以下なら即死',
     apply(run) { const w = run.wp('sniper'); if (w) w.s.execThr = Math.max(w.s.execThr, Game.rka(0.18, 'exec')); } }),
 
-  // ============ ミサイル（作り直し対象外） ============
+  // ============ ミサイル（0929zt・段3 の武器の作り直し） ============
+  //   **何が壊れていたか（実測 docs/audit/2026-09-29-measure.md）**：多弾頭（同時発射 +2・3枚で +6）× クラスター弾（**弾1発ごとに**子弾4〜8発）× 全部積みで
+  //   「弾の数 × 子弾の数」の積になり、クラスター1枚で漏れ ×0.16、全部積むと 1 まで落ちた。**強さをコストで帳尻合わせはしない**（ユーザー）ので、札の設計を直した。
+  //   ミサイルの性格＝**速射の連続爆撃**（迫撃砲は重い単発・泡は閉じ込め）。弱点＝1発が軽く、装甲で目減りする → 装甲の答えと**混成**が要る。
+  //   **札で同時発射を増やさない**（多弾頭を貫通弾頭へ）／**子弾は親の数に比例しない**（3発に1発・1基ごとの数が固定）／**着弾の威力は他の武器と同じ足し算に乗る**
   msl_warhead: C({ id: 'msl_warhead', kind: 'mod', weapon: 'missile', rarity: 'common', maxStack: 5, rankAxis: 'dmg',
     name: '増装弾頭', desc: 'ミサイルのダメージ +22%',
     apply(run) { const w = run.wp('missile'); if (w) { w.s.dmg *= Game.rk(1.22, 'dmg'); } } }),
   msl_guide: C({ id: 'msl_guide', kind: 'mod', weapon: 'missile', rarity: 'common', maxStack: 5, rankAxis: 'rate',
     name: '速装填', desc: 'ミサイルの着弾までが速くなり、発射レート +20%',
     apply(run) { const w = run.wp('missile'); if (w) { w.s.speed *= 1.35; w.s.rate *= Game.rk(1.2, 'rate'); } } }),
-  msl_multi: C({ id: 'msl_multi', kind: 'mod', weapon: 'missile', rarity: 'rare', maxStack: 3, rankAxis: 'count',
-    name: '多弾頭', desc: 'ミサイルの同時発射 +2、ダメージ ×0.85',
-    apply(run) { const w = run.wp('missile'); if (w) { w.s.count += Game.rki(2, 'count'); w.s.dmg *= 0.85; } } }),
+  // 貫通弾頭（旧・多弾頭。同時発射 +2 が弾数の積の元だった）：1発が装甲を貫く。軽い弾の弱点（装甲）への答え
+  msl_multi: C({ id: 'msl_multi', kind: 'mod', weapon: 'missile', rarity: 'rare', maxStack: 3, rankAxis: 'dmg',
+    name: '貫通弾頭', desc: 'ミサイルのダメージ +18%、爆発が敵の装甲を 20%無視（重ねると加算・上限 60%）',
+    apply(run) { const w = run.wp('missile'); if (w) { w.s.dmg *= Game.rk(1.18, 'dmg'); w.dyn.apen = Math.min(BAL.cardFx.mslApenMax, (w.dyn.apen || 0) + BAL.cardFx.mslApen); } } }),
+  // クラスター弾：**3発に1発**が子ミサイルを撒く（旧は弾1発ごとに4発）。1基が撒く子弾の数は、同時発射の数にも札の取り方にも比例しない
   msl_cluster: C({ id: 'msl_cluster', kind: 'mod', weapon: 'missile', rarity: 'epic', maxStack: 2, rankAxis: 'cluster',
-    name: 'クラスター弾', desc: '爆発時に子ミサイルを4発ばら撒く',
-    apply(run) { const w = run.wp('missile'); if (w) w.dyn.cluster = (w.dyn.cluster || 0) + Game.rki(4, 'cluster'); } }),
-  msl_nuke: C({ id: 'msl_nuke', kind: 'mod', weapon: 'missile', rarity: 'legendary', maxStack: 1, rankAxis: 'dmg',
-    name: '戦術核', desc: 'ミサイルのダメージ ×3.2 / レート ×0.55',
-    apply(run) { const w = run.wp('missile'); if (w) { w.s.dmg *= Game.rk(3.2, 'dmg'); w.s.rate *= 0.55; } } }),
+    name: 'クラスター弾', desc: 'ミサイル3発に1発が、爆発で子ミサイルを4発ばら撒く（子は追尾・威力 40%）。重ねると子が +4発',
+    apply(run) { const w = run.wp('missile'); if (w) {
+      w.dyn.cluster = (w.dyn.cluster || 0) + BAL.cardFx.clusterN;
+      w.dyn.clusterDmg = Game.rka(BAL.cardFx.clusterDmg, 'cluster');   // 凸の軸＝子の威力（本数は凸で増やさない）
+    } } }),
+  // 戦術核：**遊び方が変わる**。1発が重く遅い代わりに、着弾した敵が3秒間「被爆」して、**あらゆる武器から**受けるダメージが増える（ミサイルは仲間の火力を上げる役へ）
+  msl_nuke: C({ id: 'msl_nuke', kind: 'mod', weapon: 'missile', rarity: 'legendary', maxStack: 1, rankAxis: 'irr',
+    name: '戦術核', desc: 'ミサイルのダメージ ×2.6 / レート ×0.6。着弾した敵は3秒間 被爆し、あらゆる武器から受けるダメージ +25%',
+    apply(run) { const w = run.wp('missile'); if (w) { w.s.dmg *= BAL.cardFx.nukeDmg; w.s.rate *= BAL.cardFx.nukeRate; w.dyn.irr = Game.rka(BAL.cardFx.nukeVuln, 'irr'); } } }),
 
   // ============ テスラコイル（5枚とも残す。凸の軸だけ付けた） ============
   tsl_coil: C({ id: 'tsl_coil', kind: 'mod', weapon: 'tesla', rarity: 'common', maxStack: 5, rankAxis: 'dmg',
@@ -302,13 +312,13 @@ const CARDS = {
   syn_spotter: C({ id: 'syn_spotter', kind: 'synergy', requires: ['sniper', 'missile'], rarity: 'rare', maxStack: 3, rankAxis: 'spot',
     // **狙いは動かさない。** どこへ落とすかはプレイヤーが決めるものなので、
     // 「印の付いた敵に落ちたときだけ効く」形にしてある
-    name: '曳光指示', desc: '【レーザー＋ミサイル】レーザーが通った敵に印が残り、そこへの着弾 ×1.6',
+    name: '曳光指示', desc: '【レーザー＋ミサイル】レーザーが通った敵に印が残り、そこへの着弾 ×1.6（重ねると +0.6ずつ加算）',
     apply(run) { const s = run.wp('sniper'), m = run.wp('missile');
       if (s) s.flags.spot = true;
-      if (m) m.dyn.spotMul = (m.dyn.spotMul || 1) * Game.rk(1.6, 'spot'); } }),
+      if (m) m.dyn.spotMul = (m.dyn.spotMul || 1) + Game.rka(0.6, 'spot'); } }),
   syn_implode: C({ id: 'syn_implode', kind: 'synergy', requires: ['missile', 'tesla'], rarity: 'rare', maxStack: 3, rankAxis: 'shock',
-    name: '電磁爆縮', desc: '【ミサイル＋テスラ】ミサイルの爆発が感電を付与する',
-    apply(run) { const m = run.wp('missile'); if (m) { m.flags.implode = true; m.s.shockDur = Math.max(m.s.shockDur, Game.rka(2.5, 'shock')); } } }),
+    name: '電磁爆縮', desc: '【ミサイル＋テスラ】ミサイルの爆発が感電を付与する（2.5秒・重ねると +1秒ずつ）',
+    apply(run) { const m = run.wp('missile'); if (m) { m.flags.implode = true; m.s.shockDur = m.s.shockDur > 0 ? m.s.shockDur + Game.rka(1, 'shock') : Game.rka(2.5, 'shock'); } } }),
   syn_resonance: C({ id: 'syn_resonance', kind: 'synergy', requires: ['gatling', 'sniper'], rarity: 'epic', maxStack: 2, rankAxis: 'res',
     // **既知の不具合（2026-09-30 段3b で見つけた・作り直し対象外なので直していない）**：run の値（resonanceStep/Max）を武器の if の中で書いていて、
     //   ユニット側の呼び出しでは捨てられ、ラン側の呼び出しでは武器が無いので書かれない。いまは run.resonanceStep ?? 0.006・resonanceMax ?? 4.0 の既定で動いている（重ねても・凸でも伸びない）
@@ -327,11 +337,11 @@ const CARDS = {
     name: '感電泡', desc: '【泡＋テスラ】泡に閉じ込めた敵が感電し、雷の連鎖が必ずそこを通る',
     apply(run) { const b = run.wp('bubble'); if (b) { b.flags.staticFoam = true; b.s.shockDur = Math.max(b.s.shockDur, Game.rka(3, 'shock')); } } }),
   syn_hangman: C({ id: 'syn_hangman', kind: 'synergy', requires: ['tentacle', 'missile'], rarity: 'epic', maxStack: 2, rankAxis: 'mul',
-    name: '吊るし上げ', desc: '【触手＋ミサイル】掴まれている敵への着弾ダメージ ×2.2',
+    name: '吊るし上げ', desc: '【触手＋ミサイル】掴まれている敵への着弾ダメージ ×2.2（重ねると +1.2ずつ加算）',
     // **flags.hang は消した。**どこからも読まれていなかった（2026-09-21 に src 全体を検索）。
     //   「足を止める」は Combat の掴み側が既にやっている（grabT のあいだ後退させる）ので、
     //   この旗は書いただけで何もしていない残骸だった。効果は grabMul のほうが持っている
-    apply(run) { const m = run.wp('missile'); if (m) m.dyn.grabMul = (m.dyn.grabMul || 1) * Game.rk(2.2, 'mul'); } }),
+    apply(run) { const m = run.wp('missile'); if (m) m.dyn.grabMul = (m.dyn.grabMul || 1) + Game.rka(1.2, 'mul'); } }),
 
   syn_fixfire: C({ id: 'syn_fixfire', kind: 'synergy', requires: ['tentacle', 'mortar'], rarity: 'rare', maxStack: 3, rankAxis: 'mul',
     name: '照準固定', desc: '【触手＋迫撃砲】掴まれて足が止まった敵への着弾ダメージ ×1.5',

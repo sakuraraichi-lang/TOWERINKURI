@@ -379,7 +379,7 @@ const Combat = {
 
       pushX: 0, pushY: 0,
       shock: 0, slow: 0, slowT: 0, stun: 0, chill: 0,
-      burn: 0, burnT: 0, poison: 0, poisonT: 0, fvuln: 0, fvulnT: 0,
+      burn: 0, burnT: 0, poison: 0, poisonT: 0, fvuln: 0, fvulnT: 0, nukeV: 0, nukeT: 0,
       armorDown: 0, armorT: 0, sticky: 0, stickyCd: 0, burnBlue: false,   // 装甲を削られている（曳光弾・腐蝕の雲）・燃え移り（粘着燃料）・青い炎
       grabT: 0, grabV: 0, spotT: 0, dist: 1e9, counted: false,
       hitFlash: 0, dead: false, ang: 0,
@@ -451,6 +451,7 @@ const Combat = {
     if (e.shock > 0) v += BAL.shockVuln + (run.shockVuln || 0);       // 感電の札（tsl_shock）が重ねた分も乗る
     if (e.chill > 0) v += run.chillVuln + run.st.chillVuln;
     if (e.fvulnT > 0) v += e.fvuln;
+    if (e.nukeT > 0) v += e.nukeV;           // 戦術核の被爆
     if (e.stun > 0 && run.cageVuln) v += run.cageVuln;       // 泡の檻：閉じ込めた敵が受けるダメージ
     return v;
   },
@@ -871,6 +872,7 @@ const Combat = {
       if (opts.grabMul && e.grabT > 0) v *= opts.grabMul;
       if (opts.spotMul && e.spotT > 0) v *= opts.spotMul;
       this.damage(run, e, v, Object.assign({ color: '#ffc38a' }, opts));
+      if (opts.irr > 0 && !e.dead && !this.inShield(run, e)) { e.nukeV = opts.irr; e.nukeT = BAL.cardFx.nukeDur; }   // 戦術核：被爆
     }
     this.fx(run, { type: 'boom', x, y, r: radius, color: opts.color || '#ff9a4a', life: 0.3 });
     this.shake(run, Math.min(10, radius * 0.06));
@@ -1074,8 +1076,11 @@ const Combat = {
       crit: w.s.crit, critMul: w.s.critMul, exec: w.s.execThr,
       grabMul: w.dyn.grabMul || 0,
       spotMul: w.dyn.spotMul || 0,
+      irr: w.dyn.irr || 0,        // 戦術核：被爆（あらゆる武器から受けるダメージの増え）
     });
-    if (w.dyn.cluster) {
+    // クラスター弾：**BAL.cardFx.clusterEvery 発に1発**だけ子を撒く（1基ごとに数える。同時発射の数や札の枚数で子の総数が積にならない）
+    if (w.dyn.cluster && (w.dyn.clusterCnt = (w.dyn.clusterCnt || 0) + 1) >= BAL.cardFx.clusterEvery) {
+      w.dyn.clusterCnt = 0;
       this.cluster(run, { x, y, dmg, splash: R, splashMul: w.s.splashMul || 1, src: w, wid: w.id });
     }
     if (w.flags.acid) {
@@ -1385,6 +1390,7 @@ const Combat = {
       if (e.grabT > 0) e.grabT -= dt;
       if (e.spotT > 0) e.spotT -= dt;
       if (e.fvulnT > 0) e.fvulnT -= dt;
+      if (e.nukeT > 0) e.nukeT -= dt;
       if (e.armorT > 0) e.armorT -= dt;
       if (e.slowT > 0) { e.slowT -= dt; if (e.slowT <= 0) e.slow = 0; }
       if (e.hitFlash > 0) e.hitFlash -= dt;
@@ -1749,7 +1755,7 @@ const Combat = {
       const a = (Math.PI * 2 * i) / n + Math.random();
       run.bullets.push({
         x: b.x, y: b.y, vx: Math.cos(a) * 240, vy: Math.sin(a) * 240,
-        dmg: b.dmg * 0.4, r: 4, pierce: 0, bounce: 0, hit: null,
+        dmg: b.dmg * (b.src.dyn.clusterDmg || BAL.cardFx.clusterDmg), r: 4, pierce: 0, bounce: 0, hit: null,
         splash: b.splash * 0.55, splashMul: b.splashMul,
         homing: 2.4, crit: 0, critMul: 2, exec: 0, shock: 0,
         slow: 0, slowDur: 0, stun: 0, burn: 0, burnDur: 0,

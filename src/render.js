@@ -2364,6 +2364,14 @@ const Render = {
         ctx.strokeStyle = 'rgba(190,160,255,0.85)'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 3, 0, Math.PI * 2); ctx.stroke();
       }
+      // 戦術核の被爆：黄緑の二重の輪（放射のマーク）。残り1秒を切ると点滅する
+      if (e.nukeT > 0 && (e.nukeT > 1 || ((run.time * 8) | 0) % 2 === 0)) {
+        ctx.strokeStyle = 'rgba(214,255,60,0.9)'; ctx.lineWidth = 1.6;
+        ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 6, 0, Math.PI * 2); ctx.stroke();
+        ctx.beginPath();
+        for (let i = 0; i < 3; i++) { const a0 = i * 2.094 + run.time * 1.5; ctx.moveTo(e.x + Math.cos(a0) * (e.r + 1), e.y + Math.sin(a0) * (e.r + 1)); ctx.arc(e.x, e.y, e.r + 1, a0, a0 + 0.7); }
+        ctx.stroke();
+      }
       if (e.grabT > 0) {
         ctx.strokeStyle = 'rgba(200,90,176,0.9)'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 4, 0, Math.PI * 2); ctx.stroke();
