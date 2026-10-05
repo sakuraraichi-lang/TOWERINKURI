@@ -337,15 +337,14 @@ const CARDS = {
     name: '感電泡', desc: '【泡＋テスラ】泡に閉じ込めた敵が感電し、雷の連鎖が必ずそこを通る',
     apply(run) { const b = run.wp('bubble'); if (b) { b.flags.staticFoam = true; b.s.shockDur = Math.max(b.s.shockDur, Game.rka(3, 'shock')); } } }),
   syn_hangman: C({ id: 'syn_hangman', kind: 'synergy', requires: ['tentacle', 'missile'], rarity: 'epic', maxStack: 2, rankAxis: 'mul',
-    name: '吊るし上げ', desc: '【触手＋ミサイル】掴まれている敵への着弾ダメージ ×2.2（重ねると +1.2ずつ加算）',
-    // **flags.hang は消した。**どこからも読まれていなかった（2026-09-21 に src 全体を検索）。
-    //   「足を止める」は Combat の掴み側が既にやっている（grabT のあいだ後退させる）ので、
-    //   この旗は書いただけで何もしていない残骸だった。効果は grabMul のほうが持っている
-    apply(run) { const m = run.wp('missile'); if (m) m.dyn.grabMul = (m.dyn.grabMul || 1) + Game.rka(1.2, 'mul'); } }),
+    name: '吊るし上げ', desc: '【触手＋ミサイル】触手が当てた敵に3秒間「印」が付き、印のある敵へのミサイルの着弾ダメージ ×2.2（重ねると +1.2ずつ加算）',
+    // 作り直し（2026-10-05）：以前は「掴まれている敵」だけに効いた（触手の6種のうち引き寄せだけ）。いまは触手の攻撃のどれが当たっても印が付く（Combat.damage）。
+    //   倍率は dyn.tntMul（足し算）。flags.hang は消してある（どこからも読まれていなかった）
+    apply(run) { run.tntMark = true; const m = run.wp('missile'); if (m) m.dyn.tntMul = (m.dyn.tntMul || 1) + Game.rka(1.2, 'mul'); } }),
 
   syn_fixfire: C({ id: 'syn_fixfire', kind: 'synergy', requires: ['tentacle', 'mortar'], rarity: 'rare', maxStack: 3, rankAxis: 'mul',
-    name: '照準固定', desc: '【触手＋迫撃砲】掴まれて足が止まった敵への着弾ダメージ ×1.5',
-    apply(run) { const m = run.wp('mortar'); if (m) m.dyn.grabMul = (m.dyn.grabMul || 1) * Game.rk(1.5, 'mul'); } }),
+    name: '照準固定', desc: '【触手＋迫撃砲】触手が当てた敵に3秒間「印」が付き、印のある敵への迫撃砲の着弾ダメージ ×1.5（重ねると +0.5ずつ加算）',
+    apply(run) { run.tntMark = true; const m = run.wp('mortar'); if (m) m.dyn.tntMul = (m.dyn.tntMul || 1) + (Game.rk(1.5, 'mul') - 1); } }),
 
   // ============ 上位札（前提のある札・2026-09-30 段3・設計書 DESIGN-STAGE3 §7） ============
   //   > ユーザー「特定のカードを取るとピックに出現するような、前提スキルが必要となるスキルカードも実装していいです、
@@ -398,8 +397,8 @@ const CARDS = {
     name: '凍て弾幕', desc: '【ガトリング＋凍結装置】凍っている敵に当たったガトリングの弾は必ず会心になる',
     apply(run) { const g = run.wp('gatling'); if (g) g.flags.frostCrit = true; } }),
   syn_searbind: C({ id: 'syn_searbind', kind: 'synergy', requires: ['flame', 'tentacle'], rarity: 'rare', maxStack: 3, rankAxis: 'mul',
-    name: '焼き締め', desc: '【火炎放射器＋触手】掴まれている敵の炎上ダメージ ×2',
-    apply(run) { run.grabBurn = Math.max(run.grabBurn || 1, Game.rk(2, 'mul')); } }),
+    name: '焼き印', desc: '【火炎放射器＋触手】触手が当てた敵に3秒間「印」が付き、印のある敵への火炎の直撃と炎上ダメージ ×2（重ねると +1ずつ加算）',
+    apply(run) { run.tntMark = true; const d = Game.rk(2, 'mul') - 1; run.tntBurn = (run.tntBurn || 1) + d; const f = run.wp('flame'); if (f) f.dyn.tntMul = (f.dyn.tntMul || 1) + d; } }),
   syn_toxfoam: C({ id: 'syn_toxfoam', kind: 'synergy', requires: ['gas', 'bubble'], rarity: 'epic', maxStack: 2, rankAxis: 'dur',
     name: '毒泡', desc: '【毒ガス＋泡】泡が割れた所に毒の雲が残る',
     apply(run) { const b = run.wp('bubble'); if (b) { b.flags.toxFoam = true; b.dyn.toxDur = Math.max(b.dyn.toxDur || 0, Game.rka(3, 'dur')); } } }),

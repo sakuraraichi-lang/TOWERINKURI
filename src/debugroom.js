@@ -211,6 +211,9 @@ const DebugRoom = {
         ['貫通弾頭（ミサイル・装甲の的）', () => me.cardDemo('msl_multi')],
         ['クラスター弾（ミサイル・3発に1発子を撒く）', () => me.cardDemo('msl_cluster')],
         ['戦術核（ミサイル・被爆の輪）', () => me.cardDemo('msl_nuke')],
+        ['吊るし上げ（触手＋ミサイル・印の十字）', () => me.cardDemo('syn_hangman')],
+        ['照準固定（触手＋迫撃砲・印の十字）', () => me.cardDemo('syn_fixfire')],
+        ['焼き印（触手＋火炎・印の十字）', () => me.cardDemo('syn_searbind')],
       ]],
       ['通知（トースト）', [
         ['新しい武器', () => UI.toastMsg('新しい武器 ガトリング', '#ffb43c', 'weapon')],
@@ -540,7 +543,7 @@ const DebugRoom = {
   // 札の新しい挙動の見本（2026-09-30 段3b）。裏の準備フェーズの盤に、**その札を掛けた武器を1基**と、**動かない的**を並べ、本物の戦闘（Combat.update）を数秒だけ進める。
   //   的は、武器の向きにまっすぐ通る道の上（見える範囲の上の半分から探す。下半分は確認室のパネルが覆う）。装甲・耐火の札は、それを試せる敵（ファイアウォール・ボット群）にする。
   //   **セーブにも配置にも触らない**：武器は run.units に一時的に足すだけ（placeUnit は通らない）。run 側の値（chillVuln・cageVuln・apen など）・与ダメージの記録は、終わりに元へ戻す。
-  _CDKEEP: ['chillVuln', 'cageVuln', 'apen', 'backdraft', 'grabBurn', 'coinMul', 'livesMax', 'lives', 'livesCard', 'resonanceStep', 'resonanceMax', 'dealt', 'kills', 'coinsEarned'],
+  _CDKEEP: ['chillVuln', 'cageVuln', 'apen', 'backdraft', 'tntBurn', 'tntMark', 'coinMul', 'livesMax', 'lives', 'livesCard', 'resonanceStep', 'resonanceMax', 'dealt', 'kills', 'coinsEarned'],
   _cdEnd() {
     clearInterval(this._cd);
     const d = this._cdState; this._cdState = null;
@@ -559,7 +562,9 @@ const DebugRoom = {
     if (!run || !run.stage || !c) return;
     this._cdEnd();
     const st = run.stage, hx = (st.vec && st.vec.hexes) || [];
-    const wid = c.weapon || 'gatling';
+    // 連携の札（requires）は、相手の武器と触手を並べて見せる（触手が印を付け、相手の武器がその敵を打つ）
+    const syn = c.kind === 'synergy' && c.requires ? c.requires : null;
+    const wid = syn ? syn.find(x => x !== 'tentacle') : (c.weapon || 'gatling');
     const def = WEAPONS[wid];
     // 置き場所と向き：上の半分の通路の六角のうち、6方向のどれかへ 200px まっすぐ歩ける所（長いほど良い・真ん中に近いほど良い）
     let best = null;
@@ -582,6 +587,17 @@ const DebugRoom = {
     // 札を掛ける（最大の重ねまで・凸は 0）。ラン側の値は applyCardRun が書く
     const n = c.maxStack || 1;
     const orig = run.units; run.units = [u];
+    if (syn) {   // 触手を、的が並ぶ線の上の近い六角へ同じ向きで置く（射界は固定なので、線から外れると的を狙えない）
+      let h2 = null, bd = 1e9;
+      for (const h of hx) {
+        const dx = h.x - best.h.x, dy = h.y - best.h.y, d = Math.hypot(dx, dy);
+        if (d < 20 || d > 150) continue;
+        const perp = Math.abs(-Math.sin(best.a) * dx + Math.cos(best.a) * dy);
+        const sc = perp * 3 + d * 0.2;
+        if (sc < bd) { bd = sc; h2 = h; }
+      }
+      if (h2) run.units.push(Game.newUnit('tentacle', h2.c, h2.r, best.a));
+    }
     for (let i = 0; i < n; i++) { Game.applyCardRun(cardId, run); Game.applyCardUnit(cardId, run, u); }
     // 的
     const armor = ['gat_barrels', 'gas_toxic', 'mtr_wide', 'gen_ap', 'msl_multi'].includes(cardId), fire = cardId === 'flm_inferno';

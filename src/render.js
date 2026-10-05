@@ -2372,6 +2372,14 @@ const Render = {
         for (let i = 0; i < 3; i++) { const a0 = i * 2.094 + run.time * 1.5; ctx.moveTo(e.x + Math.cos(a0) * (e.r + 1), e.y + Math.sin(a0) * (e.r + 1)); ctx.arc(e.x, e.y, e.r + 1, a0, a0 + 0.7); }
         ctx.stroke();
       }
+      // 触手の印（吊るし上げ・照準固定・焼き印）：ピンクの照準の十字。残り0.7秒を切ると点滅する
+      if (e.tntT > 0 && (e.tntT > 0.7 || ((run.time * 8) | 0) % 2 === 0)) {
+        const rr = e.r + 7;
+        ctx.strokeStyle = 'rgba(255,138,224,0.95)'; ctx.lineWidth = 1.6;
+        ctx.beginPath();
+        for (let i = 0; i < 4; i++) { const a0 = i * 1.5708 + 0.785; ctx.moveTo(e.x + Math.cos(a0) * (rr - 4), e.y + Math.sin(a0) * (rr - 4)); ctx.lineTo(e.x + Math.cos(a0) * (rr + 3), e.y + Math.sin(a0) * (rr + 3)); }
+        ctx.stroke();
+      }
       if (e.grabT > 0) {
         ctx.strokeStyle = 'rgba(200,90,176,0.9)'; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 4, 0, Math.PI * 2); ctx.stroke();

@@ -381,7 +381,7 @@ const Combat = {
       shock: 0, slow: 0, slowT: 0, stun: 0, chill: 0,
       burn: 0, burnT: 0, poison: 0, poisonT: 0, fvuln: 0, fvulnT: 0, nukeV: 0, nukeT: 0,
       armorDown: 0, armorT: 0, sticky: 0, stickyCd: 0, burnBlue: false,   // 装甲を削られている（曳光弾・腐蝕の雲）・燃え移り（粘着燃料）・青い炎
-      grabT: 0, grabV: 0, spotT: 0, dist: 1e9, counted: false,
+      grabT: 0, grabV: 0, spotT: 0, tntT: 0, dist: 1e9, counted: false,
       hitFlash: 0, dead: false, ang: 0,
     };
   },
@@ -476,6 +476,12 @@ const Combat = {
       return 0;
     }
     opts = opts || {};
+    // 触手の印（連携3枚：syn_hangman・syn_fixfire・syn_searbind）：触手が当てた敵に BAL.cardFx.tntMarkDur 秒の印。
+    //   6種の攻撃のどれでも付く（掴み・突き・薙ぎ払い・一閃・墨の爆風・壁と墨の場の持続ダメージ）。印のある敵を相手の武器が強く打てる
+    if (run.tntMark && (opts.by || this._by) === 'tentacle') {
+      if (!(e.tntT > 0)) run.tntMarkN = (run.tntMarkN || 0) + 1;
+      e.tntT = BAL.cardFx.tntMarkDur;
+    }
     const src = opts.src || this._src;       // いま撃っている武器の1基（装甲貫通・青い炎が読む）
     let dmg = amount * this.vuln(run, e);
     // **耐性**（2026-09-30 段3）。効きにくいだけで、無効にはしない（BAL.resMul）
@@ -755,7 +761,9 @@ const Combat = {
       const o = Object.assign({}, opts);
       if (w.flags.frostCrit && e.chill > 0) o.forceCrit = true;
       // 狙撃指示（syn_spotblade）：スナイパーが撃ち抜いた敵（印）への斬撃に倍率
-      const dd = (w.dyn.spotMul && e.spotT > 0) ? dmg * w.dyn.spotMul : dmg;
+      let dd = (w.dyn.spotMul && e.spotT > 0) ? dmg * w.dyn.spotMul : dmg;
+      // 焼き印（syn_searbind）：触手の印のある敵への直撃にも倍率（炎上ダメージのほうは敵の更新で tntBurn を掛ける）
+      if (w.dyn.tntMul && e.tntT > 0) { dd *= w.dyn.tntMul; run.tntBoostN = (run.tntBoostN || 0) + 1; }
       this.damage(run, e, dd, o);
       hits++;
     }
@@ -869,7 +877,7 @@ const Combat = {
       let v = dmg * fall;
       // 特定の状態の敵だけ増える分（シナジー）。**狙いは変えない。**
       // 「その敵を狙う」のではなく「その敵に落ちたときに効く」
-      if (opts.grabMul && e.grabT > 0) v *= opts.grabMul;
+      if (opts.tntMul && e.tntT > 0) { v *= opts.tntMul; run.tntBoostN = (run.tntBoostN || 0) + 1; }
       if (opts.spotMul && e.spotT > 0) v *= opts.spotMul;
       this.damage(run, e, v, Object.assign({ color: '#ffc38a' }, opts));
       if (opts.irr > 0 && !e.dead && !this.inShield(run, e)) { e.nukeV = opts.irr; e.nukeT = BAL.cardFx.nukeDur; }   // 戦術核：被爆
@@ -1074,7 +1082,7 @@ const Combat = {
       slow: w.s.slow, slowDur: w.s.slowDur,
       burn: w.s.burn ? dmg * w.s.burn : 0, burnDur: w.s.burnDur,
       crit: w.s.crit, critMul: w.s.critMul, exec: w.s.execThr,
-      grabMul: w.dyn.grabMul || 0,
+      tntMul: w.dyn.tntMul || 0,   // 触手の印のある敵への倍率（吊るし上げ・照準固定）
       spotMul: w.dyn.spotMul || 0,
       irr: w.dyn.irr || 0,        // 戦術核：被爆（あらゆる武器から受けるダメージの増え）
     });
@@ -1389,6 +1397,7 @@ const Combat = {
       if (e.stun > 0) e.stun -= dt;
       if (e.grabT > 0) e.grabT -= dt;
       if (e.spotT > 0) e.spotT -= dt;
+      if (e.tntT > 0) e.tntT -= dt;
       if (e.fvulnT > 0) e.fvulnT -= dt;
       if (e.nukeT > 0) e.nukeT -= dt;
       if (e.armorT > 0) e.armorT -= dt;
@@ -1397,8 +1406,9 @@ const Combat = {
       if (e.shieldT > 0) e.shieldT -= dt;
       if (e.burnT > 0) {
         e.burnT -= dt;
-        // 焼き締め（syn_searbind）：掴まれている敵は炎上ダメージに倍率
-        const gb = (run.grabBurn && e.grabT > 0) ? run.grabBurn : 1;
+        // 焼き印（syn_searbind）：触手の印のある敵は炎上ダメージに倍率
+        const gb = (run.tntBurn && e.tntT > 0) ? run.tntBurn : 1;
+        if (gb > 1) run.tntBoostN = (run.tntBoostN || 0) + 1;
         this.damage(run, e, e.burn * dt * gb, { color: '#ff8a3a', dot: true, by: e.burnBy, burnTick: true, blue: e.burnBlue });
         if (e.dead) continue;
         // 粘着燃料：燃えている敵が、隣の敵へ燃え移る（移った先は世代を1つ減らして、無限に広がらない）
