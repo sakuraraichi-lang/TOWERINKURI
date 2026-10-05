@@ -439,13 +439,13 @@ const Render = {
     if (!run) { ctx.setTransform(1, 0, 0, 1, 0, 0); return; }
 
     this.arcs(ctx, run);
-    this.adjLines(ctx, run);
     this.fields(ctx, run);
     this.aims(ctx, run);
     this.core(ctx, run);
     this.enemies(ctx, run);
     this.bullets(ctx, run);
     this.units(ctx, run);
+    this.adjLines(ctx, run);
     this.effects(ctx, run);
     this.numbers(ctx, run);
     this.dirRingDraw(ctx);
@@ -1653,18 +1653,27 @@ const Render = {
     for (const u of us) at[u.c + ',' + u.r] = u;
     const s = this.scale || 1;
     ctx.lineCap = 'round';
+    // 武器の絵の上に描く（下に描くと、隣どうしの中心を結ぶ線は絵にほとんど隠れて見えなかった・0929zy）。
+    //   線は2基の境目のまわりだけ（中心から中心までは引かない）。暗い縁取りの上に明るい線で、盤の色に負けないように
     for (let i = 0; i < us.length; i++) {
       const u = us[i];
       for (const q of MapGen.hexNbr(u.c, u.r)) {
         const o = at[q[0] + ',' + q[1]];
         if (!o || o.id === u.id || us.indexOf(o) < i) continue;     // 1組を1回だけ
         const hot = sel === u || sel === o;
-        ctx.globalAlpha = hot ? 0.95 : 0.6;
+        const x1 = u.x + (o.x - u.x) * 0.3, y1 = u.y + (o.y - u.y) * 0.3;
+        const x2 = u.x + (o.x - u.x) * 0.7, y2 = u.y + (o.y - u.y) * 0.7;
+        ctx.globalAlpha = hot ? 1 : 0.85;
+        ctx.strokeStyle = 'rgba(0,0,0,.75)';
+        ctx.lineWidth = (hot ? 7 : 5.5) / s;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
         ctx.strokeStyle = hot ? '#ffe38a' : '#ffc24a';
-        ctx.lineWidth = (hot ? 3.2 : 2) / s;
-        ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(o.x, o.y); ctx.stroke();
+        ctx.lineWidth = (hot ? 3.6 : 2.6) / s;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
       }
     }
+    // 倍率の数字は盤に書かない（全部の基に出すとスマホ幅で札が武器の絵を覆い、選ぶと向きの輪の下に隠れた・0929zy の確認）。
+    //   数字は武器の詳細の内訳と、置く前の影の「+30%」で見せる
     ctx.globalAlpha = 1;
   },
 
