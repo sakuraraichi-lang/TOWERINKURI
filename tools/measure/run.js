@@ -20,8 +20,7 @@ for (let i = 0; i < rest.length; i += 2) {
   if (k === 'place') { place = v; continue; }   // --place adj：隣り合う異種を狙う置き方（place-adj.js）を先頭に付ける
   src = src.split('__' + k + '__').join(v);
 }
-if (place === 'adj') src = fs.readFileSync(path.join(__dirname, 'place-adj.js'), 'utf8') + '
-' + src;
+if (place === 'adj') src = fs.readFileSync(path.join(__dirname, 'place-adj.js'), 'utf8') + String.fromCharCode(10) + src;
 else if (place && place !== 'range') { console.error('--place は adj か range'); process.exit(2); }
 const left = src.match(/__[A-Z]+__/);
 if (left) { console.error('置き換えていない値があります: ' + left[0]); process.exit(2); }
