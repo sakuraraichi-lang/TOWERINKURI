@@ -820,8 +820,35 @@ function autoPlace(run) {
   return autoPlaceRange(run);
 }
 
+// **指定攻撃（ミサイル・迫撃砲・泡）の着弾円を、通り道がいちばん多く入る点へ置く**（上手な置き方・2026-10-05）。
+//   既定（AIM_SMART=false）は置いた向きの遠い通路のまま＝これまでの測定と同じ。コストあたりの価値の精査（tools/measure/costcap.js）は true で測る
+let AIM_SMART = false;
+function smartAim(u, st, used) {
+  if (!Game.usesAimPoint(u.def)) return;
+  if (!st._apath) {
+    const a = []; let maxD = 1;
+    for (let r = 0; r < st.rows; r++) for (let c = 0; c < st.cols; c++) { if (!st.walkable(c, r)) continue; const d = st.dist[st.idx(c, r)]; if (d >= 1e9) continue; if (d > maxD) maxD = d; const p = st.center(c, r); a.push({ x: p.x, y: p.y, d, i: st.idx(c, r) }); }
+    for (const t of a) t.w = 1 + (1 - t.d / maxD);
+    st._apath = a;
+  }
+  const path = st._apath;
+  const eff = Game.spotR(u) + (u.s.splash || 0) * 0.6;
+  let best = null, bs = -1;
+  for (const cand of path) {
+    const d0 = Math.hypot(cand.x - u.x, cand.y - u.y);
+    if (d0 > u.s.range || d0 < 30) continue;
+    let s = 0;
+    for (const t of path) if (Math.hypot(t.x - cand.x, t.y - cand.y) <= eff) s += t.w * Math.pow(0.5, used[t.i] || 0);
+    if (s > bs) { bs = s; best = cand; }
+  }
+  if (!best) return;
+  Game.setAimPoint(u, best.x, best.y);
+  for (const t of path) if (Math.hypot(t.x - best.x, t.y - best.y) <= eff) used[t.i] = (used[t.i] || 0) + 1;
+}
+
 function autoPlaceRange(run) {
   const st = run.stage;
+  const aimUsed = {};
   const mods = Skill.mods(Game.meta, Game.perm);
 
   // この時点で乗っているのはスキルだけ（カードは戦闘中に引く）
@@ -861,6 +888,7 @@ function autoPlaceRange(run) {
     if (!u) continue;
     taken[u.c + ',' + u.r] = 1;
     Game.aimUnit(u, pick.a);
+    if (AIM_SMART) smartAim(u, st, aimUsed);
   }
 }
 

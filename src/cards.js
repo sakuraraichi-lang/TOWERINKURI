@@ -76,8 +76,9 @@ const CARDS = {
       w.s.pierce += BAL.cardFx.sweepPierce; w.s.count += BAL.cardFx.sweepCount; w.s.dmg *= BAL.cardFx.sweepDmg;
     } } }),
   gat_wall: C({ id: 'gat_wall', kind: 'mod', weapon: 'gatling', rarity: 'legendary', maxStack: 1, rankAxis: 'count',
-    name: '弾幕結界', desc: '同時発射 +4 / レート ×1.3 / 射程 ×0.85。視界が弾で埋まる',
-    apply(run) { const w = run.wp('gatling'); if (w) { w.s.count += Game.rki(4, 'count'); w.s.rate *= 1.3; w.s.range *= 0.85; w.s.spread = Math.max(w.s.spread, 0.1); } } }),
+    //   2026-10-05：同時発射 +4・レート ×1.3 は、ガトリングを弱めたあとも漏れ 314 → 6.5（×48）と他の札の10倍以上だったので、+2・×1.1 に（第25章・D27・単独・6本で 314 → 下の実測）
+    name: '弾幕結界', desc: '同時発射 +2 / レート ×1.1 / 射程 ×0.85。視界が弾で埋まる',
+    apply(run) { const w = run.wp('gatling'); if (w) { w.s.count += Game.rki(2, 'count'); w.s.rate *= 1.1; w.s.range *= 0.85; w.s.spread = Math.max(w.s.spread, 0.1); } } }),
 
   // ============ スナイパー（レーザーライフル・作り直し対象外） ============
   snp_scope: C({ id: 'snp_scope', kind: 'mod', weapon: 'sniper', rarity: 'common', maxStack: 5, rankAxis: 'dmg',

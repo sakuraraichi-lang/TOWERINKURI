@@ -1,11 +1,14 @@
 // コストの上限を決めて、編成ごとに漏れを測る（コストあたりの価値の精査・設計書 DESIGN-STAGE3 §15）
 //   置き換え：__CH__（章の番号）・__D__（深さ。標準は 章＋2）・__CAP__（コストの上限）・__JOBS__（編成の配列。例 [['gatling'],['katana','flame']]）・
-//             __SEEDS__（シードの配列。例 [1,2,3,4,5,6]）・__PRE__（取った札 { 札id: 枚数 }。無ければ {}）
+//             __SEEDS__（シードの配列。例 [1,2,3,4,5,6]）・__PRE__（取った札 { 札id: 枚数 }。無ければ {}）・__PATCH__（本体の数字を測定のあいだだけ差し替える文。無ければ空）
 //   ライフ 1e6（5ウェーブ最後まで回す）・測定ごとに Game.newSave()・置き方は測定器の 'range'
 //   返すもの：編成ごとの 漏れの中央値・漏れ全部・ボスまで倒しきった本数・置いた基数の中央値
 REAL_MS = 600000;
 const CH = '__CH__', D = __D__, CAP = __CAP__, JOBS = __JOBS__, SEEDS = __SEEDS__, PRE = __PRE__;
 Game.costCap = function () { return CAP; };
+AIM_SMART = true;      // 指定攻撃の円は通り道の多い点へ（上手な置き方）
+const PATCH = function () { __PATCH__ };   // 試すときだけ使う差し替え（例：WEAPONS.gatling.base.pierce = 1;）。無ければ空
+PATCH();
 const med = (a) => { const s = a.slice().sort((x, y) => x - y), n = s.length; return n % 2 ? s[(n - 1) / 2] : (s[n / 2 - 1] + s[n / 2]) / 2; };
 const out = [];
 for (const ws of JOBS) {
