@@ -1,0 +1,23 @@
+{
+ "wpn": "cryo",
+ "mode": "gen_aim",
+ "pre": {
+  "gen_aim": 5
+ },
+ "median": 1142,
+ "leaked": [
+  1182,
+  1166,
+  1171,
+  1139,
+  1131,
+  1113,
+  1151,
+  1089,
+  1145,
+  1119,
+  1132,
+  1161
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

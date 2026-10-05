@@ -1,0 +1,23 @@
+{
+ "wpn": "shuriken",
+ "mode": "shu_multi",
+ "pre": {
+  "shu_multi": 5
+ },
+ "median": 242.5,
+ "leaked": [
+  245,
+  241,
+  234,
+  242,
+  243,
+  239,
+  257,
+  234,
+  246,
+  245,
+  235,
+  253
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

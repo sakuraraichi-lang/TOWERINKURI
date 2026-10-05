@@ -1,0 +1,23 @@
+{
+ "wpn": "tentacle",
+ "mode": "tnt_long",
+ "pre": {
+  "tnt_long": 3
+ },
+ "median": 143,
+ "leaked": [
+  154,
+  133,
+  156,
+  130,
+  134,
+  152,
+  129,
+  153,
+  126,
+  134,
+  177,
+  162
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

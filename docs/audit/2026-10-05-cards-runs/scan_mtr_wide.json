@@ -1,0 +1,23 @@
+{
+ "wpn": "mortar",
+ "mode": "mtr_wide",
+ "pre": {
+  "mtr_wide": 1
+ },
+ "median": 1741.5,
+ "leaked": [
+  1684,
+  1707,
+  1764,
+  1691,
+  1715,
+  1776,
+  1725,
+  1758,
+  1773,
+  1692,
+  1786,
+  1769
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

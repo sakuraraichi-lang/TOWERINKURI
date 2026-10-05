@@ -1,0 +1,23 @@
+{
+ "wpn": "shuriken",
+ "mode": "shu_poison",
+ "pre": {
+  "shu_poison": 2
+ },
+ "median": 977.5,
+ "leaked": [
+  957,
+  935,
+  991,
+  1019,
+  986,
+  995,
+  969,
+  991,
+  922,
+  1007,
+  919,
+  962
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

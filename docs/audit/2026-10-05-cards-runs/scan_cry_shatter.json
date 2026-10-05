@@ -1,0 +1,23 @@
+{
+ "wpn": "cryo",
+ "mode": "cry_shatter",
+ "pre": {
+  "cry_shatter": 2
+ },
+ "median": 1863,
+ "leaked": [
+  1813,
+  1914,
+  1852,
+  1859,
+  1862,
+  1864,
+  1920,
+  1869,
+  1844,
+  1886,
+  1899,
+  1816
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

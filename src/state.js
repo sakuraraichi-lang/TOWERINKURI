@@ -148,6 +148,7 @@ const Game = {
         for (const id of Object.keys(old.perm.collection || {})) {
           if (CARDS[id]) this.perm.collection[id] = old.perm.collection[id];
         }
+        this.mergeCards();
         // 今のパック定義にあるものだけ引き継ぐ（旧形式の rare / epic を持ち込まない）
         for (const pk of PACK_IDS) {
           const v = (old.perm.packs || {})[pk];
@@ -164,6 +165,7 @@ const Game = {
     const preHex = !(d.perm && d.perm.hexPlace);
     Object.assign(this.perm, d.perm || {});
     Object.assign(this.meta, d.meta || {});
+    this.mergeCards();
     for (const id of Object.keys(this.perm.collection)) if (!CARDS[id]) delete this.perm.collection[id];
     if (!this.perm.stages) this.perm.stages = {};
     if (!this.perm.placements) this.perm.placements = {};
@@ -199,6 +201,22 @@ const Game = {
     if (!STAGE_BY_ID[this.perm.currentStage]) this.perm.currentStage = 'ch1';
     Relic.invalidate();
     return true;
+  },
+
+  // **同じ軸の2枚を1枚にまとめた札の、持ち物の移し替え**（2026-09-30 段3b・設計書 DESIGN-STAGE3 §6-2・§6-3）。
+  //   消えた札の枚数を、残った札の枚数に足す（凸は枚数から決まるので、そのまま伸びる）。一度だけ（perm.cardMerge の旗）。
+  //   新しいセーブには最初から旗を立てる必要は無い（持っていない札は足す枚数が0）
+  CARD_MERGES: [['gen_plate', 'gen_armor'], ['gen_loot', 'gen_gold'], ['gen_cool', 'gen_boost'], ['cry_rapid', 'cry_wide']],
+  mergeCards() {
+    const col = this.perm.collection;
+    if (!col) return;
+    if (this.perm.cardMerge === 1) return;
+    for (const [from, to] of this.CARD_MERGES) {
+      if (col[from] > 0) col[to] = (col[to] || 0) + col[from];
+      delete col[from];
+    }
+    // 持っていた編成・配置に消えた札の id は入っていない（カードは perm.collection の枚数だけ）ので、ほかに直すものは無い
+    this.perm.cardMerge = 1;
   },
 
   hardReset() {
@@ -491,16 +509,26 @@ const Game = {
   //   **整数で数えるもの（銃身の数・貫通・連鎖・跳弾・ライフ）は rki。**
   //   12%ずつ増やすと 4→4.48 のような端数になり、数える側が切り捨てて
   //   「ランクを上げたのに何も起きない」になる。丸めて、数ランクごとに1本増える形にする
+  //
+  //   **【2026-09-30 段3b・ユーザー決定】凸は、その札の「主な1軸」だけに効く。**（上限は置かない・凸は上限なしのまま）
+  //   ユーザー「一旦絞って良いです、人の目で内容を監査した時に要所の修正をお願いするかもしれません」
+  //   前は 1枚の apply の中の全部の値（ダメージ・レート・本数・貫通…）に同時に凸が掛かって積になり、
+  //   武器どうしで 1.4e7 対 34 のような開きが出た（docs/audit/2026-09-29-structure.md §3-1）。
+  //   いまは札に `rankAxis`（軸の名前）を書き、apply の中の rk/rka/rki も軸の名前を第2引数で受ける。
+  //   **名前が札の rankAxis と同じ呼び出しにだけ凸が掛かる**。ほかの軸は凸が上がっても1枚ぶんの値のまま。
+  //   軸の名前が付いていない呼び出しには凸が掛からない（札を足すときの書き忘れは、cards.js の末尾の自己点検が拾う）
   _rkMul: 1,
-  rk(v) { return v < 1 ? v : 1 + (v - 1) * this._rkMul; },
-  rka(v) { return v < 0 ? v : v * this._rkMul; },
+  _rkAxis: null,
+  _rm(ax) { return (ax != null && ax === this._rkAxis) ? this._rkMul : 1; },
+  rk(v, ax) { return v < 1 ? v : 1 + (v - 1) * this._rm(ax); },
+  rka(v, ax) { return v < 0 ? v : v * this._rm(ax); },
   //   **端数は次の1枚に繰り越す。** 1枚ずつ丸めると、
   //   「+1 を5枚重ねてランク2」でも合計5本のままになり、ランクが死ぬ。
   //   合計で丸めれば5枚目に +2 が来て、ちゃんと6本になる
-  rki(v) {
+  rki(v, ax) {
     const acc = this._rkAcc || (this._rkAcc = {});
     const k = this._rkKey + '|' + v;
-    const prev = acc[k] || 0, now = prev + this.rka(v);
+    const prev = acc[k] || 0, now = prev + this.rka(v, ax);
     acc[k] = now;
     return Math.round(now) - Math.round(prev);
   },
@@ -556,9 +584,10 @@ const Game = {
   // 凸（ランク）を通してカードの中身を呼ぶ。rki の端数の繰り越しは acc（ランか1基ごと）に持つ
   withRank(id, acc, fn) {
     this._rkMul = this.rankMul(id);
+    this._rkAxis = (CARDS[id] && CARDS[id].rankAxis) || null;
     this._rkAcc = acc;
     this._rkKey = id;
-    try { fn(); } finally { this._rkMul = 1; }
+    try { fn(); } finally { this._rkMul = 1; this._rkAxis = null; }
   },
 
   // ラン単位の値だけを掛ける（ユニットは見せない）
@@ -855,22 +884,9 @@ const Game = {
   //   （docs/audit/2026-09-29-measure.md §3）。`Game.setArc`・`Game.arcRange` は撤去した。
   //   プレイヤーが決めるのは、置く場所・向き（六角の花）・指定攻撃の円の位置だけ
 
-  // 射界カード（多銃身・暴発装薬・薙ぎ払い）が読む「広さ」（0〜1）。
-  //   **段3でカードを作り直すまでの橋。**幅は固定になったので、固定の幅が旧可動幅（`def.arcCard`）の
-  //   どこにあるかを返す（ガトリング 0.34 → 0.34、手裏剣 0.38 → 0.42）。arcCard が無い武器は 0
-  arcT(u) {
-    const r = u.def && u.def.arcCard;
-    if (!r) return 0;
-    return Util.clamp((u.arc - r[0]) / Math.max(0.001, r[1] - r[0]), 0, 1);
-  },
-
-  // 集弾率。**幅に比例する罰は外した**（2026-09-30 段1a。固定の幅では罰の意味が無い）。
-  //   常に 1。例外は暴発装薬（looseGroup）だけで、これは「集弾が最低固定」の効果を持つカードの本体
-  groupingOf(u) {
-    if (this.usesAimPoint(u.def)) return 1;
-    if (u.flags && u.flags.looseGroup) return 1 - BAL.spreadPenalty;
-    return 1;
-  },
+  // 集弾率。**幅に比例する罰は外した**（2026-09-30 段1a。固定の幅では罰の意味が無い）。常に 1
+  //   （射界の広さを読む札＝多銃身・暴発装薬・薙ぎ払いと、その橋の arcT・looseGroup は 2026-09-30 段3b で作り直して外した）
+  groupingOf(u) { return 1; },
 
   // 指定攻撃の着弾円の半径。**武器ごとの固定値**（`def.spot`・px）。プレイヤーは変えられない。
   //

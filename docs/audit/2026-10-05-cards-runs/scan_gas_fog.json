@@ -1,0 +1,23 @@
+{
+ "wpn": "gas",
+ "mode": "gas_fog",
+ "pre": {
+  "gas_fog": 1
+ },
+ "median": 1457,
+ "leaked": [
+  1439,
+  1459,
+  1504,
+  1349,
+  1432,
+  1475,
+  1525,
+  1453,
+  1462,
+  1399,
+  1489,
+  1455
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

@@ -1,0 +1,27 @@
+{
+ "wpn": "tesla",
+ "mode": "all",
+ "pre": {
+  "tsl_coil": 5,
+  "tsl_chain": 5,
+  "tsl_shock": 3,
+  "tsl_over": 2,
+  "tsl_god": 1
+ },
+ "median": 268,
+ "leaked": [
+  286,
+  270,
+  260,
+  255,
+  301,
+  243,
+  309,
+  301,
+  279,
+  266,
+  264,
+  216
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

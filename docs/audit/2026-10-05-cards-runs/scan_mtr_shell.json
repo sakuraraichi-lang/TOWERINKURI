@@ -1,0 +1,23 @@
+{
+ "wpn": "mortar",
+ "mode": "mtr_shell",
+ "pre": {
+  "mtr_shell": 5
+ },
+ "median": 330.5,
+ "leaked": [
+  320,
+  367,
+  368,
+  314,
+  291,
+  320,
+  322,
+  357,
+  367,
+  340,
+  304,
+  339
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

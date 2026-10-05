@@ -1,0 +1,21 @@
+{
+ "wpn": "gas",
+ "mode": "none",
+ "pre": {},
+ "median": 907.5,
+ "leaked": [
+  897,
+  911,
+  987,
+  904,
+  884,
+  922,
+  878,
+  896,
+  900,
+  938,
+  931,
+  940
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

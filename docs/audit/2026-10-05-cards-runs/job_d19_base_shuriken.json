@@ -1,0 +1,27 @@
+{
+ "wpn": "shuriken",
+ "mode": "all",
+ "pre": {
+  "shk_sweep": 3,
+  "shu_multi": 5,
+  "shu_bounce": 3,
+  "shu_poison": 2,
+  "shu_sakura": 1
+ },
+ "median": 1516.5,
+ "leaked": [
+  1465,
+  1511,
+  1529,
+  1556,
+  1513,
+  1518,
+  1539,
+  1511,
+  1544,
+  1520,
+  1511,
+  1515
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

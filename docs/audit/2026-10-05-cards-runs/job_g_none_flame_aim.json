@@ -1,0 +1,23 @@
+{
+ "wpn": "flame",
+ "mode": "gen_aim",
+ "pre": {
+  "gen_aim": 5
+ },
+ "median": 2926,
+ "leaked": [
+  2938,
+  2902,
+  2961,
+  2884,
+  2967,
+  2900,
+  2949,
+  2987,
+  2920,
+  2928,
+  2924,
+  2876
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

@@ -1,0 +1,23 @@
+{
+ "wpn": "gatling",
+ "mode": "gen_ap",
+ "pre": {
+  "gen_ap": 2
+ },
+ "median": 2393.5,
+ "leaked": [
+  2363,
+  2392,
+  2398,
+  2390,
+  2385,
+  2394,
+  2437,
+  2391,
+  2400,
+  2399,
+  2393,
+  2424
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

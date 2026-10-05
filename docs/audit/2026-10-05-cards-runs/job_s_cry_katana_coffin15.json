@@ -1,0 +1,23 @@
+{
+ "wpn": "cryo",
+ "mode": "cry_permafrost",
+ "pre": {
+  "cry_permafrost": 1
+ },
+ "median": 1144,
+ "leaked": [
+  1189,
+  1190,
+  1112,
+  1184,
+  1119,
+  1132,
+  1123,
+  1156,
+  1098,
+  1172,
+  1120,
+  1160
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

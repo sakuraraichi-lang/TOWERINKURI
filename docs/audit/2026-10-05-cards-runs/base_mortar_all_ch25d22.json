@@ -1,0 +1,27 @@
+{
+ "wpn": "mortar",
+ "mode": "all",
+ "pre": {
+  "mtr_shell": 5,
+  "mtr_wide": 3,
+  "mtr_carpet": 2,
+  "mtr_rapid": 3,
+  "mtr_barrage": 1
+ },
+ "median": 1,
+ "leaked": [
+  1,
+  2,
+  2,
+  2,
+  3,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1,
+  1
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

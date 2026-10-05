@@ -1,0 +1,23 @@
+{
+ "wpn": "gas",
+ "mode": "gas_nerve",
+ "pre": {
+  "gas_nerve": 1
+ },
+ "median": 328,
+ "leaked": [
+  330,
+  300,
+  361,
+  281,
+  326,
+  302,
+  325,
+  331,
+  367,
+  278,
+  343,
+  352
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

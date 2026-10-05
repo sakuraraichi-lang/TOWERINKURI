@@ -380,6 +380,7 @@ const Combat = {
       pushX: 0, pushY: 0,
       shock: 0, slow: 0, slowT: 0, stun: 0, chill: 0,
       burn: 0, burnT: 0, poison: 0, poisonT: 0, fvuln: 0, fvulnT: 0,
+      armorDown: 0, armorT: 0, sticky: 0, stickyCd: 0, burnBlue: false,   // 装甲を削られている（曳光弾・腐蝕の雲）・燃え移り（粘着燃料）・青い炎
       grabT: 0, grabV: 0, spotT: 0, dist: 1e9, counted: false,
       hitFlash: 0, dead: false, ang: 0,
     };
@@ -447,9 +448,10 @@ const Combat = {
   // ================= ダメージ =================
   vuln(run, e) {
     let v = 1;
-    if (e.shock > 0) v += BAL.shockVuln;
+    if (e.shock > 0) v += BAL.shockVuln + (run.shockVuln || 0);       // 感電の札（tsl_shock）が重ねた分も乗る
     if (e.chill > 0) v += run.chillVuln + run.st.chillVuln;
     if (e.fvulnT > 0) v += e.fvuln;
+    if (e.stun > 0 && run.cageVuln) v += run.cageVuln;       // 泡の檻：閉じ込めた敵が受けるダメージ
     return v;
   },
 
@@ -473,16 +475,25 @@ const Combat = {
       return 0;
     }
     opts = opts || {};
+    const src = opts.src || this._src;       // いま撃っている武器の1基（装甲貫通・青い炎が読む）
     let dmg = amount * this.vuln(run, e);
     // **耐性**（2026-09-30 段3）。効きにくいだけで、無効にはしない（BAL.resMul）
     const res = e.res, by0 = opts.by || this._by;
     if (res) {
-      if (res.fire && (by0 === 'flame' || opts.burnTick)) dmg *= BAL.resMul;
+      // 青い炎（flm_inferno）：炎の直撃も、その炎が付けた燃焼も、耐火で半分にならない
+      const blue = opts.blue || (by0 === 'flame' && src && src.flags && src.flags.blue);
+      if (res.fire && (by0 === 'flame' || opts.burnTick) && !blue) dmg *= BAL.resMul;
       if (res.elec && (by0 === 'tesla' || opts.shockTick)) dmg *= BAL.resMul;
     }
     // **装甲は1発ごとに引く。** 手数の武器ほど損をする。
     //   引ききっても最低 15% は通す（完全無敵にすると詰む）
-    if (e.armor > 0 && !opts.dot) dmg = Math.max(dmg * 0.15, dmg - e.armor);
+    //   **装甲を削る手が3つある（2026-09-30 段3b）**：敵に付く「装甲ダウン」（曳光弾・腐蝕の雲）・全武器の装甲貫通（run.apen・汎用の札）・
+    //   その武器だけの装甲貫通（dyn.apen・徹甲榴弾）。合計で装甲を割り引く（最低15%は通すのは同じ）
+    if (e.armor > 0 && !opts.dot) {
+      let cut = (run.apen || 0) + ((src && src.dyn && src.dyn.apen) || 0);
+      if (e.armorT > 0) cut += e.armorDown;
+      dmg = Math.max(dmg * 0.15, dmg - e.armor * Math.max(0, 1 - cut));
+    }
     const crit = opts.crit === true || (typeof opts.crit === 'number' && Util.chance(opts.crit)) ||
                  opts.forceCrit === true;
     if (crit) dmg *= opts.critMul || 2;
@@ -535,6 +546,8 @@ const Combat = {
     if (bn > 0) {
       e.burn = Math.max(e.burn, bn * st.burnMul);
       e.burnBy = by;
+      e.burnBlue = !!(opts.blue || (by === 'flame' && src && src.flags && src.flags.blue));
+      if (opts.sticky) e.sticky = Math.max(e.sticky || 0, opts.sticky);   // 粘着燃料：この燃焼は隣へ燃え移る
       e.burnT = Math.max(e.burnT, (bd || 3) + st.burnDur);
     }
 
@@ -548,6 +561,25 @@ const Combat = {
 
     if (e.hp <= 0 && !e.dead) this.kill(run, e, opts);
     return dmg;
+  },
+
+  // 粘着燃料：e の燃焼を、近くの燃えていない敵へ移す
+  spreadFlame(run, e, dt) {
+    const F = BAL.cardFx;
+    e.stickyCd -= dt;
+    if (e.stickyCd > 0) return;
+    e.stickyCd = F.stickyEvery;
+    const near = Grid.query(e.x, e.y, F.stickyR, _q);
+    let n = 0;
+    for (const o of near) {
+      if (n >= F.stickyMax) break;
+      if (o === e || o.dead || o.burnT > 0.2 || this.inShield(run, o)) continue;
+      if (Util.dist(e.x, e.y, o.x, o.y) > F.stickyR + o.r) continue;
+      o.burn = e.burn * F.stickyMul; o.burnT = Math.min(e.burnT, F.stickyDur);
+      o.burnBy = e.burnBy; o.burnBlue = e.burnBlue; o.sticky = e.sticky - 1;
+      n++;
+      if (run.fx.length < 150) this.fx(run, { type: 'spark', x: o.x, y: o.y, color: '#ff8a3a', life: 0.16 });
+    }
   },
 
   kill(run, e, opts) {
@@ -614,6 +646,17 @@ const Combat = {
       this.fx(run, { type: 'boom', x: e.x, y: e.y, r: 90, color: '#bff0ff', life: 0.25 });
     }
 
+    // 氷の棺（cry_permafrost）：凍ったまま倒れると、周りの敵を凍らせる（ダメージは無い）
+    if (cw && cw.flags.coffin && e.chill > 0) {
+      const R = BAL.cardFx.coffinR;
+      const near = Grid.query(e.x, e.y, R, _q);
+      for (const o of near) {
+        if (o.dead || o === e || Util.dist(e.x, e.y, o.x, o.y) > R + o.r) continue;
+        this.damage(run, o, 0, { slow: cw.s.slow, slowDur: cw.s.slowDur, chill: true, by: 'cryo', src: cw });
+      }
+      this.fx(run, { type: 'frost', x: e.x, y: e.y, r: R, color: '#bff0ff', ph: Math.random() * 6.28, life: 0.4 });
+    }
+
     if (run.fx.length < 180) {
       this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 1.5, color: e.color, life: 0.22 });
       // **血飛沫。**（ユーザー 2026-09-22 の要望1）
@@ -641,15 +684,11 @@ const Combat = {
     if (run.bullets.length > 1200) run.bullets.shift();
     o = o || {};
     const s = w.s;
-    // 集弾率が1未満のときだけ弾がばらける。**射界は固定になった（2026-09-30 段1a）ので、幅に比例する罰は無い。**
-    // 1未満になるのは暴発装薬（looseGroup）だけ
+    // 集弾率が1未満のときだけ弾がばらける。**射界は固定になった（2026-09-30 段1a）ので、幅に比例する罰は無い**（いまは常に1）
     const g = w.group !== undefined ? w.group : 1;
     if (g < 1) angle += Util.rand(-1, 1) * (1 - g) * BAL.spreadRad;
     const speed = s.speed * (o.speedMul || 1);
     let dmg = s.dmg * (o.dmgMul || 1);
-    // 薙ぎ払い・暴発装薬：**扇の広さ（Game.arcT）が威力になる。** 幅は武器ごとの固定値なので、
-    // 乗る倍率は武器ごとに決まっている（段3でカードを作り直すまでの形）
-    if (w.flags.wideDmg) dmg *= 1 + Game.arcT(w) * w.dyn.wideDmg;
     if (w.id === 'sniper' && run.resonance > 0) dmg *= (1 + run.resonance);
 
     run.bullets.push({
@@ -669,6 +708,8 @@ const Combat = {
       burn: s.burn ? s.dmg * s.burn : 0, burnDur: s.burnDur,
       color: o.color || '#fff',
       long: !!o.long, spin: !!o.spin, bubble: !!o.bubble,
+      tracer: w.dyn.tracerDown || 0,      // 曳光弾：当たった敵の装甲を削る割合
+      child: !!o.child,
       life: o.life || 3.2,
       src: w, wid: w.id,
       range: s.range * 1.35,
@@ -683,16 +724,17 @@ const Combat = {
   spawnLob(w, run, tx, ty, o) {
     Snd.shot(w.id);
     if (run.bullets.length > 1200) run.bullets.shift();
-    const a = Util.angle(w.x, w.y, tx, ty);
+    const sx = o.fromX !== undefined ? o.fromX : w.x, sy = o.fromY !== undefined ? o.fromY : w.y;   // 弾む泡は、割れた所から出る
+    const a = Util.angle(sx, sy, tx, ty);
     const speed = w.s.speed;
     run.bullets.push({
-      x: w.x, y: w.y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
+      x: sx, y: sy, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed,
       dmg: 0, r: w.s.bulletR, pierce: 0, bounce: 0, hit: null,
       splash: 0, splashMul: 1, homing: 0, crit: 0, critMul: 2,
       exec: 0, shock: 0, slow: 0, slowDur: 0, stun: 0, burn: 0, burnDur: 0,
       color: o.color || '#8fd94a', lob: true, mark: !!o.mark, rocket: !!o.rocket, through: true,
       landX: tx, landY: ty, onLand: o.onLand,
-      life: 5, src: w, wid: w.id, range: w.s.range * 1.8, ox: w.x, oy: w.y, target: null,
+      life: 5, src: w, wid: w.id, range: w.s.range * 1.8, ox: sx, oy: sy, target: null,
     });
   },
 
@@ -760,8 +802,9 @@ const Combat = {
     run.fields.push({
       x, y, r: o.r, dur: o.dur, t: 0, tick: 0,
       dps: o.dps, slow: o.slow || 0, vuln: o.vuln || 0,
-      color: o.color, kind: o.kind || 'gas', by: this._by,
+      color: o.color, kind: o.kind || 'gas', by: this._by, src: o.src || this._src,
       a: o.a,                       // 触手の壁の向き（絵だけが読む）
+      flow: !!o.flow, armorDown: o.armorDown || 0,       // 重い霧（通路に沿って流れる）・腐蝕の雲（雲の中の敵の装甲を削る）
     });
   },
 
@@ -782,7 +825,7 @@ const Combat = {
       const hv = (t.res && t.res.heavy) ? BAL.resMul : 1;
       if ((t.ccUsed || 0) < BAL.ccMaxSec) t.grabT = Math.max(t.grabT, dur * this.statusScale(t) * hv);
       t.grabV = power * hv;
-      this.damage(run, t, dmg, { color: '#ffb0e8' });
+      this.damage(run, t, dmg, { color: '#ffb0e8', crit: w.s.crit, critMul: w.s.critMul });
       this.fx(run, { type: 'tentacle', x1: w.x, y1: w.y, e: t, color: '#c85ab0',
                      ph: Math.random() * 6.28, life: Math.min(0.6, dur) });
     }
@@ -945,7 +988,7 @@ const Combat = {
       this.fx(run, { type: 'tntStab', x1: w.x, y1: w.y, x2, y2, half: o.half, color: col, acc: this.TNT_COL.stab, life: 0.5 });
     } else if (k === 'sweep') {
       const o = BAL.tntSweep;
-      this.coneDamage(w, run, w.angle, o.arc, s.range * o.len, s.dmg * o.dmg, { color: col });
+      this.coneDamage(w, run, w.angle, o.arc, s.range * o.len, s.dmg * o.dmg, { color: col, crit: s.crit, critMul: s.critMul });
       this.fx(run, { type: 'tntSweep', x: w.x, y: w.y, a: w.angle, arc: o.arc, r: s.range * o.len, color: col, acc: this.TNT_COL.sweep, life: 0.5 });
     } else if (k === 'wall') {
       const o = BAL.tntWall, dur = o.dur * (s.knockDur / (w.def.base.knockDur || 1));
@@ -980,13 +1023,9 @@ const Combat = {
     return hits;
   },
 
-  // この発射で撃つ弾数。
-  // 多銃身（gat_barrels）がここに乗る。扇の広さ（Game.arcT）に比例して増える。
-  // 幅は武器ごとの固定値になった（2026-09-30 段1a）ので、増える数もガトリングでは一定
+  // この発射で撃つ弾数
   shotCount(w) {
-    let n = w.s.count;
-    if (w.flags.wideCount) n += Math.round(Game.arcT(w) * w.dyn.wideCount);
-    return Math.max(1, Math.round(n));
+    return Math.max(1, Math.round(w.s.count));
   },
 
   // ================= 指定攻撃（着弾円） =================
@@ -1011,15 +1050,17 @@ const Combat = {
       const d = Math.sqrt(Math.random()) * R;
       this.spawnLob(w, run, p.x + Math.cos(a) * d, p.y + Math.sin(a) * d, {
         color: color || w.def.color, mark: true, rocket,
-        onLand: (rr, x, y) => this.spotImpact(w, rr, x, y),
+        onLand: (rr, x, y) => this.spotImpact(w, rr, x, y, w.dyn.hop || 0, 1),
       });
     }
   },
 
   // 着弾。**弾が当たったときと同じことをする**ので、
   // クラスター・酸・感電・内破といったカードがそのまま効く
-  spotImpact(w, run, x, y) {
-    const dmg = w.s.dmg;
+  //   hops … 弾む泡：あと何回、近くの敵の上へ跳ねるか ／ mul … 跳ねた泡のダメージ倍率
+  spotImpact(w, run, x, y, hops, mul) {
+    mul = mul || 1;
+    const dmg = w.s.dmg * mul;
     const R = Math.max(18, w.s.splash);
     let shock = 0;
     if (w.flags.implode) shock = Math.max(shock, w.s.shockDur || 2.5);
@@ -1027,7 +1068,7 @@ const Combat = {
     this.explode(run, x, y, R, dmg * (w.s.splashMul || 1), {
       color: w.def.color,
       shock,
-      stun: w.s.stunDur || 0,
+      stun: (w.s.stunDur || 0) * (mul < 1 ? BAL.cardFx.hopStun * mul : 1),   // 跳ねた泡（弾む泡）は、閉じ込める時間が短い（hopStun 倍。0 なら閉じ込めない）
       slow: w.s.slow, slowDur: w.s.slowDur,
       burn: w.s.burn ? dmg * w.s.burn : 0, burnDur: w.s.burnDur,
       crit: w.s.crit, critMul: w.s.critMul, exec: w.s.execThr,
@@ -1045,6 +1086,28 @@ const Combat = {
     if (w.flags.toxFoam) {
       this.spawnField(run, x, y, { kind: 'gas', r: Math.max(40, R * 0.8), dur: w.dyn.toxDur || 3,
         dps: dmg * 0.5, vuln: 0.1, color: '#8fd94a' });
+    }
+    // 焼夷弾（mtr_barrage）：着弾した所が燃える。爆風が敵を燃やし（w.s.burn）、地面に火の海が残る
+    if (w.flags.incend) {
+      this.spawnField(run, x, y, { kind: 'fire', r: R * BAL.cardFx.incendR, dur: BAL.cardFx.incendDur,
+        dps: dmg * w.s.burn, color: '#ff8a3a' });
+    }
+    // 弾む泡（bbl_bounce）：割れた泡が、近くの敵の上へもう1回跳ねる
+    if (hops > 0) {
+      const HR = BAL.cardFx.hopR;
+      const near = Grid.query(x, y, HR, _q);
+      const far = [], any = [];
+      for (const o of near) {
+        if (o.dead || Util.dist(x, y, o.x, o.y) > HR) continue;
+        any.push(o);
+        if (Util.dist(x, y, o.x, o.y) > R * 0.6) far.push(o);     // 同じ所に落ち直さない
+      }
+      const pool = far.length ? far : any;
+      if (pool.length) {
+        const t = pool[(Math.random() * pool.length) | 0];
+        this.spawnLob(w, run, t.x, t.y, { color: w.def.color, fromX: x, fromY: y,
+          onLand: (rr, x2, y2) => this.spotImpact(w, rr, x2, y2, hops - 1, mul * BAL.cardFx.hopMul) });
+      }
     }
   },
 
@@ -1137,7 +1200,7 @@ const Combat = {
       w.aim = { x: w.ax, y: w.ay };
       return;
     }
-    const sp = (w.def.sweep || BAL.sweepSpeed) * dt;
+    const sp = (w.def.sweep || BAL.sweepSpeed) * (w.dyn.sweepMul || 1) * dt;
     if (w.sweepDir === undefined) { w.sweepDir = 1; w.sweepA = 0; }
     w.sweepA += sp * w.sweepDir;
     if (w.sweepA >= w.arc) { w.sweepA = w.arc; w.sweepDir = -1; }
@@ -1259,6 +1322,18 @@ const Combat = {
       const f = run.fields[i];
       f.t += dt;
       if (f.t >= f.dur) { run.fields.splice(i, 1); continue; }
+      // 重い霧：雲が通路に沿ってコアの方へ流れる（壁の上へは出ない）
+      if (f.flow) {
+        const fc = (f.x / TILE) | 0, fr = (f.y / TILE) | 0;
+        if (st.walkable(fc, fr) && st.dist[st.idx(fc, fr)] > 3) {
+          const g = st.flowTo(fc, fr);
+          if (g) {
+            const ga = Util.angle(f.x, f.y, g.x, g.y), sp = BAL.cardFx.fogSpeed * dt;
+            const nx = f.x + Math.cos(ga) * sp, ny = f.y + Math.sin(ga) * sp;
+            if (st.walkable((nx / TILE) | 0, (ny / TILE) | 0)) { f.x = nx; f.y = ny; }
+          }
+        }
+      }
       f.tick += dt;
       if (f.tick >= BAL.fieldTick) {
         const step = f.tick;
@@ -1269,6 +1344,7 @@ const Combat = {
           if (Util.dist(f.x, f.y, e.x, e.y) > f.r + e.r) continue;
           if (this.inShield(run, e)) continue;   // バリアの中は状態異常も受けない
           if (f.vuln) { e.fvuln = f.vuln; e.fvulnT = 0.4; }
+          if (f.armorDown) { e.armorDown = (e.armorT > 0) ? Math.max(e.armorDown, f.armorDown) : f.armorDown; e.armorT = 0.6; }   // 腐蝕の雲
           // 場の減速にも遺物の軸を乗せる。**ここは damage() を通らないので、
           // 書き忘れると「毒の雲だけ遺物が効かない」ことになる**
           if (f.slow && !e.boss) {
@@ -1287,7 +1363,7 @@ const Combat = {
             e.poisonBy = f.by;
             e.poisonT = Math.max(e.poisonT || 0, BAL.poisonDur + run.st.burnDur);
           }
-          this.damage(run, e, f.dps * step, { color: f.kind === 'gas' ? '#c6ff7a' : (f.kind === 'ink' || f.kind === 'tentwall') ? f.color : '#ffb066', dot: true, by: f.by });
+          this.damage(run, e, f.dps * step, { color: f.kind === 'gas' ? '#c6ff7a' : (f.kind === 'ink' || f.kind === 'tentwall') ? f.color : '#ffb066', dot: true, by: f.by, src: f.src });
         }
       }
     }
@@ -1309,6 +1385,7 @@ const Combat = {
       if (e.grabT > 0) e.grabT -= dt;
       if (e.spotT > 0) e.spotT -= dt;
       if (e.fvulnT > 0) e.fvulnT -= dt;
+      if (e.armorT > 0) e.armorT -= dt;
       if (e.slowT > 0) { e.slowT -= dt; if (e.slowT <= 0) e.slow = 0; }
       if (e.hitFlash > 0) e.hitFlash -= dt;
       if (e.shieldT > 0) e.shieldT -= dt;
@@ -1316,8 +1393,10 @@ const Combat = {
         e.burnT -= dt;
         // 焼き締め（syn_searbind）：掴まれている敵は炎上ダメージに倍率
         const gb = (run.grabBurn && e.grabT > 0) ? run.grabBurn : 1;
-        this.damage(run, e, e.burn * dt * gb, { color: '#ff8a3a', dot: true, by: e.burnBy, burnTick: true });
+        this.damage(run, e, e.burn * dt * gb, { color: '#ff8a3a', dot: true, by: e.burnBy, burnTick: true, blue: e.burnBlue });
         if (e.dead) continue;
+        // 粘着燃料：燃えている敵が、隣の敵へ燃え移る（移った先は世代を1つ減らして、無限に広がらない）
+        if (e.sticky > 0) this.spreadFlame(run, e, dt);
       }
       // **毒のスリップダメージ。**（ユーザー要望8・2026-09-22）
       //   雲を出たあとも続く。炎上と同じ形
@@ -1431,7 +1510,7 @@ const Combat = {
 
     // --- ユニット ---
     for (const w of run.units) {
-      if (w.flags.heat) w.dyn.heat = Math.max(0, w.dyn.heat - dt * 0.85);
+      if (w.flags.heat && !w.target) w.dyn.heat = Math.max(0, w.dyn.heat - dt * BAL.heatCool);   // 冷えるのは、線に的が無いあいだだけ
       if (w.flags.thunderGod) {
         w.dyn.godCd -= dt;
         if (w.dyn.godCd <= 0) {
@@ -1460,11 +1539,12 @@ const Combat = {
         w.cd = 1 / Math.max(0.02, rate);
         w.muzzle = 0.07;
         w.shots++;
-        w.group = Game.groupingOf(w);  // 集弾率（常に1。暴発装薬だけ下がる）。fire から参照する
+        w.group = Game.groupingOf(w);  // 集弾率（常に1）。fire から参照する
         w.n = this.shotCount(w);       // この発射で撃つ弾数。fire から参照する
         this._by = w.id;               // この発射で起きたダメージは、この武器のもの（damage の記録）
+        this._src = w;                 // その1基（装甲貫通・青い炎が読む）
         w.def.fire(w, run);
-        this._by = null;
+        this._by = null; this._src = null;
       }
     }
 
@@ -1472,6 +1552,7 @@ const Combat = {
     for (let i = run.bullets.length - 1; i >= 0; i--) {
       const b = run.bullets[i];
       this._by = b.wid || null;
+      this._src = b.src || null;
       b.life -= dt;
       if (b.life <= 0) { this.bulletEnd(run, b); run.bullets.splice(i, 1); continue; }
 
@@ -1561,6 +1642,10 @@ const Combat = {
           forceCrit: !!(b.src && b.src.flags.frostCrit && e.chill > 0),
         });
 
+        if (b.tracer > 0 && !e.dead) {
+          e.armorDown = (e.armorT > 0) ? Math.max(e.armorDown, b.tracer) : b.tracer;
+          e.armorT = BAL.cardFx.tracerDur;
+        }
         if (b.src && b.src.flags.resonance && b.wid === 'gatling')
           run.resonance = Math.min(run.resonanceMax || 4.0, run.resonance + (run.resonanceStep || 0.006));
         // 曳光指示：スナイパーが撃ち抜いた敵に印が残る。
@@ -1605,6 +1690,11 @@ const Combat = {
             b.vx = Math.cos(na) * sp; b.vy = Math.sin(na) * sp;
             b.ox = b.x; b.oy = b.y;
             b.target = best;
+            // 影分身：当たった所から、威力を落とした分身がもう1枚、同じ向きに跳ぶ（分身は分身を呼ばない）
+            if (b.src && b.src.flags.shadow && !b.child && run.bullets.length < 1200) {
+              const c = Object.assign({}, b, { dmg: b.dmg * BAL.cardFx.shadowMul, child: true, hit: new Set(b.hit), color: '#8fa0b8' });
+              run.bullets.push(c);
+            }
           } else consumed = true;
           break;
         }
@@ -1625,7 +1715,7 @@ const Combat = {
         run.bullets.splice(i, 1);
       }
     }
-    this._by = null;
+    this._by = null; this._src = null;
 
     // --- 演出 ---
     for (let i = run.fx.length - 1; i >= 0; i--) {

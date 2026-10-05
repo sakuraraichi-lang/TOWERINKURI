@@ -1,0 +1,23 @@
+{
+ "wpn": "shuriken",
+ "mode": "shu_sakura",
+ "pre": {
+  "shu_sakura": 1
+ },
+ "median": 593,
+ "leaked": [
+  629,
+  631,
+  599,
+  556,
+  646,
+  607,
+  587,
+  602,
+  574,
+  571,
+  584,
+  585
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

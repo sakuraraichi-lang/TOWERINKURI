@@ -1,0 +1,23 @@
+{
+ "wpn": "shuriken",
+ "mode": "gen_core",
+ "pre": {
+  "gen_core": 3
+ },
+ "median": 1312.5,
+ "leaked": [
+  1350,
+  1313,
+  1318,
+  1304,
+  1284,
+  1292,
+  1316,
+  1309,
+  1342,
+  1228,
+  1312,
+  1326
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

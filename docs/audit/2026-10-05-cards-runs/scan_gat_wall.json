@@ -1,0 +1,23 @@
+{
+ "wpn": "gatling",
+ "mode": "gat_wall",
+ "pre": {
+  "gat_wall": 1
+ },
+ "median": 120,
+ "leaked": [
+  125,
+  133,
+  130,
+  122,
+  115,
+  113,
+  143,
+  116,
+  106,
+  130,
+  108,
+  118
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

@@ -1,0 +1,23 @@
+{
+ "wpn": "tesla",
+ "mode": "tsl_god",
+ "pre": {
+  "tsl_god": 1
+ },
+ "median": 1910,
+ "leaked": [
+  1910,
+  1837,
+  1910,
+  1889,
+  1917,
+  1920,
+  1865,
+  1886,
+  1926,
+  1998,
+  1912,
+  1820
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

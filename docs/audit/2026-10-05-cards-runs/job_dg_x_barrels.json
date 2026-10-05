@@ -1,0 +1,28 @@
+{
+ "wpn": "gatling",
+ "mode": "allx:gat_barrels",
+ "pre": {
+  "gat_belt": 5,
+  "gat_cool": 5,
+  "gat_ap": 3,
+  "gat_heat": 1,
+  "gat_loose": 1,
+  "gat_wall": 1
+ },
+ "median": 2414.5,
+ "leaked": [
+  2394,
+  2389,
+  2394,
+  2395,
+  2467,
+  2416,
+  2440,
+  2451,
+  2422,
+  2441,
+  2410,
+  2413
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

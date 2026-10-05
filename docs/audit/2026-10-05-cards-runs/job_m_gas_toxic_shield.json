@@ -1,0 +1,23 @@
+{
+ "wpn": "gas",
+ "mode": "gas_toxic",
+ "pre": {
+  "gas_toxic": 2
+ },
+ "median": 1949.5,
+ "leaked": [
+  1930,
+  1993,
+  1960,
+  1875,
+  1954,
+  1945,
+  1901,
+  1970,
+  1955,
+  2010,
+  1944,
+  1858
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

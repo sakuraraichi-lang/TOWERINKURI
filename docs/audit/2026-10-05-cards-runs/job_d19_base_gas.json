@@ -1,0 +1,27 @@
+{
+ "wpn": "gas",
+ "mode": "all",
+ "pre": {
+  "gas_dense": 5,
+  "gas_wide": 3,
+  "gas_nerve": 1,
+  "gas_corrode": 3,
+  "gas_toxic": 2
+ },
+ "median": 1109.5,
+ "leaked": [
+  1092,
+  1090,
+  1137,
+  1064,
+  1105,
+  1123,
+  1058,
+  1144,
+  1152,
+  1111,
+  1133,
+  1108
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

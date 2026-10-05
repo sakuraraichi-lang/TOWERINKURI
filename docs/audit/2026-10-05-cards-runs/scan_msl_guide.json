@@ -1,0 +1,23 @@
+{
+ "wpn": "missile",
+ "mode": "msl_guide",
+ "pre": {
+  "msl_guide": 5
+ },
+ "median": 2304,
+ "leaked": [
+  2325,
+  2297,
+  2318,
+  2328,
+  2331,
+  2270,
+  2316,
+  2295,
+  2299,
+  2309,
+  2273,
+  2298
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

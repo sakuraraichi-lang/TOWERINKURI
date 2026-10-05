@@ -1,0 +1,23 @@
+{
+ "wpn": "shuriken",
+ "mode": "shu_bounce",
+ "pre": {
+  "shu_bounce": 3
+ },
+ "median": 806,
+ "leaked": [
+  798,
+  806,
+  777,
+  837,
+  832,
+  808,
+  806,
+  791,
+  798,
+  825,
+  815,
+  793
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

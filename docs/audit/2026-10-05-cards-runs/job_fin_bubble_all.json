@@ -1,0 +1,28 @@
+{
+ "wpn": "bubble",
+ "mode": "all",
+ "pre": {
+  "bbl_big": 5,
+  "bbl_rapid": 3,
+  "bbl_acid": 2,
+  "bbl_froth": 3,
+  "bbl_bounce": 2,
+  "bbl_sea": 1
+ },
+ "median": 39.5,
+ "leaked": [
+  31,
+  34,
+  34,
+  51,
+  54,
+  33,
+  43,
+  48,
+  39,
+  32,
+  42,
+  40
+ ],
+ "res": "clearclearclearcleardeaddeaddeaddeaddeaddeadcleardead"
+}

@@ -1,0 +1,27 @@
+{
+ "wpn": "gas",
+ "mode": "allx:gas_fog",
+ "pre": {
+  "gas_dense": 5,
+  "gas_wide": 3,
+  "gas_nerve": 1,
+  "gas_corrode": 3,
+  "gas_toxic": 2
+ },
+ "median": 3910,
+ "leaked": [
+  3879,
+  3905,
+  3915,
+  3850,
+  3924,
+  3840,
+  3815,
+  3867,
+  3931,
+  3936,
+  3921,
+  3929
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

@@ -102,7 +102,7 @@ function baseStats(o) {
 const WEAPONS = {
   // ============ 初期装備 ============
   gatling: {
-    id: 'gatling', cost: 1, cat: 'mid', name: 'ガトリング', short: 'GAT', icon: Icons.get('gatling'), color: '#ffd24a', src: 'start', arcFix: 0.34, arcCard: [0.1, 0.8],
+    id: 'gatling', cost: 1, cat: 'mid', name: 'ガトリング', short: 'GAT', icon: Icons.get('gatling'), color: '#ffd24a', src: 'start', arcFix: 0.34,
     desc: '毎秒大量の小口径弾。単発は弱いが手数で押す。',
     //   **唯一の初期武器なので、これ1種で第1〜2章を持たせる必要がある。**（2026-09-21）
     //   ユーザー決定「初期武器はガトリングでよし」で初期所持を1種に絞ったが、
@@ -134,18 +134,11 @@ const WEAPONS = {
     fire(w, run) {
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n * 0.7 : 1);
-        Combat.spawnBullet(w, run, a, { color: '#ffd24a' });
+        Combat.spawnBullet(w, run, a, { color: w.dyn.tracerDown ? '#ff7a3c' : '#ffd24a' });   // 曳光弾（gat_barrels）は橙の光の尾
       }
       // 加熱は **当たっているあいだだけ**溜まる。
       // 撃ちっぱなしにした以上、撃った回数で溜めると空撃ちで速くなってしまう
-      if (w.flags.heat && w.target) w.dyn.heat = Math.min(1, w.dyn.heat + 0.05);
-      if (w.flags.tracerBarrage) {
-        w.dyn.tracer = (w.dyn.tracer || 0) + w.n;
-        if (w.dyn.tracer >= 10) {
-          w.dyn.tracer = 0;
-          Combat.spawnBullet(w, run, w.angle, { color: '#ff7a3c', speedMul: 0.5, dmgMul: 2.2, splash: 55, bulletR: 5, homing: 3 });
-        }
-      }
+      if (w.flags.heat && w.target) w.dyn.heat = Math.min(1, w.dyn.heat + BAL.heatGain);
     },
   },
 
@@ -241,6 +234,9 @@ const WEAPONS = {
     fire(w, run) {
       Combat.coneDamage(w, run, w.angle, w.s.cone, w.s.range, w.s.dmg, {
         color: '#ffb066', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur,
+        crit: w.s.crit, critMul: w.s.critMul,
+        slow: w.s.slow, slowDur: w.s.slowDur,   // 粘着燃料：燃えた敵は粘って遅くなる（素の火炎は0）
+        sticky: w.dyn.sticky || 0,          // 粘着燃料：燃え移りの世代
       });
       // **炎は「舌」を何本か描く。**種を持たせて、毎フレーム形が暴れないようにする
       Combat.fx(run, { type: 'cone', x: w.x, y: w.y, a: w.angle, arc: w.s.cone,
@@ -279,6 +275,7 @@ const WEAPONS = {
         onLand: (rr, x, y) => Combat.spawnField(rr, x, y, {
           kind: 'gas', r: w.s.fieldR, dur: w.s.fieldDur, dps: w.s.dmg,
           slow: w.s.slow, vuln: w.s.fieldVuln, color: '#8fd94a', src: w,
+          flow: !!w.flags.fog, armorDown: w.dyn.armorDown || 0,     // 重い霧（流れる）・腐蝕の雲（装甲を削る）
         }),
       });
     },
@@ -292,7 +289,7 @@ const WEAPONS = {
     base: baseStats({ dmg: 6, rate: 0.9, range: 165, slow: 0.55, slowDur: 2.4 }),
     fire(w, run) {
       Combat.pulse(w, run, w.s.range, w.s.dmg, {
-        color: '#bff0ff', slow: w.s.slow, slowDur: w.s.slowDur, chill: true,
+        color: '#bff0ff', slow: w.s.slow, slowDur: w.s.slowDur, chill: true, crit: w.s.crit, critMul: w.s.critMul,
       });
       // **「冷気を放つ」を、輪1本ではなく霜の波として描く。**（ユーザー 2026-09-22）
       Combat.fx(run, { type: 'frost', x: w.x, y: w.y, r: w.s.range, color: '#7fe6ff',
@@ -315,12 +312,20 @@ const WEAPONS = {
       }
       Combat.fx(run, { type: 'slash', x: w.x, y: w.y, a: w.angle, arc: w.s.cone,
         r: w.s.range, color: '#ffffff', life: 0.18 });
+      // 返し刃（ktn_swallow）：斬ったあと、逆の向きへもう一度斬る（威力は BAL.cardFx.recoilMul × 札の枚数ぶん）
+      if (w.dyn.recoil) {
+        const a2 = w.angle + Math.PI;
+        Combat.coneDamage(w, run, a2, w.s.cone, w.s.range, w.s.dmg * BAL.cardFx.recoilMul * w.dyn.recoil, {
+          color: '#cfe6ff', crit: w.s.crit, critMul: w.s.critMul, exec: w.s.execThr,
+        });
+        Combat.fx(run, { type: 'slash', x: w.x, y: w.y, a: a2, arc: w.s.cone, r: w.s.range, color: '#cfe6ff', life: 0.18 });
+      }
       Combat.shake(run, 1.6);
     },
   },
 
   shuriken: {
-    id: 'shuriken', cost: 1, cat: 'mid', name: '手裏剣', short: 'SHU', icon: Icons.get('shuriken'), color: '#cdd9e8', src: 'pack', arcFix: 0.38, arcCard: [0.15, 0.7],
+    id: 'shuriken', cost: 1, cat: 'mid', name: '手裏剣', short: 'SHU', icon: Icons.get('shuriken'), color: '#cdd9e8', src: 'pack', arcFix: 0.38,
     desc: '敵から敵へ跳ね回る投擲。密集しているほど手が付けられなくなる。',
     base: baseStats({ dmg: 13, rate: 2.2, range: 230, speed: 520, bulletR: 5, bounce: 3, turn: 10 }),
     fire(w, run) {
@@ -386,7 +391,6 @@ const WEAPON_IDS = Object.keys(WEAPONS);
 //     ミサイル・迫撃砲・泡は円が最小（`spot`）。**この3つの `arcFix` は旧可動幅の最小（0.08／0.08／0.12）**。
 //       指定攻撃は扇を持たないので arc は「置いた瞬間の向き」と測定器の自動配置の場所選びにしか効かない。
 //       着弾円を最小にした実測（§3）と同じ状態にそろえるため、旧可動幅の最小のままにした／スナイパー・テスラ・毒ガス・凍結・手裏剣・触手はこれまでの初期値のまま（段3で見直す）
-//   `arcCard` はカード3枚（多銃身・暴発装薬・薙ぎ払い）が「広さ」を読むための旧可動幅。段3でカードを作り直すまでの橋（`Game.arcT`）
 for (const wid of WEAPON_IDS) {
   const d = WEAPONS[wid];
   if (typeof d.arcFix !== 'number') { console.error('武器に固定の射界(arcFix)が無い:', wid); continue; }

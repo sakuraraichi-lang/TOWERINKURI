@@ -1,0 +1,23 @@
+{
+ "wpn": "katana",
+ "mode": "ktn_twin",
+ "pre": {
+  "ktn_twin": 3
+ },
+ "median": 258.5,
+ "leaked": [
+  244,
+  274,
+  252,
+  242,
+  235,
+  251,
+  265,
+  268,
+  273,
+  284,
+  266,
+  229
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

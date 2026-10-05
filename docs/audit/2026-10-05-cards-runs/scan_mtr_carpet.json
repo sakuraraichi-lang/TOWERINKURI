@@ -1,0 +1,23 @@
+{
+ "wpn": "mortar",
+ "mode": "mtr_carpet",
+ "pre": {
+  "mtr_carpet": 2
+ },
+ "median": 657.5,
+ "leaked": [
+  614,
+  680,
+  650,
+  713,
+  631,
+  632,
+  655,
+  664,
+  660,
+  675,
+  631,
+  661
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

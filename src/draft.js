@@ -21,6 +21,8 @@ const Draft = {
       if (c.kind === 'perm') return false;          // 遺物は3択に出さない（転生でしか増えない）
       if (c.kind === 'key') return false;           // 鍵は章の報酬でしか手に入らない
       // 上位札（2026-09-30 段3）：持っていなくても、その出撃で前提の札を全部取っていれば出る
+      // コインはスキルツリーと一緒に第30章で打ち切り（親の設計書 §2-5）。アセンション（第31章から）では、コインの札を出さない
+      if (c.coin && run.stageIdx >= MAIN_CHAPTERS) return false;
       if (c.upper) { if (!(c.needs || []).every(n => (run.cards[n] || 0) > 0)) return false; }
       else if (Game.own(id) <= 0) return false;
       if ((run.cards[id] || 0) >= Game.stackLimit(id)) return false;

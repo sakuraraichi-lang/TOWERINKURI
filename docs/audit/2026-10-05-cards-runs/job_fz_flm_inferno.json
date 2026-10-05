@@ -1,0 +1,23 @@
+{
+ "wpn": "flame",
+ "mode": "flm_inferno",
+ "pre": {
+  "flm_inferno": 1
+ },
+ "median": 2845,
+ "leaked": [
+  2823,
+  2878,
+  2844,
+  2791,
+  2838,
+  2804,
+  2846,
+  2826,
+  2852,
+  2866,
+  2858,
+  2846
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

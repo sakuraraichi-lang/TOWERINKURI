@@ -1,0 +1,23 @@
+{
+ "wpn": "mortar",
+ "mode": "mtr_barrage",
+ "pre": {
+  "mtr_barrage": 1
+ },
+ "median": 837,
+ "leaked": [
+  821,
+  814,
+  843,
+  826,
+  749,
+  873,
+  836,
+  843,
+  838,
+  846,
+  883,
+  816
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}
