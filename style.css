@@ -2876,3 +2876,8 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 .ctabs .sk-tab small,.ccats .sk-cat small{font-size:9.5px;font-weight:700;opacity:.75;}
 .ccats{grid-template-columns:repeat(4,1fr);}
 .ccats .sk-cat{flex-direction:column;gap:1px;padding:6px 2px;font-size:11px;}
+
+/* 敵の一覧のボス（1005d）：赤い縁で雑魚と分ける */
+.erow.eboss{border-color:rgba(255,77,106,.55);background:linear-gradient(90deg,rgba(60,8,18,.92),rgba(10,12,16,.92) 70%);}
+.erow.eboss .ebody b em{color:#ff8a9c;}
+.erow.eboss strong{color:#ff8a9c;font-weight:800;}

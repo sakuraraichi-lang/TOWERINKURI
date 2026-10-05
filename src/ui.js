@@ -1752,6 +1752,17 @@ const UI = {
         '<p>' + (t.desc || '') + '</p>' + res + '</div>';
       el.appendChild(row);
     }
+    // **ボスも敵の一覧に入れる**（1005d・ユーザー「敵一覧にボスを入れていいです、ボスのタブをわざわざ増やす必要はありません」）。
+    //   ボスは ENEMY_TYPES の1種ではなく Combat.spawnBoss が作る（中身は grunt を硬く・遅く・大きくしたもの）。
+    //   画面の名前は「ルートキット」（コアを乗っ取る不正プログラム。世界観の敵の名前と同じ付け方・仮）
+    const bossCh = BAL.bossChapters.join('・');
+    const boss = Util.el('div', 'erow eboss');
+    boss.innerHTML = '<span class="edot">' + this.ringGlyph(null, 12, '#ff4d6a') + '</span>' +
+      '<div class="ebody"><b>ルートキット<em>ROOTKIT ─ BOSS</em><u>第' + BAL.bossChapters[0] + '章から</u></b>' +
+      '<p>節目の章（第' + bossCh + '章、第31章から先は5章ごと）の最後のウェーブに、湧き口ごとに1体。そのウェーブは雑魚が出ない。' +
+      'コアへゆっくり歩き、<strong>着いたらその場で負け</strong>。コアに届く前に削り切る。</p>' +
+      '<small>足止め・掴み・減速は効かない（凍った印の被ダメージ増は乗る）。感電・拘束の割合ダメージも効かない</small></div>';
+    el.appendChild(boss);
     p.appendChild(el);
   },
 
