@@ -710,19 +710,20 @@ function heatField(st, range, arc, traffic) {
 function costWant() {
   const types = Game.loadoutWeapons();
   const cap = Game.costCap();
-  const spent = {};
-  for (const t of types) spent[t] = 0;
+  const spent = {}, num = {};
+  for (const t of types) { spent[t] = 0; num[t] = 0; }
   let used = 0;
-  for (const u of (Game.run ? Game.run.units : [])) { used += u.def.cost; if (spent[u.id] !== undefined) spent[u.id] += u.def.cost; }
+  for (const u of (Game.run ? Game.run.units : [])) { used += u.def.cost; if (spent[u.id] !== undefined) { spent[u.id] += u.def.cost; num[u.id]++; } }
   const want = [];
   for (;;) {
     let best = null;
     for (const t of types) {
       if (used + WEAPONS[t].cost > cap) continue;
+      if (num[t] >= BAL.sameWeaponMax) continue;       // 同じ武器の上限（本体の Game.sameMax と同じ）
       if (best === null || spent[t] < spent[best]) best = t;
     }
     if (!best) break;
-    want.push(best); spent[best] += WEAPONS[best].cost; used += WEAPONS[best].cost;
+    want.push(best); spent[best] += WEAPONS[best].cost; num[best]++; used += WEAPONS[best].cost;
   }
   return want;
 }

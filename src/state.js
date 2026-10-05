@@ -699,7 +699,10 @@ const Game = {
   },
 
   // その武器をもう1基置いてもコストの上限に収まるか
-  canAfford(weaponId) { return this.costUsed() + this.costOf(weaponId) <= this.costCap(); },
+  canAfford(weaponId) { return this.costUsed() + this.costOf(weaponId) <= this.costCap() && !this.sameMax(weaponId); },
+
+  // その武器はもう上限（BAL.sameWeaponMax 基）まで置いてあるか
+  sameMax(weaponId) { return this.unitCount(weaponId) >= BAL.sameWeaponMax; },
 
   // ---------- 設置は六角1つ。**武器の大きさという概念は無い** ----------
   //
@@ -741,7 +744,7 @@ const Game = {
     return u;
   },
 
-  // （その武器を何基まで置けるか、の上限は撤去した：2026-09-30 段1b。置けるかどうかはコストの合計だけで決まる → costCap / canAfford）
+  // （武器ごとの上限は 2026-09-30 段1b で一度撤去した。2026-10-05 から「同じ武器は BAL.sameWeaponMax 基まで」だけ復活：コストの上限とは別に、1種の数を縛る → canAfford / sameMax）
   unitCount(weaponId) {
     const run = this.run;
     if (!run) return 0;
@@ -967,8 +970,11 @@ const Game = {
     //   **コストの上限を超える分は、後ろから外す。**（保存された並びの順に入れ、収まらなくなったところで打ち切る。
     //   以前の基数の配置が、上限の変わったセーブでそのまま入りきらないことがある）
     let cost = 0;
+    const cnt = {};
     for (const p of saved) {
       if (!WEAPONS[p.w] || allowed.indexOf(p.w) < 0) continue;
+      if ((cnt[p.w] || 0) >= BAL.sameWeaponMax) continue;     // 同じ武器の上限（読み戻しでも超えない）
+      cnt[p.w] = (cnt[p.w] || 0) + 1;
       // 置ける六角で、先に読み戻したものと重なっていないこと（this.run === run）
       if (!this.canPlaceAt(p.c, p.r)) continue;
       if (cost + WEAPONS[p.w].cost > this.costCap()) break;

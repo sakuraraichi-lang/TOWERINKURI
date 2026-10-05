@@ -567,17 +567,18 @@ const UI = {
     for (const wid of Game.loadoutWeapons()) {
       const def = WEAPONS[wid];
       const have = Game.unitCount(wid);
-      const full = !Game.canAfford(wid);
+      const full = !Game.canAfford(wid), atMax = Game.sameMax(wid);
       const b = Util.el('button', 'chip unit' + (this.placingType === wid ? ' on' : '') + (full ? ' full' : '') +
         (this.isNew('w_' + wid) && this.WEAPON_TIP[wid] ? ' new' : ''));
       b.style.borderColor = def.color;
       b.innerHTML = '<i class="uico" style="color:' + def.color + '">' + def.icon + '</i>' +
         '<b style="color:' + def.color + '">' + def.short + '</b>' +
-        '<u>コスト' + def.cost + '<s>×' + have + '</s></u>';
+        '<u>コスト' + def.cost + '<s>×' + have + (atMax ? ' 最大' : '/' + BAL.sameWeaponMax) + '</s></u>';
       b.disabled = !build;
       b.addEventListener('click', () => {
         if (full) {
-          this.toastMsg('コストが足りません（' + def.name + ' はコスト' + def.cost + '・残り ' + (Game.costCap() - Game.costUsed()) + '）', '#ff8080', 'limit');
+          this.toastMsg(atMax ? def.name + ' は ' + BAL.sameWeaponMax + '基まで（同じ武器の上限）'
+            : 'コストが足りません（' + def.name + ' はコスト' + def.cost + '・残り ' + (Game.costCap() - Game.costUsed()) + '）', '#ff8080', 'limit');
           return;
         }
         this.placingType = (this.placingType === wid) ? null : wid;
@@ -1506,7 +1507,7 @@ const UI = {
     const battle = Game.phase === 'battle';
     const hero = Util.el('div', 'lo-hero');
     hero.innerHTML =
-      '<div><b>編成</b><span>使う武器の<em>種類</em>を選ぶ。置けるかどうかは<em>コスト</em>の合計で決まる</span></div>' +
+      '<div><b>編成</b><span>使う武器の<em>種類</em>を選ぶ。置けるかどうかは<em>コスト</em>の合計で決まる。同じ武器は<em>' + BAL.sameWeaponMax + '基</em>まで</span></div>' +
       '<div class="lo-num"><i>種類</i><b>' + Game.loadoutWeapons().length + '<small>/' + nOpen + '</small></b></div>' +
       '<div class="lo-num"><i>コストの上限</i><b>' + Game.costCap() + '</b></div>';
     p.appendChild(hero);
