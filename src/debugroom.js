@@ -365,7 +365,7 @@ const DebugRoom = {
     types.forEach((t, i) => {
       const e = Combat.makeEnemy(run, t, 30, h.x - 110 + (i % 4) * 70, h.y + 20 + Math.floor(i / 4) * 46, 0);
       e.res = {}; for (const k in (t.res || {})) e.res[k] = true;
-      if (t.armor) e.armor = 1;
+      if (t.armor) e.armor = BAL.armorCut;
       run.enemies.push(e); this._resEn.push(e);
     });
   },
@@ -610,7 +610,7 @@ const DebugRoom = {
       const ex = best.h.x + Math.cos(best.a) * dd + Math.sin(best.a) * (i % 2 ? 7 : -7), ey = best.h.y + Math.sin(best.a) * dd - Math.cos(best.a) * (i % 2 ? 7 : -7);
       const en = Combat.makeEnemy(run, t, g, ex, ey, 0, 1e12);
       en.spd = 0; en.lane = null; en.res = fire ? { fire: true } : en.res;
-      if (armor) en.armor = Math.max(en.armor, 6);   // 装甲の見本（雑魚HPの割合ではなく、数字で見える固い値）
+      if (armor) en.armor = BAL.armorCut;   // 装甲の見本（割合カット）
       run.enemies.push(en); enemies.push(en);
     }
     // 指定攻撃（泡・迫撃砲）は、的の真ん中へ円を置く

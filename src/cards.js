@@ -66,7 +66,7 @@ const CARDS = {
     apply(run) { const w = run.wp('gatling'); if (w) { w.flags.heat = true; w.dyn.heatMax = BAL.heatCap; } } }),
   // 曳光弾（旧・多銃身）：装甲への答え。当たった敵の装甲が一定時間削れる（その武器だけでなく、ほかの武器の1発も通りやすくなる）
   gat_barrels: C({ id: 'gat_barrels', kind: 'mod', weapon: 'gatling', rarity: 'epic', maxStack: 2, rankAxis: 'down',
-    name: '曳光弾', desc: 'ガトリングの弾が当たった敵は、3秒間 装甲が 35%削れる（重ねると加算）。弾は橙の光の尾を引く',
+    name: '曳光弾', desc: 'ガトリングの弾が当たった敵は、3秒間 装甲のダメージ軽減が 35%小さくなる（重ねると加算）。弾は橙の光の尾を引く',
     apply(run) { const w = run.wp('gatling'); if (w) w.dyn.tracerDown = Math.min(BAL.cardFx.armorDownMax, (w.dyn.tracerDown || 0) + Game.rka(BAL.cardFx.tracerDown, 'down')); } }),
   // 掃射（旧・暴発装薬）：首振りが速くなり、1体に当たる時間が短い代わりに、広く撫でて群れを抜く
   gat_loose: C({ id: 'gat_loose', kind: 'mod', weapon: 'gatling', rarity: 'epic', maxStack: 1, rankAxis: 'sweep',
@@ -178,7 +178,7 @@ const CARDS = {
     apply(run) { const w = run.wp('gas'); if (w) w.s.fieldVuln += Game.rka(0.10, 'vuln'); } }),
   // 腐蝕の雲（旧・猛毒。濃縮ガスと同じ効かない軸だった）：装甲への答え。雲の中の敵は装甲が削れる
   gas_toxic: C({ id: 'gas_toxic', kind: 'mod', weapon: 'gas', rarity: 'epic', maxStack: 2, rankAxis: 'down',
-    name: '腐蝕の雲', desc: '毒の雲の中の敵は、装甲が 50%削れる（重ねると加算）',
+    name: '腐蝕の雲', desc: '毒の雲の中の敵は、装甲のダメージ軽減が 50%小さくなる（重ねると加算）',
     apply(run) { const w = run.wp('gas'); if (w) w.dyn.armorDown = Math.min(BAL.cardFx.armorDownMax, (w.dyn.armorDown || 0) + Game.rka(0.5, 'down')); } }),
   // 重い霧（新しい札）：雲が通路に沿ってコアの方へ流れる。敵と一緒に動くので、覆う道が長くなる
   gas_fog: C({ id: 'gas_fog', noRank: true, kind: 'mod', weapon: 'gas', rarity: 'epic', maxStack: 1,

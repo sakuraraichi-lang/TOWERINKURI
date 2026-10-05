@@ -13,8 +13,8 @@
 //   難易度は数字でしか上がらず、「編成を変える理由」が生まれない。
 //   足した4種は、**プレイヤーの道具のどれかを名指しで刺す**：
 //
-//     装甲 shield … 1発ごとに固定値を引く。**手数の武器（ガトリング）が通らない。**
-//                   狙撃・迫撃のような1発の重い武器で抜く
+//     装甲 shield … 1発のダメージを割合（BAL.armorCut）で減らす。
+//                   削る札・無視する札（曳光弾・腐蝕の雲・徹甲榴弾・装甲貫通）で通す
 //     群れ swarm  … 1回の湧きでまとめて出る。**単体攻撃が追いつかない。**
 //                   爆風・炎・毒のような面で取る武器で潰す
 //     再生 regen  … 放っておくと回復する。**燃やしている間は止まる。**
@@ -39,9 +39,9 @@ const ENEMY_TYPES = {
     jp: 'スクリプト', en: 'SCRIPT', desc: '速い。HPは低い。' },
   tank:   { name: 'tank',   hp: 3.4, spd: 0.58, r: 15, coin: 2.5,  color: '#c8a05a', from: 6,  weight: 22,
     jp: 'ブロック', en: 'BLOCK', desc: '硬くて遅い。', res: { heavy: 8 } },
-  // 1発あたり「そのウェーブの雑魚HPの armor 割」を引く。小さい弾ほど損をする
-  shield: { name: 'shield', hp: 1.6, spd: 0.80, r: 12, coin: 1.9,  color: '#7fb3ff', from: 16, weight: 16, armor: 0.06,
-    jp: 'ファイアウォール', en: 'FIREWALL', desc: '装甲：1発ごとにダメージを引く（最低15%は通る）。1発の重い武器が効く。' },
+  // 装甲：1発のダメージを BAL.armorCut（割合）減らす（2026-10-05 割合カット。固定値の差し引きは1発が雑魚HPの8倍ある武器に効かなかった）。armor は BAL.armorCut に掛ける倍
+  shield: { name: 'shield', hp: 1.6, spd: 0.80, r: 12, coin: 1.9,  color: '#7fb3ff', from: 16, weight: 16, armor: 1,
+    jp: 'ファイアウォール', en: 'FIREWALL', desc: '装甲：1発のダメージを半分に減らす。装甲を削る札（曳光弾・腐蝕の雲）で軽くなり、装甲を無視する札（徹甲榴弾・装甲貫通・貫通弾頭）で通る。持続ダメージは減らない。' },
   // 1回の湧きで burst 体まとめて出る。1体は小さい
   swarm:  { name: 'swarm',  hp: 0.22, spd: 1.45, r: 6, coin: 0.45, color: '#ffe08a', from: 26, weight: 14, burst: 5,
     jp: 'ボット群', en: 'BOTNET', desc: '小さいのがまとめて出る。', res: { fire: 14 } },
@@ -368,9 +368,8 @@ const Combat = {
       coin: BAL.enemyCoinBase * Math.pow(BAL.enemyCoinGrowth, g - 1) * t.coin,
       color: t.color,
       tname: t.name,                   // 死因の内訳に使う
-      // **装甲は「そのウェーブの雑魚HPの何割か」**。固定値にすると章が進んだ瞬間に
-      //   意味が消えるし、割合にすると大きい弾も同じだけ削られて意味が出ない
-      armor: t.armor ? base * t.armor : 0,
+      // **装甲は「1発のダメージを何割減らすか」**（割合。2026-10-05）。章が進んでも意味が消えない
+      armor: t.armor ? Math.min(BAL.armorCutMax, BAL.armorCut * t.armor) : 0,
       res: this.resOf(run, t),         // 耐性（その章で付いているものだけ）
       regen: t.regen ? hp * t.regen : 0,
       split: gen ? 0 : (t.split || 0),   // 割れた子はもう割れない
@@ -492,14 +491,14 @@ const Combat = {
       if (res.fire && (by0 === 'flame' || opts.burnTick) && !blue) dmg *= BAL.resMul;
       if (res.elec && (by0 === 'tesla' || opts.shockTick)) dmg *= BAL.resMul;
     }
-    // **装甲は1発ごとに引く。** 手数の武器ほど損をする。
-    //   引ききっても最低 15% は通す（完全無敵にすると詰む）
+    // **装甲は1発のダメージを割合で減らす**（e.armor＝減らす割合・BAL.armorCut）。
+    //   減らす割合の上限は BAL.armorCutMax（完全無敵にすると詰む）
     //   **装甲を削る手が3つある（2026-09-30 段3b）**：敵に付く「装甲ダウン」（曳光弾・腐蝕の雲）・全武器の装甲貫通（run.apen・汎用の札）・
     //   その武器だけの装甲貫通（dyn.apen・徹甲榴弾）。合計で装甲を割り引く（最低15%は通すのは同じ）
     if (e.armor > 0 && !opts.dot) {
       let cut = (run.apen || 0) + ((src && src.dyn && src.dyn.apen) || 0);
       if (e.armorT > 0) cut += e.armorDown;
-      dmg = Math.max(dmg * 0.15, dmg - e.armor * Math.max(0, 1 - cut));
+      dmg *= 1 - e.armor * Math.min(1, Math.max(0, 1 - cut));   // 削る札・無視する札は、減らす割合そのものを小さくする
     }
     const crit = opts.crit === true || (typeof opts.crit === 'number' && Util.chance(opts.crit)) ||
                  opts.forceCrit === true;
