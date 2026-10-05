@@ -1,0 +1,23 @@
+{
+ "wpn": "gas",
+ "mode": "gas_corrode",
+ "pre": {
+  "gas_corrode": 3
+ },
+ "median": 797.5,
+ "leaked": [
+  777,
+  796,
+  797,
+  810,
+  805,
+  784,
+  759,
+  765,
+  833,
+  803,
+  798,
+  809
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

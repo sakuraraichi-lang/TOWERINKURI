@@ -1,0 +1,23 @@
+{
+ "wpn": "sniper",
+ "mode": "snp_scope",
+ "pre": {
+  "snp_scope": 5
+ },
+ "median": 1234.5,
+ "leaked": [
+  1195,
+  1300,
+  1208,
+  1231,
+  1229,
+  1238,
+  1290,
+  1221,
+  1243,
+  1202,
+  1263,
+  1301
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

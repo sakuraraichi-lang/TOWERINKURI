@@ -191,6 +191,24 @@ const DebugRoom = {
         ['触手：一閃', () => me.tentacleDemo('cut')],
         ['敵の耐性の輪（盤に8種を並べる・もう一度押すと片づく）', () => me.resDemo()],
       ]],
+      ['札の新しい挙動（見本の的に、その札を掛けた武器で数秒撃つ・本物の戦闘）', [
+        ['曳光弾（ガトリング・装甲の的）', () => me.cardDemo('gat_barrels')],
+        ['掃射（ガトリング）', () => me.cardDemo('gat_loose')],
+        ['粘着燃料（火炎・燃え移り）', () => me.cardDemo('flm_wide')],
+        ['青い炎（火炎・耐火の的）', () => me.cardDemo('flm_inferno')],
+        ['腐蝕の雲（毒ガス・装甲の的）', () => me.cardDemo('gas_toxic')],
+        ['重い霧（毒ガス・流れる雲）', () => me.cardDemo('gas_fog')],
+        ['氷の棺（凍結）', () => me.cardDemo('cry_permafrost')],
+        ['砕氷（凍結）', () => me.cardDemo('cry_shatter')],
+        ['返し刃（刀・逆向きの斬撃）', () => me.cardDemo('ktn_swallow')],
+        ['追尾刃（手裏剣）', () => me.cardDemo('shk_sweep')],
+        ['影分身（手裏剣）', () => me.cardDemo('shu_sakura')],
+        ['弾む泡（泡）', () => me.cardDemo('bbl_bounce')],
+        ['泡の檻（泡）', () => me.cardDemo('bbl_sea')],
+        ['徹甲榴弾（迫撃砲・装甲の的）', () => me.cardDemo('mtr_wide')],
+        ['焼夷弾（迫撃砲）', () => me.cardDemo('mtr_barrage')],
+        ['装甲貫通（全武器・装甲の的）', () => me.cardDemo('gen_ap')],
+      ]],
       ['通知（トースト）', [
         ['新しい武器', () => UI.toastMsg('新しい武器 ガトリング', '#ffb43c', 'weapon')],
         ['ウェーブ突破', () => UI.toastMsg('ウェーブ 3 突破', '#7ee3a0', 'wave')],
@@ -516,6 +534,78 @@ const DebugRoom = {
     }, 16);
   },
 
+  // 札の新しい挙動の見本（2026-09-30 段3b）。裏の準備フェーズの盤に、**その札を掛けた武器を1基**と、**動かない的**を並べ、本物の戦闘（Combat.update）を数秒だけ進める。
+  //   的は、武器の向きにまっすぐ通る道の上（見える範囲の上の半分から探す。下半分は確認室のパネルが覆う）。装甲・耐火の札は、それを試せる敵（ファイアウォール・ボット群）にする。
+  //   **セーブにも配置にも触らない**：武器は run.units に一時的に足すだけ（placeUnit は通らない）。run 側の値（chillVuln・cageVuln・apen など）・与ダメージの記録は、終わりに元へ戻す。
+  _CDKEEP: ['chillVuln', 'cageVuln', 'apen', 'backdraft', 'grabBurn', 'coinMul', 'livesMax', 'lives', 'livesCard', 'resonanceStep', 'resonanceMax', 'dealt', 'kills', 'coinsEarned'],
+  _cdEnd() {
+    clearInterval(this._cd);
+    const d = this._cdState; this._cdState = null;
+    if (!d) return;
+    const run = d.run;
+    run.units = d.orig;                // 見本の武器だけを盤に置いていた（本物の配置は退かせてあった）ので、元の配列を返す
+    for (const en of d.enemies) en.dead = true;
+    run.enemies = run.enemies.filter(en => !d.enemies.includes(en));
+    run.fields.length = 0; run.bullets.length = 0; run.fx.length = 0; run.nums.length = 0;
+    for (const k of this._CDKEEP) { if (d.keep[k] === undefined) delete run[k]; else run[k] = d.keep[k]; }
+    if (run.dmgBy) for (const k of Object.keys(run.dmgBy)) delete run.dmgBy[k];
+    if (run.killBy) for (const k of Object.keys(run.killBy)) delete run.killBy[k];
+  },
+  cardDemo(cardId) {
+    const run = Game.run, c = CARDS[cardId];
+    if (!run || !run.stage || !c) return;
+    this._cdEnd();
+    const st = run.stage, hx = (st.vec && st.vec.hexes) || [];
+    const wid = c.weapon || 'gatling';
+    const def = WEAPONS[wid];
+    // 置き場所と向き：上の半分の通路の六角のうち、6方向のどれかへ 200px まっすぐ歩ける所（長いほど良い・真ん中に近いほど良い）
+    let best = null;
+    for (const h of hx) {
+      if (h.y > st.h * 0.5 || h.y < 80) continue;
+      for (const a of Game.FACES) {
+        let len = 0;
+        for (let d = 10; d <= 220; d += 10) {
+          if (!st.walkable(((h.x + Math.cos(a) * d) / TILE) | 0, ((h.y + Math.sin(a) * d) / TILE) | 0)) break;
+          len = d;
+        }
+        const sc = len - Math.abs(h.x - st.w / 2) * 0.05;
+        if (!best || sc > best.sc) best = { sc, h, a, len };
+      }
+    }
+    if (!best) return;
+    const u = Game.newUnit(wid, best.h.c, best.h.r, best.a);
+    const keep = {};
+    for (const k of this._CDKEEP) keep[k] = run[k];
+    // 札を掛ける（最大の重ねまで・凸は 0）。ラン側の値は applyCardRun が書く
+    const n = c.maxStack || 1;
+    const orig = run.units; run.units = [u];
+    for (let i = 0; i < n; i++) { Game.applyCardRun(cardId, run); Game.applyCardUnit(cardId, run, u); }
+    // 的
+    const armor = ['gat_barrels', 'gas_toxic', 'mtr_wide', 'gen_ap'].includes(cardId), fire = cardId === 'flm_inferno';
+    const t = armor ? ENEMY_TYPES.shield : fire ? ENEMY_TYPES.swarm : ENEMY_TYPES.grunt;
+    const g = Math.max(Combat.gw(run), fire ? 26 : armor ? 16 : 1);
+    const enemies = [];
+    const L = Math.max(90, best.len), N = 6;
+    for (let i = 0; i < N; i++) {
+      const dd = 45 + (L - 60) * i / (N - 1);
+      const ex = best.h.x + Math.cos(best.a) * dd + Math.sin(best.a) * (i % 2 ? 7 : -7), ey = best.h.y + Math.sin(best.a) * dd - Math.cos(best.a) * (i % 2 ? 7 : -7);
+      const en = Combat.makeEnemy(run, t, g, ex, ey, 0, 1e12);
+      en.spd = 0; en.lane = null; en.res = fire ? { fire: true } : en.res;
+      if (armor) en.armor = Math.max(en.armor, 6);   // 装甲の見本（雑魚HPの割合ではなく、数字で見える固い値）
+      run.enemies.push(en); enemies.push(en);
+    }
+    // 指定攻撃（泡・迫撃砲）は、的の真ん中へ円を置く
+    if (def.aimPoint) { const m = enemies[(N / 2) | 0]; u.ax = m.x; u.ay = m.y; u.aim = { x: m.x, y: m.y }; }
+    this._cdState = { run, u, enemies, keep, orig };
+    let last = performance.now(), el = 0;
+    this._cd = setInterval(() => {
+      const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now; el += dt;
+      if (Game.run !== run || el > 7) { this._cdEnd(); return; }
+      Combat.update(run, dt);
+    }, 16);
+    UI.toastMsg('見本：' + c.name + '（約7秒）', BAL.rarity[c.rarity].color, 'demo');
+  },
+
   bossBattle() {
     this._btEnd();
     this._dirEnd();     // 向きの花の見本が出ていたら先に片づける（配置の記録の写しが、ボス戦のあとの書き戻しと食い違わないように）
@@ -598,6 +688,7 @@ const DebugRoom = {
   },
 
   close() {
+    this._cdEnd();
     this._btEnd();
     this._dirEnd();
     clearInterval(this._skRapid);

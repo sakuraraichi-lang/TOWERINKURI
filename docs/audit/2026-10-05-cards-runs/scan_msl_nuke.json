@@ -1,0 +1,23 @@
+{
+ "wpn": "missile",
+ "mode": "msl_nuke",
+ "pre": {
+  "msl_nuke": 1
+ },
+ "median": 2078,
+ "leaked": [
+  2031,
+  2091,
+  2119,
+  2040,
+  2024,
+  2091,
+  2072,
+  2100,
+  2115,
+  2068,
+  2072,
+  2084
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

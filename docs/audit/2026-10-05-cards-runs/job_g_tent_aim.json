@@ -1,0 +1,23 @@
+{
+ "wpn": "tentacle",
+ "mode": "gen_aim",
+ "pre": {
+  "gen_aim": 5
+ },
+ "median": 222,
+ "leaked": [
+  235,
+  229,
+  199,
+  231,
+  206,
+  229,
+  196,
+  179,
+  197,
+  215,
+  280,
+  234
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

@@ -1,0 +1,23 @@
+{
+ "wpn": "katana",
+ "mode": "ktn_zantetsu",
+ "pre": {
+  "ktn_zantetsu": 1
+ },
+ "median": 628.5,
+ "leaked": [
+  653,
+  605,
+  633,
+  577,
+  623,
+  637,
+  616,
+  624,
+  651,
+  634,
+  647,
+  556
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

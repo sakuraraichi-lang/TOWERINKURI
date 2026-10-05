@@ -1,0 +1,23 @@
+{
+ "wpn": "gatling",
+ "mode": "gat_barrels",
+ "pre": {
+  "gat_barrels": 2
+ },
+ "median": 2343,
+ "leaked": [
+  2351,
+  2358,
+  2346,
+  2340,
+  2375,
+  2349,
+  2286,
+  2303,
+  2352,
+  2326,
+  2324,
+  2326
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

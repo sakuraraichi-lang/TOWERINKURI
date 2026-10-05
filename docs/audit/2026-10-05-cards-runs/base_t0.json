@@ -1,0 +1,110 @@
+{
+ "gatling": {
+  "cards": 7,
+  "dmg": 3.14,
+  "rate": 2.3,
+  "count": 5,
+  "reach": 1.75,
+  "P1": 36.11,
+  "P2": 63.19
+ },
+ "sniper": {
+  "cards": 5,
+  "dmg": 4.85,
+  "rate": 1,
+  "count": 1,
+  "reach": 1.087,
+  "P1": 4.85,
+  "P2": 5.272
+ },
+ "missile": {
+  "cards": 5,
+  "dmg": 4.127,
+  "rate": 0.9167,
+  "count": 7,
+  "reach": 1,
+  "P1": 26.48,
+  "P2": 26.48
+ },
+ "tesla": {
+  "cards": 5,
+  "dmg": 3.1,
+  "rate": 1,
+  "count": 1,
+  "reach": 2.778,
+  "P1": 3.1,
+  "P2": 8.611
+ },
+ "flame": {
+  "cards": 5,
+  "dmg": 7.8,
+  "rate": 1.3,
+  "count": 1,
+  "reach": 1,
+  "P1": 10.14,
+  "P2": 10.14
+ },
+ "gas": {
+  "cards": 5,
+  "dmg": 7.76,
+  "rate": 1,
+  "count": 1,
+  "reach": 1,
+  "P1": 7.76,
+  "P2": 7.76
+ },
+ "cryo": {
+  "cards": 5,
+  "dmg": 3.5,
+  "rate": 1.857,
+  "count": 1,
+  "reach": 1,
+  "P1": 6.5,
+  "P2": 6.5
+ },
+ "katana": {
+  "cards": 5,
+  "dmg": 3.5,
+  "rate": 2.149,
+  "count": 4,
+  "reach": 1,
+  "P1": 30.09,
+  "P2": 30.09
+ },
+ "shuriken": {
+  "cards": 5,
+  "dmg": 0.5277,
+  "rate": 1,
+  "count": 15,
+  "reach": 3.5,
+  "P1": 7.916,
+  "P2": 27.71
+ },
+ "tentacle": {
+  "cards": 5,
+  "dmg": 3,
+  "rate": 0.8,
+  "count": 1.75,
+  "reach": 1,
+  "P1": 4.2,
+  "P2": 4.2
+ },
+ "bubble": {
+  "cards": 5,
+  "dmg": 1,
+  "rate": 2.475,
+  "count": 6,
+  "reach": 1,
+  "P1": 14.85,
+  "P2": 14.85
+ },
+ "mortar": {
+  "cards": 5,
+  "dmg": 2.752,
+  "rate": 1.75,
+  "count": 9,
+  "reach": 1,
+  "P1": 43.34,
+  "P2": 43.34
+ }
+}

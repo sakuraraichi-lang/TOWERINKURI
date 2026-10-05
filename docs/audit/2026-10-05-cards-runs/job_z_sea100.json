@@ -1,0 +1,23 @@
+{
+ "wpn": "bubble",
+ "mode": "bbl_sea",
+ "pre": {
+  "bbl_sea": 1
+ },
+ "median": 747,
+ "leaked": [
+  718,
+  755,
+  724,
+  726,
+  748,
+  737,
+  770,
+  744,
+  746,
+  748,
+  749,
+  771
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

@@ -1,0 +1,23 @@
+{
+ "wpn": "gas",
+ "mode": "gas_dense",
+ "pre": {
+  "gas_dense": 5
+ },
+ "median": 1768,
+ "leaked": [
+  1799,
+  1767,
+  1750,
+  1695,
+  1796,
+  1762,
+  1742,
+  1781,
+  1769,
+  1801,
+  1810,
+  1767
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

@@ -1,0 +1,23 @@
+{
+ "wpn": "gatling",
+ "mode": "gat_belt",
+ "pre": {
+  "gat_belt": 5
+ },
+ "median": 297,
+ "leaked": [
+  314,
+  274,
+  270,
+  307,
+  304,
+  282,
+  302,
+  292,
+  288,
+  319,
+  281,
+  309
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

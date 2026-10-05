@@ -1,0 +1,23 @@
+{
+ "wpn": "gatling",
+ "mode": "gen_allout",
+ "pre": {
+  "gen_allout": 1
+ },
+ "median": 1181,
+ "leaked": [
+  1217,
+  1178,
+  1233,
+  1171,
+  1204,
+  1246,
+  1178,
+  1224,
+  1167,
+  1182,
+  1170,
+  1180
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

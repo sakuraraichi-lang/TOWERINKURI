@@ -1,0 +1,23 @@
+{
+ "wpn": "missile",
+ "mode": "msl_multi",
+ "pre": {
+  "msl_multi": 3
+ },
+ "median": 2012,
+ "leaked": [
+  2040,
+  2041,
+  2014,
+  2017,
+  1986,
+  2038,
+  1981,
+  1994,
+  2009,
+  2011,
+  1975,
+  2013
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

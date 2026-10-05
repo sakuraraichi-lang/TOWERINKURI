@@ -1,0 +1,23 @@
+{
+ "wpn": "flame",
+ "mode": "flm_wide",
+ "pre": {
+  "flm_wide": 2
+ },
+ "median": 2208.5,
+ "leaked": [
+  2239,
+  2203,
+  2278,
+  2214,
+  2203,
+  2147,
+  2236,
+  2160,
+  2189,
+  2236,
+  2229,
+  2195
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

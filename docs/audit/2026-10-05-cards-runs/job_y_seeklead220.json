@@ -1,0 +1,23 @@
+{
+ "wpn": "shuriken",
+ "mode": "shk_sweep",
+ "pre": {
+  "shk_sweep": 1
+ },
+ "median": 2794,
+ "leaked": [
+  2798,
+  2820,
+  2847,
+  2786,
+  2813,
+  2759,
+  2790,
+  2746,
+  2757,
+  2814,
+  2765,
+  2816
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

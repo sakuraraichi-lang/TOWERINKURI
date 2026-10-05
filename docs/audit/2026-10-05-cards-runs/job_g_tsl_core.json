@@ -1,0 +1,23 @@
+{
+ "wpn": "tesla",
+ "mode": "gen_core",
+ "pre": {
+  "gen_core": 3
+ },
+ "median": 2950.5,
+ "leaked": [
+  2798,
+  2875,
+  2799,
+  2951,
+  2952,
+  2921,
+  2852,
+  2950,
+  2959,
+  2965,
+  2959,
+  2985
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

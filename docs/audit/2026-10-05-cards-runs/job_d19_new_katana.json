@@ -1,0 +1,27 @@
+{
+ "wpn": "katana",
+ "mode": "all",
+ "pre": {
+  "ktn_edge": 5,
+  "ktn_iai": 3,
+  "ktn_twin": 3,
+  "ktn_swallow": 2,
+  "ktn_zantetsu": 1
+ },
+ "median": 8.5,
+ "leaked": [
+  9,
+  8,
+  11,
+  9,
+  8,
+  8,
+  8,
+  10,
+  10,
+  7,
+  7,
+  9
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

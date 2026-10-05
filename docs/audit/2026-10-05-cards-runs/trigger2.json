@@ -1,0 +1,130 @@
+[
+ {
+  "name": "曳光弾 gat_barrels：装甲の削れた敵への命中",
+  "leaked": 2023,
+  "n": 5626,
+  "n2": 343,
+  "extra": null,
+  "run": null
+ },
+ {
+  "name": "掃射 gat_loose：首振りの速さ",
+  "leaked": 1037,
+  "n": 1,
+  "n2": 0,
+  "extra": 2,
+  "run": null
+ },
+ {
+  "name": "粘着燃料 flm_wide：燃え移り",
+  "leaked": 2694,
+  "n": 4173,
+  "n2": 0,
+  "extra": null,
+  "run": null
+ },
+ {
+  "name": "青い炎 flm_inferno：耐火の敵への命中（半減されない）",
+  "leaked": 2823,
+  "n": 29392,
+  "n2": 0,
+  "extra": null,
+  "run": null
+ },
+ {
+  "name": "腐蝕の雲 gas_toxic：装甲の削れた敵への命中",
+  "leaked": 1852,
+  "n": 66925,
+  "n2": 341,
+  "extra": null,
+  "run": null
+ },
+ {
+  "name": "重い霧 gas_fog：雲が流れた距離（最大・px）",
+  "leaked": 1439,
+  "n": 1,
+  "n2": 0,
+  "extra": 99,
+  "run": null
+ },
+ {
+  "name": "氷の棺 cry_permafrost：周りを凍らせた回数",
+  "leaked": 3331,
+  "n": 25065,
+  "n2": 0,
+  "extra": null,
+  "run": null
+ },
+ {
+  "name": "砕氷 cry_shatter：run.chillVuln",
+  "leaked": 1813,
+  "n": 29811,
+  "n2": 0,
+  "extra": null,
+  "run": 0.8
+ },
+ {
+  "name": "返し刃 ktn_swallow：逆向きの斬撃",
+  "leaked": 465,
+  "n": 7216,
+  "n2": 0,
+  "extra": null,
+  "run": null
+ },
+ {
+  "name": "追尾刃 shk_sweep：旗",
+  "leaked": 813,
+  "n": 0,
+  "n2": 0,
+  "extra": null,
+  "run": null
+ },
+ {
+  "name": "影分身 shu_sakura：分身の弾（同時に飛んでいる最大数）",
+  "leaked": 629,
+  "n": 152,
+  "n2": 0,
+  "extra": null,
+  "run": null
+ },
+ {
+  "name": "弾む泡 bbl_bounce：跳ねた泡の着弾",
+  "leaked": 728,
+  "n": 18707,
+  "n2": 16725,
+  "extra": null,
+  "run": null
+ },
+ {
+  "name": "泡の檻 bbl_sea：閉じ込めた敵への命中",
+  "leaked": 961,
+  "n": 286689,
+  "n2": 0,
+  "extra": null,
+  "run": null
+ },
+ {
+  "name": "徹甲榴弾 mtr_wide：装甲の敵への命中",
+  "leaked": 1684,
+  "n": 2007,
+  "n2": 0,
+  "extra": null,
+  "run": null
+ },
+ {
+  "name": "焼夷弾 mtr_barrage：火の海",
+  "leaked": 821,
+  "n": 8218,
+  "n2": 0,
+  "extra": null,
+  "run": null
+ },
+ {
+  "name": "装甲貫通 gen_ap：装甲の敵への命中",
+  "leaked": 2033,
+  "n": 5848,
+  "n2": 0,
+  "extra": null,
+  "run": 0.6
+ }
+]

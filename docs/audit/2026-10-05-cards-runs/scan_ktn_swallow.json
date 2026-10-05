@@ -1,0 +1,23 @@
+{
+ "wpn": "katana",
+ "mode": "ktn_swallow",
+ "pre": {
+  "ktn_swallow": 2
+ },
+ "median": 469.5,
+ "leaked": [
+  465,
+  491,
+  445,
+  474,
+  465,
+  460,
+  446,
+  484,
+  496,
+  493,
+  502,
+  462
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

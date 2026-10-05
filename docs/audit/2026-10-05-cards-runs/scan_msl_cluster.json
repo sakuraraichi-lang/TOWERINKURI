@@ -1,0 +1,23 @@
+{
+ "wpn": "missile",
+ "mode": "msl_cluster",
+ "pre": {
+  "msl_cluster": 2
+ },
+ "median": 969,
+ "leaked": [
+  992,
+  969,
+  947,
+  1022,
+  984,
+  895,
+  1024,
+  947,
+  981,
+  961,
+  927,
+  969
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

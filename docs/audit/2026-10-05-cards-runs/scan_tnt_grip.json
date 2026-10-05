@@ -1,0 +1,23 @@
+{
+ "wpn": "tentacle",
+ "mode": "tnt_grip",
+ "pre": {
+  "tnt_grip": 5
+ },
+ "median": 193.5,
+ "leaked": [
+  199,
+  194,
+  236,
+  171,
+  211,
+  196,
+  193,
+  184,
+  176,
+  183,
+  213,
+  173
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}

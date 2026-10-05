@@ -1,0 +1,23 @@
+{
+ "wpn": "gatling",
+ "mode": "gen_boost",
+ "pre": {
+  "gen_boost": 4
+ },
+ "median": 1597,
+ "leaked": [
+  1603,
+  1589,
+  1580,
+  1605,
+  1577,
+  1572,
+  1591,
+  1626,
+  1622,
+  1632,
+  1632,
+  1550
+ ],
+ "res": "deaddeaddeaddeaddeaddeaddeaddeaddeaddeaddeaddead"
+}
