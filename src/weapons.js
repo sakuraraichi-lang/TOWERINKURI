@@ -178,7 +178,9 @@ const WEAPONS = {
     //   通路の幅ぶんを一撃で薙ぐ形になり、**レート据置のまま 439 → 31**。
     //   弾28・貫通30 まで広げても 33 で頭打ちなので、20/20 が折れ点
     //   レーザー：bulletR は光線の太さの半分・reflect は壁で折り返す回数・range は最初の直線の目安（線の長さの合計は range × BAL.laserLenMul）
-    base: baseStats({ dmg: 34, rate: 0.78, range: 430, spread: 0.012, speed: 1500, pierce: 20, bulletR: 24, reflect: 2, turn: 3.5 }),
+    //   【2026-10-05 段D・コスト対性能】レート 0.78→1.1。同じコストの予算での漏れが12種で最下位だった（第25章・D27・単独・上手な置き方・6本：コスト24で 1,494／コスト48で 526）。
+    //   光線が毎秒1本未満で、通り道を覆う回数が足りない。ダメージ・貫通は漏れを動かさないので、レートだけ上げた（→ 898／195）
+    base: baseStats({ dmg: 34, rate: 1.1, range: 430, spread: 0.012, speed: 1500, pierce: 20, bulletR: 24, reflect: 2, turn: 3.5 }),
     fire(w, run) {
       // 同時発射（count）が増えたら、少しずつ角度をずらして線を増やす
       for (let i = 0; i < w.n; i++) {
@@ -205,7 +207,10 @@ const WEAPONS = {
     //   第25章・単独・上手な円（12本）で、D27 の漏れの中央値 31.5 → 158（迫撃砲 160・泡 153 と同じ帯。**ほかの円の武器より5倍強かった**）。
     //   D27 は「床」でダメージを変えても動かず、**撃つ数（レート）だけが効いた**（レート 1.4→1.2 で 62.5・→1.0 で 158。ダメージ 18 でも 34 でも同じ 158）。
     //   重くしたのは、1発ごとに引かれる装甲（ファイアウォール）に負けにくくするため。D22 の毎秒の合計は ほぼ同じ（上手な円 2484 → 2676）
-    base: baseStats({ dmg: 34, rate: 1.0, range: 330, speed: 430, splash: 72, bulletR: 5, turn: 5 }),
+    //   【2026-10-05 段D・コスト対性能】レート 1.0→0.85。円を通り道の多い点へ置く上手な置き方で、基数を並べると最良の側だった
+    //   （第25章・D27・単独・6本：コスト48・12基で漏れ 140.5。コスト24・6基は 555.5）。12種を同じ帯（最良と最悪が4倍以内）に収めるため、
+    //   撃つ数だけ下げた（→ 778／228）。重い1発・範囲はそのまま
+    base: baseStats({ dmg: 34, rate: 0.85, range: 330, speed: 430, splash: 72, bulletR: 5, turn: 5 }),
     // **ミサイルは噴射炎と煙を引く。**（ユーザー 2026-09-22「絵と中身の矛盾を解消して」）
     //   丸が滑っていくだけでは、名前がミサイルである理由が絵に出ない
     fire(w, run) { Combat.bombard(w, run, '#ff7a3c', { rocket: true }); },
@@ -378,7 +383,8 @@ const WEAPONS = {
     arcFix: 0.12, aimPoint: true, spot: 58,
     desc: '置いた円の中へ泡を降らせ、割れた場所の敵を閉じ込める。',
     // 泡は 15（12種中10位）。ダメージ10→16・レート1.1→1.5 で 26。実測 15 → 26
-    base: baseStats({ dmg: 16, rate: 1.5, range: 250, speed: 300, bulletR: 9,
+    //   【2026-10-05 段D・コスト対性能】レート 1.5→1.2（上手な置き方・第25章・D27・単独・6本：コスト48・12基で漏れ 96.5 と最良の側。→ 156。コスト24・6基は 544 → 735）
+    base: baseStats({ dmg: 16, rate: 1.2, range: 250, speed: 300, bulletR: 9,
                       stunDur: 1.8, splash: 58, splashMul: 1.0 }),
     fire(w, run) { Combat.bombard(w, run, '#8ad8ff'); },
   },
@@ -387,7 +393,8 @@ const WEAPONS = {
     id: 'mortar', cost: 3, cat: 'target', name: '迫撃砲', short: 'MTR', icon: Icons.get('mortar'), color: '#e0b060', src: 'stage',
     arcFix: 0.08, aimPoint: true, spot: 96,
     desc: '置いた円の中へ重い砲弾を降らせ続ける。射程は長いが発射は遅い。',
-    base: baseStats({ dmg: 42, rate: 0.55, range: 420, speed: 240, bulletR: 6,
+    //   【2026-10-05 段D・コスト対性能】レート 0.55→0.45（上手な置き方・第25章・D27・単独・6本：コスト48・15基で漏れ 86 と12種で最良。→ 184。コスト24・8基は 601 → 926）
+    base: baseStats({ dmg: 42, rate: 0.45, range: 420, speed: 240, bulletR: 6,
                       splash: 96, splashMul: 1.0, turn: 2.4 }),
     fire(w, run) { Combat.bombard(w, run, '#e0b060'); },
   },
