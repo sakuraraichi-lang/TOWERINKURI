@@ -282,7 +282,7 @@ const DebugRoom = {
         ['再起動の場面（部屋）', () => Scenes.reboot(null)],
         ['指揮官の記録', () => UI.openProfile(true)],
         ['パックのタブ（見本の所持数）', () => me.packTab()],
-        ['図鑑（下へ送ると「敵」「上位札」の節）', () => me.collTab()],
+        ['図鑑（種類ごとのタブ・強化と連携は武器ごとのチップ）', () => me.collTab()],
         ['カードのレア度の見比べ（4種を並べる）', () => me.rarityView()],
       ]],
     ];
@@ -359,9 +359,10 @@ const DebugRoom = {
   collTab() {
     this.collTabClose();
     const el = Util.el('div', 'rs fx dbgpk dbgcoll');
-    el.innerHTML = '<div class="rs-ban"><em>// DEBUG ROOM</em><b>図鑑（見本）</b><span>上位札の節・敵の節まで下へ送って確かめる</span></div>';
+    el.innerHTML = '<div class="rs-ban"><em>// DEBUG ROOM</em><b>図鑑（見本）</b><span>タブ（武器・強化・連携・汎用・常駐・鍵・上位・敵）を切り替えて確かめる</span></div>';
     const body = Util.el('div', 'dbgpk-b');
-    UI.panelCollection(body);
+    const draw = () => { body.innerHTML = ''; UI.panelCollection(body, draw); };
+    draw();
     el.appendChild(body);
     const subs = Util.el('div', 'rs-subs');
     const close = Util.el('button', 'rs-sub');

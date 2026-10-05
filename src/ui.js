@@ -1652,8 +1652,10 @@ const UI = {
   },
 
   // ================= コレクション =================
-  panelCollection(p) {
-    const IDS = CARD_IDS.filter(id => !CARDS[id].upper);   // 上位札は持ち物ではない（下の節で別に見せる）
+  //   rerender … タブを押したときの描き直し（省くとパネルの描き直し。確認室の見本は自分の板を描き直す）
+  panelCollection(p, rerender) {
+    const re = rerender || (() => this.renderPanel());
+    const IDS = CARD_IDS.filter(id => !CARDS[id].upper);   // 上位札は持ち物ではない（上位のタブで別に見せる）
     const total = IDS.length;
     const have = IDS.filter(id => Game.own(id) > 0).length;
     const head = Util.el('div', 'phead');
@@ -1661,47 +1663,80 @@ const UI = {
       ' 種類　永久資源。同じカードを重ねるほど凸が上がって強くなる</span>';
     p.appendChild(head);
 
-    // **種類ごとに分けて並べる。**（2026-09-25）
-    //   前は1つの格子に全部入れていて、並べ替えの表に遺物と鍵が無く（比較が NaN）、
-    //   **遺物がほかのカードの間にばらばらに混ざっていた。**
-    //   遺物は「持っているだけで効くカード」（ユーザー 2026-09-25「遺物もパッシブで働くカードのつもりでした、
-    //   これも凸で性能を制御するものとして」）なので、独立した節にして凸の星を見せる
-    const sections = [
-      { kind: 'weapon',  name: '武器',       sub: '編成に入れて盤に置く' },
-      { kind: 'mod',     name: '武器強化',   sub: '3択に出る。その武器が編成にあると効く' },
-      { kind: 'synergy', name: '連携',       sub: '3択に出る。2つの武器がそろうと効く' },
-      { kind: 'generic', name: '汎用',       sub: '3択に出る。どの編成でも効く' },
-      { kind: 'perm',    name: '常駐',       sub: '持っているだけで常に効く。凸で強くなる' },
-      { kind: 'key',     name: '鍵',         sub: '機能を開く' },
-      { kind: 'upper',   name: '上位札',     sub: '前提の2枚をその出撃で取ると3択に出る。1枚だけ。パックからは出ない' },
+    // **種類ごとのタブ**（1005c・ユーザー「図鑑にタブを実装して、カードや敵の種類毎に分けてください、
+    //   これから敵やボスが増えたり、カードの種類も増えます、タブ分けしてスクロールを減らすべきでしょう」）。
+    //   前は全部の節を1枚に縦に並べていた（百数十枚＋敵）。タブの見た目はスキルの画面と同じキー（.sk-tab）。
+    //   武器強化と連携は、さらに武器ごとのチップで絞る（札が増えても1画面の量が増えない）
+    const tabsDef = [
+      { kind: 'weapon',  name: '武器',   sub: '編成に入れて盤に置く' },
+      { kind: 'mod',     name: '強化',   sub: '3択に出る。その武器が編成にあると効く', byWeapon: true },
+      { kind: 'synergy', name: '連携',   sub: '3択に出る。2つの武器がそろうと効く', byWeapon: true },
+      { kind: 'generic', name: '汎用',   sub: '3択に出る。どの編成でも効く' },
+      { kind: 'perm',    name: '常駐',   sub: '持っているだけで常に効く。凸で強くなる' },
+      { kind: 'key',     name: '鍵',     sub: '機能を開く' },
+      { kind: 'upper',   name: '上位',   sub: '前提の2枚をその出撃で取ると3択に出る。1枚だけ。パックからは出ない' },
+      { kind: 'enemy',   name: '敵',     sub: '侵入してくるプログラム。縁の色の切れた輪が耐性の印' },
     ];
-    for (const sec of sections) {
-      const up = sec.kind === 'upper';
-      const ids = CARD_IDS.filter(id => up ? CARDS[id].upper : (!CARDS[id].upper && CARDS[id].kind === sec.kind)).sort((a, b) =>
-        (BAL.rarityOrder.indexOf(CARDS[b].rarity) - BAL.rarityOrder.indexOf(CARDS[a].rarity)) || a.localeCompare(b));
-      if (!ids.length) continue;
-      const got = ids.filter(id => Game.own(id) > 0).length;
-      const g = Util.el('div', 'csec k-' + sec.kind);
-      g.innerHTML = '<b>' + sec.name + '</b><span>' + sec.sub + '</span><em>' + (up ? ids.length + ' 種' : got + ' / ' + ids.length) + '</em>';
-      p.appendChild(g);
-      const grid = Util.el('div', 'cgrid');
-      for (const id of ids) {
-        if (!up) { grid.appendChild(CardFX.face(CARDS[id], { count: Game.own(id), dim: Game.own(id) === 0, tap: true })); continue; }
-        // 上位札は札の下に前提の2枚を別の行で（説明に混ぜると途中で切れていた）
-        const w = Util.el('div', 'upwrap');
-        w.appendChild(CardFX.face(CARDS[id], { count: 1, noCount: true, tap: true }));
-        const need = Util.el('div', 'upneed'); need.innerHTML = this.upperNeed(CARDS[id]);
-        w.appendChild(need);
-        grid.appendChild(w);
+    const idsOf = (kind) => kind === 'enemy' ? [] : CARD_IDS.filter(id => kind === 'upper' ? CARDS[id].upper
+      : (!CARDS[id].upper && CARDS[id].kind === kind));
+    const tabs = tabsDef.filter(t => t.kind === 'enemy' || idsOf(t.kind).length);
+    if (!tabs.some(t => t.kind === this.collTab)) this.collTab = tabs[0].kind;
+    const tab = tabs.find(t => t.kind === this.collTab);
+
+    const bar = Util.el('div', 'sk-tabs ctabs');
+    for (const t of tabs) {
+      const ids = idsOf(t.kind);
+      const b = Util.el('button', 'sk-tab' + (t === tab ? ' on' : ''));
+      const cnt = t.kind === 'enemy' ? Object.keys(ENEMY_TYPES).length + '種'
+        : t.kind === 'upper' ? ids.length + '種' : ids.filter(id => Game.own(id) > 0).length + '/' + ids.length;
+      b.innerHTML = '<b>' + t.name + '</b><small>' + cnt + '</small>';
+      b.addEventListener('click', () => { this.collTab = t.kind; Snd.ui(); re(); });
+      bar.appendChild(b);
+    }
+    p.appendChild(bar);
+    p.appendChild(Util.el('div', 'sk-sub', tab.sub));
+
+    if (tab.kind === 'enemy') { this.collEnemies(p); return; }
+
+    let ids = idsOf(tab.kind).sort((a, b) =>
+      (BAL.rarityOrder.indexOf(CARDS[b].rarity) - BAL.rarityOrder.indexOf(CARDS[a].rarity)) || a.localeCompare(b));
+    // 武器ごとのチップ（強化＝その武器の札・連携＝その武器が条件に入る札）
+    if (tab.byWeapon) {
+      const wOf = (id) => tab.kind === 'mod' ? [CARDS[id].weapon] : (CARDS[id].requires || []);
+      const wids = WEAPON_IDS.filter(w => ids.some(id => wOf(id).indexOf(w) >= 0));
+      const key = 'collW_' + tab.kind;
+      if (wids.indexOf(this[key]) < 0) this[key] = wids.find(w => Game.own('wc_' + w) > 0) || wids[0];
+      const chips = Util.el('div', 'sk-cats ccats');
+      for (const w of wids) {
+        const C = CATEGORIES[WEAPONS[w].cat];
+        const mine = ids.filter(id => wOf(id).indexOf(w) >= 0);
+        const b = Util.el('button', 'sk-cat' + (w === this[key] ? ' on' : ''));
+        b.style.setProperty('--bc', C.color);
+        b.innerHTML = '<span>' + WEAPONS[w].name + '</span><small>' + mine.filter(id => Game.own(id) > 0).length + '/' + mine.length + '</small>';
+        b.addEventListener('click', () => { this[key] = w; Snd.ui(); re(); });
+        chips.appendChild(b);
       }
-      p.appendChild(grid);
+      p.appendChild(chips);
+      ids = ids.filter(id => wOf(id).indexOf(this[key]) >= 0);
     }
 
-    // **敵の図鑑**（2026-09-30 段3・ユーザー「今の敵はどいつがどんな能力なのかわからないので、今のやつにつけて図鑑などに載せたって良いですね」）
-    //   名前・能力・耐性（付き始める章）・出始める章。出始める章は通算ウェーブ（ENEMY_TYPES.from）から出す
-    const eh = Util.el('div', 'csec k-enemy');
-    eh.innerHTML = '<b>敵</b><span>侵入してくるプログラム。縁の色の切れた輪が耐性の印</span><em>' + Object.keys(ENEMY_TYPES).length + ' 種</em>';
-    p.appendChild(eh);
+    const up = tab.kind === 'upper';
+    const grid = Util.el('div', 'cgrid');
+    for (const id of ids) {
+      if (!up) { grid.appendChild(CardFX.face(CARDS[id], { count: Game.own(id), dim: Game.own(id) === 0, tap: true })); continue; }
+      // 上位札は札の下に前提の2枚を別の行で（説明に混ぜると途中で切れていた）
+      const w = Util.el('div', 'upwrap');
+      w.appendChild(CardFX.face(CARDS[id], { count: 1, noCount: true, tap: true }));
+      const need = Util.el('div', 'upneed'); need.innerHTML = this.upperNeed(CARDS[id]);
+      w.appendChild(need);
+      grid.appendChild(w);
+    }
+    p.appendChild(grid);
+  },
+
+  // **敵の図鑑**（2026-09-30 段3・ユーザー「今の敵はどいつがどんな能力なのかわからないので、今のやつにつけて図鑑などに載せたって良いですね」）
+  //   名前・能力・耐性（付き始める章）・出始める章。出始める章は通算ウェーブ（ENEMY_TYPES.from）から出す。1005c から図鑑の「敵」のタブ
+  collEnemies(p) {
     const el = Util.el('div', 'elist');
     for (const t of Object.values(ENEMY_TYPES)) {
       const ch = Math.ceil(t.from / BAL.wavesPerStage);
@@ -2022,9 +2057,7 @@ const UI = {
       const link = Util.el('button', 'pz-link');
       link.innerHTML = Icons.get('grid') + '常駐を図鑑で見る';
       link.addEventListener('click', () => {
-        this.tab = 'coll'; this.renderTabs(); this.renderPanel();
-        const sec = document.querySelector('#panel .csec.k-perm');
-        if (sec) sec.scrollIntoView({ block: 'start' });
+        this.tab = 'coll'; this.collTab = 'perm'; this.renderTabs(); this.renderPanel();
       });
       p.appendChild(link);
     }
