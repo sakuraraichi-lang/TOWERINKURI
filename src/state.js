@@ -616,7 +616,7 @@ const Game = {
     //   ・**レジェンドは別枠の掛け算のまま**（「この1枚で激変」を残す）。×1未満の代償も掛け算のまま
     //   前は全部が掛け算で、冷却フィン（×1.25）5枚で ×3.05、10凸なら ×43 まで伸びた
     const s = u.s;
-    if (!u.cardBase) { u.cardBase = { dmg: s.dmg, rate: s.rate }; u.cAdd = { dmg: 0, rate: 0 }; u.cMul = { dmg: 1, rate: 1 }; }
+    if (!u.cardBase) { u.cardBase = { dmg: s.dmg / (u.adjMul || 1), rate: s.rate }; u.cAdd = { dmg: 0, rate: 0 }; u.cMul = { dmg: 1, rate: 1 }; }
     const d0 = s.dmg, r0 = s.rate;
     this.withRank(id, u._rkAcc || (u._rkAcc = {}), () => CARDS[id].apply(p));
     const more = CARDS[id].rarity === 'legendary';
@@ -626,7 +626,7 @@ const Game = {
       if (more || f < 1) u.cMul[k] *= f; else u.cAdd[k] += f - 1;
     }
     const R = BAL.cardRateCap, S = u.cAdd.rate;
-    s.dmg = u.cardBase.dmg * (1 + u.cAdd.dmg) * u.cMul.dmg;
+    s.dmg = u.cardBase.dmg * (1 + u.cAdd.dmg) * u.cMul.dmg * (u.adjMul || 1);   // 隣り合う異種の倍率（Game.updateAdj）は札とは別の掛け算
     s.rate = u.cardBase.rate * (1 + (S > 0 ? R * S / (S + R) : 0)) * u.cMul.rate;
   },
 
@@ -824,6 +824,7 @@ const Game = {
     if (!this.canPlaceAt(c, r, u)) return false;
     const pos = run.stage.hexCenter(c, r);
     u.c = c; u.r = r; u.x = pos.x; u.y = pos.y;
+    this.updateAdj(run);
     this.syncPlacements();
     return true;
   },
@@ -834,6 +835,7 @@ const Game = {
     const i = run.units.indexOf(u);
     if (i < 0) return false;
     run.units.splice(i, 1);
+    this.updateAdj(run);
     this.syncPlacements();
     return true;
   },
@@ -847,6 +849,7 @@ const Game = {
     if (!n) return 0;
     run.units.length = 0;
     run.capUp = false;
+    this.updateAdj(run);
     this.syncPlacements();   // 保存する配置も空になる（自動設置の元 lastPlace は、空のときは覚え直さない）
     return n;
   },
@@ -1064,6 +1067,32 @@ const Game = {
     return run;
   },
 
+  // ---------- 隣り合う異種で強め合う（2026-10-05・設計書 DESIGN-IDEAS §2） ----------
+  //   武器の六角の隣6つにある、**自分と違う種類**の武器の種類数（同じ種類は数えない）。1種類につき火力 +BAL.adjBonus、BAL.adjMax 種類まで。
+  //   札の重ね取り（applyCardUnit）とは別の掛け算：u.adjMul に持ち、u.s.dmg へは「前の倍率で割って新しい倍率を掛ける」で入れる。
+  //   **置く・動かす・撤去する・全撤去・組み直し（applyMods）のたびに全部の基で数え直す**
+  //   （applyMods が s を土台から組み直しても、札と同じく最後に掛け直すので消えない）
+  adjTypesAt(c, r, selfId, units, ignore) {
+    const seen = {};
+    const nb = MapGen.hexNbr(c, r);
+    for (const o of units) {
+      if (o === ignore || o.id === selfId) continue;
+      for (const q of nb) if (q[0] === o.c && q[1] === o.r) { seen[o.id] = 1; break; }
+    }
+    return Object.keys(seen);
+  },
+  adjMulOf(n) { return 1 + BAL.adjBonus * Math.min(n, BAL.adjMax); },
+  updateAdj(run) {
+    run = run || this.run;
+    if (!run) return;
+    for (const u of run.units) {
+      u.adjTypes = this.adjTypesAt(u.c, u.r, u.id, run.units, u);
+      const m = this.adjMulOf(u.adjTypes.length), old = u.adjMul || 1;
+      if (m !== old && u.s) u.s.dmg = u.s.dmg / old * m;
+      u.adjMul = m;
+    }
+  },
+
   // 今のアップグレードの内容で、ユニットとコアの数値を組み直す
   applyMods() {
     const run = this.run;
@@ -1086,9 +1115,11 @@ const Game = {
       u.flags = {};
       u.dyn = { heat: d.heat || 0, tracer: d.tracer || 0 };
       u._rkAcc = {};
+      u.adjMul = 1;            // 隣り合う異種の倍率は、土台に戻したのでここで1に。最後に updateAdj が掛け直す
       u.cardBase = null;       // 重ね取りの基準（applyCardUnit）も、組み直した値から取り直す
       for (const id of (run.cardLog || [])) this.applyCardUnit(id, run, u);
     }
+    this.updateAdj(run);
     const lost = run.livesMax > 0 ? (run.livesMax - run.lives) : 0;
     run.livesMax = BAL.livesBase + mods.lives + (run.livesCard || 0);
     run.lives = Math.max(0, run.livesMax - (run.wave > 0 ? lost : 0));

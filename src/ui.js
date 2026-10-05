@@ -833,6 +833,14 @@ const UI = {
     //   0930：**向きが攻撃に関係しない武器には花を出さない**（Game.usesFace）。指定攻撃は、選んだまま盤をタップすると着弾円がそこへ動く（着弾円のボタンは無くした）。凍結装置は向きが要らない
     if (build) p.appendChild(Util.el('div', 'udhint', spot ? '盤をタップ：着弾円がそこへ動く' : omni ? '向きは関係なし（円の中に全部効く）' : '向き：まわりの六角をタップ'));
 
+    // 隣り合う異種の内訳（Game.updateAdj）
+    {
+      const names = (u.adjTypes || []).map(id => WEAPONS[id].name);
+      const n = Math.min(BAL.adjMax, names.length);
+      p.appendChild(Util.el('div', 'udhint', names.length
+        ? '隣の異種 火力+' + Math.round(BAL.adjBonus * n * 100) + '%（' + names.join('・') + (names.length > BAL.adjMax ? '・上限' + BAL.adjMax + '種' : '') + '）'
+        : '隣に違う種類を置くと火力+' + Math.round(BAL.adjBonus * 100) + '%ずつ（最大' + BAL.adjMax + '種）'));
+    }
     const row = Util.el('div', 'urow');
     const mk = (label, fn, cls) => {
       const b = Util.el('button', 'chip ' + (cls || ''), label);

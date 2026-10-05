@@ -439,6 +439,7 @@ const Render = {
     if (!run) { ctx.setTransform(1, 0, 0, 1, 0, 0); return; }
 
     this.arcs(ctx, run);
+    this.adjLines(ctx, run);
     this.fields(ctx, run);
     this.aims(ctx, run);
     this.core(ctx, run);
@@ -574,6 +575,9 @@ const Render = {
       }
       ctx.closePath();
     };
+    // 置く前の影に「+30%」（隣り合う異種で強め合う・Game.adjTypesAt）。隣に違う種類があるところだけ出す
+    const adjUnits = Game.run ? Game.run.units : [];
+    const adjFs = Math.max(13, 12 / (this.scale || 1));
     if (def) {
       for (const h of st.hexCells()) {
         if (!Game.canPlaceAt(h.c, h.r, UI.moving || null)) continue;
@@ -582,6 +586,15 @@ const Render = {
                            : 'rgba(120,132,152,0.10)';
         const p = st.hexCenter(h.c, h.r);
         hexPath(p.x, p.y); ctx.fill();
+        if (ok) {
+          const n = Math.min(BAL.adjMax, Game.adjTypesAt(h.c, h.r, def.id, adjUnits, UI.moving || null).length);
+          if (n > 0) {
+            const t = '+' + Math.round(BAL.adjBonus * n * 100) + '%';
+            ctx.font = '900 ' + adjFs + 'px sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.lineWidth = 3 / (this.scale || 1) + 1; ctx.strokeStyle = 'rgba(4,8,13,0.95)'; ctx.strokeText(t, p.x, p.y);
+            ctx.fillStyle = '#ffe38a'; ctx.fillText(t, p.x, p.y);
+          }
+        }
       }
     }
   }
@@ -1628,6 +1641,31 @@ const Render = {
     ctx.beginPath();
     ctx.arc(t.x, t.y, t.r + 7, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * hpR);
     ctx.stroke();
+  },
+
+  // 隣り合う異種の線（Game.updateAdj）。準備フェーズ・ウェーブの合間だけ、違う種類の隣どうしを細い線でつなぐ。
+  //   選んでいる1基につながる線は太く明るく。全部を濃くすると盤が埋まるので、ほかは細く薄く
+  adjLines(ctx, run) {
+    if (!Game.canBuild()) return;
+    const us = run.units, sel = UI.selected;
+    if (us.length < 2) return;
+    const at = {};
+    for (const u of us) at[u.c + ',' + u.r] = u;
+    const s = this.scale || 1;
+    ctx.lineCap = 'round';
+    for (let i = 0; i < us.length; i++) {
+      const u = us[i];
+      for (const q of MapGen.hexNbr(u.c, u.r)) {
+        const o = at[q[0] + ',' + q[1]];
+        if (!o || o.id === u.id || us.indexOf(o) < i) continue;     // 1組を1回だけ
+        const hot = sel === u || sel === o;
+        ctx.globalAlpha = hot ? 0.95 : 0.6;
+        ctx.strokeStyle = hot ? '#ffe38a' : '#ffc24a';
+        ctx.lineWidth = (hot ? 3.2 : 2) / s;
+        ctx.beginPath(); ctx.moveTo(u.x, u.y); ctx.lineTo(o.x, o.y); ctx.stroke();
+      }
+    }
+    ctx.globalAlpha = 1;
   },
 
   // 射界（扇）。画面に出ているこの形が、そのまま当たる範囲
