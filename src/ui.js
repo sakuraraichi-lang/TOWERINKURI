@@ -859,8 +859,8 @@ const UI = {
       const names = (u.adjTypes || []).map(id => WEAPONS[id].name);
       const n = Math.min(BAL.adjMax, names.length);
       p.appendChild(Util.el('div', 'udhint', names.length
-        ? '隣の異種 レート+' + Math.round(BAL.adjBonus * n * 100) + '%（' + names.join('・') + (names.length > BAL.adjMax ? '・上限' + BAL.adjMax + '種' : '') + '）'
-        : '隣に違う種類を置くとレート+' + Math.round(BAL.adjBonus * 100) + '%ずつ（最大' + BAL.adjMax + '種）'));
+        ? '隣の異種 レート+' + Math.round(Game.adjRateGain(n, u.cAdd ? u.cAdd.rate : 0) * 100) + '%（' + names.join('・') + (names.length > BAL.adjMax ? '・上限' + BAL.adjMax + '種' : '') + '）'
+        : '隣に違う種類を置くとレートが上がる（1種で約+' + Math.round(Game.adjRateGain(1, 0) * 100) + '%・最大' + BAL.adjMax + '種）'));
     }
     const row = Util.el('div', 'urow');
     const mk = (label, fn, cls) => {

@@ -1086,6 +1086,8 @@ const Game = {
     return Object.keys(seen);
   },
   adjAddOf(n) { return BAL.adjBonus * Math.min(n, BAL.adjMax); },
+  // 隣の異種 n 種で、実際にレートが何割上がるか（画面用・1006e）。札のレート（足し算 S）と同じ上限の式を通すので、名目の +15%×n より小さく、札を積むほど小さくなる
+  adjRateGain(n, S) { S = S || 0; return this.rateFx(S + this.adjAddOf(n)) / this.rateFx(S) - 1; },
   updateAdj(run) {
     run = run || this.run;
     if (!run) return;
