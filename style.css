@@ -2881,3 +2881,18 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 .erow.eboss{border-color:rgba(255,77,106,.55);background:linear-gradient(90deg,rgba(60,8,18,.92),rgba(10,12,16,.92) 70%);}
 .erow.eboss .ebody b em{color:#ff8a9c;}
 .erow.eboss strong{color:#ff8a9c;font-weight:800;}
+
+/* モーダルの寸法と閉じる操作の見直し（1006a・ユーザー「武器を選ぶ際の✖️が押せない…スマホのデッドゾーン判定などの部分が上手くいってないため、根本的な見直しを」）
+   どう壊れていたか（実機だけで起きる。PC のスマホ幅では ✕ は押せていた）：
+   ① 高さを 90vh で決めていた。iPhone の Safari の vh はツールバーの裏まで含む高さなので、モーダルが見えている範囲より大きくなり、
+      上端（✕ のある見出し）がアドレスバー・ステータスバーの下に潜って、タップが届かない帯に入った
+   ② ホーム画面に追加すると、ステータスバーが透ける（black-translucent）ので上の約47〜59px がステータスバーの帯。モーダルは安全領域の余白を取っていなかった
+   ③ iPhone は cursor:pointer の無い div のタップで click を起こさない。背景をタップして閉じる（main.js）が iPhone では効いていなかった
+   ④ ✕ は見出しと一緒に流れ、下へ送ると画面から消えた。押せる大きさも 32px
+   直し方：余白に安全領域を足す・高さは「見えている範囲（モーダルの枠）の100%」まで・背景に cursor:pointer・武器選びの見出しを上に貼り付け・✕ を 44px に */
+#modal{padding:calc(10px + env(safe-area-inset-top,0px)) calc(10px + env(safe-area-inset-right,0px))
+  calc(10px + env(safe-area-inset-bottom,0px)) calc(10px + env(safe-area-inset-left,0px));cursor:pointer;}
+.mbox{max-height:90dvh;max-height:100%;cursor:auto;}
+.wp > .chhead.hasx{position:sticky;top:-16px;z-index:4;background:#15110b;}
+.chhead .wp-x{width:44px;height:44px;right:2px;}
+.chhead .wp-x .ico{width:20px;height:20px;}
