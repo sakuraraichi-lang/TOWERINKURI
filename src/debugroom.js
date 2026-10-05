@@ -688,6 +688,14 @@ const DebugRoom = {
         if (!run.fx.length || now - doneAt > 2500) this._btEnd();
         return;
       }
+      // 個体の見本は、視点をボスに追わせる（1006c・スマホ幅では盤が画面に収まらず、ボスが画面の外の口から出て見えなかった）。
+      //   盤が画面に収まるとき（canPan が偽）は何もしない
+      if (kind && bosses[0] && !bosses[0].dead && Render.canPan()) {
+        const b = bosses[0];
+        Render.cam.x += (b.x - Render.viewW / 2 - Render.cam.x) * 0.25;
+        Render.cam.y += (b.y - Render.viewH / 2 - Render.cam.y) * 0.25;
+        Render.fit();
+      }
       const inSh = bosses.some(b => !b.dead && Combat.inShield(run, b));
       const steps = inSh ? 6 : 1;
       let sig = null;
