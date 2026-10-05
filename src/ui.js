@@ -485,6 +485,8 @@ const UI = {
       const rest = r.enemies.filter(e => e.boss && !e.dead).length;
       if (this._bossKills > 0 && rest > 0) this.cutinBossDown(rest);
     }
+    // ボスの節目の仕掛けの予告（Combat.bossPhaseUpdate が run.phaseCut に積む。新しい予告は新しいオブジェクト）
+    if (r.phaseCut && r.phaseCut !== this._phaseCutObj) { this._phaseCutObj = r.phaseCut; this.cutinPhase(r.phaseCut); }
     // **ライフのバー。初期は常に出し、⚙で消せる**（2026-09-28・ユーザー「HPバーはデフォルトで常時表示で、設定から非表示にできる形のが良い」。
     //   0926c で上の帯ごと外し、0926i で「数字を出す（初期はオフ）」にしていた）
     const lb = document.getElementById('hudLife');
@@ -644,8 +646,27 @@ const UI = {
     }
   },
   // ボスのウェーブの帯（n ウェーブ目／total）。警告の文字は帯が抜けたあとに流す
+  //   出てくる個体の名前を添える（ワーム・ルートキット・ジャマー。口ごとに混ざる章は並べる）
   cutinBoss(n) {
-    this.cutin('BOSS<em> WAVE ' + n + ' / ' + BAL.wavesPerStage + '</em>', 'ボスが来る ─ コアに届く前に倒せ', 'boss');
+    const r = Game.run, seen = [];
+    if (r) for (const e of r.enemies) if (e.boss && e.bk && seen.indexOf(e.bk) < 0) seen.push(e.bk);
+    const nm = seen.map(k => Combat.BOSS_KIND[k].jp + ' ' + Combat.BOSS_KIND[k].en).join('／');
+    this.cutin('BOSS<em> WAVE ' + n + ' / ' + BAL.wavesPerStage + '</em>', (nm ? nm + ' ─ ' : 'ボスが来る ─ ') + 'コアに届く前に倒せ', 'boss');
+  },
+  // ボスの節目の仕掛けの予告（約1秒前）。「// PHASE n ─ JUMP 跳躍」。小さな斜めの帯・仕掛けごとの色
+  cutinPhase(pc) {
+    const N = { jump: ['JUMP', '跳躍', 'まもなく前へ跳ぶ ─ 奥にも火力を'],
+                wall: ['FIREWALL', '防壁', ''],
+                jam: ['JAM', '沈黙', 'まもなく近くの武器が止まる ─ 固めすぎるな'] }[pc.kind];
+    let sub = N[2];
+    if (pc.kind === 'wall') {
+      const nm = pc.by && WEAPONS[pc.by] ? WEAPONS[pc.by].name : '';
+      sub = nm ? nm + ' のダメージが半分になる ─ 別の武器で削れ' : '効く相手がいない';
+    }
+    const who = pc.bk && Combat.BOSS_KIND[pc.bk] ? Combat.BOSS_KIND[pc.bk].en + ' ' : '';
+    this.cutin(who + 'PHASE ' + pc.no + '<em> ─ ' + N[0] + ' ' + N[1] + '</em>', sub, 'phase');
+    const ci = this.el.cutin && this.el.cutin.querySelector('.ci');
+    if (ci) ci.style.setProperty('--ck', Combat.BOSS_COL[pc.kind]);
   },
   // ボスを1体倒した（まだ残りがいる）とき
   cutinBossDown(rest) {
@@ -1756,13 +1777,27 @@ const UI = {
     //   ボスは ENEMY_TYPES の1種ではなく Combat.spawnBoss が作る（中身は grunt を硬く・遅く・大きくしたもの）。
     //   画面の名前は「ルートキット」（コアを乗っ取る不正プログラム。世界観の敵の名前と同じ付け方・仮）
     const bossCh = BAL.bossChapters.join('・');
-    const boss = Util.el('div', 'erow eboss');
-    boss.innerHTML = '<span class="edot">' + this.ringGlyph(null, 12, '#ff4d6a') + '</span>' +
-      '<div class="ebody"><b>ルートキット<em>ROOTKIT ─ BOSS</em><u>第' + BAL.bossChapters[0] + '章から</u></b>' +
-      '<p>節目の章（第' + bossCh + '章、第31章から先は5章ごと）の最後のウェーブに、湧き口ごとに1体。そのウェーブは雑魚が出ない。' +
-      'コアへゆっくり歩き、<strong>着いたらその場で負け</strong>。コアに届く前に削り切る。</p>' +
-      '<small>足止め・掴み・減速は効かない（凍った印の被ダメージ増は乗る）。感電・拘束の割合ダメージも効かない</small></div>';
-    el.appendChild(boss);
+    //   **3体に分けた**（強み1つ・弱点1つ）。出る章は固定：第5章ワーム・第10章ルートキット・第15章ジャマー、第${BAL.bossMixFrom}章から口ごとに混ざる
+    const cond = {
+      worm: '足止め・掴みが効く（合計 ' + BAL.ccMaxSec + ' 秒まで）。数節の体を貫通する弾・光線がまとめて抜く。減速は効かない',
+      rootkit: '感電・拘束の割合ダメージが少しだけ入る（ふつうの敵の ' + Math.round(BAL.rootPct * 100) + '%）。足止め・掴み・減速は効かない（動きは止まらない）',
+      jammer: '沈黙で止まるのは近くの ' + BAL.bossJamMax + ' 基まで。散らして置けば止めきれない。足止め・掴み・減速は効かない',
+    };
+    const ch0 = { worm: 5, rootkit: 10, jammer: 15 };
+    for (const k of BAL.bossKinds) {
+      const K = Combat.BOSS_KIND[k];
+      const boss = Util.el('div', 'erow eboss');
+      boss.innerHTML = '<span class="edot">' + this.ringGlyph(null, 12, K.col) + '</span>' +
+        '<div class="ebody"><b>' + K.jp + '<em>' + K.en + ' ─ BOSS</em><u>第' + ch0[k] + '章から</u></b>' +
+        '<p>強み：<strong>' + K.strong + '</strong>（HP 75・50・25% を割るたびに1回・使う前に約1秒の予告）。' +
+        (k === 'worm' ? 'レーンに沿って前へ数タイル跳ぶ。' : k === 'rootkit' ? '直前にいちばん削った武器の種類からのダメージが数秒半分。' : '近くの武器が数秒撃てなくなる。') + '</p>' +
+        '<small>弱点：' + cond[k] + '</small></div>';
+      el.appendChild(boss);
+    }
+    const note = Util.el('div', 'erow eboss');
+    note.innerHTML = '<div class="ebody"><p>節目の章（第' + bossCh + '章、第31章から先は5章ごと）の最後のウェーブに、湧き口ごとに1体。そのウェーブは雑魚が出ない。' +
+      'コアへゆっくり歩き、<strong>着いたらその場で負け</strong>。コアに届く前に削り切る。</p></div>';
+    el.appendChild(note);
     p.appendChild(el);
   },
 

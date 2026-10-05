@@ -204,6 +204,9 @@ const DebugRoom = {
         ['ボスの帯', () => { UI.cutinBoss(W); setTimeout(() => UI.sysWarn('boss'), 2100); }],
         ['BOSS DOWN（あと2体）', () => UI.cutinBossDown(2)],
         ['ボス戦の見本（第10章・2体）', () => me.bossBattle()],
+        ['ボス：ワーム（跳躍・数節の体・予告→前へ跳ぶ）', () => me.bossBattle('worm')],
+        ['ボス：ルートキット（大きい・防壁・予告→直前に削った武器が半分）', () => me.bossBattle('rootkit')],
+        ['ボス：ジャマー（機械・沈黙・予告→近くの武器が止まる）', () => me.bossBattle('jammer')],
         ['レーザーライフルの光線（壁で2回はね返る）', () => me.laserDemo()],
         ['触手の6種の攻撃（順番に出す）', () => me.tentacleDemo()],
         ['触手：引き寄せ', () => me.tentacleDemo('pull')],
@@ -650,7 +653,9 @@ const DebugRoom = {
     UI.toastMsg('見本：' + c.name + '（約7秒）', BAL.rarity[c.rarity].color, 'demo');
   },
 
-  bossBattle() {
+  // kind（'worm'|'rootkit'|'jammer'）を渡すと、その個体を1体だけ出し、HP が 75% を割った直後に仕掛けを1回使わせる（見本・記録なし）。
+  //   ジャマーは、ボスの近くにガトリングを一時的に並べる（run.units に足すだけ。配置の記録には触れない）
+  bossBattle(kind) {
     this._btEnd();
     this._dirEnd();     // 向きの花の見本が出ていたら先に片づける（配置の記録の写しが、ボス戦のあとの書き戻しと食い違わないように）
     this._btSnap = { perm: JSON.parse(JSON.stringify(Game.perm)), meta: JSON.parse(JSON.stringify(Game.meta)) };
@@ -662,10 +667,16 @@ const DebugRoom = {
     this._btRun = run;
     Render.fit(); UI.renderTray();
     run.phase = 'build'; run.wave = BAL.wavesPerStage - 1;
-    Game.startNextWave();
+    const kindOrig = Combat.bossKindFor;
+    if (kind) Combat.bossKindFor = () => kind;            // 見本のあいだだけ、全部この個体にする
+    try { Game.startNextWave(); } finally { Combat.bossKindFor = kindOrig; }
     UI._bossKills = 0;
     UI.cutinWave(run.wave);
     const bosses = run.enemies.filter(e => e.boss);
+    if (kind && bosses.length) {
+      run.enemies = run.enemies.filter(e => !e.boss || e === bosses[0]);
+      bosses.length = 1;
+    }
     let t0 = performance.now(), tOut = null, done = false, doneAt = 0, last = t0;
     this._bt = setInterval(() => {
       if (!this.el || Game.run !== run) { this._btEnd(); return; }
@@ -682,7 +693,22 @@ const DebugRoom = {
       let sig = null;
       for (let i = 0; i < steps; i++) sig = Combat.update(run, dt) || sig;
       if (!inSh && tOut === null) tOut = now;
-      if (tOut !== null) {
+      if (kind && tOut !== null) {
+        const b = bosses[0];
+        if (!b._demoHit) {
+          b._demoHit = true;
+          if (kind === 'jammer') {
+            const near = run.stage.hexCells().map(h => { const c = run.stage.hexCenter(h.c, h.r); return { h, d: Util.dist(b.x, b.y, c.x, c.y) }; })
+              .filter(o => o.d > 50 && o.d < BAL.bossJamR - 10).sort((p, q) => p.d - q.d).slice(0, 4);
+            for (const o of near) run.units.push(Game.newUnit('gatling', o.h.c, o.h.r));
+          }
+          Combat.damage(run, b, b.hp - b.maxHp * 0.74, { by: 'gatling', src: null });
+        }
+        if (b.ph >= 1 && !b.tele && !b.dead) {
+          b._phEnd = b._phEnd || now;
+          if (now - b._phEnd > 4500) Combat.damage(run, b, b.maxHp * 2, { by: 'debug' });
+        }
+      } else if (tOut !== null) {
         const el = (now - tOut) / 1000;
         bosses.forEach((b, i) => { if (!b.dead && el >= 0.8 + i * 2.6) Combat.damage(run, b, b.maxHp * 2, { by: 'debug' }); });
       }

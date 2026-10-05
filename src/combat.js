@@ -284,25 +284,125 @@ const Combat = {
     const base = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1)
                * Math.pow(BAL.stageHpMul, run.stageIdx) * chMul;
     const mouths = (st.mouths && st.mouths.length) ? st.mouths : st.spawns.map((s, i) => [i]);
-    for (const m of mouths) {
+    const ch = run.stageIdx + 1;
+    for (let mi = 0; mi < mouths.length; mi++) {
+      const m = mouths[mi];
       const si = m[(m.length / 2) | 0];          // 穴の真ん中から
+      const bk = this.bossKindFor(ch, mi);
       const sp = st.spawns[si];
       const p = st.center(sp.c, sp.r);
-      const e = this.makeEnemy(run, t, g, p.x, p.y, si, base * BAL.bossHp * ((BAL.bossHpBy || {})[run.stageIdx + 1] || 1));
+      const e = this.makeEnemy(run, t, g, p.x, p.y, si, base * BAL.bossHp * ((BAL.bossHpBy || {})[run.stageIdx + 1] || 1) * (BAL.bossHpKind[bk] || 1));
       e.lane = this.pickLane(run, si);
       e.spd = BAL.bossSpeed;
-      e.r = BAL.bossR;
-      e.color = '#ff4d6a';
+      e.r = BAL.bossRKind[bk] || BAL.bossR;
+      e.color = this.BOSS_KIND[bk].col;
       e.tname = 'boss';
       e.boss = true;
-      e.ccUsed = Infinity;                       // 足止め・掴みは効かない（BAL.ccMaxSec を使い切った扱い）
+      e.bk = bk;                                 // 個体：worm | rootkit | jammer（強みと弱点が1つずつ）
+      // 足止め・掴みが効くのはワームだけ（弱点）。ルートキットは受けるが動きは止まらず割合ダメージだけ入る（弱点）。ジャマーは効かない。
+      //   どれも BAL.ccMaxSec の上限は守る（効かない個体は使い切った扱い）
+      if (bk === 'jammer') e.ccUsed = Infinity;
+      if (bk === 'rootkit') e.noStop = true;
+      if (bk === 'worm') e.trail = [{ x: p.x, y: p.y }];   // 体の節（頭のあとを追う点・新しい順）
       e.coin = e.coin * BAL.bossCoin;
+      e.ph = 0;                                  // 次に使う仕掛けの番号（0〜2）。HP が BAL.bossPhaseAt を割るたびに1つ進む
+      e.tele = null;                             // 予告中：{ kind, t, by }
+      e.wallT = 0; e.wallBy = null;              // 防壁：残り秒・半分になる武器の id
+      e.rec = {};                                // 直近にいちばん削った武器を見るための、時間で薄れる合計
       run.enemies.push(e);
     }
     run.hasBoss = true;
   },
 
+  // ===== ボス3体と、それぞれの節目の仕掛け（docs/DESIGN-IDEAS-2026-10-05.md §1・1-2・BAL.boss*） =====
+  //   ワーム＝跳躍（弱点：拘束・足止め／貫通が節をまとめて抜く）／ルートキット＝防壁（弱点：感電・拘束の割合ダメージが少し入る・大きい）／
+  //   ジャマー＝沈黙（弱点：近くの数基だけ止まる。散らして置けば止めきれない）。HP が 75・50・25% を割るたびに1回（同じ仕掛けを3回）。使う前に約1秒の予告
+  BOSS_KIND: {
+    worm:    { jp: 'ワーム',       en: 'WORM',    ph: 'jump', col: '#58e0a0', strong: '跳躍', weak: '拘束・足止めが効く／貫通が節をまとめて抜く' },
+    rootkit: { jp: 'ルートキット', en: 'ROOTKIT', ph: 'wall', col: '#ff4d6a', strong: '防壁', weak: '感電・拘束の割合ダメージが少し入る' },
+    jammer:  { jp: 'ジャマー',     en: 'JAMMER',  ph: 'jam',  col: '#9fb4c8', strong: '沈黙', weak: '止まるのは近くの数基だけ。散らして置けば止めきれない' },
+  },
+  BOSS_COL: { jump: '#4ee0ff', wall: '#ffd24a', jam: '#d36bff' },
+  // どの章のどの口に、どの個体か（固定・乱数にしない）。序盤（第 BAL.bossMixFrom 章より前）は1章1種：第5章ワーム・第10章ルートキット・第15章ジャマー。
+  //   それ以降は口ごとに違う個体を混ぜる
+  bossKindFor(ch, mi) {
+    const K = BAL.bossKinds;
+    const base = Math.floor(ch / 5) - 1;
+    return K[((base + (ch >= BAL.bossMixFrom ? mi : 0)) % K.length + K.length) % K.length];
+  },
+  // ワームの体の節：頭が BAL.wormGap 進むごとに点を足し、節の数だけ残す
+  wormFollow(e) {
+    const T = e.trail, gap = BAL.wormGap;
+    let l = T[0], d = Util.dist(e.x, e.y, l.x, l.y);
+    while (d >= gap) {
+      const a = Util.angle(l.x, l.y, e.x, e.y);
+      l = { x: l.x + Math.cos(a) * gap, y: l.y + Math.sin(a) * gap };
+      T.unshift(l); d -= gap;
+    }
+    if (T.length > BAL.wormSegs) T.length = BAL.wormSegs;
+  },
+  bossPhaseUpdate(run, e, dt) {
+    // 防壁の対象を決めるための「直近にいちばん削った武器」：時間で薄れる合計（BAL.bossRecTau 秒で 1/e）
+    const k = Math.exp(-dt / BAL.bossRecTau);
+    for (const id in e.rec) e.rec[id] *= k;
+    if (e.wallT > 0 && (e.wallT -= dt) <= 0) e.wallBy = null;
+    if (e.tele) {
+      if ((e.tele.t -= dt) <= 0) this.bossPhaseDo(run, e, e.tele);
+      return;
+    }
+    if (e.ph < 3 && e.hp <= e.maxHp * BAL.bossPhaseAt[e.ph]) {
+      const kind = this.BOSS_KIND[e.bk].ph;
+      let by = null;
+      if (kind === 'wall') {
+        let best = 0;
+        for (const id in e.rec) if (WEAPONS[id] && e.rec[id] > best) { best = e.rec[id]; by = id; }
+      }
+      e.tele = { kind, t: BAL.bossPhaseTele, by };
+      e.ph++;
+      this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 4, color: this.BOSS_COL[kind], life: BAL.bossPhaseTele });
+      // 画面側（UI.renderHud）が見て帯を出す。新しい予告は新しいオブジェクト
+      run.phaseCut = { n: (run.phaseCut ? run.phaseCut.n : 0) + 1, no: e.ph, kind, by, bk: e.bk };
+    }
+  },
+  bossPhaseDo(run, e, tele) {
+    e.tele = null;
+    const col = this.BOSS_COL[tele.kind];
+    if (tele.kind === 'jump') {
+      const st = run.stage;
+      // コアの手前 bossJumpKeep タイルは残す（跳んだ先がそのまま負けにならないように）
+      let left = Math.min(BAL.bossJumpTiles, Math.max(0, e.dist - BAL.bossJumpKeep)) * TILE;
+      this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 2.2, color: col, life: 0.35 });
+      while (left > 0) {
+        const tc = (e.x / TILE) | 0, tr = (e.y / TILE) | 0;
+        if (!st.walkable(tc, tr)) break;
+        const g = st.flowTo(tc, tr, e.lane);
+        if (!g) break;
+        const a = Util.angle(e.x, e.y, g.x, g.y), s = Math.min(8, left);
+        const nx = e.x + Math.cos(a) * s, ny = e.y + Math.sin(a) * s;
+        if (!st.step(tc, tr, (nx / TILE) | 0, (ny / TILE) | 0)) break;
+        e.x = nx; e.y = ny; left -= s;
+        if (e.trail) this.wormFollow(e);
+      }
+      this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 4, color: col, life: 0.5 });
+      this.shake(run, 6, true);
+    } else if (tele.kind === 'wall') {
+      if (tele.by) { e.wallT = BAL.bossWallSec; e.wallBy = tele.by; }
+      this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 4, color: col, life: 0.5 });
+    } else {
+      // 沈黙：半径 BAL.bossJamR の中の、近い順に BAL.bossJamMax 基だけ止める（散らして多く置けば止めきれない）
+      const near = [];
+      for (const w of run.units) { const d = Util.dist(e.x, e.y, w.x, w.y); if (d <= BAL.bossJamR) near.push([d, w]); }
+      near.sort((p, q) => p[0] - q[0]);
+      for (let i = 0; i < near.length && i < BAL.bossJamMax; i++) {
+        const w = near[i][1];
+        w.jamT = BAL.bossJamSec; this.fx(run, { type: 'ring', x: w.x, y: w.y, r: 34, color: col, life: 0.4 });
+      }
+      this.fx(run, { type: 'ring', x: e.x, y: e.y, r: BAL.bossJamR * 1.25, color: col, life: 0.6 });
+    }
+  },
+
   startWave(run) {
+    for (const w of run.units) w.jamT = 0;     // 沈黙は次のウェーブへ持ち越さない
     run.phase = 'spawn';
     run.toSpawn = this.waveCount(run);
     // **湧き間隔は「そのウェーブの総数」で割る。**
@@ -483,6 +583,8 @@ const Combat = {
     }
     const src = opts.src || this._src;       // いま撃っている武器の1基（装甲貫通・青い炎が読む）
     let dmg = amount * this.vuln(run, e);
+    // ワームの体は数節の連なり：貫通する弾・光線は節をまとめて抜く（当たった節の数ぶんダメージが入る）
+    if (opts.hits > 1 && e.bk === 'worm') dmg *= opts.hits;
     // **耐性**（2026-09-30 段3）。効きにくいだけで、無効にはしない（BAL.resMul）
     const res = e.res, by0 = opts.by || this._by;
     if (res) {
@@ -507,6 +609,11 @@ const Combat = {
     //   数えるのは**有効ダメージ**（敵の残りHPまで）。倒しきった敵へのやり過ぎ分まで数えると、
     //   効率の良い武器ほど小さく出る（CLAUDE.md「武器とカードは漏らした数で測る」）
     const by = opts.by || this._by || 'other';
+    // ボスの防壁：直前にいちばん削った武器の種類からのダメージは半分（無効にはしない）。直近の削り合計もここで付ける
+    if (e.boss && e.rec) {
+      if (e.wallT > 0 && by === e.wallBy) dmg *= BAL.bossWallMul;
+      e.rec[by] = (e.rec[by] || 0) + dmg;
+    }
     const hp0 = e.hp;
     e.hp -= dmg;
     e.hitFlash = 0.1;
@@ -966,6 +1073,7 @@ const Combat = {
         hit.add(e);
         hits++;
         this.damage(run, e, dmg, {
+          hits: BAL.wormLaserHits,
           crit: s.crit, critMul: s.critMul, exec: s.execThr, shock: s.shockDur,
           slow: s.slow, slowDur: s.slowDur,
           burn: s.burn ? s.dmg * s.burn : 0, burnDur: s.burnDur, color: w.def.color,
@@ -1424,16 +1532,17 @@ const Combat = {
       //   （敵のHPは30章で1e14倍になる）。装甲と同じ考え方
       //   **ボスには効かせない。**（2026-09-28）ボスはHPを制限時間内に削り切れるかを問う敵なので、割合で削るとHPが意味を持たない。
       //   倍率×8でも第15章から先のボスは口を出てすぐ倒れ、受けたダメージの 0〜93%（6本）が感電のスリップだった
-      if (e.shock > 0 && BAL.shockDps && !e.boss) {
-        this.damage(run, e, e.maxHp * BAL.shockDps * dt, { color: '#c9b3ff', dot: true, by: e.shockBy, shockTick: true });
+      if (e.shock > 0 && BAL.shockDps && (!e.boss || e.bk === 'rootkit')) {
+        this.damage(run, e, e.maxHp * BAL.shockDps * dt * (e.boss ? BAL.rootPct : 1), { color: '#c9b3ff', dot: true, by: e.shockBy, shockTick: true });
         if (e.dead) continue;
       }
-      if (e.stun > 0 && BAL.stunDps && !e.boss) {
-        this.damage(run, e, e.maxHp * BAL.stunDps * dt, { color: '#bea0ff', dot: true, by: e.stunBy });
+      if (e.stun > 0 && BAL.stunDps && (!e.boss || e.bk === 'rootkit')) {
+        this.damage(run, e, e.maxHp * BAL.stunDps * dt * (e.boss ? BAL.rootPct : 1), { color: '#bea0ff', dot: true, by: e.stunBy });
         if (e.dead) continue;
       }
       // （ボスが雑魚を出し続ける形は 2026-09-28 に撤去した。ボスのウェーブは雑魚が出ない・spawnBoss）
       // **再生。燃えている間は止まる**（炎上を積む意味をここで作る）
+      if (e.boss) this.bossPhaseUpdate(run, e, dt);
       if (e.regen > 0 && e.burnT <= 0 && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.regen * dt);
 
       const tc = (e.x / TILE) | 0, tr = (e.y / TILE) | 0;
@@ -1462,8 +1571,8 @@ const Combat = {
       const goal = inside ? st.flowTo(tc, tr, e.lane) : (st.nearCore ? st.center(st.nearCore(tc, tr).c, st.nearCore(tc, tr).r) : { x: tw.x, y: tw.y });
       const a = Util.angle(e.x, e.y, goal.x, goal.y);
 
-      if (e.stun <= 0) {
-        if (e.grabT > 0) {
+      if (e.stun <= 0 || e.noStop) {
+        if (e.grabT > 0 && !e.noStop) {
           // **来た道へ引き戻す。** 道の上にいるあいだだけ後退させる。
           //   道を外れると goal がコア直通になり、そこから後退させると
           //   「壁を無視してコアの真逆（このマップ群では画面の上）へ飛ぶ」
@@ -1490,6 +1599,7 @@ const Combat = {
           e.x += Math.cos(a) * e.spd * slowMul * zm * dt;
           e.y += Math.sin(a) * e.spd * slowMul * zm * dt;
           e.ang = a;      // 描画で向きを出すため。挙動には使わない
+          if (e.trail) this.wormFollow(e);
         }
       }
 
@@ -1547,6 +1657,7 @@ const Combat = {
       // 首を振り続ける扇風機のガトリング、というのがこの武器たちの姿
       // 加熱には**上限がある。** 撃ちっぱなしにしたので、青天井だと
       // 「撃っているだけで速くなり続ける」になってしまう（heatCap で頭打ち）
+      if (w.jamT > 0) { w.jamT -= dt; continue; }   // ボスの沈黙：撃てない
       const rate = w.s.rate *
         (w.flags.heat ? (1 + w.dyn.heat * Math.min(BAL.heatCap, w.dyn.heatMax || 0)) : 1);
       w.cd -= dt;
@@ -1649,7 +1760,11 @@ const Combat = {
         if (swept) { if (Util.segDist2(px, py, b.x, b.y, e.x, e.y) > reach * reach) continue; }
         else if (Util.dist(b.x, b.y, e.x, e.y) > reach) continue;
 
+        // ワーム：残りの貫通の数だけ節をまとめて抜く（貫通を使い切る）
+        let wormHits = 1;
+        if (e.bk === 'worm' && b.pierce > 0) { wormHits = 1 + Math.min(b.pierce, BAL.wormSegs - 1); b.pierce -= wormHits - 1; }
         this.damage(run, e, b.dmg, {
+          hits: wormHits,
           crit: b.crit, critMul: b.critMul, exec: b.exec, shock: b.shock,
           slow: b.slow, slowDur: b.slowDur, stun: b.stun,
           burn: b.burn, burnDur: b.burnDur, color: b.color,

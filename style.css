@@ -2896,3 +2896,10 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 .wp > .chhead.hasx{position:sticky;top:-16px;z-index:4;background:#15110b;}
 .chhead .wp-x{width:44px;height:44px;right:2px;}
 .chhead .wp-x .ico{width:20px;height:20px;}
+
+/* ボスの節目の仕掛けの予告（1006a）：小さな斜めの帯。色は仕掛けごと（--ck は JS が置く）。盤の上寄りに出して、ボスの足元を隠さない。1.5秒で自分で消える */
+#cutin .ci-phase{top:22%;--ck:#ffd24a;animation-duration:1.5s;}
+#cutin .ci-phase .ci-band{border-color:var(--ck);box-shadow:0 0 22px color-mix(in srgb,var(--ck) 55%,transparent);animation-duration:1.5s;}
+#cutin .ci-phase b{font-size:21px;text-shadow:0 0 12px color-mix(in srgb,var(--ck) 85%,transparent);}
+#cutin .ci-phase b em{color:var(--ck);}
+#cutin .ci-phase span{color:#fff;}
