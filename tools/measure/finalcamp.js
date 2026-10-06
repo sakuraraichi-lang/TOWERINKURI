@@ -29,5 +29,5 @@ Combat.update = function (run, dt) {
 const rows = await progressAsync([SEED], { laps: 12 });
 const r = rows[0];
 const asc = Asc.on(Game.perm), ch31 = STAGES.length > MAIN_CHAPTERS ? Game.stageUnlocked(STAGES[MAIN_CHAPTERS].id) : null;   // 第30章を倒したあと、アセンションに入れて第31章が開いているか
-({ seed: SEED, asc, ch31, line: r.line, total: +r.mins.reduce((a, b) => a + b, 0).toFixed(1), tries: r.tries, notes: r.notes,
+({ seed: SEED, asc, ch31, line: r.line, cap: r.cap, total: +r.mins.reduce((a, b) => a + b, 0).toFixed(1), tries: r.tries, notes: r.notes,
    ch30: att.map(a => ({ res: a.res, wave: a.wave, ret: a.ret, hp: +a.hp.toFixed(3), sec: Math.round(a.t), broken: a.broken || 0, ph: a.ph.join(','), units: a.units, dmg: a.dmg, hm: a.hm })) })

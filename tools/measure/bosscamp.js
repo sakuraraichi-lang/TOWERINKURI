@@ -27,4 +27,4 @@ Combat.update = function (run, dt) {
 };
 const rows = await progressAsync([SEED], { laps: 12 });
 const r = rows[0];
-({ seed: SEED, line: r.line, total: +r.mins.reduce((a,b)=>a+b,0).toFixed(1), tries: r.tries, notes: r.notes, lossFirst, lossAll, byKind, ph })
+({ seed: SEED, line: r.line, cap: r.cap, total: +r.mins.reduce((a,b)=>a+b,0).toFixed(1), tries: r.tries, notes: r.notes, lossFirst, lossAll, byKind, ph })

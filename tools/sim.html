@@ -351,7 +351,7 @@ async function reachDistAsync(seeds, opts) {
   async function lap(label, reset) {
     if (reset) Game.newSave();
     let cleared = 0, sec = 0, note = '', lastName = '';
-    const tryLog = [], resLog = [];
+    const tryLog = [], resLog = [], recs = [];
     for (const stg of STAGES.slice(0, maxCh)) {
       st.now = label + ' ' + stg.name;
       await yieldNow();
@@ -363,7 +363,13 @@ async function reachDistAsync(seeds, opts) {
       //   前は「前に手で突破したときの最高コイン」が入っていて、
       //   ユーザー報告「もらえる金額が多すぎて30章を完全クリアされた」
       //   使う前提で測らないと、再攻略の時間を実際より長く見積もる
-      if (opts.useSkip !== false && Game.canSkip(stg.id)) {
+      //   **【2026-10-06】飛ばすのは、コストの上限が最大に届いてから。**
+      //   飛ばした章は報酬が0。上限（スキルツリーの units）はコインで買うので、全部飛ばすと
+      //   収入の無い第30章（雑魚が出ない＝負けてもコイン0）に上限12・5基で入り、永久に詰んでいた
+      //   （1006l の通しで12本中4本）。プレイヤーも「上限が育つまで手前の章を回して稼ぐ」ので、それに合わせる。
+      //   上限が最大（costBase + 14×costPerNode）になったら、前回の到達までは飛ばす。opts.capSkip=false で前の歩き方
+      const capMax = BAL.costBase + 14 * BAL.costPerNode;
+      if (opts.useSkip !== false && Game.canSkip(stg.id) && (opts.capSkip === false || Game.costCap() >= capMax)) {
         Game.skipStage(stg.id);
         cleared++; tryLog.push(0); resLog.push('S'); lastName = stg.name;
         continue;
@@ -372,6 +378,7 @@ async function reachDistAsync(seeds, opts) {
       for (let i = 1; i <= tries; i++) {
         if (opts.noPacks !== true) openAllPacks();
         const r = runStage(stg.id, LOADOUTS[stg.id], 90, opts);
+        recs.push({ lap: label, ch: stg.id, cap: r.cap, used: r.used, n: r.n, maxCap: r.maxCap, res: r.res[0] });
         sec += r.sec; used = i; resLog.push(r.res[0]);
         if (r.res === 'clear') { ok = true; cleared++; break; }
         // 'slow' が出たら測定器が追いつかなかった行。**隠さず印を残す**
@@ -384,7 +391,7 @@ async function reachDistAsync(seeds, opts) {
     if (cleared >= maxCh) note = note || '上限まで全部突破';
     //   res の頭文字： c=突破 d=敗北 t=時間切れ s=打切
     return { cleared, min: +(sec / 60).toFixed(1), note, last: lastName,
-             tries: tryLog.join(','), res: resLog.join('') };
+             tries: tryLog.join(','), res: resLog.join(''), recs };
   }
 
   st.lap = lap;          // 周回を重ねる測定（progressAsync）から使い回す
@@ -492,6 +499,16 @@ async function cardScanAsync(opts) {
 //
 //   結果 → window.PROG.rows[] = { seed, laps:[到達章...], line:'3 → 6 → 9 → …' }
 // ---------------------------------------------------------------
+// 通しの全出撃の「上限・置いたコスト」の集計（2026-10-06）。
+//   under＝置いたコストが 上限−2 を下回った出撃の数（0 であること）。
+//   ch30＝第30章に挑んだ回数、ch30notMax＝そのうち上限が最大（maxCap）に満たなかった回数（0 であること）
+function capSummary(recs) {
+  const c30 = recs.filter(x => x.ch === 'ch30');
+  const under = recs.filter(x => x.used < x.cap - 2);
+  return { runs: recs.length, under: under.length, underAt: under.slice(0, 6).map(x => x.ch + ':' + x.used + '/' + x.cap),
+           ch30: c30.length, ch30notMax: c30.filter(x => x.cap < x.maxCap).length,
+           ch30caps: c30.map(x => x.cap).filter((v, i, a) => a.indexOf(v) === i).join('/'), maxCap: recs.length ? recs[0].maxCap : 0 };
+}
 async function progressAsync(seeds, opts) {
   opts = opts || {};
   const laps = opts.laps || 8;
@@ -501,7 +518,7 @@ async function progressAsync(seeds, opts) {
   for (const sd of seeds) {
     seedRng(sd);
     Game.newSave();
-    const got = [], mins = [], tries = [], notes = [], slots = [];
+    const got = [], mins = [], tries = [], notes = [], slots = [], allRecs = [];
     for (let L = 1; L <= laps; L++) {
       pg.now = 'seed' + sd + ' 周' + L;
       // **1周を歩く手順は reachDistAsync と同じものを使う。**
@@ -512,6 +529,7 @@ async function progressAsync(seeds, opts) {
       const r = await lap('seed' + sd + ' 周' + L, L === 1);
       pg.now = 'seed' + sd + ' 周' + L + ' → ' + r.cleared + '章';
       got.push(r.cleared); mins.push(r.min); tries.push(r.tries); notes.push(r.note);
+      for (const x of r.recs) allRecs.push(x);
       slots.push(Game.costCap());           // その周の終わりのコストの上限（以前は置ける基数）
       // **章ごとの挑戦回数（tries）を残す。**
       //   0 はスキップ、1 は一発、2以上は詰まった章 ＝ ストップポイント。
@@ -519,7 +537,7 @@ async function progressAsync(seeds, opts) {
       //   BAL.chapterMul をどこに置けばいいかが決められなかった
       pg.rows = pg.rows.filter(x => x.seed !== sd)
         .concat([{ seed: sd, laps: got.slice(), mins: mins.slice(), slots: slots.slice(),
-                   tries: tries.slice(), notes: notes.slice(), line: got.join(' → ') }]);
+                   tries: tries.slice(), notes: notes.slice(), line: got.join(' → '), cap: capSummary(allRecs) }]);
       await yieldNow();
       if (r.cleared >= STAGES.length) break;
       if (!Game.canPrestige()) break;
@@ -725,8 +743,8 @@ function heatField(st, range, arc, traffic) {
 //   編成の種類ごとに使ったコストが等しくなるように、1基ずつ配る（使ったコストがいちばん少ない種類に次の1基。同じなら編成の順）。
 //   コストの上限に収まらなくなるまで。**これは「上手な混成」の代用**（1種だけ・安い武器だけを上限まで並べる置き方はしない）。
 //   すでに盤にある武器のコストは使用済みとして数える（ウェーブ間の置き直しは、先に全部外してから呼ぶ）
-function costWant() {
-  const types = Game.loadoutWeapons();
+function costWant(exclude) {
+  const types = Game.loadoutWeapons().filter(t => !(exclude && exclude[t]));
   const cap = Game.costCap();
   const spent = {}, num = {};
   for (const t of types) { spent[t] = 0; num[t] = 0; }
@@ -769,7 +787,8 @@ function replaceUnits(run) {
     }
     return true;
   };
-  for (const wid of want) {
+  const failedR = {};
+  const placeOneR = (wid) => {
     const s0 = statOf(wid);
     const field = heatField(st, s0.range, s0.arc, run.traffic);
     // **置けるまで候補を順に試す。**（`placeUnit` は枠や上限でも断るので）
@@ -782,9 +801,18 @@ function replaceUnits(run) {
       u = Game.placeUnit(wid, f.c, f.r);
       if (u) { pick = f; break; }
     }
-    if (!u) continue;
+    if (!u) return false;
     taken[u.c + ',' + u.r] = 1;
     Game.aimUnit(u, pick.a);
+    return true;
+  };
+  for (const wid of want) if (!placeOneR(wid)) failedR[wid] = true;
+  // 安全網：置けなかった武器の浮いたコストをほかの武器に回す
+  for (let round = 0; round < 4 && Object.keys(failedR).length; round++) {
+    const more = costWant(failedR);
+    if (!more.length) break;
+    more.sort((a, b) => statOf(b).range - statOf(a).range);
+    for (const wid of more) if (!placeOneR(wid)) failedR[wid] = true;
   }
   // 置き直したユニットへのカードの掛け直しは、本体の applyMods がやる（2026-09-26）。
   //   前はここで run.coinMul などを戻して applyCard を全部呼び直していたが、本体の applyCard が
@@ -891,7 +919,7 @@ function autoPlaceRange(run) {
     return true;
   };
 
-  for (const wid of want) {
+  const placeOne = (wid) => {
     const s0 = statOf(wid);
     const field = aimField(st, s0.range, s0.arc, s0.thru);
     // まず「味方と離れた良い点」、無ければ空いている最良点。
@@ -903,10 +931,20 @@ function autoPlaceRange(run) {
       u = Game.placeUnit(wid, f.c, f.r);
       if (u) { pick = f; break; }
     }
-    if (!u) continue;
+    if (!u) return false;
     taken[u.c + ',' + u.r] = 1;
     Game.aimUnit(u, pick.a);
     if (AIM_SMART) smartAim(u, st, aimUsed);
+    return true;
+  };
+  // **安全網（2026-10-06）**：置けなかった武器の浮いたコストは、ほかの武器に回す（costWant を、置けなかった種類を除いて引き直す）
+  const failed = {};
+  for (const wid of want) if (!placeOne(wid)) failed[wid] = true;
+  for (let round = 0; round < 4 && Object.keys(failed).length; round++) {
+    const more = costWant(failed);
+    if (!more.length) break;
+    more.sort((a, b) => statOf(b).range - statOf(a).range);
+    for (const wid of more) if (!placeOne(wid)) failed[wid] = true;
   }
 }
 
@@ -1025,6 +1063,7 @@ function runStageInner(stageId, loadout, buys, opts) {
     if (Skill.buy(Game.meta, Game.perm, ids[0])) { spent += c; bought++; }
   }
   autoPlace(run0);
+  const placedRec = { cap: Game.costCap(), used: Game.costUsed(), n: run0.units.length, maxCap: BAL.costBase + 14 * BAL.costPerNode };
   Game.applyMods();
   Game.beginBattle();
 
@@ -1163,6 +1202,7 @@ function runStageInner(stageId, loadout, buys, opts) {
     // 「シナジーが弱い」のか「シナジーのカードが来ていない」のかを分けるため、
     // 実際に取れたカードと、その編成で出るはずのシナジーを両方残す
     replace: REPLACE_MODE,
+    cap: placedRec.cap, used: placedRec.used, n: placedRec.n, maxCap: placedRec.maxCap,
     arcAvg: run.units.length ? +(run.units.reduce((a,u)=>a+u.arc,0)/run.units.length).toFixed(3) : 0,
     groupAvg: run.units.length ? +(run.units.reduce((a,u)=>a+Game.groupingOf(u),0)/run.units.length).toFixed(3) : 0,
     cards: Object.assign({}, run.cards),

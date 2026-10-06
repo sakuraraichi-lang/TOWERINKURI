@@ -14,5 +14,5 @@ Skill.buy = function (meta, perm, id) {
 };
 const rows = await progressAsync([SEED], { laps: 12 });
 const r = rows[0];
-({ seed: SEED, line: r.line, mins: r.mins, total: +r.mins.reduce((a,b)=>a+b,0).toFixed(1), tries: r.tries, notes: r.notes, slots: r.slots,
+({ seed: SEED, line: r.line, cap: r.cap, mins: r.mins, total: +r.mins.reduce((a,b)=>a+b,0).toFixed(1), tries: r.tries, notes: r.notes, slots: r.slots,
    buy: Object.fromEntries(Object.entries(buyLog).map(([k,v]) => [k, v.slice(0,3).join(' ')])) })

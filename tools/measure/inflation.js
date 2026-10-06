@@ -25,4 +25,4 @@ Game.endRun = function (ok) {
   return _end(ok);
 };
 const rows = await progressAsync([__SEED__], { laps: 12 });
-({ line: rows[0].line, rec })
+({ line: rows[0].line, cap: rows[0].cap, rec })
