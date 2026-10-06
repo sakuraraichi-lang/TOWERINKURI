@@ -121,6 +121,7 @@ const Relic = {
       burnDur: 0, burnPow: 0, burnGrant: 0,
       chillDur: 0, slowPow: 0, chillGrant: 0, chillVuln: 0,
       stunDur: 0, shockDur: 0,
+      upDmg: 0,      // 上位の敵へのダメージ（アセンション専用の常駐・cards.js の ur_*）
     };
     let lives = 0, seed = 0, startLv = 0, picks = 0, choices = 0, regen = 0;
 
@@ -185,6 +186,7 @@ const Relic = {
       speed: (1 + add.speed),
       crit: add.crit,
       pierce: add.pierce,
+      upDmg: 1 + add.upDmg,         // 上位の敵が受けるダメージの倍率（Combat.damage が読む）
       // 状態異常はまとめて run.st に渡す（Combat.damage が読む）
       st: {
         burnDur: add.burnDur, burnMul: 1 + add.burnPow, burnGrant: add.burnGrant,

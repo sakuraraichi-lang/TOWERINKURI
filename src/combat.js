@@ -693,9 +693,10 @@ const Combat = {
     return null;
   },
   // 上位の敵が系統 sys から受けるダメージの倍率（無効は BAL.ascImmuneMul・ゼロデイは弱点以外 BAL.ascZdOther）
-  upperMul(e, sys) {
+  upperMul(e, sys, run) {
     if (this.immune(e, sys)) return BAL.ascImmuneMul;
-    if (e.weak && sys && sys !== e.weak) return BAL.ascZdOther;
+    //   弱点以外の半減は、アセンション専用の札（ua_weak・連携の上位パック）で、半分から run.zdOther まで緩む
+    if (e.weak && sys && sys !== e.weak) return (run && run.zdOther) ? Math.max(BAL.ascZdOther, run.zdOther) : BAL.ascZdOther;
     return 1;
   },
 
@@ -814,10 +815,12 @@ const Combat = {
     const by0 = opts.by || this._by;
     let upMul = 1;
     if (e.upper) {
-      upMul = this.upperMul(e, this.sysOf(by0));
+      upMul = this.upperMul(e, this.sysOf(by0), run);
       if (upMul <= 0) { e.immT = 0.2; return 0; }
+      //   アセンション専用の札（上位パック）と常駐：上位の敵が受けるダメージの倍率（run.upDmg＝出撃中の札・mods.relic.upDmg＝常駐）
+      upMul *= (run.upDmg || 1) * ((run.mods && run.mods.relic && run.mods.relic.upDmg) || 1);
     }
-    if (e.auraT > 0) upMul *= BAL.ascRansomMul;
+    if (e.auraT > 0 && !run.noAura) upMul *= BAL.ascRansomMul;   // run.noAura＝検疫ゲート（ua_gate）
     // 触手の印（連携3枚：syn_hangman・syn_fixfire・syn_searbind）：触手が当てた敵に BAL.cardFx.tntMarkDur 秒の印。
     //   6種の攻撃のどれでも付く（掴み・突き・薙ぎ払い・一閃・墨の爆風・壁と墨の場の持続ダメージ）。印のある敵を相手の武器が強く打てる
     if (run.tntMark && (opts.by || this._by) === 'tentacle') {

@@ -31,6 +31,44 @@ const Asc = {
   // レベルが上がったときのパックの数
   packsAt(k) { return Math.round(BAL.ascPackBase * Math.pow(BAL.ascPackGrowth, k)); },
 
+  // ---- パックの圧縮（2026-10-06・BAL.ascExch*）：同じ分野のふつうのパック M 個＋コイン C 枚 → その分野の上位パック1個 ----
+  //   C ＝ ascExchCoinMul ×（最前線の章の最初のウェーブの敵1体のコイン）×（1 ＋ 交換した回数の累計 × ascExchCoinStep）
+  //   最前線の章＝突破した章のうちいちばん奥（第31章を突破するまでは第31章として数える）。後ろの章ほどコインの稼ぎが大きいので、C も章で伸びる（式は balance.js）
+  exchangeCoin(perm) {
+    const reach = Math.max(MAIN_CHAPTERS, Game.endlessReach(perm));
+    const unit = BAL.enemyCoinBase * Math.pow(BAL.enemyCoinGrowth, globalWave(reach - 1, 1) - 1);   // 最前線の章の最初のウェーブの、雑魚1体のコイン
+    return Math.round(BAL.ascExchCoinMul * unit * (1 + (perm.exchN || 0) * BAL.ascExchCoinStep));
+  },
+  // 分野 base（'basic'・'arms'・'chem'・'relic'・'syn'）の交換の状況。押せないときは short に足りないものを短く入れる
+  exchangeInfo(perm, meta, base) {
+    const have = perm.packs[base] || 0, M = BAL.ascExchPacks, C = this.exchangeCoin(perm), coins = meta.coins || 0;
+    const short = [];
+    if (!this.on(perm)) short.push('アセンション前');
+    if (have < M) short.push('パックあと ' + (M - have) + ' 個');
+    if (coins < C) short.push('コインあと ' + Util.fmt(C - coins));
+    return { base, up: 'u_' + base, have, M, C, coins, ok: short.length === 0, short };
+  },
+  // 1回交換する。成功したら { ok:true, up, M, C }。保存は呼んだ側（Game.exchange）
+  exchange(perm, meta, base) {
+    const i = this.exchangeInfo(perm, meta, base);
+    if (!i.ok || !PACKS['u_' + base]) return { ok: false, short: i.short };
+    perm.packs[base] -= i.M;
+    meta.coins -= i.C;
+    perm.packs[i.up] = (perm.packs[i.up] || 0) + 1;
+    perm.exchN = (perm.exchN || 0) + 1;
+    return { ok: true, up: i.up, M: i.M, C: i.C };
+  },
+  // 測定器用：交換できるだけ交換する（分野ごとに、ふつうのパックが多い順）。戻り値は交換した回数
+  exchangeAll(perm, meta) {
+    let n = 0;
+    for (let g = 0; g < 400; g++) {
+      const base = PACK_IDS.filter(b => this.exchangeInfo(perm, meta, b).ok).sort((a, b) => perm.packs[b] - perm.packs[a])[0];
+      if (!base) break;
+      this.exchange(perm, meta, base); n++;
+    }
+    return n;
+  },
+
   // 敵側のアセンション（誘引の段）。第31章から先だけ。1段 ＋ レベル ascLurePerLv ごとに1段
   lureLv(perm, stageIdx) {
     if (!this.on(perm) || stageIdx < MAIN_CHAPTERS) return 0;

@@ -58,7 +58,8 @@ const Game = {
     this.perm = {
       collection: Object.assign({}, STARTER_CARDS),
       // **最初はパックを持っていない。** 基本パックは2ステージ突破で解放される
-      packs: { basic: 0, arms: 0, chem: 0, syn: 0, relic: 0 },
+      packs: { basic: 0, arms: 0, chem: 0, syn: 0, relic: 0, u_basic: 0, u_arms: 0, u_chem: 0, u_syn: 0, u_relic: 0 },   // u_* ＝上位パック（アセンション専用）
+      exchN: 0,                     // 上位パックへ交換した回数の累計
       deepest: 0,        // 転生を挟んでも戻らない「到達した深さ」。パックの解放条件に使う
       // **恒久の土台（Legacy）の基準。転生したときだけ deepest から写す。**
       //   deepest を直接見ると周の途中で伸びて暴走する（relics.js 参照）
@@ -194,8 +195,9 @@ const Game = {
     // パックは今の定義と同じキーだけにする。
     // 昔の save には rare / epic が残っていて、開けられないまま数え続けていた
     if (!this.perm.packs) this.perm.packs = {};
-    for (const k of Object.keys(this.perm.packs)) if (PACK_IDS.indexOf(k) < 0) delete this.perm.packs[k];
-    for (const k of PACK_IDS) if (typeof this.perm.packs[k] !== 'number') this.perm.packs[k] = 0;
+    for (const k of Object.keys(this.perm.packs)) if (PACK_IDS.indexOf(k) < 0 && UPACK_IDS.indexOf(k) < 0) delete this.perm.packs[k];
+    for (const k of PACK_IDS.concat(UPACK_IDS)) if (typeof this.perm.packs[k] !== 'number') this.perm.packs[k] = 0;   // 上位パック（アセンション専用・packs.js の UPACK_IDS）も同じ入れ物
+    if (typeof this.perm.exchN !== 'number') this.perm.exchN = 0;                     // 上位パックへ交換した回数の累計（交換のコインが少しずつ上がる）
     // アセンション中なら、突破した章の次まで並べる（第31章から先は STAGES に足していく）
     if (Asc.on(this.perm)) ensureStages(Math.max(MAIN_CHAPTERS + 1, this.endlessReach() + 1));
     if (!STAGE_BY_ID[this.perm.currentStage]) this.perm.currentStage = 'ch1';
@@ -234,11 +236,12 @@ const Game = {
   // **実際に突破した数。** 報酬と表示はこちら
   clearedCount() { return STAGES.filter(s => this.stageRec(s.id).cleared).length; },
   // 突破した章のうち、いちばん奥の章の番号（第31章から先を並べるのに使う）
-  endlessReach() {
+  endlessReach(perm) {
+    perm = perm || this.perm;      // 確認室の見本のセーブを渡せる
     let n = 0;
-    for (const id of Object.keys(this.perm.stages || {})) {
+    for (const id of Object.keys(perm.stages || {})) {
       const m = /^ch(\d+)$/.exec(id);
-      if (m && this.perm.stages[id].cleared) n = Math.max(n, +m[1]);
+      if (m && perm.stages[id].cleared) n = Math.max(n, +m[1]);
     }
     return n;
   },
@@ -434,6 +437,13 @@ const Game = {
     this.perm.packsEarned = (this.perm.packsEarned || 0) + n;
     if (sink) sink.packs[id] = (sink.packs[id] || 0) + n;
     return id;
+  },
+
+  // 上位パックへの交換（アセンション専用・Asc.exchange）。成功したら保存して結果を返す
+  exchange(base) {
+    const r = Asc.exchange(this.perm, this.meta, base);
+    if (r.ok) this.save();
+    return r;
   },
 
   // ---------- コレクション ----------

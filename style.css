@@ -2910,3 +2910,37 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 .erow.eup-h strong{color:#ff8a9c;font-weight:800;}
 .edot .eimg{display:block;width:30px;height:30px;object-fit:contain;}
 .erow.eup .eres{display:block;width:fit-content;max-width:100%;}
+
+/* アセンション専用のパック端末（2026-10-06）：同じ台の上位版。青白い縁・斜めの帯の見出し・交換の窓。文字の下は不透明な暗い板（可読性）。 */
+.gs.asc{--as:#8fd8ff;}
+.gs-asc{position:relative;display:flex;align-items:baseline;gap:10px;padding:7px 12px 7px 16px;background:#06090e;border:1px solid color-mix(in srgb,var(--as) 55%,#1a2230);
+  clip-path:polygon(0 0,100% 0,calc(100% - 14px) 100%,0 100%);box-shadow:inset 0 0 14px color-mix(in srgb,var(--as) 14%,transparent);}
+.gs-asc em{font:700 8px/1 var(--font-num);font-style:normal;letter-spacing:.26em;color:var(--as);text-shadow:0 0 6px var(--as);white-space:nowrap;}
+.gs-asc b{font-size:12px;font-weight:900;letter-spacing:.1em;color:#fff;}
+.gs.asc .gs-stage{border-color:color-mix(in srgb,var(--as) 45%,var(--pc));}
+.gs.asc.up .gs-stage{box-shadow:inset 0 0 26px color-mix(in srgb,var(--pc) 30%,transparent),0 0 18px color-mix(in srgb,var(--as) 35%,transparent);}
+.gs.asc.up .gs-info{border-color:color-mix(in srgb,var(--as) 50%,#2e3139);}
+.gs-note.fusion{border-color:color-mix(in srgb,#c26bff 50%,#2a2418);}
+.gs-note.fusion em{color:#c26bff;text-shadow:0 0 6px rgba(194,107,255,.6);}
+/* 交換の窓 */
+.gs-exch{--uc:#8fd8ff;position:relative;display:flex;flex-direction:column;gap:8px;padding:10px 12px 12px;border:1px solid color-mix(in srgb,var(--uc) 45%,#2e3139);border-radius:12px;
+  background:linear-gradient(180deg,#0a0d13,#07090d);box-shadow:inset 0 1px 0 rgba(255,255,255,.07),inset 0 0 18px color-mix(in srgb,var(--uc) 8%,transparent),0 8px 20px rgba(0,0,0,.5);}
+.gs-exch.ok{box-shadow:inset 0 1px 0 rgba(255,255,255,.07),inset 0 0 22px color-mix(in srgb,var(--uc) 18%,transparent),0 0 16px color-mix(in srgb,var(--uc) 30%,transparent);}
+.gs-exch .gs-sys{margin-bottom:0;}
+.gx-row{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;align-items:stretch;}
+.gx-cell{display:flex;flex-direction:column;gap:3px;padding:6px 8px 7px;min-width:0;border-radius:4px;background:linear-gradient(180deg,#0b0a07,#15120c);border:1px solid #2a2418;
+  box-shadow:inset 0 2px 6px rgba(0,0,0,.9);}
+.gx-cell em,.gx-out em{font:700 8px/1 var(--font-num);font-style:normal;letter-spacing:.2em;color:rgba(255,192,98,.6);}
+.gx-cell b{font:400 20px/1.1 var(--font-num);color:#6f5f3d;font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.gx-cell b small{font:400 11px/1 var(--font-num);color:rgba(255,192,98,.55);}
+.gx-cell.met b{color:var(--vfd);text-shadow:0 0 6px rgba(255,170,60,.9),0 0 14px rgba(255,140,40,.45);}
+.gx-cell i{display:block;height:3px;background:#1a1812;}
+.gx-cell i u{display:block;height:100%;background:#8a7448;}
+.gx-cell.met i u{background:var(--vfd);box-shadow:0 0 6px var(--vfd);}
+.gx-out{display:flex;flex-direction:column;justify-content:center;align-items:flex-end;gap:3px;padding:0 4px;}
+.gx-out b{font:400 22px/1 var(--font-num);color:var(--uc);text-shadow:0 0 8px var(--uc);white-space:nowrap;}
+.gs-pull.gx-go{width:100%;color:#06121a;background:linear-gradient(180deg,#d6f1ff,#7cc8f0 55%,#4a9ccc);border:1px solid #1d4a66;box-shadow:0 0 18px rgba(143,216,255,.3);}
+.gs-pull.gx-go b{font-size:10px;}
+.gs-pull.gx-go:disabled{background:#161920;color:var(--dim);box-shadow:none;border-color:#2a2d34;}
+
+.gs-box.long .pfx-name{font-size:12px;letter-spacing:.04em;white-space:nowrap;padding:3px 6px;}

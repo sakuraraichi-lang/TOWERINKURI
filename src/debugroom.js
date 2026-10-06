@@ -300,6 +300,10 @@ const DebugRoom = {
         ['再起動の場面（部屋）', () => Scenes.reboot(null)],
         ['指揮官の記録', () => UI.openProfile(true)],
         ['パックのタブ（見本の所持数）', () => me.packTab()],
+        ['アセンション専用のガチャ画面（交換の窓・上位パック5種）', () => me.packTab(true)],
+        ['上位パックへの交換の演出（斜めの帯・100→1）', () => UI.exchFx(PACKS.u_arms, { M: BAL.ascExchPacks, C: Asc.exchangeCoin({ stages: { ch33: { cleared: true } }, exchN: 0 }) })],
+        ['上位パックを開ける（上位の連携・見本の中身）', () => me.upperOpen('u_syn')],
+        ['上位パックを開ける（上位の常駐）', () => me.upperOpen('u_relic')],
         ['図鑑（種類ごとのタブ・強化と連携は武器ごとのチップ）', () => me.collTab()],
         ['カードのレア度の見比べ（4種を並べる）', () => me.rarityView()],
       ]],
@@ -345,19 +349,33 @@ const DebugRoom = {
   // パックのタブの見本：本物の perm の写しに、見本の所持数と再起動の格を入れて、台を全画面の板に出す（セーブは変わらない）。
   //   基本×5（開けられる）・兵装×0（空）・化学×1（まとめては開けられない）・常駐×2・連携（未開放）。
   //   切り替え（台座から光が昇る）・開ける（見本の開封）・まとめて開ける（見本のまとめ開封）が押せる。開けても所持数は減らない
-  packTab() {
+  //   asc＝true：アセンション専用の見本（上位の5つ・交換の窓）。基本×120・兵装×100（交換できる）・化学×40・常駐×100（コインが足りない見本にするため、コインは兵装だけ足りる額）・連携×3。
+  //   交換は見本の perm・meta の中だけで起きる（本物の Asc.exchange）。実セーブは変わらない
+  upperOpen(pid) {
+    const ids = Pack.open(pid, 0);
+    CardFX.open(PACKS[pid], ids, ids.map(() => ({ n0: 0, n1: 1 })), ids.map(() => true), null);
+  },
+  packTab(asc) {
     this.packTabClose();
     const perm = JSON.parse(JSON.stringify(Game.perm));
-    perm.packs = { basic: 5, arms: 0, chem: 1, syn: 0, relic: 2 };
+    perm.packs = { basic: 5, arms: 0, chem: 1, syn: 0, relic: 2, u_basic: 0, u_arms: 0, u_chem: 0, u_syn: 0, u_relic: 0 };
     perm.deepest = 12; perm.prestiges = 3; perm.legacyDeep = 9;      // 格3：基本・兵装・化学・常駐が開き、連携（格4）だけ未開放
+    let meta = { coins: 0 };
+    if (!asc) delete perm.asc;       // 本物のセーブがアセンション中でも、ふつうの見本はアセンション前の形
+    if (asc) {
+      perm.packs = { basic: 120, arms: 100, chem: 40, syn: 3, relic: 100, u_basic: 1, u_arms: 0, u_chem: 0, u_syn: 2, u_relic: 0 };
+      perm.deepest = 33; perm.prestiges = 8; perm.legacyDeep = 30; perm.asc = { lv: 6, exp: 0, total: 0 }; perm.exchN = 2;
+      perm.stages = {}; for (let i = 1; i <= 33; i++) perm.stages['ch' + i] = { cleared: true };
+      meta = { coins: Asc.exchangeCoin(perm) * 1.6 };
+    }
     perm.missions = perm.missions || {};
     const el = Util.el('div', 'rs fx dbgpk');
     el.innerHTML = '<div class="rs-ban"><em>// DEBUG ROOM</em><b>パックのタブ（見本）</b><span>切り替える・開ける・まとめて開ける が押せます（セーブは変わりません）</span></div>';
     const body = Util.el('div', 'dbgpk-b');
     const demo = {
-      perm, gachaPick: 'basic', _gsFx: 'go',
+      perm, meta, gachaPick: asc ? 'u_arms' : 'basic', _gsFx: 'go',
       render: () => { body.innerHTML = ''; UI.panelPacks(body, demo); },
-      open1: () => CardFX.demo('rare'),
+      open1: (pid) => PACKS[pid].upper ? this.upperOpen(pid) : CardFX.demo('rare'),
       openAll: () => this.bulk(),
     };
     demo.render();

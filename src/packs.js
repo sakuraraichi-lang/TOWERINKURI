@@ -82,6 +82,37 @@ const PACKS = {
 
 const PACK_IDS = ['basic', 'arms', 'chem', 'syn', 'relic'];
 
+// ---------------------------------------------------------------
+// 上位パック（2026-10-06・ユーザー決定。設計 DESIGN-ASCENSION-V2 §9・§9-2）
+//   **アセンションに入ってから**だけ存在する。分野ごとに5つ（上位の基本・兵装・化学・常駐・連携）。
+//   手に入れ方は交換だけ：**同じ分野のふつうのパック BAL.ascExchPacks 個＋コイン → その分野の上位パック1個**（Asc.exchange）。
+//   中身はアセンション専用の札（cards.js の ap）。**ふつうのパックには出ない・第30章までの3択にも出ない。**
+//   持ち数は perm.packs['u_basic'] など（ふつうのパックと同じ入れ物・同じ開け方）。PACK_IDS には入れない（アセンションの配布はふつうのパックだけ）
+//   **絵は足していない**（画像を足すときはユーザーに聞く決まり）。コードで描くパックを、アセンションの色で出す
+// ---------------------------------------------------------------
+const UPACK_IDS = ['u_basic', 'u_arms', 'u_chem', 'u_syn', 'u_relic'];
+(function () {
+  const defs = [
+    // base＝交換に使うふつうのパック。ap＝cards.js の ap（出る札）。color はアセンションの青白を、分野の色へ寄せた
+    { id: 'u_basic', base: 'basic', ap: 'basic', name: '上位の基本パック', color: '#b8d4f0', desc: '上位の敵に効く札・補助電源・検疫ゲート',
+      weights: { common: 46, rare: 40, epic: 14, legendary: 0 } },
+    { id: 'u_arms',  base: 'arms',  ap: 'arms',  name: '上位の兵装パック', color: '#ffe08a', desc: '全武器の火力・レート・装甲貫通',
+      weights: { common: 46, rare: 40, epic: 14, legendary: 0 } },
+    { id: 'u_chem',  base: 'chem',  ap: 'chem',  name: '上位の化学パック', color: '#c4f09a', desc: '凍結・炎上・上位の敵を砕く札',
+      weights: { common: 46, rare: 40, epic: 14, legendary: 0 } },
+    { id: 'u_relic', base: 'relic', ap: 'relic', name: '上位の常駐パック', color: '#ffd29a', desc: '持っているだけで効く、アセンション専用の常駐',
+      weights: { common: 46, rare: 40, epic: 14, legendary: 0 } },
+    //   連携：レジェンドの枠は**合成の札**（合成武器の企画書の解禁・上位の連携パックでいちばん出にくい・ユーザー 2026-10-06）。
+    //   合成武器の一覧をユーザーが見てから作るので、いまは中身が空（Pack.UPPER_FUSION）＝出ない。重みは「出る枠」を決めてあるだけ
+    { id: 'u_syn',   base: 'syn',   ap: 'syn',   name: '上位の連携パック', color: '#e2b8ff', desc: '系統をそろえるほど効く札。合成の札の枠あり（準備中）',
+      weights: { common: 40, rare: 42, epic: 15, legendary: 3 } },
+  ];
+  for (const d of defs) {
+    PACKS[d.id] = { id: d.id, name: d.name, size: 3, unlock: 0, unlockP: 0, color: d.color, desc: d.desc, weights: d.weights, guarantee: 'rare',
+      upper: true, base: d.base, ap: d.ap, accepts: (c) => c.ap === d.ap };
+  }
+})();
+
 // ステージごとに「そのステージらしい分野」を割り当てる。
 // 完璧クリアの報酬はこれになるので、奥の分野は奥まで行かないと掘れない
 // 章ごとの「分野」。完璧クリアの報酬はこれになる。
@@ -104,6 +135,7 @@ const Pack = {
 
   isUnlocked(perm, id) {
     const pk = PACKS[id];
+    if (pk.upper) return Asc.on(perm);       // 上位パックはアセンションに入ってから
     // ステージ側は「一度でも到達した深さ」で見る（転生で戻っても解放は戻さない）
     const depth = Math.max(this.clearedCount(perm), perm.deepest || 0);
     if (depth < (pk.unlock || 0)) return false;
@@ -113,6 +145,7 @@ const Pack = {
   // なぜ開いていないのかを一言で（画面に出す）
   lockReason(perm, id) {
     const pk = PACKS[id];
+    if (pk.upper) return '第30章を突破してアセンションに入ると解放';
     const depth = Math.max(this.clearedCount(perm), perm.deepest || 0);
     if (depth < (pk.unlock || 0)) return 'ステージを ' + pk.unlock + ' 個突破すると解放';
     const need = (pk.unlockP || 0) - prestigeRank(perm);
@@ -149,12 +182,44 @@ const Pack = {
     }).r;
   },
 
+  // 合成の札（上位の連携パックのレジェンド）。**合成武器の一覧をユーザーが見てから作る**ので、いまは空。空なら出ない
+  UPPER_FUSION: [],
+
+  // 上位パックの、指定レアリティの札（合成の札はレジェンドに入る）
+  upperCards(packId, r) {
+    const pack = PACKS[packId];
+    const pool = CARD_IDS.filter(id => CARDS[id].ap === pack.ap && CARDS[id].rarity === r);
+    if (pack.ap === 'syn' && r === 'legendary') for (const id of this.UPPER_FUSION) if (CARDS[id]) pool.push(id);
+    return pool;
+  },
+
+  // 上位パックを開ける。**中身が空のレア度は出ない**（重みを持っていても、札が無ければ引かない）
+  //   各パック3枚・最後の1枚はレア以上が確定（ふつうのパックの兵装・化学・連携と同じ）
+  openUpper(packId, packLuck) {
+    const pack = PACKS[packId];
+    const live = {};
+    for (const r of BAL.rarityOrder) if ((pack.weights[r] || 0) > 0 && this.upperCards(packId, r).length) live[r] = pack.weights[r];
+    const view = { weights: live };
+    const out = [];
+    for (let i = 0; i < pack.size; i++) {
+      let r = this.rollRarity(view, packLuck);
+      if (pack.guarantee && i === pack.size - 1) {
+        const need = BAL.rarityOrder.indexOf(pack.guarantee);
+        const best = Math.max.apply(null, out.map(id => BAL.rarityOrder.indexOf(CARDS[id].rarity)).concat([-1]));
+        if (best < need) r = BAL.rarityOrder.find((x, k) => k >= need && live[x]) || r;
+      }
+      out.push(Util.pick(this.upperCards(packId, r)));
+    }
+    return out;
+  },
+
   // そのパックが出せるカードのうち、指定レアリティのもの
   cardsOfRarity(packId, r) {
     const pack = PACKS[packId];
     const pool = CARD_IDS.filter(id => {
       const c = CARDS[id];
       if (c.rarity !== r) return false;
+      if (c.ap) return false;             // アセンション専用の札は、ふつうのパックには出ない（上位パックだけ）
       if (c.upper) return false;          // 上位札はパックから出ない（3択で前提を取ると出る）
       if (!pack.accepts(c)) return false;
       // **武器カードも被らせる。被ると武器そのものが凸る。**（ユーザー 2026-09-24
@@ -166,12 +231,13 @@ const Pack = {
     });
     if (pool.length) return pool;
     // 尽きたら、そのパックの分野の強化カードで埋める
-    const fb = CARD_IDS.filter(id => CARDS[id].kind !== 'weapon' && !CARDS[id].upper && pack.accepts(CARDS[id]));
-    return fb.length ? fb : CARD_IDS.filter(id => CARDS[id].kind === 'generic');
+    const fb = CARD_IDS.filter(id => CARDS[id].kind !== 'weapon' && !CARDS[id].upper && !CARDS[id].ap && pack.accepts(CARDS[id]));
+    return fb.length ? fb : CARD_IDS.filter(id => CARDS[id].kind === 'generic' && !CARDS[id].ap);
   },
 
   open(packId, packLuck) {
     const pack = PACKS[packId];
+    if (pack.upper) return this.openUpper(packId, packLuck);
     const out = [];
     for (let i = 0; i < pack.size; i++) {
       let r = Pack.rollRarity(pack, packLuck);

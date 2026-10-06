@@ -557,6 +557,75 @@ const CARDS = {
   // 組んではじめて意味が出る ＝ ビルドの方向が決まる
   rl_brittle: P({ id: 'rl_brittle', rarity: 'legendary', key: 'chillVuln', eff: 0.20, mode: 'add', cap: 0.8, fixed: true,
     name: '脆化の理', tmpl: '凍っている敵が受けるダメージ +{p}' }),
+
+  // ============ アセンション専用の札（2026-10-06・上位パックから出る）============
+  //   ユーザー決定（設計 DESIGN-ASCENSION-V2 §9）：**同じ分野のふつうのパック100個＋コインで、その分野の上位パック1個**（Asc.exchange）。
+  //   中身はこの札。`ap` ＝ どの上位パックから出るか（basic・arms・chem・relic・syn）。
+  //   **ふつうのパックには出ない**（Pack.cardsOfRarity が ap を弾く）。**第30章までの3択にも出ない**（draft.js・アセンションの章だけ）。
+  //   **いまの札は仮**（効果の大きさも仮）。合成の札（上位の連携パックのレジェンド・いちばん出にくい）は、合成武器の一覧をユーザーが見てから作る
+  //   （いまは出る枠だけ。Pack.UPPER_FUSION が空なら出ない）。
+  //   run 側の値：run.upDmg（上位の敵が受けるダメージ）・run.noAura・run.zdOther・run.apen（Combat.damage）。常駐は Relic.mods の upDmg
+
+  // ---- 上位の基本（汎用）----
+  ua_scan: C({ id: 'ua_scan', ap: 'basic', kind: 'generic', rarity: 'common', maxStack: 4, rankAxis: 'up',
+    name: '上位解析', desc: '上位の敵が受けるダメージ +25%（アセンション専用）',
+    apply(run) { run.upDmg = (run.upDmg || 1) + Game.rka(0.25, 'up'); } }),
+  ua_battery: C({ id: 'ua_battery', ap: 'basic', kind: 'generic', rarity: 'rare', maxStack: 3, rankAxis: 'life',
+    name: '補助電源', desc: 'ライフ +15（その場で回復もする・アセンション専用）',
+    apply(run) { const hp = Game.rki(15, 'life'); run.livesMax += hp; run.lives += hp; } }),
+  ua_gate: C({ id: 'ua_gate', ap: 'basic', kind: 'generic', rarity: 'epic', maxStack: 1, noRank: true,
+    name: '検疫ゲート', desc: 'ランサムウェアの気配の中でも、敵が受けるダメージが減らない（アセンション専用）',
+    apply(run) { run.noAura = true; } }),
+
+  // ---- 上位の兵装（全武器の火力）----
+  ua_warhead: C({ id: 'ua_warhead', ap: 'arms', kind: 'generic', rarity: 'common', maxStack: 4, rankAxis: 'dmg',
+    name: '上位弾頭', desc: '全武器のダメージ +20%（アセンション専用）',
+    apply(run) { for (const w of run.units) w.s.dmg *= Game.rk(1.2, 'dmg'); } }),
+  ua_overclock: C({ id: 'ua_overclock', ap: 'arms', kind: 'generic', rarity: 'rare', maxStack: 3, rankAxis: 'rate',
+    name: '超過給', desc: '全武器の発射レート +20%（アセンション専用）',
+    apply(run) { for (const w of run.units) w.s.rate *= Game.rk(1.2, 'rate'); } }),
+  ua_ap: C({ id: 'ua_ap', ap: 'arms', kind: 'generic', rarity: 'epic', maxStack: 2, rankAxis: 'apen',
+    name: '対上位徹甲', desc: '全武器の1発が、敵の装甲を 40%無視する（重ねると加算・上限 90%・アセンション専用）',
+    apply(run) { run.apen = Math.min(0.9, (run.apen || 0) + Game.rka(0.4, 'apen')); } }),
+
+  // ---- 上位の化学（状態異常・上位の敵）----
+  ua_frost: C({ id: 'ua_frost', ap: 'chem', kind: 'generic', rarity: 'common', maxStack: 4, rankAxis: 'vuln',
+    name: '凍結脆化', desc: '凍っている敵が受けるダメージ +15%（アセンション専用）',
+    apply(run) { run.chillVuln += Game.rka(0.15, 'vuln'); } }),
+  ua_ember: C({ id: 'ua_ember', ap: 'chem', kind: 'generic', rarity: 'rare', maxStack: 3, rankAxis: 'burn',
+    name: '業火の触媒', desc: '火炎放射器の燃焼ダメージ ×1.4（アセンション専用・火炎放射器が編成にあると効く）',
+    apply(run) { for (const w of run.units) if (w.id === 'flame') w.s.burn *= Game.rk(1.4, 'burn'); } }),
+  ua_shatter: C({ id: 'ua_shatter', ap: 'chem', kind: 'generic', rarity: 'epic', maxStack: 2, rankAxis: 'up',
+    name: '上位の砕き', desc: '上位の敵が受けるダメージ +50%（アセンション専用）',
+    apply(run) { run.upDmg = (run.upDmg || 1) + Game.rka(0.5, 'up'); } }),
+
+  // ---- 上位の連携（編成の系統をそろえる）。合成の札（レジェンド）はまだ無い ----
+  ua_mix: C({ id: 'ua_mix', ap: 'syn', kind: 'generic', rarity: 'common', maxStack: 3, rankAxis: 'mix',
+    name: '混成の理', desc: '編成にある武器の系統（物理・光学・属性・場・掴み）1種類につき、全武器のダメージ +8%（アセンション専用）',
+    apply(run) {
+      const sys = {}; for (const wid of Game.loadoutWeapons()) sys[WEAPONS[wid].sys] = 1;
+      const n = Object.keys(sys).length, k = 1 + n * Game.rka(0.08, 'mix');
+      for (const w of run.units) w.s.dmg *= k;
+    } }),
+  ua_weak: C({ id: 'ua_weak', ap: 'syn', kind: 'generic', rarity: 'rare', maxStack: 1, noRank: true,
+    name: '弱点の暴露', desc: 'ゼロデイが、弱点の系統以外から受けるダメージが半分から 75%に上がる（アセンション専用）',
+    apply(run) { run.zdOther = Math.max(run.zdOther || 0, 0.75); } }),
+  ua_resonance: C({ id: 'ua_resonance', ap: 'syn', kind: 'generic', rarity: 'epic', maxStack: 1, noRank: true,
+    name: '系統共鳴', desc: '編成にある武器の系統が3種類以上なら、全武器のダメージ +50%（アセンション専用）',
+    apply(run) {
+      const sys = {}; for (const wid of Game.loadoutWeapons()) sys[WEAPONS[wid].sys] = 1;
+      if (Object.keys(sys).length >= 3) for (const w of run.units) w.s.dmg *= 1.5;
+    } }),
+
+  // ---- 上位の常駐（再起動では消えない・持っているだけで効く。アセンションには再起動が無いので、ずっと効く）----
+  ur_dmg: P({ id: 'ur_dmg', ap: 'relic', rarity: 'common', key: 'dmg', eff: 0.12, mode: 'add', cap: 1.5,
+    name: '上位増幅片', tmpl: '全ての武器のダメージ +{p}（アセンション専用）' }),
+  ur_rate: P({ id: 'ur_rate', ap: 'relic', rarity: 'rare', key: 'rate', eff: 0.10, mode: 'add', cap: 0.6,
+    name: '上位律動核', tmpl: '全ての武器の発射レート +{p}（アセンション専用）' }),
+  ur_up: P({ id: 'ur_up', ap: 'relic', rarity: 'rare', key: 'upDmg', eff: 0.15, mode: 'add', cap: 1.2,
+    name: '対上位の理', tmpl: '上位の敵が受けるダメージ +{p}（アセンション専用）' }),
+  ur_hunt: P({ id: 'ur_hunt', ap: 'relic', rarity: 'epic', key: 'upDmg', eff: 0.30, mode: 'add', cap: 2.4,
+    name: '上位狩りの核', tmpl: '上位の敵が受けるダメージ +{p}（アセンション専用）' }),
 };
 
 // ============ 範囲を広げるものを、ゲームから外す ============

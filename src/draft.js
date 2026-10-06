@@ -20,6 +20,7 @@ const Draft = {
       if (c.kind === 'weapon') return false;        // 武器そのものはパックから
       if (c.kind === 'perm') return false;          // 遺物は3択に出さない（転生でしか増えない）
       if (c.kind === 'key') return false;           // 鍵は章の報酬でしか手に入らない
+      if (c.ap && run.stageIdx < MAIN_CHAPTERS) return false;   // アセンション専用の札（上位パック）は、第30章までの3択に出ない
       // 上位札（2026-09-30 段3）：持っていなくても、その出撃で前提の札を全部取っていれば出る
       // コインはスキルツリーと一緒に第30章で打ち切り（親の設計書 §2-5）。アセンション（第31章から）では、コインの札を出さない
       if (c.coin && run.stageIdx >= MAIN_CHAPTERS) return false;

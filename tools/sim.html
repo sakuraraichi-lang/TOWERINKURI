@@ -563,7 +563,9 @@ async function endlessAsync(seed, opts) {
   opts = opts || {};
   const toCh = opts.toCh || 40, tries = opts.tries || 3, farm = opts.farm || 5, rounds = opts.rounds || 3;
   const yieldNow = () => new Promise(r => setTimeout(r, 0));
-  const was = BAL.ascEnabled, wasTime = TIME_MIN;
+  const was = BAL.ascEnabled, wasTime = TIME_MIN, wasEx = AUTO_EXCHANGE;
+  //   opts.exchange ＝ true なら、開ける前に上位パックへ交換できるだけ交換する（本体の Asc.exchange と同じ処理・openAllPacks）。省くと交換しない（ふつうのパックを全部開ける）
+  AUTO_EXCHANGE = !!opts.exchange; EXCH_COUNT = 0; UP_OPENED = 0;
   //   **第31章から先は1章が3.5分（TIME_MIN）に収まらない。**敵の数を上限で切らないので1ウェーブ2,000体を超え、
   //   同時に盤にいる数（enemyCap 900）で湧きが待たされる。本体には章の時間制限が無いので、上限を開けて測る。
   //   それでも当たったら 'timeout' ＝ 打切（負けではない）として止める
@@ -596,7 +598,7 @@ async function endlessAsync(seed, opts) {
     };
     for (let n = MAIN_CHAPTERS + 1; n <= toCh; n++) {
       const id = 'ch' + n;
-      let sec = 0, used = 0, farmed = 0, ok = false;
+      let sec = 0, used = 0, farmed = 0, ok = false, coinAll = 0;   // coinAll＝この章に挑んだ出撃で入ったコインの合計（手前の周回は含めない）
       const leaks = []; let lastR = null;           // 挑戦ごとの漏れ・最後の出撃（1ウェーブの敵の数と秒を残す）
       for (let round = 0; round < rounds && !ok; round++) {
         if (round >= 1) {
@@ -612,7 +614,7 @@ async function endlessAsync(seed, opts) {
         for (let i = 0; i < tries; i++) {
           openAll();
           const r = runStage(id, opts.loadout ? opts.loadout(n) : LOADOUTS[id], 90, {});
-          sec += r.sec; used++; leaks.push(r.leaked); lastR = r;
+          sec += r.sec; used++; leaks.push(r.leaked); lastR = r; coinAll += r.coinsEarned || 0;
           await yieldNow();
           if (r.res === 'clear') { ok = true; break; }
           if (r.res === 'slow' || r.res === 'timeout') {
@@ -644,13 +646,14 @@ async function endlessAsync(seed, opts) {
       const w0 = lastR && lastR.waves && lastR.waves[0];
       out.chapters.push({ ch: n, ok, tries: used, farmed, lv: Asc.lv(Game.perm), lure: Asc.lureLv(Game.perm, n - 1),
                           leaks: leaks.join('/'), cnt: w0 ? w0.count : 0, hp: w0 ? w0.totalHp : 0, secLast: lastR ? +lastR.sec.toFixed(1) : 0,
-                          min: +(sec / 60).toFixed(1), packs: packsOpened, totuMed: ts.med, totu4: ts.four });
+                          min: +(sec / 60).toFixed(1), coin: Math.round(lastR ? lastR.coinsEarned : 0), coinAll: Math.round(coinAll), packs: packsOpened, exch: EXCH_COUNT, exchCost: Asc.exchangeCoin(Game.perm), coinsLeft: Game.meta.coins,
+                          upOpened: UP_OPENED, packsLeft: PACK_IDS.reduce((a, k) => a + (Game.perm.packs[k] || 0), 0), totuMed: ts.med, totu4: ts.four });
       if (!ok) { if (!out.stop) out.stop = '第' + n + '章で止まった（稼いでも抜けられない）'; break; }
     }
     return out;
   } finally {
     BAL.ascEnabled = was; BAL_PRISTINE.ascEnabled = was;
-    TIME_MIN = wasTime;
+    TIME_MIN = wasTime; AUTO_EXCHANGE = wasEx;
     unseedRng();
   }
 }
@@ -1223,15 +1226,19 @@ function runStageInner(stageId, loadout, buys, opts) {
 // 実際、シナジーカードは2000回抽選して0回しか出なかった。
 // プレイヤーは貰ったパックを必ず開けるので、測定器も同じことをする
 // ---------------------------------------------------------------
+//   AUTO_EXCHANGE ＝ true なら、アセンション中は開ける前に上位パックへ交換できるだけ交換する（Asc.exchangeAll・本体の交換と同じ処理）。
+//   交換した回数は EXCH_COUNT に数える。上位パック（u_*）も開ける（札はアセンション専用の札）
+let AUTO_EXCHANGE = false, EXCH_COUNT = 0, UP_OPENED = 0;   // UP_OPENED ＝ 開けた上位パックの数
 function openAllPacks() {
   const luck = Skill.mods(Game.meta, Game.perm).packLuck;
   let opened = 0, got = 0;
+  if (AUTO_EXCHANGE && Asc.on(Game.perm)) EXCH_COUNT += Asc.exchangeAll(Game.perm, Game.meta);
   for (let guard = 0; guard < 500; guard++) {
-    const pid = PACK_IDS.find(k => (Game.perm.packs[k] || 0) > 0 && Pack.isUnlocked(Game.perm, k));
+    const pid = PACK_IDS.concat(UPACK_IDS).find(k => (Game.perm.packs[k] || 0) > 0 && Pack.isUnlocked(Game.perm, k));
     if (!pid) break;
     Game.perm.packs[pid]--;
     for (const id of Pack.open(pid, luck)) { Game.grant(id, 1); got++; }
-    opened++;
+    opened++; if (PACKS[pid].upper) UP_OPENED++;
   }
   return { opened, got };
 }

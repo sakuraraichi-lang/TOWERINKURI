@@ -1458,6 +1458,31 @@ const UI = {
     L.replaceChildren();
     return L;
   },
+  // ================= 上位パックへの交換の演出（2026-10-06） =================
+  //   結果画面と同じ語彙：六角の衝撃波・斜めの帯・VFD の数え上がり（ふつうのパック M → 上位 1）。skillFxPlay の帯と同じ層（#skfx・押せない）に出して約1.5秒で片付ける
+  //   r … { M, C }（Asc.exchange の返り値）。pk … できた上位パック
+  exchFx(pk, r) {
+    const L = this._skLayer();
+    const col = pk.color, h = 92, top = Math.max(8, window.innerHeight * 0.38);
+    const chars = Array.from('圧縮完了').map((c, i) => '<i style="--d:' + (i * 0.05).toFixed(2) + 's">' + c + '</i>').join('');
+    const band = Util.el('div', 'skfx-band');
+    band.style.setProperty('--bc', col); band.style.top = top + 'px'; band.style.height = h + 'px';
+    band.innerHTML = '<i class="skb-bg"></i><em>// PACK COMPRESSED</em><b>' + chars + '</b>' +
+      '<span>' + pk.name + '　パック <b class="a">' + r.M + '</b> → <b class="to">' + r.M + '</b>　コイン -' + Util.fmt(r.C) + '</span>';
+    L.appendChild(band);
+    const later = (fn, ms) => this._skTimers.push(setTimeout(fn, ms));
+    later(() => CardFX.hexShock(L, window.innerWidth / 2, top + h / 2, col, true), 90);
+    later(() => {
+      const el = band.querySelector('.to'); if (!el || !el.isConnected) return;
+      let i = 0; const N = 10;
+      this._skIv = setInterval(() => {
+        i++; el.textContent = String(Math.max(1, Math.round(r.M - (r.M - 1) * (1 - Math.pow(1 - i / N, 2)))));
+        if (i >= N) { clearInterval(this._skIv); if (el.parentNode) el.parentNode.classList.add('done'); }
+      }, 45);
+    }, 300);
+    try { Snd.tone({ type: 'triangle', f0: 392, f1: 784, dur: 0.16, vol: 0.06 }); setTimeout(() => Snd.tone({ type: 'triangle', f0: 587, f1: 1174, dur: 0.22, vol: 0.06 }), 90); } catch (e) {}
+    later(() => L.replaceChildren(), 1500);
+  },
   skillFxClear() {
     clearInterval(this._skIv);
     (this._skTimers || []).forEach(clearTimeout);
@@ -1716,7 +1741,7 @@ const UI = {
   //   rerender … タブを押したときの描き直し（省くとパネルの描き直し。確認室の見本は自分の板を描き直す）
   panelCollection(p, rerender) {
     const re = rerender || (() => this.renderPanel());
-    const IDS = CARD_IDS.filter(id => !CARDS[id].upper);   // 上位札は持ち物ではない（上位のタブで別に見せる）
+    const IDS = CARD_IDS.filter(id => !CARDS[id].upper && !CARDS[id].ap);   // 上位札は持ち物ではない（上位のタブで別に見せる）。アセンション専用の札も別のタブ（apex）
     const total = IDS.length;
     const have = IDS.filter(id => Game.own(id) > 0).length;
     const head = Util.el('div', 'phead');
@@ -1735,11 +1760,13 @@ const UI = {
       { kind: 'generic', name: '汎用',   sub: '3択に出る。どの編成でも効く' },
       { kind: 'perm',    name: '常駐',   sub: '持っているだけで常に効く。凸で強くなる' },
       { kind: 'key',     name: '鍵',     sub: '機能を開く' },
+      { kind: 'apex',    name: 'アセンション', sub: '上位パックから出る。アセンションに入ってから。第30章までの3択・ふつうのパックには出ない' },
       { kind: 'upper',   name: '上位',   sub: '前提の2枚をその出撃で取ると3択に出る。1枚だけ。パックからは出ない' },
       { kind: 'enemy',   name: '敵',     sub: '侵入してくるプログラム。縁の色の切れた輪が耐性の印' },
     ];
-    const idsOf = (kind) => kind === 'enemy' ? [] : CARD_IDS.filter(id => kind === 'upper' ? CARDS[id].upper
-      : (!CARDS[id].upper && CARDS[id].kind === kind));
+    const idsOf = (kind) => kind === 'enemy' ? [] : kind === 'apex' ? (Asc.on(Game.perm) ? CARD_IDS.filter(id => CARDS[id].ap) : [])
+      : CARD_IDS.filter(id => kind === 'upper' ? CARDS[id].upper
+      : (!CARDS[id].upper && !CARDS[id].ap && CARDS[id].kind === kind));
     const tabs = tabsDef.filter(t => t.kind === 'enemy' || idsOf(t.kind).length);
     if (!tabs.some(t => t.kind === this.collTab)) this.collTab = tabs[0].kind;
     const tab = tabs.find(t => t.kind === this.collTab);
@@ -1900,7 +1927,11 @@ const UI = {
     const perm = demo ? demo.perm : Game.perm;
     const fx = st._gsFx || null; st._gsFx = null;
     const rerender = () => demo ? demo.render() : this.renderPanel();
-    const shown = PACK_IDS.filter(pid => pid !== 'relic' || Pack.isUnlocked(perm, pid));   // 遺物パックは初回転生まで存在も見せない
+    //   **アセンション専用のガチャ画面（2026-10-06・指示書 ④）**：アセンションに入ると、同じ台が青白い縁の「上位版」になる。
+    //   ふつうのパックの下に上位の5つが並び、台の下に交換の窓（ふつうのパック M 個＋コイン C 枚 → 上位1個）が出る。アセンション前は何も変わらない
+    const asc = Asc.on(perm);
+    const meta = demo ? demo.meta : Game.meta;
+    const shown = PACK_IDS.filter(pid => pid !== 'relic' || Pack.isUnlocked(perm, pid)).concat(asc ? UPACK_IDS : []);   // 遺物パックは初回転生まで存在も見せない
     const n = (pid) => perm.packs[pid] || 0;
     const open = (pid) => Pack.isUnlocked(perm, pid);
     // 選んでいるパック。**無ければ、開けられるもの → 開いているもの → 先頭**
@@ -1911,8 +1942,7 @@ const UI = {
     // 装置の状態：開けられる／空／未開放
     const state = !ok ? ['LOCKED', '未開放', 'lock'] : have > 0 ? ['READY', '開けられます', 'ready'] : ['EMPTY', '所持なし', 'empty'];
 
-    const gs = Util.el('div', 'gs' + (fx === 'go' ? ' fx-go' : fx === 'tick' ? ' fx-tick' : ''));
-    gs.style.setProperty('--pc', pk.color);
+    const gs = Util.el('div', 'gs' + (asc ? ' asc' : '') + (pk.upper ? ' up' : '') + (fx === 'go' ? ' fx-go' : fx === 'tick' ? ' fx-tick' : ''));    gs.style.setProperty('--pc', pk.color);
     gs.style.setProperty('--best', pk.color);
     // 舞台：後ろの六角の格子・光の柱・六角の台座・浮かぶ箱・状態と所持数の窓
     gs.innerHTML =
@@ -1925,22 +1955,29 @@ const UI = {
           '<polygon class="d2" points="80,38 94,30 126,30 140,38 126,46 94,46"/>' +
           '<polygon class="dp" points="14,38 60,12 160,12 206,38 160,64 60,64"/></svg>' +
         (fx === 'go' ? '<i class="gs-sweep"></i>' : '') +
-        '<div class="gs-box' + (PACK_IMG[pid] ? ' img' : '') + '"' + (PACK_IMG[pid] ? ' style="--pimg:url(' + PACK_IMG[pid] + ')"' : '') + '><div class="pfx-strip"></div>' +
+        '<div class="gs-box' + (PACK_IMG[pid] ? ' img' : '') + (pk.name.length > 6 ? ' long' : '') + '"' + (PACK_IMG[pid] ? ' style="--pimg:url(' + PACK_IMG[pid] + ')"' : '') + '><div class="pfx-strip"></div>' +
           '<div class="pfx-body"><i class="pfx-rv a"></i><i class="pfx-rv b"></i><i class="pfx-rv c"></i><i class="pfx-rv d"></i>' +
           '<div class="pfx-emb"><div class="pfx-logo">' + CardFX.logoSvg() + '</div></div>' +
-          '<div class="pfx-name">' + pk.name + '</div><div class="pfx-sub">' + pk.size + ' CARDS</div><i class="pfx-haz"></i></div></div>' +
+          '<div class="pfx-name">' + pk.name + '</div><div class="pfx-sub">' + (pk.upper ? 'ASCENSION ・ ' : '') + pk.size + ' CARDS</div><i class="pfx-haz"></i></div></div>' +
         '<div class="gs-stat ' + state[2] + '"><em>// ' + state[0] + '</em><span>' + state[1] + '</span></div>' +
         '<div class="gs-have"><em>// DATA PACKAGE</em><div class="gs-vfd"><span>所持</span><b>×' + have + '</b></div></div>' +
         (ok ? '' : '<div class="gs-lock">' + Icons.get('lock') + Pack.lockReason(perm, pid) + '</div>') +
       '</div>' +
       '<div class="gs-info"><i class="gs-lamp"></i><em>// ' + pid.toUpperCase() + ' ／ ' + pk.size + ' CARDS</em><b>' + pk.name + '</b><span>' + pk.desc + '</span></div>';
-    // 提供割合（weights は合計100）
+    if (asc) gs.insertAdjacentHTML('afterbegin', '<div class="gs-asc"><em>// ASCENSION TERMINAL</em><b>アセンション専用　パック端末</b></div>');
+    // 提供割合（weights は合計100）。**上位パックは、中身のあるレア度だけで100に直して見せる**（合成の札がまだ無いので、連携のレジェンドは0%）
     const sysR = Util.el('div', 'gs-sys');
     sysR.innerHTML = '<em>// DROP RATE</em><span>提供割合</span>';
     gs.appendChild(sysR);
     const rates = Util.el('div', 'gs-rates');
+    let rw = pk.weights;
+    if (pk.upper) {
+      const live = {}; let sum = 0;
+      for (const r of BAL.rarityOrder) if ((pk.weights[r] || 0) > 0 && Pack.upperCards(pid, r).length) { live[r] = pk.weights[r]; sum += pk.weights[r]; }
+      rw = {}; for (const r in live) rw[r] = Math.round(live[r] / sum * 1000) / 10;
+    }
     for (const r of BAL.rarityOrder) {
-      const w = pk.weights[r] || 0;
+      const w = rw[r] || 0;
       const d = Util.el('div', 'gs-rate');
       d.style.setProperty('--rc', BAL.rarity[r].color);
       d.innerHTML = '<i style="width:' + Math.max(w > 0 ? 3 : 0, w) + '%"></i><span>' + CardFX.RAR_EN[r] + '</span><b>' + w + '%</b>';
@@ -1951,6 +1988,38 @@ const UI = {
       const note = Util.el('div', 'gs-note');
       note.innerHTML = '<em>// GUARANTEE</em>' + BAL.rarity[pk.guarantee].name + '以上 1枚確定';
       gs.appendChild(note);
+    }
+    if (pk.upper && pk.ap === 'syn') {
+      const fu = Util.el('div', 'gs-note fusion');
+      fu.innerHTML = '<em>// FUSION</em>合成の札（レジェンド・いちばん出にくい）は準備中です。いまは出ません';
+      gs.appendChild(fu);
+    }
+
+    // 交換の窓（アセンションだけ）：同じ分野のふつうのパック M 個＋コイン C 枚 → 上位1個。選んでいるのが上位パックなら、その元の分野で出す
+    if (asc) {
+      const base = pk.upper ? pk.base : pid;
+      const info = Asc.exchangeInfo(perm, meta, base), upk = PACKS[info.up];
+      const ex = Util.el('div', 'gs-exch' + (info.ok ? ' ok' : ''));
+      ex.style.setProperty('--uc', upk.color);
+      const bar = (v, max) => '<i><u style="width:' + Math.min(100, 100 * v / max).toFixed(1) + '%"></u></i>';
+      ex.innerHTML =
+        '<div class="gs-sys full"><em>// EXCHANGE</em><span>圧縮　' + PACKS[base].name + ' → ' + upk.name + '</span></div>' +
+        '<div class="gx-row"><div class="gx-cell' + (info.have >= info.M ? ' met' : '') + '"><em>PACK</em><b>' + Util.fmt(info.have) + '<small> / ' + info.M + '</small></b>' + bar(info.have, info.M) + '</div>' +
+        '<div class="gx-cell' + (info.coins >= info.C ? ' met' : '') + '"><em>COIN</em><b>' + Util.fmt(info.coins) + '<small> / ' + Util.fmt(info.C) + '</small></b>' + bar(info.coins, info.C) + '</div>' +
+        '<div class="gx-out"><em>' + (perm.exchN || 0) + '回目</em><b>→ ×1</b></div></div>';
+      const eb = Util.el('button', 'gs-pull gx-go');
+      eb.innerHTML = '<span>' + (info.ok ? '交換する' : '交換できません') + '</span><b>' + (info.ok ? PACKS[base].name + ' ×' + info.M + '＋コイン ' + Util.fmt(info.C) : info.short.join('・')) + '</b>';
+      eb.disabled = !info.ok;
+      eb.addEventListener('click', () => {
+        const r = demo ? Asc.exchange(perm, meta, base) : Game.exchange(base);
+        if (!r.ok) return;
+        Snd.ui();
+        this.exchFx(PACKS[r.up], r);
+        st.gachaPick = r.up; st._gsFx = 'go';       // 交換したら、できた上位パックの台へ
+        rerender();
+      });
+      ex.appendChild(eb);
+      gs.appendChild(ex);
     }
 
     // 引くボタン：物理スイッチの板（ネジ・LED つき）
