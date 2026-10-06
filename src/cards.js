@@ -564,18 +564,21 @@ const CARDS = {
   //   **ふつうのパックには出ない**（Pack.cardsOfRarity が ap を弾く）。**第30章までの3択にも出ない**（draft.js・アセンションの章だけ）。
   //   **いまの札は仮**（効果の大きさも仮）。合成の札（上位の連携パックのレジェンド・いちばん出にくい）は、合成武器の一覧をユーザーが見てから作る
   //   （いまは出る枠だけ。Pack.UPPER_FUSION が空なら出ない）。
-  //   run 側の値：run.upDmg（上位の敵が受けるダメージ）・run.noAura・run.zdOther・run.apen（Combat.damage）。常駐は Relic.mods の upDmg
+  //   run 側の値：run.upDmg（上位の敵が受けるダメージ）・run.auraCut（検疫ゲート）・run.uaCoin・run.zdOther・run.apen（Combat.damage）。常駐は Relic.mods の upDmg
 
   // ---- 上位の基本（汎用）----
   ua_scan: C({ id: 'ua_scan', ap: 'basic', kind: 'generic', rarity: 'common', maxStack: 4, rankAxis: 'up',
     name: '上位解析', desc: '上位の敵が受けるダメージ +25%（アセンション専用）',
     apply(run) { run.upDmg = (run.upDmg || 1) + Game.rka(0.25, 'up'); } }),
-  ua_battery: C({ id: 'ua_battery', ap: 'basic', kind: 'generic', rarity: 'rare', maxStack: 3, rankAxis: 'life',
-    name: '補助電源', desc: 'ライフ +15（その場で回復もする・アセンション専用）',
-    apply(run) { const hp = Game.rki(15, 'life'); run.livesMax += hp; run.lives += hp; } }),
-  ua_gate: C({ id: 'ua_gate', ap: 'basic', kind: 'generic', rarity: 'epic', maxStack: 1, noRank: true,
-    name: '検疫ゲート', desc: 'ランサムウェアの気配の中でも、敵が受けるダメージが減らない（アセンション専用）',
-    apply(run) { run.noAura = true; } }),
+  ua_coin: C({ id: 'ua_coin', ap: 'basic', kind: 'generic', rarity: 'common', maxStack: 4, rankAxis: 'coin',
+    name: '上位換金炉', desc: 'このウェーブで入るコイン +30%（重ねると加算・上限 +300%・アセンション専用）。コインは上位パックへの交換に使う',
+    apply(run) {
+      const prev = run.uaCoin || 0, now = Math.min(3, prev + Game.rka(0.3, 'coin'));
+      run.coinMul *= (1 + now) / (1 + prev); run.uaCoin = now;
+    } }),
+  ua_gate: C({ id: 'ua_gate', ap: 'basic', kind: 'generic', rarity: 'epic', maxStack: 3, rankAxis: 'aura',
+    name: '検疫ゲート', desc: 'ランサムウェアの気配が弱まる：1枚につき、気配の中の敵が受けるダメージの減りを 30%軽くする（重ねると加算・上限 90%・アセンション専用）',
+    apply(run) { run.auraCut = Math.min(0.9, (run.auraCut || 0) + Game.rka(0.3, 'aura')); } }),
 
   // ---- 上位の兵装（全武器の火力）----
   ua_warhead: C({ id: 'ua_warhead', ap: 'arms', kind: 'generic', rarity: 'common', maxStack: 4, rankAxis: 'dmg',
@@ -618,6 +621,8 @@ const CARDS = {
     } }),
 
   // ---- 上位の常駐（再起動では消えない・持っているだけで効く。アセンションには再起動が無いので、ずっと効く）----
+  ur_coin: P({ id: 'ur_coin', ap: 'relic', rarity: 'common', key: 'coin', eff: 0.25, mode: 'add', cap: 2.0,
+    name: '上位換金片', tmpl: '入るコイン +{p}（アセンション専用・上位パックへの交換に使う）' }),
   ur_dmg: P({ id: 'ur_dmg', ap: 'relic', rarity: 'common', key: 'dmg', eff: 0.12, mode: 'add', cap: 1.5,
     name: '上位増幅片', tmpl: '全ての武器のダメージ +{p}（アセンション専用）' }),
   ur_rate: P({ id: 'ur_rate', ap: 'relic', rarity: 'rare', key: 'rate', eff: 0.10, mode: 'add', cap: 0.6,

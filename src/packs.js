@@ -94,7 +94,7 @@ const UPACK_IDS = ['u_basic', 'u_arms', 'u_chem', 'u_syn', 'u_relic'];
 (function () {
   const defs = [
     // base＝交換に使うふつうのパック。ap＝cards.js の ap（出る札）。color はアセンションの青白を、分野の色へ寄せた
-    { id: 'u_basic', base: 'basic', ap: 'basic', name: '上位の基本パック', color: '#b8d4f0', desc: '上位の敵に効く札・補助電源・検疫ゲート',
+    { id: 'u_basic', base: 'basic', ap: 'basic', name: '上位の基本パック', color: '#b8d4f0', desc: '上位の敵に効く札・コインの札・検疫ゲート',
       weights: { common: 46, rare: 40, epic: 14, legendary: 0 } },
     { id: 'u_arms',  base: 'arms',  ap: 'arms',  name: '上位の兵装パック', color: '#ffe08a', desc: '全武器の火力・レート・装甲貫通',
       weights: { common: 46, rare: 40, epic: 14, legendary: 0 } },

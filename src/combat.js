@@ -820,7 +820,7 @@ const Combat = {
       //   アセンション専用の札（上位パック）と常駐：上位の敵が受けるダメージの倍率（run.upDmg＝出撃中の札・mods.relic.upDmg＝常駐）
       upMul *= (run.upDmg || 1) * ((run.mods && run.mods.relic && run.mods.relic.upDmg) || 1);
     }
-    if (e.auraT > 0 && !run.noAura) upMul *= BAL.ascRansomMul;   // run.noAura＝検疫ゲート（ua_gate）
+    if (e.auraT > 0) upMul *= 1 - (1 - BAL.ascRansomMul) * (1 - (run.auraCut || 0));   // run.auraCut＝検疫ゲート（ua_gate）：減りの割合を軽くする
     // 触手の印（連携3枚：syn_hangman・syn_fixfire・syn_searbind）：触手が当てた敵に BAL.cardFx.tntMarkDur 秒の印。
     //   6種の攻撃のどれでも付く（掴み・突き・薙ぎ払い・一閃・墨の爆風・壁と墨の場の持続ダメージ）。印のある敵を相手の武器が強く打てる
     if (run.tntMark && (opts.by || this._by) === 'tentacle') {
