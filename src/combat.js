@@ -639,7 +639,9 @@ const Combat = {
     const chMul = this.chapterWeight(run);
     const stageMul = Math.pow(BAL.stageHpMul, run.stageIdx) * chMul;
     const base = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * stageMul;
-    const hp = hpOverride !== undefined ? hpOverride : base * t.hp;
+    let hp = hpOverride !== undefined ? hpOverride : base * t.hp;
+    // 2026-10-07 ユーザー：第31章から（アセンション）、全ての敵の HP ×BAL.ascHpMul（3）
+    if (run.stageIdx >= 30) hp *= BAL.ascHpMul;
     const en = {
       x, y, hp, maxHp: hp, si,
       lane: this.pickLane(run, si),    // その口のレーンに順番に振る（stages.js の lanes）
@@ -803,6 +805,12 @@ const Combat = {
       return 0;
     }
     opts = opts || {};
+    // 2026-10-07 ユーザー：第31章から、全ての敵に99%のダメージカットのバリア。1発当たるごとに1%ずつ下がる（初見の攻撃はほぼ通らず、当てるほど通る）
+    if (run.stageIdx >= 30 && !e.seg && amount > 0) {
+      if (e.barrier === undefined) e.barrier = BAL.ascBarrier;
+      amount *= 1 - e.barrier;
+      e.barrier = Math.max(0, e.barrier - BAL.ascBarrierStep);
+    }
     // **ラスボスの胴の節**：入ったダメージは頭へ、BAL.finalBodyMul 倍で回す（弱点は頭）。節の見た目の位置で当たりを判定する
     if (e.seg) {
       const h = e.seg;
