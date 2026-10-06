@@ -39,6 +39,40 @@ const Asc = {
   // 敵の量の倍率（Combat.waveCount が掛ける）
   spawnMul(perm, stageIdx) { return 1 + BAL.ascLureStep * this.lureLv(perm, stageIdx); },
 
+  // ---- 上位の敵（2026-10-06・combat.js の UPPER_TYPES）----
+  //   第31章から、ウェーブのHPの総量のうち upperShare を上位の敵に置き換える。上位1体＝雑魚 k 体ぶんで、HPの総量は変えず数だけ減る
+  //   数 ＝ 雑魚(1−s) ＋ 上位 s÷K（K＝いま出る種類の k の重み平均）。湧くたびに上位にする確率 q ＝ (s÷K) ÷ ((1−s)＋s÷K)
+  //   （雑魚側の1体あたりの平均HPは1として数えた近似：スクリプト 0.5・ブロック 3.4・ボット群 5体ぶん などが混ざるので、総量は ±数割ずれる）
+  upperShare(perm, stageIdx) {
+    if (!BAL.ascUpperOn || !this.on(perm) || stageIdx < MAIN_CHAPTERS) return 0;
+    return Math.min(BAL.ascUpperShareMax, Math.max(0, BAL.ascUpperShare0 + BAL.ascUpperSharePerLv * this.lv(perm)));
+  },
+  // いま出る上位の種類（アセンションのレベルで増える）
+  upperList(perm) {
+    const lv = this.lv(perm), out = [];
+    for (const k in UPPER_TYPES) { const c = BAL.ascUpper[k]; if (c && lv >= c.lv) out.push({ t: UPPER_TYPES[k], w: c.weight }); }
+    return out;
+  },
+  upperK(perm) {
+    const L = this.upperList(perm);
+    let sw = 0, sk = 0;
+    for (const o of L) { sw += o.w; sk += o.w * o.t.k; }
+    return sw > 0 ? sk / sw : 1;
+  },
+  upperQ(perm, stageIdx) {
+    const s = this.upperShare(perm, stageIdx);
+    if (!(s > 0)) return 0;
+    const a = s / this.upperK(perm);
+    return a / ((1 - s) + a);
+  },
+  // 1ウェーブの数に掛ける倍率（置き換えたぶん減る）
+  upperCountMul(perm, stageIdx) {
+    const s = this.upperShare(perm, stageIdx);
+    return s > 0 ? (1 - s) + s / this.upperK(perm) : 1;
+  },
+  // ゼロデイの弱点の系統（章ごとに固定・乱数にしない）
+  weakOf(stageIdx) { return SYS_ORDER[(stageIdx * 5 + 2) % SYS_ORDER.length]; },
+
   // 第30章を初めて突破したとき。**恒久の土台を第30章に合わせる**
   //   （最後の転生が第28章だった人は、そのままだと第31章の敵に対して土台が約240倍足りない）
   unlock(perm) {

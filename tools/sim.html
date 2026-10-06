@@ -552,8 +552,20 @@ async function endlessAsync(seed, opts) {
   TIME_MIN = opts.timeMin || 30;
   BAL.ascEnabled = true; BAL_PRISTINE.ascEnabled = true;   // runStage の入口で戻されないように
   try {
-    const rows = await progressAsync([seed], { laps: 12 });
-    const out = { seed, main: rows[0] && rows[0].line, chapters: [], stop: '' };
+    //   opts.save   … 保存（onSave が返した文字列）から再開する。第30章までを歩き直さず、同じ出発点から条件だけ変えて比べるため
+    //   opts.onSave … アセンションに入った直後の保存（JSON 文字列）を受け取る関数
+    //   opts.loadout … (章の番号) → 武器の id の配列。編成を差し替える（1つの系統だけの編成の測定など）
+    let rows = null;
+    if (opts.save) {
+      const o = JSON.parse(opts.save);
+      for (const k of Object.keys(Game.perm)) delete Game.perm[k];
+      for (const k of Object.keys(Game.meta)) delete Game.meta[k];
+      Object.assign(Game.perm, o.perm); Object.assign(Game.meta, o.meta);
+      ensureStages(Math.max(MAIN_CHAPTERS + 1, Game.endlessReach() + 1));
+      Relic.invalidate();
+    } else rows = await progressAsync([seed], { laps: 12 });
+    if (opts.onSave && Asc.on(Game.perm)) opts.onSave(JSON.stringify({ meta: Game.meta, perm: Game.perm }));
+    const out = { seed, main: rows ? rows[0] && rows[0].line : '(保存から再開)', chapters: [], stop: '' };
     if (!Asc.on(Game.perm)) { out.stop = '第30章に届かなかった'; return out; }
     seedRng(seed * 7919 + 1);
     let packsOpened = 0;
@@ -567,21 +579,22 @@ async function endlessAsync(seed, opts) {
     for (let n = MAIN_CHAPTERS + 1; n <= toCh; n++) {
       const id = 'ch' + n;
       let sec = 0, used = 0, farmed = 0, ok = false;
+      const leaks = []; let lastR = null;           // 挑戦ごとの漏れ・最後の出撃（1ウェーブの敵の数と秒を残す）
       for (let round = 0; round < rounds && !ok; round++) {
         if (round >= 1) {
           // 詰まった：1つ手前を回して稼ぐ
           const prev = 'ch' + (n - 1);
           for (let k = 0; k < farm; k++) {
             openAll();
-            const r = runStage(prev, LOADOUTS[prev], 90, {});
+            const r = runStage(prev, opts.loadout ? opts.loadout(n - 1) : LOADOUTS[prev], 90, {});
             sec += r.sec; farmed++;
             await yieldNow();
           }
         }
         for (let i = 0; i < tries; i++) {
           openAll();
-          const r = runStage(id, LOADOUTS[id], 90, {});
-          sec += r.sec; used++;
+          const r = runStage(id, opts.loadout ? opts.loadout(n) : LOADOUTS[id], 90, {});
+          sec += r.sec; used++; leaks.push(r.leaked); lastR = r;
           await yieldNow();
           if (r.res === 'clear') { ok = true; break; }
           if (r.res === 'slow' || r.res === 'timeout') {
@@ -610,7 +623,9 @@ async function endlessAsync(seed, opts) {
         if (out.stop) break;
       }
       const ts = totuStat();
+      const w0 = lastR && lastR.waves && lastR.waves[0];
       out.chapters.push({ ch: n, ok, tries: used, farmed, lv: Asc.lv(Game.perm), lure: Asc.lureLv(Game.perm, n - 1),
+                          leaks: leaks.join('/'), cnt: w0 ? w0.count : 0, hp: w0 ? w0.totalHp : 0, secLast: lastR ? +lastR.sec.toFixed(1) : 0,
                           min: +(sec / 60).toFixed(1), packs: packsOpened, totuMed: ts.med, totu4: ts.four });
       if (!ok) { if (!out.stop) out.stop = '第' + n + '章で止まった（稼いでも抜けられない）'; break; }
     }
@@ -1055,7 +1070,7 @@ function runStageInner(stageId, loadout, buys, opts) {
       build: opts.buildId || '', stage: STAGE_BY_ID[run.stageId].name, wave: run.wave, g,
       elapsed: +(t / 60).toFixed(1),
       enemyHp: hp1, count: n, countRaw: nRaw, capped: nRaw > n,
-      totalHp: hp1 * n,
+      totalHp: hp1 * n / Asc.upperCountMul(Game.perm, run.stageIdx),   // 上位の敵に置き換えて数が減ったぶんを戻す（HPの総量は同じ）
       spawnSec, sec,
       killSec: dealt > 0 ? (hp1 * n) / (dealt / Math.max(0.001, sec)) : 0,
       dps: sec > 0 ? dealt / sec : 0,
@@ -1137,7 +1152,7 @@ function runStageInner(stageId, loadout, buys, opts) {
   const out = {
     build: opts.buildId || '', stage: stageId, res, wave: run.wave,
     sec: +sec.toFixed(1),
-    kills: run.kills, leaked: run.leaked, livesLost: run.livesLost,
+    kills: run.kills, leaked: run.leaked, livesLost: run.livesLost, leakBy: Object.assign({}, run.leakBy),
     livesLeft: Math.max(0, Math.ceil(run.lives)), livesMax: run.livesMax,
     coinsEarned: Math.round(earned), coinsSpent: Math.round(spent), skillsBought: bought,
     cardsTaken, units: run.units.length, cost: Game.costUsed(), costCap: Game.costCap(), weapons: loadout.length,

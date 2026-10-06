@@ -63,6 +63,40 @@ const RESIST_INFO = {
   heavy: { jp: '重量', desc: '掴む・引き戻す・閉じ込めるが半分', color: '#9aa0a8' },
 };
 
+// ================= アセンションの上位の敵（2026-10-06・ユーザー決定） =================
+//   設計：docs/DESIGN-ASCENSION-V2-2026-10-06.md §8・§8-2。指示書「100を1に圧縮する」（docs/ASCENSION-ORDER-2026-10-06.md）
+//   第31章（アセンション）から、ウェーブのHPの総量の一部が上位の敵に置き換わる（BAL.ascUpper*・Asc.upperShare）。
+//   上位1体＝雑魚 k 体ぶん（hp が k）。**無効（ダメージも状態異常も0）を持てるのは、この上位の敵だけ**（第30章までの敵の耐性は半分まで・RESIST_INFO）
+//   武器は系統（WEAPONS[id].sys）を持ち、無効の判定は「その系統から来たもの」で決まる：直接のダメージ・状態異常・持続ダメージ・凍結の印・掴み・場の効果、すべて武器の id（by）から系統に引く
+const SYS_INFO = {
+  phys:  { jp: '物理', color: '#ffb347', desc: 'ガトリング・手裏剣・刀・迫撃砲・ミサイル' },
+  optic: { jp: '光学', color: '#6fe3ff', desc: 'レーザーライフル' },
+  elem:  { jp: '属性', color: '#c58bff', desc: '火炎放射器・テスラコイル・凍結装置' },
+  field: { jp: '場',   color: '#8fd94a', desc: '毒ガス散布機・泡' },
+  grab:  { jp: '掴み', color: '#c85ab0', desc: '触手' },
+};
+// ポリモーフが切り替わる順・ゼロデイの弱点に選ばれる系統（掴みは入れない：触手だけが効かない敵・だけが効く敵は作らない）
+const SYS_ORDER = ['phys', 'optic', 'elem', 'field'];
+const UPPER_TYPES = {
+  trojan:    { name: 'trojan', up: true, hp: 10, spd: 0.55, r: 17, coin: 10, color: '#e0a640', jp: 'トロイ', en: 'TROJAN',
+    desc: '硬くて遅い。倒すと中からパケットを数体こぼす。', want: '1体に強い武器と、こぼれた雑魚を拾う武器の両方' },
+  ransom:    { name: 'ransom', up: true, hp: 10, spd: 0.80, r: 14, coin: 10, color: '#ff6a5c', jp: 'ランサムウェア', en: 'RANSOMWARE',
+    desc: '近くの敵が受けるダメージを大きく減らす気配をまとう（本体は対象外）。', want: '先に狙って倒す・遠くから届かせる' },
+  ghost:     { name: 'ghost', up: true, hp: 10, spd: 1.00, r: 13, coin: 10, color: '#cfe4ff', jp: 'ゴースト', en: 'GHOST', imm: ['phys'],
+    desc: '実体がない。弾も刃もすり抜ける。', want: '属性・光学・場・掴みを混ぜる' },
+  faraday:   { name: 'faraday', up: true, hp: 10, spd: 0.70, r: 14, coin: 10, color: '#8fb0c8', jp: 'ファラデー', en: 'FARADAY', imm: ['elem'],
+    desc: '遮蔽された殻。熱も電気も冷気も通さない。', want: '物理・光学・場・掴みを混ぜる' },
+  sandbox:   { name: 'sandbox', up: true, hp: 10, spd: 0.80, r: 14, coin: 10, color: '#7fd9a0', jp: 'サンドボックス', en: 'SANDBOX', imm: ['field'],
+    desc: '隔離された箱。ガスも泡も受けつけない。', want: '直接当てる武器を混ぜる' },
+  polymorph: { name: 'polymorph', up: true, hp: 30, spd: 0.70, r: 18, coin: 30, color: '#ff8ad8', jp: 'ポリモーフ', en: 'POLYMORPH', poly: true,
+    desc: '姿を変え続ける。数秒ごとに、無効になる系統が 物理→光学→属性→場 の順で切り替わる（体の色と輪で分かる）。', want: '系統を散らした混成' },
+  zeroday:   { name: 'zeroday', up: true, hp: 100, spd: 0.45, r: 24, coin: 100, color: '#ff3d5a', jp: 'ゼロデイ', en: 'ZERO-DAY', zd: true,
+    desc: 'とても硬く遅い。弱点の系統（章ごとに固定・頭の上の印）のほかは、ダメージが半分しか通らない。', want: '弱点の系統をそろえる' },
+};
+for (const k in UPPER_TYPES) UPPER_TYPES[k].k = UPPER_TYPES[k].hp;
+// 自己点検：系統（sys）の書き忘れ・知らない系統は、無効の判定から黙って漏れるので、読み込みのときに出す
+for (const id in WEAPONS) if (!SYS_INFO[WEAPONS[id].sys]) console.warn('[weapons] 系統（sys）が無い・不明：' + id);
+
 // 敵同士の押し合い（2026-09-19 取り込み）
 //
 // これまで敵はすり抜けていて、ペアの98%が重なり、細い一本の線になっていた。
@@ -249,7 +283,8 @@ const Combat = {
     //   誘引を足しても上限に食われて効かないため（方針「上限は壊れるから置くもの」）。
     //   同時に盤にいる数は enemyCap で別に抑えている（処理の重さ）
     if (run.stageIdx >= MAIN_CHAPTERS) {
-      return Math.floor(base * run.mods.spawn * wm * hm * Asc.spawnMul(Game.perm, run.stageIdx));
+      return Math.max(1, Math.floor(base * run.mods.spawn * wm * hm * Asc.spawnMul(Game.perm, run.stageIdx)
+        * Asc.upperCountMul(Game.perm, run.stageIdx)));    // 上位の敵に置き換えた分だけ数が減る（HPの総量は同じ）
     }
     return Math.min(Math.floor(BAL.waveCountMax * hm),
                     Math.floor(base * run.mods.spawn * wm * hm));
@@ -464,7 +499,7 @@ const Combat = {
     const stageMul = Math.pow(BAL.stageHpMul, run.stageIdx) * chMul;
     const base = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * stageMul;
     const hp = hpOverride !== undefined ? hpOverride : base * t.hp;
-    return {
+    const en = {
       x, y, hp, maxHp: hp, si,
       lane: this.pickLane(run, si),    // その口のレーンに順番に振る（stages.js の lanes）
       spd: Math.min(BAL.enemySpdCap, BAL.enemySpdBase * Math.pow(BAL.enemySpdGrowth, g)) * t.spd,
@@ -487,6 +522,50 @@ const Combat = {
       grabT: 0, grabV: 0, spotT: 0, tntT: 0, dist: 1e9, counted: false,
       hitFlash: 0, dead: false, ang: 0,
     };
+    if (t.up) this.upperInit(run, t, en);
+    return en;
+  },
+
+  // 上位の敵の中身（無効の系統・ポリモーフの切り替え・ゼロデイの弱点・ランサムウェアの気配）
+  upperInit(run, t, e) {
+    e.upper = t.name; e.k = t.k; e.tname = t.name;
+    if (t.imm) { e.imm = {}; for (const s of t.imm) e.imm[s] = true; }
+    if (t.poly) { e.poly = true; e.polyI = (run.polySeq = (run.polySeq || 0) + 1) % SYS_ORDER.length; e.polyT = BAL.ascPolySec * (0.5 + 0.5 * Math.random()); }
+    if (t.zd) e.weak = Asc.weakOf(run.stageIdx);
+    if (t.name === 'ransom') { e.aura = true; e.auraCd = 0; }
+    e.auraT = 0; e.immT = 0;
+  },
+
+  // 武器 by（id）の系統。武器でないもの（遺物・見本）は null＝無効の対象にならない
+  sysOf(by) { const d = by && WEAPONS[by]; return d ? d.sys || null : null; },
+  // 敵 e が系統 sys から来たものを受けつけないか（ダメージも状態異常も）。上位の敵だけが無効を持つ
+  immune(e, sys) {
+    if (!e.upper || !sys) return false;
+    if (e.imm && e.imm[sys]) return true;
+    return !!(e.poly && SYS_ORDER[e.polyI] === sys);
+  },
+  // いま無効になっている系統（絵と図鑑が読む）。無ければ null
+  immSys(e) {
+    if (!e.upper) return null;
+    if (e.poly) return SYS_ORDER[e.polyI];
+    if (e.imm) for (const k in e.imm) return k;
+    return null;
+  },
+  // 上位の敵が系統 sys から受けるダメージの倍率（無効は BAL.ascImmuneMul・ゼロデイは弱点以外 BAL.ascZdOther）
+  upperMul(e, sys) {
+    if (this.immune(e, sys)) return BAL.ascImmuneMul;
+    if (e.weak && sys && sys !== e.weak) return BAL.ascZdOther;
+    return 1;
+  },
+
+  // 湧く敵を上位に置き換えるときの種類（アセンションのレベルで増える）。置き換えないなら null
+  pickUpper(run) {
+    if (!BAL.ascUpperOn || run.stageIdx < MAIN_CHAPTERS) return null;
+    const q = Asc.upperQ(Game.perm, run.stageIdx);
+    if (!(q > 0) || Math.random() >= q) return null;
+    const lv = Asc.lv(Game.perm), list = [];
+    for (const k in UPPER_TYPES) { const c = BAL.ascUpper[k]; if (c && lv >= c.lv) list.push(UPPER_TYPES[k]); }
+    return list.length ? Util.weighted(list, t => BAL.ascUpper[t.name].weight) : null;
   },
 
   // その章で付いている耐性。**ボスは付かない**（ボスは grunt の形で作る・足止めが効かないのは別の決まり）
@@ -502,7 +581,8 @@ const Combat = {
     if (run.enemies.length >= BAL.enemyCap) return;
     const st = run.stage;
     const g = this.gw(run);
-    const t = this.pickType(g);
+    const up = this.pickUpper(run);               // 第31章から：HPの一部を上位の敵に置き換える（無ければ null）
+    const t = up || this.pickType(g);
     // **穴の単位で流す。**（ユーザー 2026-09-21「壁に開いた穴からゾロゾロと出てくる感じ」）
     //   前は `spawnPick % spawns.length` で全部の S タイルを1体ずつ順に使っていた。
     //   穴が2つ × 幅4なら、**左右の穴から交互に1体ずつ**出るので
@@ -527,7 +607,7 @@ const Combat = {
     const sp = st.spawns[si];
     const p = st.center(sp.c, sp.r);
     // **群れはまとめて出す。**（1体ずつだと「群れ」にならない）
-    const n = t.burst || 1;
+    const n = up ? 1 : (t.burst || 1);
     for (let i = 0; i < n; i++) {
       if (run.enemies.length >= BAL.enemyCap) break;
       run.enemies.push(this.makeEnemy(run, t,  g,
@@ -581,6 +661,15 @@ const Combat = {
       return 0;
     }
     opts = opts || {};
+    // **上位の敵の無効**（アセンション・BAL.ascImmuneMul）。damage() の入口で止めるので、状態異常（燃焼・感電・減速・凍結・閉じ込め・印）も付かない
+    //   ゼロデイの弱点以外は半分（ascZdOther）。ランサムウェアの気配の中は ascRansomMul
+    const by0 = opts.by || this._by;
+    let upMul = 1;
+    if (e.upper) {
+      upMul = this.upperMul(e, this.sysOf(by0));
+      if (upMul <= 0) { e.immT = 0.2; return 0; }
+    }
+    if (e.auraT > 0) upMul *= BAL.ascRansomMul;
     // 触手の印（連携3枚：syn_hangman・syn_fixfire・syn_searbind）：触手が当てた敵に BAL.cardFx.tntMarkDur 秒の印。
     //   6種の攻撃のどれでも付く（掴み・突き・薙ぎ払い・一閃・墨の爆風・壁と墨の場の持続ダメージ）。印のある敵を相手の武器が強く打てる
     if (run.tntMark && (opts.by || this._by) === 'tentacle') {
@@ -588,11 +677,11 @@ const Combat = {
       e.tntT = BAL.cardFx.tntMarkDur;
     }
     const src = opts.src || this._src;       // いま撃っている武器の1基（装甲貫通・青い炎が読む）
-    let dmg = amount * this.vuln(run, e);
+    let dmg = amount * this.vuln(run, e) * upMul;
     // ワームの体は数節の連なり：貫通する弾・光線は節をまとめて抜く（当たった節の数ぶんダメージが入る）
     if (opts.hits > 1 && e.bk === 'worm') dmg *= opts.hits;
     // **耐性**（2026-09-30 段3）。効きにくいだけで、無効にはしない（BAL.resMul）
-    const res = e.res, by0 = opts.by || this._by;
+    const res = e.res;
     if (res) {
       // 青い炎（flm_inferno）：炎の直撃も、その炎が付けた燃焼も、耐火で半分にならない
       const blue = opts.blue || (by0 === 'flame' && src && src.flags && src.flags.blue);
@@ -684,6 +773,28 @@ const Combat = {
     return dmg;
   },
 
+  // 上位の敵が毎フレームすること：ポリモーフの切り替え・ランサムウェアの気配
+  upperTick(run, e, dt) {
+    if (e.poly) {
+      e.polyT -= dt;
+      if (e.polyT <= 0) {
+        e.polyT += BAL.ascPolySec; e.polyI = (e.polyI + 1) % SYS_ORDER.length;
+        if (run.fx.length < 150) this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 2.4, color: SYS_INFO[SYS_ORDER[e.polyI]].color, life: 0.35 });
+      }
+    }
+    if (e.aura) {
+      e.auraCd -= dt;
+      if (e.auraCd <= 0) {
+        e.auraCd = 0.25;
+        const R = BAL.ascRansomR, near = Grid.query(e.x, e.y, R, _q);
+        for (const o of near) {
+          if (o === e || o.dead || Util.dist(e.x, e.y, o.x, o.y) > R + o.r) continue;
+          o.auraT = 0.4;
+        }
+      }
+    }
+  },
+
   // 粘着燃料：e の燃焼を、近くの燃えていない敵へ移す
   spreadFlame(run, e, dt) {
     const F = BAL.cardFx;
@@ -694,7 +805,7 @@ const Combat = {
     let n = 0;
     for (const o of near) {
       if (n >= F.stickyMax) break;
-      if (o === e || o.dead || o.burnT > 0.2 || this.inShield(run, o)) continue;
+      if (o === e || o.dead || o.burnT > 0.2 || this.inShield(run, o) || (o.upper && this.immune(o, 'elem'))) continue;
       if (Util.dist(e.x, e.y, o.x, o.y) > F.stickyR + o.r) continue;
       o.burn = e.burn * F.stickyMul; o.burnT = Math.min(e.burnT, F.stickyDur);
       o.burnBy = e.burnBy; o.burnBlue = e.burnBlue; o.sticky = e.sticky - 1;
@@ -727,6 +838,16 @@ const Combat = {
       c.dist = e.dist;
       run.enemies.push(c);
       this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 1.8, color: '#ffd2a8', life: 0.25 });
+    }
+    // **トロイ：倒すと、中からパケットを数体こぼす**（BAL.ascTrojanKids・1体のHPは雑魚1体ぶんの ascTrojanKidHp 倍）
+    if (e.upper === 'trojan') {
+      const g = this.gw(run);
+      for (let i = 0; i < BAL.ascTrojanKids && run.enemies.length < BAL.enemyCap; i++) {
+        const c = this.makeEnemy(run, ENEMY_TYPES.grunt, g, e.x + Util.rand(-14, 14), e.y + Util.rand(-14, 14), e.si, e.maxHp / e.k * BAL.ascTrojanKidHp, 1);
+        c.lane = e.lane; c.dist = e.dist; c.coin = e.coin / e.k * 0.5;
+        run.enemies.push(c);
+      }
+      this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 2, color: '#ffd27a', life: 0.3 });
     }
     // **倒すと割れる。** 過剰ダメージで一掃する編成が、そのぶん数を増やす
     if (e.split > 0 && run.enemies.length + e.split <= BAL.enemyCap) {
@@ -943,6 +1064,7 @@ const Combat = {
       if (!t || t.dead) continue;
       // バリアの中の敵は掴めない（掴んで引き戻すとバリアの中へ戻し続け、ウェーブが終わらなくなった）
       if (this.inShield(run, t)) { t.shieldT = 0.15; continue; }
+      if (t.upper && this.immune(t, 'grab')) { t.immT = 0.2; continue; }   // 上位の敵の無効（掴み）
       // 止めておける合計の秒数を使い切った敵は、もう掴めない（BAL.ccMaxSec）。削りだけ入る
       // 重量（2026-09-30 段3）：掴む時間も引き戻す力も半分
       const hv = ((t.res && t.res.heavy) ? BAL.resMul : 1) * this.ccK(t);
@@ -966,6 +1088,7 @@ const Combat = {
       pts.push({ x: cur.x, y: cur.y });
       this.damage(run, cur, d, { shock: w.s.shockDur, color: '#d8c7ff', crit: w.s.crit, critMul: w.s.critMul });
       d *= w.s.chainFalloff;
+      if (cur.upper && this.immune(cur, 'elem')) break;   // ファラデーなど：電気は殻の中へ入らず、連鎖はそこで止まる
       if (cur.res && cur.res.elec) break;   // 耐電（2026-09-30 段3）：連鎖はそこで止まる
       const near = Grid.query(cur.x, cur.y, 150, _q);
       let best = null, bd = 1e9;
@@ -994,7 +1117,7 @@ const Combat = {
       if (opts.tntMul && e.tntT > 0) { v *= opts.tntMul; run.tntBoostN = (run.tntBoostN || 0) + 1; }
       if (opts.spotMul && e.spotT > 0) v *= opts.spotMul;
       this.damage(run, e, v, Object.assign({ color: '#ffc38a' }, opts));
-      if (opts.irr > 0 && !e.dead && !this.inShield(run, e)) { e.nukeV = opts.irr; e.nukeT = BAL.cardFx.nukeDur; }   // 戦術核：被爆
+      if (opts.irr > 0 && !e.dead && !this.inShield(run, e) && !(e.upper && this.immune(e, this.sysOf(this._by)))) { e.nukeV = opts.irr; e.nukeT = BAL.cardFx.nukeDur; }   // 戦術核：被爆
     }
     this.fx(run, { type: 'boom', x, y, r: radius, color: opts.color || '#ff9a4a', life: 0.3 });
     this.shake(run, Math.min(10, radius * 0.06));
@@ -1395,6 +1518,7 @@ const Combat = {
           if (!arr) continue;
           for (const e of arr) {
             if (e.dead) continue;
+            if (e.upper && this.immune(e, w.def.sys)) continue;     // 無効の相手は狙わない（見えているのに撃たれないのではなく、ほかの敵を撃つ）
             const dx = e.x - w.x, dy = e.y - w.y;
             const along = dx * ca + dy * sa;                  // 砲身方向の距離
             if (along < 0 || along > range + e.r) continue;
@@ -1471,6 +1595,7 @@ const Combat = {
           if (e.dead) continue;
           if (Util.dist(f.x, f.y, e.x, e.y) > f.r + e.r) continue;
           if (this.inShield(run, e)) continue;   // バリアの中は状態異常も受けない
+          if (e.upper && this.immune(e, this.sysOf(f.by))) { e.immT = 0.2; continue; }   // 上位の敵の無効（ガス・泡の場は、その場の効果を丸ごと受けつけない）
           if (f.vuln) { e.fvuln = f.vuln; e.fvulnT = 0.4; }
           if (f.armorDown) { e.armorDown = (e.armorT > 0) ? Math.max(e.armorDown, f.armorDown) : f.armorDown; e.armorT = 0.6; }   // 腐蝕の雲
           // 場の減速にも遺物の軸を乗せる。**ここは damage() を通らないので、
@@ -1520,6 +1645,9 @@ const Combat = {
       if (e.slowT > 0) { e.slowT -= dt; if (e.slowT <= 0) e.slow = 0; }
       if (e.hitFlash > 0) e.hitFlash -= dt;
       if (e.shieldT > 0) e.shieldT -= dt;
+      if (e.immT > 0) e.immT -= dt;
+      if (e.auraT > 0) e.auraT -= dt;
+      if (e.upper) this.upperTick(run, e, dt);
       if (e.burnT > 0) {
         e.burnT -= dt;
         // 焼き印（syn_searbind）：触手の印のある敵は炎上ダメージに倍率
@@ -1615,7 +1743,7 @@ const Combat = {
       // コアに触れた敵は、ライフを1つ持っていって消える（＝漏れ）。**コアが2つ以上なら、どれに触れても同じライフ**
       if ((run.towers || [tw]).some(T => Util.dist(e.x, e.y, T.x, T.y) <= T.r + e.r)) {
         // **ボスがコアに着いたら、その場で負け**（残りのライフを全部持っていく・2026-09-28 ユーザー「倒せなかった場合強制的に敗北」）
-        const cost = e.boss ? Math.max(run.lives, BAL.leakLives) : BAL.leakLives;
+        const cost = e.boss ? Math.max(run.lives, BAL.leakLives) : e.upper ? BAL.ascUpperLeak : BAL.leakLives;
         run.lives -= cost;
         run.leaked++;
         run.livesLost += cost;
@@ -1765,6 +1893,7 @@ const Combat = {
       for (const e of near) {
         if (e.dead) continue;
         if (b.hit && b.hit.has(e)) continue;
+        if (e.upper && this.immune(e, this.sysOf(b.wid))) { e.immT = 0.2; continue; }   // 無効の相手には当たらず、すり抜ける
         const reach = e.r + b.r;
         if (swept) { if (Util.segDist2(px, py, b.x, b.y, e.x, e.y) > reach * reach) continue; }
         else if (Util.dist(b.x, b.y, e.x, e.y) > reach) continue;

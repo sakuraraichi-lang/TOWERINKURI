@@ -2100,6 +2100,134 @@ const Render = {
     return (this._enm[key] = { cv, h });
   },
 
+  // **上位の敵（アセンション・2026-10-06）の体**：ドット絵にせず、パスで描く（形で7種が見分けられる）。種類・色・大きさ・コマごとに1枚作り置き
+  //   trojan＝車輪つきの箱（ふたの隙間に中のパケットの目）／ransom＝南京錠／ghost＝すそがひらひらの幽霊／faraday＝網目の八角の殻／
+  //   sandbox＝点線の枠の立方体／polymorph＝うねる塊（色は無効になる系統の色）／zeroday＝とげの輪と大きな目
+  upperSprite(name, color, r, frame) {
+    const res = this.spriteRes();
+    const f = frame ? 1 : 0;
+    const key = 'U' + name + color + r + '#' + f + '@' + res;
+    this._enm = this._enm || {};
+    if (this._enm[key]) return this._enm[key];
+    const h = Math.ceil(r * 1.5 + 8);
+    const cv = document.createElement('canvas'); cv.width = cv.height = Math.ceil(h * 2 * res);
+    const c = cv.getContext('2d'); c.setTransform(res, 0, 0, res, h * res, h * res);
+    const R = r * 1.08;
+    const dark = 'rgba(0,0,0,0.82)';
+    const finish = () => {          // 暗い縁取り→色→上から当たる光（既存の敵と同じ質感）
+      c.lineJoin = 'round'; c.lineWidth = 3.2; c.strokeStyle = dark; c.stroke();
+      c.save(); c.shadowColor = color; c.shadowBlur = 5; c.fillStyle = color; c.fill(); c.restore();
+      c.save(); c.globalCompositeOperation = 'source-atop';
+      const g = c.createLinearGradient(0, -R, 0, R);
+      g.addColorStop(0, 'rgba(255,255,255,0.45)'); g.addColorStop(0.5, 'rgba(255,255,255,0.04)'); g.addColorStop(1, 'rgba(0,0,0,0.4)');
+      c.fillStyle = g; c.fillRect(-h, -h, h * 2, h * 2); c.restore();
+    };
+    const rr = (x, y, w, hh, rad) => { c.beginPath(); c.moveTo(x + rad, y); c.arcTo(x + w, y, x + w, y + hh, rad); c.arcTo(x + w, y + hh, x, y + hh, rad); c.arcTo(x, y + hh, x, y, rad); c.arcTo(x, y, x + w, y, rad); c.closePath(); };
+    const eye = (x, y, rx, ry, pupil) => {
+      c.save(); c.shadowColor = '#fff'; c.shadowBlur = 3; c.fillStyle = '#fff'; c.beginPath(); c.ellipse(x, y, rx, ry, 0, 0, 7); c.fill(); c.restore();
+      if (pupil) { c.fillStyle = pupil; c.beginPath(); c.ellipse(x, y, rx * 0.45, ry * 0.8, 0, 0, 7); c.fill(); }
+    };
+    if (name === 'trojan') {
+      // 車輪つきの箱。ふたが少し開いて、中から目がのぞく
+      rr(-R, -R * 0.55, R * 2, R * 1.35, R * 0.18); finish();
+      c.fillStyle = 'rgba(0,0,0,0.55)'; c.fillRect(-R * 0.8, -R * 0.55, R * 1.6, R * 0.22 + f * 1.2);
+      eye(-R * 0.42, -R * 0.42, 1.8, 1.8); eye(0, -R * 0.42, 1.8, 1.8); eye(R * 0.42, -R * 0.42, 1.8, 1.8);
+      c.strokeStyle = 'rgba(0,0,0,0.5)'; c.lineWidth = 1.4;
+      c.beginPath(); c.moveTo(-R * 0.4, -R * 0.1); c.lineTo(-R * 0.4, R * 0.7); c.moveTo(R * 0.4, -R * 0.1); c.lineTo(R * 0.4, R * 0.7); c.stroke();
+      for (const sx of [-0.55, 0.55]) { c.fillStyle = '#2a2018'; c.strokeStyle = '#000'; c.lineWidth = 1.6; c.beginPath(); c.arc(sx * R, R * 0.85, R * 0.3, 0, 7); c.fill(); c.stroke(); c.fillStyle = color; c.beginPath(); c.arc(sx * R, R * 0.85, R * 0.1, 0, 7); c.fill(); }
+    } else if (name === 'ransom') {
+      // 南京錠：弓（つる）と、鍵穴。赤
+      c.beginPath(); c.arc(0, -R * 0.2, R * 0.62, Math.PI, 0); c.lineWidth = 5.4; c.strokeStyle = dark; c.stroke();
+      c.lineWidth = 3; c.strokeStyle = '#d9dde6'; c.stroke();
+      rr(-R * 0.95, -R * 0.15, R * 1.9, R * 1.2, R * 0.2); finish();
+      c.fillStyle = 'rgba(0,0,0,0.78)'; c.beginPath(); c.arc(0, R * 0.38, R * 0.17, 0, 7); c.fill();
+      c.beginPath(); c.moveTo(-R * 0.1, R * 0.45); c.lineTo(R * 0.1, R * 0.45); c.lineTo(R * 0.14, R * 0.85); c.lineTo(-R * 0.14, R * 0.85); c.closePath(); c.fill();
+      c.fillStyle = 'rgba(255,240,200,0.9)'; c.fillRect(-R * 0.7, R * 0.02, R * 0.3, 1.6);
+    } else if (name === 'ghost') {
+      // すそがひらひらの幽霊。うっすら透ける
+      const w = R * 0.95, t = f ? 1 : -1;
+      c.beginPath(); c.moveTo(-w, R * 0.1); c.arc(0, R * 0.1, w, Math.PI, 0);
+      c.lineTo(w, R * 0.95);
+      for (let i = 0; i < 4; i++) { const x1 = w - (i + 0.5) * (w / 2), x2 = w - (i + 1) * (w / 2); c.quadraticCurveTo(x1, R * (0.95 + 0.38 * (i % 2 ? -1 : 1) * t), x2, R * 0.95); }
+      c.closePath(); c.save(); c.globalAlpha = 0.82; finish(); c.restore();
+      c.fillStyle = 'rgba(0,0,0,0.85)'; c.beginPath(); c.ellipse(-R * 0.34, R * 0.02, R * 0.16, R * 0.24, 0, 0, 7); c.ellipse(R * 0.34, R * 0.02, R * 0.16, R * 0.24, 0, 0, 7); c.fill();
+      c.beginPath(); c.ellipse(0, R * 0.5, R * 0.14, R * 0.18, 0, 0, 7); c.fill();
+    } else if (name === 'faraday') {
+      // 網目の八角の殻。四隅にびょう
+      c.beginPath(); for (let i = 0; i < 8; i++) { const a = (i + 0.5) * Math.PI / 4; c.lineTo(Math.cos(a) * R * 1.02, Math.sin(a) * R * 1.02); } c.closePath(); finish();
+      c.save(); c.beginPath(); for (let i = 0; i < 8; i++) { const a = (i + 0.5) * Math.PI / 4; c.lineTo(Math.cos(a) * R * 0.86, Math.sin(a) * R * 0.86); } c.closePath(); c.clip();
+      c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 1.2; c.beginPath();
+      for (let k = -2; k <= 2; k++) { c.moveTo(k * R * 0.4, -R); c.lineTo(k * R * 0.4, R); c.moveTo(-R, k * R * 0.4); c.lineTo(R, k * R * 0.4); }
+      c.stroke(); c.restore();
+      c.fillStyle = '#e9f2fa'; for (let i = 0; i < 4; i++) { const a = i * Math.PI / 2 + Math.PI / 4; c.beginPath(); c.arc(Math.cos(a) * R * 0.72, Math.sin(a) * R * 0.72, 1.6, 0, 7); c.fill(); }
+      eye(0, 0, R * 0.2, R * 0.2, '#1a2a38');
+    } else if (name === 'sandbox') {
+      // 立方体（上面・左面・右面）。外側に点線の枠（コマで流れる）
+      const top = [[0, -R], [R * 0.9, -R * 0.5], [0, 0], [-R * 0.9, -R * 0.5]];
+      const left = [[-R * 0.9, -R * 0.5], [0, 0], [0, R], [-R * 0.9, R * 0.5]];
+      const right = [[R * 0.9, -R * 0.5], [0, 0], [0, R], [R * 0.9, R * 0.5]];
+      const poly = (p) => { c.beginPath(); p.forEach((q, i) => i ? c.lineTo(q[0], q[1]) : c.moveTo(q[0], q[1])); c.closePath(); };
+      c.beginPath(); c.moveTo(0, -R); c.lineTo(R * 0.9, -R * 0.5); c.lineTo(R * 0.9, R * 0.5); c.lineTo(0, R); c.lineTo(-R * 0.9, R * 0.5); c.lineTo(-R * 0.9, -R * 0.5); c.closePath(); finish();
+      c.fillStyle = 'rgba(255,255,255,0.28)'; poly(top); c.fill(); c.fillStyle = 'rgba(0,0,0,0.22)'; poly(right); c.fill();
+      c.strokeStyle = 'rgba(0,0,0,0.6)'; c.lineWidth = 1.2; poly(top); c.stroke(); poly(left); c.stroke(); poly(right); c.stroke();
+      c.save(); c.setLineDash([3, 3]); c.lineDashOffset = f ? 3 : 0; c.strokeStyle = 'rgba(255,255,255,0.9)'; c.lineWidth = 1.4;
+      c.beginPath(); c.arc(0, 0, R * 1.22, 0, 7); c.stroke(); c.restore();
+    } else if (name === 'polymorph') {
+      // うねる塊。コマで輪郭が揺れる。目が3つ
+      const n = 9; c.beginPath();
+      for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI * 2, rad = R * (0.86 + 0.2 * Math.sin(a * 3 + f * 1.7) + 0.1 * Math.cos(a * 2 - f)); const x = Math.cos(a) * rad, y = Math.sin(a) * rad; i ? c.lineTo(x, y) : c.moveTo(x, y); }
+      c.closePath(); finish();
+      eye(-R * 0.32, -R * 0.12, R * 0.17, R * 0.22, '#222'); eye(R * 0.32, -R * 0.12, R * 0.17, R * 0.22, '#222'); eye(0, R * 0.28, R * 0.12, R * 0.15, '#222');
+    } else {   // zeroday
+      // とげの輪（12本）と、大きな目（赤い縦の瞳孔）
+      const n = 12; c.beginPath();
+      for (let i = 0; i < n * 2; i++) { const a = (i / (n * 2)) * Math.PI * 2 + f * 0.13, rad = i % 2 ? R * 0.74 : R * 1.12; c.lineTo(Math.cos(a) * rad, Math.sin(a) * rad); }
+      c.closePath(); finish();
+      eye(0, 0, R * 0.46, R * 0.32, null); c.fillStyle = '#7a0010'; c.beginPath(); c.ellipse(0, 0, R * 0.12, R * 0.3, 0, 0, 7); c.fill();
+    }
+    return (this._enm[key] = { cv, h });
+  },
+
+  // 上位の敵のそばの印：無効の系統（斜線つきの丸）・ゼロデイの弱点（金の縁の丸）・ランサムウェアの気配の輪。まとめて塗れないので1体ずつ（上位の敵は数が少ない）
+  upperMarks(ctx, e, run) {
+    const SI = SYS_INFO;
+    const ox = e.x, oy = e.y - e.r - 12;
+    const badge = (sys, kind) => {
+      const col = SI[sys].color;
+      ctx.beginPath(); ctx.arc(ox, oy, 7.5, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(8,10,16,0.88)'; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = kind === 'weak' ? '#ffd24a' : col; ctx.stroke();
+      ctx.fillStyle = col; ctx.font = 'bold 9px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(SI[sys].jp.charAt(0), ox, oy + 0.5);
+      if (kind === 'imm') {   // 無効：赤い斜線
+        ctx.strokeStyle = '#ff3b4a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(ox - 6, oy + 6); ctx.lineTo(ox + 6, oy - 6); ctx.stroke();
+      }
+    };
+    if (e.poly) {
+      const sys = SYS_ORDER[e.polyI];
+      // 次の切り替えまでの残りを、体のまわりの輪（無効の系統の色）で見せる
+      const f = Util.clamp(e.polyT / BAL.ascPolySec, 0, 1);
+      ctx.strokeStyle = 'rgba(0,0,0,0.6)'; ctx.lineWidth = 4.4; ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); ctx.stroke();
+      ctx.strokeStyle = SI[sys].color; ctx.lineWidth = 2.8; ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 4, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); ctx.stroke();
+      badge(sys, 'imm');
+    } else if (e.imm) {
+      for (const k in e.imm) badge(k, 'imm');
+    } else if (e.weak) {
+      badge(e.weak, 'weak');
+    }
+    if (e.aura) {   // ランサムウェアの気配：ゆっくり脈打つ点線の輪
+      const R0 = BAL.ascRansomR, p = 0.5 + 0.5 * Math.sin(run.time * 3);
+      ctx.save(); ctx.setLineDash([5, 6]); ctx.lineDashOffset = -run.time * 14;
+      ctx.strokeStyle = 'rgba(255,106,92,' + (0.35 + 0.25 * p).toFixed(2) + ')'; ctx.lineWidth = 1.6;
+      ctx.beginPath(); ctx.arc(e.x, e.y, R0, 0, Math.PI * 2); ctx.stroke();
+      ctx.fillStyle = 'rgba(255,106,92,' + (0.04 + 0.03 * p).toFixed(2) + ')'; ctx.fill(); ctx.restore();
+    }
+    if (e.immT > 0) {   // 無効で弾かれた：白い輪がはじける
+      ctx.strokeStyle = 'rgba(255,255,255,' + Math.min(1, e.immT * 5).toFixed(2) + ')'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 3 + (0.2 - e.immT) * 20, 0, Math.PI * 2); ctx.stroke();
+    }
+  },
+
   // 砲身の長さ（発砲の火を出す位置）
   barrelLen(u) {
     // ドットの絵（1ドット2.4px）にしたので、前の長さの1.2倍（2026-09-28）
@@ -2523,7 +2651,11 @@ const Render = {
       //   向きでは回さない（昔のゲームの敵は正面を向いている）。同じ種類は揃って2コマで足踏みする（2026-09-28）
       const col = e.hitFlash > 0 ? '#ffffff' : e.chill > 0 ? '#7fd8ff' : e.burnT > 0 ? '#ff9a4a' : e.color;
       if (e.boss && e.bk) this.bossBody(ctx, e, run, e.hitFlash > 0 ? '#ffffff' : e.color);
-      else {
+      else if (e.upper) {
+        const uc = (e.poly && col === e.color) ? SYS_INFO[SYS_ORDER[e.polyI]].color : col;
+        const spr = this.upperSprite(e.upper, uc, e.r, (((run.time || 0) * 2.4) | 0) & 1);
+        ctx.drawImage(spr.cv, -spr.h, -spr.h, spr.h * 2, spr.h * 2);
+      } else {
         const spr = this.enemySprite(e.boss ? 'boss' : e.tname, col, e.r, (((run.time || 0) * 3.2) | 0) & 1);
         ctx.drawImage(spr.cv, -spr.h, -spr.h, spr.h * 2, spr.h * 2);
       }
@@ -2605,6 +2737,10 @@ const Render = {
         }
       }
 
+      if (e.upper) this.upperMarks(ctx, e, run);
+      else if (e.auraT > 0) {   // ランサムウェアの気配の中：薄い赤の輪（ダメージが減っている）
+        ctx.strokeStyle = 'rgba(255,106,92,0.5)'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 1.5, 0, Math.PI * 2); ctx.stroke();
+      }
       if (e.stun > 0) {   // 泡に閉じ込められている（輪はあとでまとめて塗る）
         stun.push(e);
       } else if (e.shock > 0) {

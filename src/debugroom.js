@@ -207,6 +207,13 @@ const DebugRoom = {
         ['ボス：ワーム（跳躍・数節の体・予告→前へ跳ぶ）', () => me.bossBattle('worm')],
         ['ボス：ルートキット（大きい・硬い・防壁は控えめ・予告→直前に削った武器が半分）', () => me.bossBattle('rootkit')],
         ['ボス：ジャマー（機械・沈黙・予告→近い4基へ腕が伸びて止まる。遠くの武器は止まらない）', () => me.bossBattle('jammer')],
+        ['上位の敵：トロイ（硬くて遅い・倒すとパケットをこぼす）', () => me.upperBattle('trojan')],
+        ['上位の敵：ランサムウェア（南京錠・まわりの敵のダメージを減らす点線の輪）', () => me.upperBattle('ransom')],
+        ['上位の敵：ゴースト（物理を無効・弾がすり抜ける・頭の上に「物」の斜線）', () => me.upperBattle('ghost')],
+        ['上位の敵：ファラデー（属性を無効・テスラの連鎖が止まる）', () => me.upperBattle('faraday')],
+        ['上位の敵：サンドボックス（場を無効・ガスと泡が効かない）', () => me.upperBattle('sandbox')],
+        ['上位の敵：ポリモーフ（約4秒ごとに無効の系統が 物理→光学→属性→場 と切り替わる・色と輪）', () => me.upperBattle('polymorph')],
+        ['上位の敵：ゼロデイ（弱点以外は半分・頭の上の金の縁の印が弱点）', () => me.upperBattle('zeroday')],
         ['レーザーライフルの光線（壁で2回はね返る）', () => me.laserDemo()],
         ['触手の6種の攻撃（順番に出す）', () => me.tentacleDemo()],
         ['触手：引き寄せ', () => me.tentacleDemo('pull')],
@@ -726,6 +733,85 @@ const DebugRoom = {
       }
       if (sig === 'stageclear' || sig === 'waveclear') { done = true; UI.toastMsg('ボス戦の見本：全部倒してウェーブ終了（見本・記録なし）', '#ffc24a', 'demo'); doneAt = now; }
       if (now - t0 > 60000) { done = true; doneAt = now; }
+    }, 16);
+  },
+
+  // 上位の敵（アセンション・UPPER_TYPES）を1体だけ出す見本（記録なし）。口の近くに、物理（ガトリング）・光学（レーザー）・属性（テスラ）・場（毒ガス）を並べて、
+  //   どの武器が効くか・すり抜けるかを見せる。視点は敵に追わせる（ボスの見本と同じ）。倒れる／コアに届く／約40秒で終わる
+  upperBattle(kind) {
+    this._btEnd();
+    this._dirEnd();
+    this._btSnap = { perm: JSON.parse(JSON.stringify(Game.perm)), meta: JSON.parse(JSON.stringify(Game.meta)) };
+    this._saveHold();
+    const perm = Game.perm, cur = perm.currentStage, orig = Game.stageUnlocked;
+    let run;
+    try { Game.stageUnlocked = () => true; run = Game.startPrep('ch10'); }
+    finally { Game.stageUnlocked = orig; perm.currentStage = cur; }
+    this._btRun = run;
+    Render.fit(); UI.renderTray();
+    run.phase = 'build'; run.wave = 1;
+    const wcOrig = Combat.waveCount;
+    Combat.waveCount = () => 0;            // 雑魚は出さない（見本の1体だけ）
+    try { Game.startNextWave(); } finally { Combat.waveCount = wcOrig; }
+    const st = run.stage, t = UPPER_TYPES[kind];
+    const sp = st.spawns[0], p = st.center(sp.c, sp.r);
+    // 4つの系統の武器を2基ずつ、**通り道が射界に入る六角と向き**を選んで置く（射界は固定・向きは6方向なので、決め打ちでは当たらない）。
+    //   口のバリアの4タイルより先の通り道の点を、武器の射程の中・向きの線から 14px 以内・壁に切られずに見通せる、で数えて多い所
+    const rt = st.routes[0] || [];
+    const pts = [];
+    for (let i = 6; i < rt.length; i++) pts.push(st.center(rt[i] % st.cols, Math.floor(rt[i] / st.cols)));
+    const used = new Set(run.units.map(u => u.c + ',' + u.r));
+    const cells = st.hexCells();
+    const clear = (x0, y0, x1, y1) => {
+      const n = Math.max(2, Math.ceil(Util.dist(x0, y0, x1, y1) / 12));
+      for (let k = 1; k < n; k++) { const x = x0 + (x1 - x0) * k / n, y = y0 + (y1 - y0) * k / n; if (!st.walkable((x / TILE) | 0, (y / TILE) | 0)) return false; }
+      return true;
+    };
+    const ids = ['gatling', 'sniper', 'tesla', 'gas', 'gatling', 'tesla', 'gas', 'sniper'];
+    for (const id of ids) {
+      const range = WEAPONS[id].base.range;
+      let best = null;
+      for (const h of cells) {
+        if (used.has(h.c + ',' + h.r)) continue;
+        const c = st.hexCenter(h.c, h.r);
+        for (const f of Game.FACES) {
+          let n = 0;
+          for (const q of pts) {
+            const dx = q.x - c.x, dy = q.y - c.y, along = dx * Math.cos(f) + dy * Math.sin(f);
+            if (along < 50 || along > range * 0.9) continue;
+            if (Math.abs(-dx * Math.sin(f) + dy * Math.cos(f)) > 14) continue;
+            if (clear(c.x, c.y, q.x, q.y)) n++;
+          }
+          if (!best || n > best.n) best = { n, h, f };
+        }
+      }
+      if (best && best.n > 0) { used.add(best.h.c + ',' + best.h.r); run.units.push(Game.newUnit(id, best.h.c, best.h.r, best.f)); }
+    }
+    const g = 1;     // 見本の武器は札なしの素の強さなので、HPは第1ウェーブ並み（倒れる様子まで見えるように）
+    const e = Combat.makeEnemy(run, t, g, p.x, p.y, 0);
+    e.spd *= 0.3;                                   // 見本なので、ゆっくり歩かせる（武器との関係を見る時間をとる）
+    run.enemies.push(e);
+    UI.toastMsg('見本：' + t.jp + '（' + t.en + '・約40秒）', t.color, 'demo');
+    let t0 = performance.now(), last = t0, doneAt = 0;
+    this._bt = setInterval(() => {
+      if (!this.el || Game.run !== run) { this._btEnd(); return; }
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      if (doneAt) {
+        Combat.update(run, dt);
+        if (!run.fx.length || now - doneAt > 2500) this._btEnd();
+        return;
+      }
+      const lead = run.enemies.find(x => !x.dead && x.upper) || run.enemies.find(x => !x.dead);
+      if (lead && Render.canPan()) {
+        Render.cam.x += (lead.x - Render.viewW / 2 - Render.cam.x) * 0.25;
+        Render.cam.y += (lead.y - Render.viewH / 2 - Render.cam.y) * 0.25;
+        Render.fit();
+      }
+      const inSh = run.enemies.some(x => !x.dead && Combat.inShield(run, x));
+      for (let i = 0; i < (inSh ? 6 : 1); i++) Combat.update(run, dt);
+      if (now - t0 > 40000 && !e.dead) Combat.damage(run, e, e.maxHp * 2, { by: 'debug' });   // 倒しきれない見本は、40秒で片づける
+      if (!run.enemies.some(x => !x.dead) || now - t0 > 52000) doneAt = now;
     }, 16);
   },
 

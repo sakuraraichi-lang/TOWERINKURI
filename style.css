@@ -2903,3 +2903,10 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 #cutin .ci-phase b{font-size:21px;text-shadow:0 0 12px color-mix(in srgb,var(--ck) 85%,transparent);}
 #cutin .ci-phase b em{color:var(--ck);}
 #cutin .ci-phase span{color:#fff;}
+
+/* 上位の敵の図鑑（2026-10-06）：絵は盤と同じもの。行の左の縁に敵の色 */
+.erow.eup{border-left:3px solid var(--uc,#ff6a5c);}
+.erow.eup-h{grid-template-columns:1fr;border-color:rgba(255,255,255,.18);}
+.erow.eup-h strong{color:#ff8a9c;font-weight:800;}
+.edot .eimg{display:block;width:30px;height:30px;object-fit:contain;}
+.erow.eup .eres{display:block;width:fit-content;max-width:100%;}

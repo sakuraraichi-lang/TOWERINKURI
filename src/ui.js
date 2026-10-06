@@ -1708,7 +1708,7 @@ const UI = {
     for (const t of tabs) {
       const ids = idsOf(t.kind);
       const b = Util.el('button', 'sk-tab' + (t === tab ? ' on' : ''));
-      const cnt = t.kind === 'enemy' ? Object.keys(ENEMY_TYPES).length + '種'
+      const cnt = t.kind === 'enemy' ? Object.keys(ENEMY_TYPES).length + '種＋上位' + Object.keys(UPPER_TYPES).length
         : t.kind === 'upper' ? ids.length + '種' : ids.filter(id => Game.own(id) > 0).length + '/' + ids.length;
       b.innerHTML = '<b>' + t.name + '</b><small>' + cnt + '</small>';
       b.addEventListener('click', () => { this.collTab = t.kind; Snd.ui(); re(); });
@@ -1798,7 +1798,39 @@ const UI = {
     note.innerHTML = '<div class="ebody"><p>節目の章（第' + bossCh + '章、第31章から先は5章ごと）の最後のウェーブに、湧き口ごとに1体。そのウェーブは雑魚が出ない。' +
       'コアへゆっくり歩き、<strong>着いたらその場で負け</strong>。コアに届く前に削り切る。</p></div>';
     el.appendChild(note);
+    this.collUpper(el);
     p.appendChild(el);
+  },
+
+  // **上位の敵の図鑑**（2026-10-06・アセンション。combat.js の UPPER_TYPES）：効かない系統をはっきり書く。出始めは「アセンション」（第31章から）
+  //   絵は盤の上と同じもの（Render.upperSprite）を画像にして出す
+  collUpper(el) {
+    const SI = SYS_INFO;
+    const head = Util.el('div', 'erow eup-h');
+    head.innerHTML = '<div class="ebody"><b>上位の敵<em>ASCENSION</em><u>アセンション（第31章から）</u></b>' +
+      '<p>HPの総量はそのままに、数を減らして1体を大きくした敵。' + Math.round(BAL.ascUpperShare0 * 100) + '%から始まり、アセンションのレベルで割合が増える。' +
+      '<strong>無効（ダメージも状態異常も0）を持つのは、この敵だけ。</strong>武器は系統（物理・光学・属性・場・掴み）で分かれていて、無効の系統の武器は弾が素通りする。</p>' +
+      '<small>' + Object.keys(SI).map(k => '<span style="color:' + SI[k].color + '">' + SI[k].jp + '</span>＝' + SI[k].desc).join('　') + '</small></div>';
+    el.appendChild(head);
+    const chip = (col, txt, sub) => '<i class="eres" style="--c:' + col + '">' + txt + '</i>' + (sub ? '<small>' + sub + '</small>' : '');
+    for (const k in UPPER_TYPES) {
+      const t = UPPER_TYPES[k], c = BAL.ascUpper[k] || { lv: 0 };
+      let img = '';
+      try { img = '<img class="eimg" alt="" src="' + Render.upperSprite(k, t.color, t.r, 0).cv.toDataURL() + '">'; } catch (e) { img = ''; }
+      let eff = '';
+      if (t.imm) eff = t.imm.map(s => chip(SI[s].color, SI[s].jp + 'を無効', SI[s].desc + 'から来たものは、ダメージも状態異常も（燃焼・感電・減速・凍結・閉じ込め・印も）効かない。弾は素通り')).join('');
+      else if (t.poly) eff = chip('#ff8ad8', '無効が切り替わる', '約' + BAL.ascPolySec + '秒ごとに、無効の系統が ' + SYS_ORDER.map(s => '<span style="color:' + SI[s].color + '">' + SI[s].jp + '</span>').join('→') + ' の順に変わる。体の色・頭の上の印・まわりの輪（残り時間）で分かる');
+      else if (t.zd) eff = chip('#ffd24a', '弱点以外は' + Math.round(BAL.ascZdOther * 100) + '%', '弱点の系統は章ごとに固定（第31章：' + SI[Asc.weakOf(30)].jp + '・第32章：' + SI[Asc.weakOf(31)].jp + '・第33章：' + SI[Asc.weakOf(32)].jp + '…）。頭の上の金の縁の印が弱点');
+      else if (k === 'ransom') eff = chip('#ff6a5c', '気配：周りの敵が受けるダメージ ×' + BAL.ascRansomMul, '半径の点線の輪の中の敵（本体は対象外）。先に倒すか、輪の外から届かせる');
+      else if (k === 'trojan') eff = chip('#e0a640', '倒すと' + BAL.ascTrojanKids + '体こぼす', 'パケットが各 ×' + BAL.ascTrojanKidHp + '（本体は ×' + t.k + '）');
+      const lvTxt = c.lv > 0 ? 'アセンション Lv' + c.lv + 'から' : 'アセンション（第31章）から';
+      const row = Util.el('div', 'erow eup');
+      row.style.setProperty('--uc', t.color);
+      row.innerHTML = '<span class="edot">' + img + '</span>' +
+        '<div class="ebody"><b>' + t.jp + '<em>' + t.en + ' ─ HP ×' + t.k + '</em><u>' + lvTxt + '</u></b>' +
+        '<p>' + t.desc + '</p>' + eff + '<small>問うこと：' + t.want + '</small></div>';
+      el.appendChild(row);
+    }
   },
 
   // ================= ガチャ（パック） =================

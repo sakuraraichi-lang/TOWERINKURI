@@ -98,11 +98,16 @@ function baseStats(o) {
 //   **【暫定値】**下のコストは段1b の仮の値。段3で武器の作り直しと一緒に引き直す：
 //     ガトリング・手裏剣 1（並べる武器）／毒ガス・触手・テスラ 2／スナイパー・刀・迫撃砲・火炎 3／ミサイル・凍結・泡 4
 //   目安：第25章の定石（ミサイル7・凍結4・泡4＝コスト60）が入る幅に、第25章ごろの上限が届くこと（ユーザーの答え2）
+//
+//   **sys＝攻撃の系統**（2026-10-06・アセンションの上位の敵の無効の判定に使う。Combat.sysOf / SYS_INFO）：
+//   phys 物理（ガトリング・手裏剣・刀・迫撃砲・ミサイル）／optic 光学（レーザーライフル＝コードの id は sniper）／
+//   elem 属性（火炎・テスラ・凍結）／field 場（毒ガス・泡）／grab 掴み（触手）。
+//   その武器から来たダメージ・状態異常・持続ダメージ・印・場は、すべてこの系統に引く。新しい武器を足すときは必ず sys を書く
 // ---------------------------------------------------------------
 const WEAPONS = {
   // ============ 初期装備 ============
   gatling: {
-    id: 'gatling', cost: 1, cat: 'mid', name: 'ガトリング', short: 'GAT', icon: Icons.get('gatling'), color: '#ffd24a', src: 'start', arcFix: 0.34,
+    id: 'gatling', sys: 'phys', cost: 1, cat: 'mid', name: 'ガトリング', short: 'GAT', icon: Icons.get('gatling'), color: '#ffd24a', src: 'start', arcFix: 0.34,
     desc: '毎秒大量の小口径弾。単発は弱いが手数で押す。',
     //   **唯一の初期武器なので、これ1種で第1〜2章を持たせる必要がある。**（2026-09-21）
     //   ユーザー決定「初期武器はガトリングでよし」で初期所持を1種に絞ったが、
@@ -152,7 +157,7 @@ const WEAPONS = {
     // **【2026-09-30 段3】スナイパー → レーザーライフル。**id は 'sniper' のまま（セーブ・カード・連携の互換のため。画面の名前だけ変える）。
     //   弾を飛ばさず、壁で2回折り返す光線を引く（Combat.laser）。線の上の敵を全部貫く。太さは前の弾（当たり半径20）より少し太い 24。
     //   ユーザーの答え4（設計書 DESIGN-REBUILD §7）。下の「スナイパー」の経緯は、弾だった頃の測定として残す
-    id: 'sniper', cost: 3, cat: 'long', name: 'レーザーライフル', short: 'LSR', icon: Icons.get('sniper'), color: '#6fe3ff', src: 'stage', arcFix: 0.16,
+    id: 'sniper', sys: 'optic', cost: 3, cat: 'long', name: 'レーザーライフル', short: 'LSR', icon: Icons.get('sniper'), color: '#6fe3ff', src: 'stage', arcFix: 0.16,
     // **貫通役。** 並んだ敵を撃ち抜くのが仕事なので、狙うのは「敵が濃いほう」。
     // 以前は最も硬い敵（＝たいてい後方のタンク）を狙っていて、
     // 1.28秒に1発しかないのに目の前の群れを素通りしていた
@@ -193,7 +198,7 @@ const WEAPONS = {
 
   // ============ ステージ報酬（王道TD＋化学兵器） ============
   missile: {
-    id: 'missile', cost: 4, cat: 'target', name: 'ミサイル', short: 'MSL', icon: Icons.get('missile'), color: '#ff7a3c', src: 'stage',
+    id: 'missile', sys: 'phys', cost: 4, cat: 'target', name: 'ミサイル', short: 'MSL', icon: Icons.get('missile'), color: '#ff7a3c', src: 'stage',
     arcFix: 0.08, aimPoint: true, spot: 72,
     desc: '置いた円の中へ、重めの爆撃を降らせ続ける。円の大きさは決まっていて、置く場所で決まる。',
     // **【2026-09-21】12種を同じ条件で測って、床を上げた。**
@@ -217,7 +222,7 @@ const WEAPONS = {
   },
 
   tesla: {
-    id: 'tesla', cost: 2, cat: 'short', name: 'テスラコイル', short: 'TSL', icon: Icons.get('tesla'), color: '#b58bff', src: 'stage', arcFix: 0.55,
+    id: 'tesla', sys: 'elem', cost: 2, cat: 'short', name: 'テスラコイル', short: 'TSL', icon: Icons.get('tesla'), color: '#b58bff', src: 'stage', arcFix: 0.55,
     desc: '砲身の先へ即着の電撃。当たると次々に連鎖して、群れをまとめて焼く。',
     // **【2026-09-22】下から2番目だった**（第15章・単独・12シード・漏れの中央値 264）。
     //   振って確かめた（6シード・中央値）：
@@ -243,7 +248,7 @@ const WEAPONS = {
   },
 
   flame: {
-    id: 'flame', wallThrough: true, /* 壁を抜ける：範囲もの */ cost: 3, cat: 'area', name: '火炎放射器', short: 'FLM', icon: Icons.get('flame'), color: '#ff6a2a', src: 'stage', arcFix: 0.45,
+    id: 'flame', sys: 'elem', wallThrough: true, /* 壁を抜ける：範囲もの */ cost: 3, cat: 'area', name: '火炎放射器', short: 'FLM', icon: Icons.get('flame'), color: '#ff6a2a', src: 'stage', arcFix: 0.45,
     desc: '短射程の扇状に炎を吹き続ける。当たった敵は燃え続ける。',
     // 火炎は 17（12種中9位）。ダメージ3.4→5・レート9→12 で 25。実測 17 → 25
     base: baseStats({ dmg: 5, rate: 12, range: 130, cone: 0.42, burn: 0.55, burnDur: 3, turn: 5 }),
@@ -272,7 +277,7 @@ const WEAPONS = {
     //   雲を撒く武器なので、効いているのは雲の重なりと持続であって1発の威力ではない。
     //   凍結装置（35で単独突破する）・触手（16→26でも17止まり）と同じで、
     //   **この3種は「1秒あたりのダメージ」では測りきれない。**上げても無駄になる
-    id: 'gas', wallThrough: true, /* 壁を抜ける：範囲もの */ cost: 2, cat: 'area', name: '毒ガス散布機', short: 'GAS', icon: Icons.get('gas'), color: '#8fd94a', src: 'stage', arcFix: 0.55,
+    id: 'gas', sys: 'field', wallThrough: true, /* 壁を抜ける：範囲もの */ cost: 2, cat: 'area', name: '毒ガス散布機', short: 'GAS', icon: Icons.get('gas'), color: '#8fd94a', src: 'stage', arcFix: 0.55,
     desc: '砲身の先へ毒の雲を撒き続ける。雲の中の敵は毒を受け続け、防御が落ちる。',
     // **【2026-09-22】狙撃たちを上げたら、今度はここが最下位になった**（第15章・12シード・中央値71）。
     //   ここでも威力は効かない（ダメージ 7→21 で 56 → **64**。上の2026-09-21 の観察どおり）。
@@ -300,7 +305,7 @@ const WEAPONS = {
   cryo: {
     // **noFace：向きが攻撃に関係しない**（0930）。fire は `Combat.pulse`（全周・角度の判定なし・w.target も読まない）なので、
     //   向きも扇も効かない。盤の上は射程の円で見せ、向きの花は出さない（`Game.usesFace`）。arcFix は置く瞬間の向きの選びにだけ残る
-    id: 'cryo', noFace: true, cost: 4, cat: 'support', name: '凍結装置', short: 'CRY', icon: Icons.get('cryo'), color: '#7fe6ff', src: 'stage', arcFix: 0.75,
+    id: 'cryo', sys: 'elem', noFace: true, cost: 4, cat: 'support', name: '凍結装置', short: 'CRY', icon: Icons.get('cryo'), color: '#7fe6ff', src: 'stage', arcFix: 0.75,
     desc: '周囲へ冷気を放つ。敵は大きく減速し、凍った敵は受けるダメージが増える。',
     base: baseStats({ dmg: 6, rate: 0.9, range: 165, slow: 0.55, slowDur: 2.4 }),
     fire(w, run) {
@@ -315,7 +320,7 @@ const WEAPONS = {
 
   // ============ パック限定（なんでもあり枠） ============
   katana: {
-    id: 'katana', wallThrough: true, /* 壁を抜ける：間合いの中をまとめて斬る */ cost: 3, cat: 'short', name: '刀', short: 'KTN', icon: Icons.get('katana'), color: '#f4f6fb', src: 'pack', arcFix: 0.80,
+    id: 'katana', sys: 'phys', wallThrough: true, /* 壁を抜ける：間合いの中をまとめて斬る */ cost: 3, cat: 'short', name: '刀', short: 'KTN', icon: Icons.get('katana'), color: '#f4f6fb', src: 'pack', arcFix: 0.80,
     desc: '間合いに入った敵をまとめて斬る。射程は短いが一撃が重く、会心が乗る。',
     base: baseStats({ dmg: 58, rate: 1.5, range: 100, cone: 1.5, crit: 0.2, critMul: 2.5, turn: 12 }),
     fire(w, run) {
@@ -341,7 +346,7 @@ const WEAPONS = {
   },
 
   shuriken: {
-    id: 'shuriken', cost: 1, cat: 'mid', name: '手裏剣', short: 'SHU', icon: Icons.get('shuriken'), color: '#cdd9e8', src: 'pack', arcFix: 0.38,
+    id: 'shuriken', sys: 'phys', cost: 1, cat: 'mid', name: '手裏剣', short: 'SHU', icon: Icons.get('shuriken'), color: '#cdd9e8', src: 'pack', arcFix: 0.38,
     desc: '敵から敵へ跳ね回る投擲。密集しているほど手が付けられなくなる。',
     base: baseStats({ dmg: 13, rate: 2.2, range: 230, speed: 520, bulletR: 5, bounce: 3, turn: 10 }),
     fire(w, run) {
@@ -361,7 +366,7 @@ const WEAPONS = {
     //   倍率・大きさは BAL.tnt*。**出た攻撃の名前を触手の上に一瞬出す**（何が出たか分かるように）。
     //   前の触手（掴むだけ・掴む数6）は第25章の単独 12種中10位・カードを全部積んでも ×0.41（measure.md）。
     //   コスト：ユーザー「コストも高め」（§12-1）。武器の設計から決める（答え8「コストで強弱の帳尻を合わせない」）
-    id: 'tentacle', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ cost: 3, cat: 'support', name: '触手', short: 'TNT', icon: Icons.get('tentacle'), color: '#c85ab0', src: 'pack', arcFix: 0.34,
+    id: 'tentacle', sys: 'grab', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ cost: 3, cat: 'support', name: '触手', short: 'TNT', icon: Icons.get('tentacle'), color: '#c85ab0', src: 'pack', arcFix: 0.34,
     desc: '撃つたびに6種の攻撃のどれかが出る（引き寄せ・突き刺し・薙ぎ払い・触手の壁・タコ墨・一閃）。何が出るかは分からないが、どれも強い。',
     base: baseStats({ dmg: 40, rate: 1.0, range: 230, count: 4, knock: 105, knockDur: 1.3, turn: 9 }),
     fire(w, run) {
@@ -379,7 +384,7 @@ const WEAPONS = {
   },
 
   bubble: {
-    id: 'bubble', cost: 4, cat: 'target', name: '泡', short: 'BBL', icon: Icons.get('bubble'), color: '#8ad8ff', src: 'pack',
+    id: 'bubble', sys: 'field', cost: 4, cat: 'target', name: '泡', short: 'BBL', icon: Icons.get('bubble'), color: '#8ad8ff', src: 'pack',
     arcFix: 0.12, aimPoint: true, spot: 58,
     desc: '置いた円の中へ泡を降らせ、割れた場所の敵を閉じ込める。',
     // 泡は 15（12種中10位）。ダメージ10→16・レート1.1→1.5 で 26。実測 15 → 26
@@ -390,7 +395,7 @@ const WEAPONS = {
   },
 
   mortar: {
-    id: 'mortar', cost: 3, cat: 'target', name: '迫撃砲', short: 'MTR', icon: Icons.get('mortar'), color: '#e0b060', src: 'stage',
+    id: 'mortar', sys: 'phys', cost: 3, cat: 'target', name: '迫撃砲', short: 'MTR', icon: Icons.get('mortar'), color: '#e0b060', src: 'stage',
     arcFix: 0.08, aimPoint: true, spot: 96,
     desc: '置いた円の中へ重い砲弾を降らせ続ける。射程は長いが発射は遅い。',
     //   【2026-10-05 段D・コスト対性能】レート 0.55→0.45（上手な置き方・第25章・D27・単独・6本：コスト48・15基で漏れ 86 と12種で最良。→ 184。コスト24・8基は 601 → 926）
