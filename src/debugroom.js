@@ -205,8 +205,8 @@ const DebugRoom = {
         ['BOSS DOWN（あと2体）', () => UI.cutinBossDown(2)],
         ['ボス戦の見本（第10章・2体）', () => me.bossBattle()],
         ['ボス：ワーム（跳躍・数節の体・予告→前へ跳ぶ）', () => me.bossBattle('worm')],
-        ['ボス：ルートキット（大きい・防壁・予告→直前に削った武器が半分）', () => me.bossBattle('rootkit')],
-        ['ボス：ジャマー（機械・沈黙・予告→近くの武器が止まる）', () => me.bossBattle('jammer')],
+        ['ボス：ルートキット（大きい・硬い・防壁は控えめ・予告→直前に削った武器が半分）', () => me.bossBattle('rootkit')],
+        ['ボス：ジャマー（機械・沈黙・予告→近い4基へ腕が伸びて止まる。遠くの武器は止まらない）', () => me.bossBattle('jammer')],
         ['レーザーライフルの光線（壁で2回はね返る）', () => me.laserDemo()],
         ['触手の6種の攻撃（順番に出す）', () => me.tentacleDemo()],
         ['触手：引き寄せ', () => me.tentacleDemo('pull')],
@@ -654,7 +654,7 @@ const DebugRoom = {
   },
 
   // kind（'worm'|'rootkit'|'jammer'）を渡すと、その個体を1体だけ出し、HP が 75% を割った直後に仕掛けを1回使わせる（見本・記録なし）。
-  //   ジャマーは、ボスの近くにガトリングを一時的に並べる（run.units に足すだけ。配置の記録には触れない）
+  //   ジャマーは、ボスの近くにガトリング4基と、遠くに狙撃（レーザーライフル）3基を一時的に並べる（run.units に足すだけ。配置の記録には触れない）。近い4基だけに腕が伸びて止まる
   bossBattle(kind) {
     this._btEnd();
     this._dirEnd();     // 向きの花の見本が出ていたら先に片づける（配置の記録の写しが、ボス戦のあとの書き戻しと食い違わないように）
@@ -706,9 +706,13 @@ const DebugRoom = {
         if (!b._demoHit) {
           b._demoHit = true;
           if (kind === 'jammer') {
-            const near = run.stage.hexCells().map(h => { const c = run.stage.hexCenter(h.c, h.r); return { h, d: Util.dist(b.x, b.y, c.x, c.y) }; })
-              .filter(o => o.d > 50 && o.d < BAL.bossJamR - 10).sort((p, q) => p.d - q.d).slice(0, 4);
-            for (const o of near) run.units.push(Game.newUnit('gatling', o.h.c, o.h.r));
+            const all = run.stage.hexCells().map(h => { const c = run.stage.hexCenter(h.c, h.r); return { h, d: Util.dist(b.x, b.y, c.x, c.y) }; })
+              .filter(o => o.d > 50).sort((p, q) => p.d - q.d);
+            const used = new Set(run.units.map(u => u.c + ',' + u.r));
+            const free = all.filter(o => !used.has(o.h.c + ',' + o.h.r));
+            for (const o of free.slice(0, 4)) run.units.push(Game.newUnit('gatling', o.h.c, o.h.r));
+            const far = free.filter(o => o.d > 230), step = Math.max(1, Math.floor(far.length / 3));
+            for (let i = 0; i < 3 && i * step < far.length; i++) run.units.push(Game.newUnit('sniper', far[i * step].h.c, far[i * step].h.r));
           }
           Combat.damage(run, b, b.hp - b.maxHp * 0.74, { by: 'gatling', src: null });
         }

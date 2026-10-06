@@ -299,10 +299,9 @@ const Combat = {
       e.tname = 'boss';
       e.boss = true;
       e.bk = bk;                                 // 個体：worm | rootkit | jammer（強みと弱点が1つずつ）
-      // 足止め・掴みが効くのはワームだけ（弱点）。ルートキットは受けるが動きは止まらず割合ダメージだけ入る（弱点）。ジャマーは効かない。
+      // 足止め・掴みが強く効くのはワーム（弱点）。ルートキットには微弱に効く（BAL.rootCcK 倍・減速・足止め・引き寄せ）。ジャマーは効かない。
       //   どれも BAL.ccMaxSec の上限は守る（効かない個体は使い切った扱い）
       if (bk === 'jammer') e.ccUsed = Infinity;
-      if (bk === 'rootkit') e.noStop = true;
       if (bk === 'worm') e.trail = [{ x: p.x, y: p.y }];   // 体の節（頭のあとを追う点・新しい順）
       e.coin = e.coin * BAL.bossCoin;
       e.ph = 0;                                  // 次に使う仕掛けの番号（0〜2）。HP が BAL.bossPhaseAt を割るたびに1つ進む
@@ -315,12 +314,12 @@ const Combat = {
   },
 
   // ===== ボス3体と、それぞれの節目の仕掛け（docs/DESIGN-IDEAS-2026-10-05.md §1・1-2・BAL.boss*） =====
-  //   ワーム＝跳躍（弱点：拘束・足止め／貫通が節をまとめて抜く）／ルートキット＝防壁（弱点：感電・拘束の割合ダメージが入る（ほかのボスは0）・大きい）／
-  //   ジャマー＝沈黙（弱点：近くの数基だけ止まる。散らして置けば止めきれない）。HP が 75・50・25% を割るたびに1回（同じ仕掛けを3回）。使う前に約1秒の予告
+  //   ワーム＝跳躍（弱点：拘束・足止め／貫通が節をまとめて抜く）／ルートキット＝硬い・防壁は控えめ（弱点：拘束が微弱に効くだけ）／
+  //   ジャマー＝沈黙（ジャマーから最も近い BAL.bossJamMax 基へ腕を伸ばして止める。弱点：遠くから撃つ武器・射程の長い武器）。HP が 75・50・25% を割るたびに1回（同じ仕掛けを3回）。使う前に約1秒の予告
   BOSS_KIND: {
     worm:    { jp: 'ワーム',       en: 'WORM',    ph: 'jump', col: '#58e0a0', strong: '跳躍', weak: '拘束・足止めが効く／貫通が節をまとめて抜く' },
-    rootkit: { jp: 'ルートキット', en: 'ROOTKIT', ph: 'wall', col: '#ff4d6a', strong: '防壁', weak: '感電・拘束の割合ダメージが入る（ほかのボスは0）' },
-    jammer:  { jp: 'ジャマー',     en: 'JAMMER',  ph: 'jam',  col: '#9fb4c8', strong: '沈黙', weak: '止まるのは近くの数基だけ。散らして置けば止めきれない' },
+    rootkit: { jp: 'ルートキット', en: 'ROOTKIT', ph: 'wall', col: '#ff4d6a', strong: '硬い体（防壁は控えめ）', weak: '拘束が微弱に効く（弱点は少ない）' },
+    jammer:  { jp: 'ジャマー',     en: 'JAMMER',  ph: 'jam',  col: '#9fb4c8', strong: '沈黙（近い4基を腕で止める）', weak: '遠くから撃つ武器・射程の長い武器' },
   },
   BOSS_COL: { jump: '#4ee0ff', wall: '#ffd24a', jam: '#d36bff' },
   // どの章のどの口に、どの個体か（固定・乱数にしない）。序盤（第 BAL.bossMixFrom 章より前）は1章1種：第5章ワーム・第10章ルートキット・第15章ジャマー。
@@ -346,7 +345,9 @@ const Combat = {
     const k = Math.exp(-dt / BAL.bossRecTau);
     for (const id in e.rec) e.rec[id] *= k;
     if (e.wallT > 0 && (e.wallT -= dt) <= 0) e.wallBy = null;
+    if (e.jamArmT > 0 && (e.jamArmT -= dt) <= 0) e.jamArms = null;
     if (e.tele) {
+      if (e.tele.kind === 'jam') e.tele.targets = this.jamTargets(run, e);
       if ((e.tele.t -= dt) <= 0) this.bossPhaseDo(run, e, e.tele);
       return;
     }
@@ -357,12 +358,17 @@ const Combat = {
         let best = 0;
         for (const id in e.rec) if (WEAPONS[id] && e.rec[id] > best) { best = e.rec[id]; by = id; }
       }
-      e.tele = { kind, t: BAL.bossPhaseTele, by };
+      e.tele = { kind, t: BAL.bossPhaseTele, by, targets: kind === 'jam' ? this.jamTargets(run, e) : null };
       e.ph++;
       this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 4, color: this.BOSS_COL[kind], life: BAL.bossPhaseTele });
       // 画面側（UI.renderHud）が見て帯を出す。新しい予告は新しいオブジェクト
       run.phaseCut = { n: (run.phaseCut ? run.phaseCut.n : 0) + 1, no: e.ph, kind, by, bk: e.bk };
     }
+  },
+  // ジャマーの腕の行き先：ジャマーから最も近い BAL.bossJamMax 基（距離は問わない・盤の上の全部の武器から近い順）
+  jamTargets(run, e) {
+    return run.units.map(w => ({ w, d: Util.dist(e.x, e.y, w.x, w.y) })).sort((p, q) => p.d - q.d)
+      .slice(0, BAL.bossJamMax).map(o => o.w);
   },
   bossPhaseDo(run, e, tele) {
     e.tele = null;
@@ -389,15 +395,13 @@ const Combat = {
       if (tele.by) { e.wallT = BAL.bossWallSec; e.wallBy = tele.by; }
       this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 4, color: col, life: 0.5 });
     } else {
-      // 沈黙：半径 BAL.bossJamR の中の、近い順に BAL.bossJamMax 基だけ止める（散らして多く置けば止めきれない）
-      const near = [];
-      for (const w of run.units) { const d = Util.dist(e.x, e.y, w.x, w.y); if (d <= BAL.bossJamR) near.push([d, w]); }
-      near.sort((p, q) => p[0] - q[0]);
-      for (let i = 0; i < near.length && i < BAL.bossJamMax; i++) {
-        const w = near[i][1];
+      // 沈黙：ジャマーから最も近い BAL.bossJamMax 基へ腕を伸ばして止める（距離は問わない）。近くに置いた武器から止まる＝遠くから撃つ武器が強い
+      const tg = this.jamTargets(run, e);
+      for (const w of tg) {
         w.jamT = BAL.bossJamSec; this.fx(run, { type: 'ring', x: w.x, y: w.y, r: 34, color: col, life: 0.4 });
       }
-      this.fx(run, { type: 'ring', x: e.x, y: e.y, r: BAL.bossJamR * 1.25, color: col, life: 0.6 });
+      e.jamArms = tg; e.jamArmT = BAL.bossJamSec;       // 止めている間は腕がつながったまま（render.js の bossPhaseMark）
+      this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 3, color: col, life: 0.6 });
     }
   },
 
@@ -531,7 +535,9 @@ const Combat = {
     }
   },
 
-  statusScale(e) { return 1; },       // ボスを外したので、今はどの敵も同じ
+  statusScale(e) { return 1; },
+  // 拘束（減速・足止め・引き寄せ）の効き目と持続の倍率。ルートキットだけ微弱（BAL.rootCcK）。ほかは1
+  ccK(e) { return (e.boss && e.bk === 'rootkit') ? BAL.rootCcK : 1; },       // ボスを外したので、今はどの敵も同じ
 
   // 倒した場所の「深さ」による取り分。
   //   湧き口で倒すと ×1、コアの目の前で倒すと ×(1 + coinDepth)。
@@ -628,6 +634,7 @@ const Combat = {
     //   起こしているダメージ**。ここへ付与を掛けると自分で自分を延長し続けて
     //   永久に切れなくなるので、付与（*Grant）は素の攻撃だけに掛ける
     const sc = this.statusScale(e);
+    const cck = this.ccK(e);
     const st = run.st;
     if (opts.shock) { e.shock = Math.max(e.shock, (opts.shock * sc + st.shockDur) * (res && res.elec ? BAL.resMul : 1)); e.shockBy = by; }
 
@@ -641,15 +648,16 @@ const Combat = {
       // 耐寒（2026-09-30 段3）：凍らない・冷気の減速は強さも時間も半分（凍結装置・霜結の遺物・凍らせる札）
       const coldRes = res && res.cold && (ch || by === 'cryo');
       const cm = coldRes ? BAL.resMul : 1;
-      // ボスは遅くならない（凍った印・被ダメージの増えは乗る）。遅くできると制限時間が伸びて DPS チェックでなくなる
-      if (!e.boss) e.slow = Math.max(e.slow, Math.min(BAL.slowMax, (sl + st.slowAdd) * cm));
-      const d = ((slD || 1) + st.chillDur) * cm;
+      // ボスは遅くならない（凍った印・被ダメージの増えは乗る）。遅くできると制限時間が伸びて DPS チェックでなくなる。例外はルートキットの微弱な効き
+      //   ルートキットだけ微弱に遅くなる（強さも時間も BAL.rootCcK 倍）
+      if (!e.boss || e.bk === 'rootkit') e.slow = Math.max(e.slow, Math.min(BAL.slowMax, (sl + st.slowAdd) * cm * cck));
+      const d = ((slD || 1) + st.chillDur) * cm * cck;
       e.slowT = Math.max(e.slowT, d);
       if (ch && !coldRes) e.chill = Math.max(e.chill, d);
     }
 
     // 重量（2026-09-30 段3）：閉じ込めは半分
-    if (opts.stun && (e.ccUsed || 0) < BAL.ccMaxSec) { e.stun = Math.max(e.stun, (opts.stun * sc + st.stunDur) * (res && res.heavy ? BAL.resMul : 1)); e.stunBy = by; }
+    if (opts.stun && (e.ccUsed || 0) < BAL.ccMaxSec) { e.stun = Math.max(e.stun, (opts.stun * sc + st.stunDur) * (res && res.heavy ? BAL.resMul : 1) * cck); e.stunBy = by; }
 
     let bn = opts.burn || 0, bd = opts.burnDur || 0;
     if (st.burnGrant > 0 && !opts.dot) {            // 熾火：どの武器でも燃える
@@ -937,7 +945,7 @@ const Combat = {
       if (this.inShield(run, t)) { t.shieldT = 0.15; continue; }
       // 止めておける合計の秒数を使い切った敵は、もう掴めない（BAL.ccMaxSec）。削りだけ入る
       // 重量（2026-09-30 段3）：掴む時間も引き戻す力も半分
-      const hv = (t.res && t.res.heavy) ? BAL.resMul : 1;
+      const hv = ((t.res && t.res.heavy) ? BAL.resMul : 1) * this.ccK(t);
       if ((t.ccUsed || 0) < BAL.ccMaxSec) t.grabT = Math.max(t.grabT, dur * this.statusScale(t) * hv);
       t.grabV = power * hv;
       this.damage(run, t, dmg, { color: '#ffb0e8', crit: w.s.crit, critMul: w.s.critMul });
@@ -1467,9 +1475,10 @@ const Combat = {
           if (f.armorDown) { e.armorDown = (e.armorT > 0) ? Math.max(e.armorDown, f.armorDown) : f.armorDown; e.armorT = 0.6; }   // 腐蝕の雲
           // 場の減速にも遺物の軸を乗せる。**ここは damage() を通らないので、
           // 書き忘れると「毒の雲だけ遺物が効かない」ことになる**
-          if (f.slow && !e.boss) {
-            e.slow = Math.max(e.slow, Math.min(BAL.slowMax, f.slow + run.st.slowAdd));
-            e.slowT = Math.max(e.slowT, 0.5 + run.st.chillDur);
+          if (f.slow && (!e.boss || e.bk === 'rootkit')) {
+            const ck = this.ccK(e);
+            e.slow = Math.max(e.slow, Math.min(BAL.slowMax, (f.slow + run.st.slowAdd) * ck));
+            e.slowT = Math.max(e.slowT, (0.5 + run.st.chillDur) * ck);
           }
           // **毒は敵に乗る。**（ユーザー要望6・8・2026-09-22）
           //   > 「毒、氷も同じく（燃えてるエフェクト）」
@@ -1532,12 +1541,12 @@ const Combat = {
       //   （敵のHPは30章で1e14倍になる）。装甲と同じ考え方
       //   **ボスには効かせない。**（2026-09-28）ボスはHPを制限時間内に削り切れるかを問う敵なので、割合で削るとHPが意味を持たない。
       //   倍率×8でも第15章から先のボスは口を出てすぐ倒れ、受けたダメージの 0〜93%（6本）が感電のスリップだった
-      if (e.shock > 0 && BAL.shockDps && (!e.boss || e.bk === 'rootkit')) {
-        this.damage(run, e, e.maxHp * BAL.shockDps * dt * (e.boss ? BAL.rootPct : 1), { color: '#c9b3ff', dot: true, by: e.shockBy, shockTick: true });
+      if (e.shock > 0 && BAL.shockDps && !e.boss) {
+        this.damage(run, e, e.maxHp * BAL.shockDps * dt, { color: '#c9b3ff', dot: true, by: e.shockBy, shockTick: true });
         if (e.dead) continue;
       }
-      if (e.stun > 0 && BAL.stunDps && (!e.boss || e.bk === 'rootkit')) {
-        this.damage(run, e, e.maxHp * BAL.stunDps * dt * (e.boss ? BAL.rootPct : 1), { color: '#bea0ff', dot: true, by: e.stunBy });
+      if (e.stun > 0 && BAL.stunDps && !e.boss) {
+        this.damage(run, e, e.maxHp * BAL.stunDps * dt, { color: '#bea0ff', dot: true, by: e.stunBy });
         if (e.dead) continue;
       }
       // （ボスが雑魚を出し続ける形は 2026-09-28 に撤去した。ボスのウェーブは雑魚が出ない・spawnBoss）
@@ -1571,8 +1580,8 @@ const Combat = {
       const goal = inside ? st.flowTo(tc, tr, e.lane) : (st.nearCore ? st.center(st.nearCore(tc, tr).c, st.nearCore(tc, tr).r) : { x: tw.x, y: tw.y });
       const a = Util.angle(e.x, e.y, goal.x, goal.y);
 
-      if (e.stun <= 0 || e.noStop) {
-        if (e.grabT > 0 && !e.noStop) {
+      if (e.stun <= 0) {
+        if (e.grabT > 0) {
           // **来た道へ引き戻す。** 道の上にいるあいだだけ後退させる。
           //   道を外れると goal がコア直通になり、そこから後退させると
           //   「壁を無視してコアの真逆（このマップ群では画面の上）へ飛ぶ」

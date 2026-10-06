@@ -2327,8 +2327,9 @@ const Render = {
   // ボスの節目の仕掛け：予告（縁が光る・仕掛けごとの形）と、防壁の効いている間の六角の板。ボスの座標に平行移動済みで呼ぶ
   bossPhaseMark(ctx, e, run) {
     const T = e.tele, W = e.wallT > 0 ? e.wallBy : null;
-    if (!T && !W) return;
-    const kind = T ? T.kind : 'wall';
+    const J = T && T.kind === 'jam' ? T.targets : (e.jamArmT > 0 ? e.jamArms : null);
+    if (!T && !W && !J) return;
+    const kind = T ? T.kind : (J && !W ? 'jam' : 'wall');
     const col = Combat.BOSS_COL[kind];
     const blink = T ? (0.55 + 0.45 * Math.sin(run.time * 26)) : 0.8;
     ctx.save();
@@ -2349,11 +2350,55 @@ const Render = {
         ctx.beginPath(); ctx.moveTo(x, -9); ctx.lineTo(x + 8, 0); ctx.lineTo(x, 9); ctx.stroke();
       }
     } else {
-      // 沈黙：止められる範囲を点線の輪で見せる（予告のあいだだけ）
-      ctx.setLineDash([6, 6]);
-      ctx.beginPath(); ctx.arc(0, 0, BAL.bossJamR, 0, Math.PI * 2); ctx.stroke();
-      ctx.globalAlpha = 0.07; ctx.fill();
+      // 沈黙：ジャマーから最も近い4基へ機械の腕が伸びる（予告のあいだは伸びていき、止めている間はつながったまま）
+      ctx.restore();
+      this.jamArms(ctx, e, run, J, T ? 1 - Math.max(0, T.t) / BAL.bossPhaseTele : 1, !!T);
+      return;
     }
+    ctx.restore();
+  },
+
+  // ジャマーの腕：体の縁から、狙う武器の六角へ。2節の関節アーム（装甲の管・関節のボルト・先の爪）。
+  //   p … 伸び具合 0〜1（予告のあいだ伸びていく）。tele が真のあいだは、狙われた武器の六角に点滅する枠を出す（どの4基か見える）。
+  //   ボスの座標に平行移動済みで呼ぶ。止めている間（tele が偽）は、止まった武器の紫の輪と×（unit の描画）と合わせて見える
+  jamArms(ctx, e, run, targets, p, tele) {
+    if (!targets || !targets.length) return;
+    const t = run.time, col = Combat.BOSS_COL.jam;
+    const ease = 1 - Math.pow(1 - Math.min(1, p), 3);
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    targets.forEach((u, i) => {
+      const dx = u.x - e.x, dy = u.y - e.y, D = Math.hypot(dx, dy) || 1;
+      const ux = dx / D, uy = dy / D, nx = -uy, ny = ux;
+      const sx = ux * e.r * 0.9, sy = uy * e.r * 0.9;                    // 体の縁
+      const L = Math.max(0, D - MapGen.HEX_R * 0.7);                     // 武器の六角の縁まで
+      const ex = ux * (e.r * 0.9 + (L - e.r * 0.9) * ease), ey = uy * (e.r * 0.9 + (L - e.r * 0.9) * ease);
+      const bend = Math.min(26, D * 0.12) * (i % 2 ? 1 : -1) * (1 - 0.5 * ease);
+      const jx = (sx + ex) / 2 + nx * bend, jy = (sy + ey) / 2 + ny * bend;   // 関節
+      if (tele) {                                                         // 狙われた武器の印
+        ctx.save(); ctx.translate(dx, dy);
+        ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t * 26 + i);
+        ctx.strokeStyle = col; ctx.lineWidth = 3;
+        this.hexPathOn(ctx, 0, 0, MapGen.HEX_R - 2); ctx.stroke();
+        ctx.restore();
+      }
+      ctx.globalAlpha = tele ? 0.9 : 0.8;
+      for (const [w, c] of [[7, '#1f2a36'], [4.5, '#7e92a8'], [1.6, '#d3dfeb']]) {      // 装甲の管（暗い縁・鋼の面・ハイライト）
+        ctx.strokeStyle = c; ctx.lineWidth = w;
+        ctx.beginPath(); ctx.moveTo(sx, sy); ctx.quadraticCurveTo(jx, jy, ex, ey); ctx.stroke();
+      }
+      ctx.fillStyle = '#364556'; ctx.strokeStyle = '#141c26'; ctx.lineWidth = 1.5;     // 関節のボルト
+      ctx.beginPath(); ctx.arc(jx * 0.5 + (sx + ex) * 0.25, jy * 0.5 + (sy + ey) * 0.25, 5, 0, 6.2832); ctx.fill(); ctx.stroke();
+      // 先の爪：腕の向きに開いた2本（伸びきると閉じて武器をつかむ）
+      const open = tele ? 0.6 + 0.3 * Math.sin(t * 14 + i) : 0.15;
+      const ang = Math.atan2(ey - jy, ex - jx);
+      ctx.strokeStyle = col; ctx.lineWidth = 3;
+      for (const s of [-1, 1]) {
+        const a = ang + s * open;
+        ctx.beginPath(); ctx.moveTo(ex, ey); ctx.lineTo(ex + Math.cos(a) * 11, ey + Math.sin(a) * 11); ctx.stroke();
+      }
+      ctx.fillStyle = col; ctx.beginPath(); ctx.arc(ex, ey, 3, 0, 6.2832); ctx.fill();
+    });
     ctx.restore();
   },
 

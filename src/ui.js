@@ -657,7 +657,7 @@ const UI = {
   cutinPhase(pc) {
     const N = { jump: ['JUMP', '跳躍', 'まもなく前へ跳ぶ ─ 奥にも火力を'],
                 wall: ['FIREWALL', '防壁', ''],
-                jam: ['JAM', '沈黙', 'まもなく近くの武器が止まる ─ 固めすぎるな'] }[pc.kind];
+                jam: ['JAM', '沈黙', '腕が伸びる ─ いちばん近い4基が止まる'] }[pc.kind];
     let sub = N[2];
     if (pc.kind === 'wall') {
       const nm = pc.by && WEAPONS[pc.by] ? WEAPONS[pc.by].name : '';
@@ -1780,8 +1780,8 @@ const UI = {
     //   **3体に分けた**（強み1つ・弱点1つ）。出る章は固定：第5章ワーム・第10章ルートキット・第15章ジャマー、第${BAL.bossMixFrom}章から口ごとに混ざる
     const cond = {
       worm: '足止め・掴みが効く（合計 ' + BAL.ccMaxSec + ' 秒まで）。数節の体を貫通する弾・光線がまとめて抜く。減速は効かない',
-      rootkit: '感電・拘束の割合ダメージが入る（ふつうの敵と同じ割合・ほかのボスには入らない）。足止め・掴み・減速では動きは止まらない',
-      jammer: '沈黙で止まるのは近くの ' + BAL.bossJamMax + ' 基まで。散らして置けば止めきれない。足止め・掴み・減速は効かない',
+      rootkit: '弱点は少ない。凍結の減速・足止め・触手の引き寄せが微弱に効く（効き目・持続とも ' + Math.round(BAL.rootCcK * 100) + '%）。ワームほどは止まらない',
+      jammer: '腕が届くのは近い ' + BAL.bossJamMax + ' 基だけ。遠くから撃つ武器・射程の長い武器は止められない。足止め・掴み・減速は効かない',
     };
     const ch0 = { worm: 5, rootkit: 10, jammer: 15 };
     for (const k of BAL.bossKinds) {
@@ -1790,7 +1790,7 @@ const UI = {
       boss.innerHTML = '<span class="edot">' + this.ringGlyph(null, 12, K.col) + '</span>' +
         '<div class="ebody"><b>' + K.jp + '<em>' + K.en + ' ─ BOSS</em><u>第' + ch0[k] + '章から</u></b>' +
         '<p>強み：<strong>' + K.strong + '</strong>（HP 75・50・25% を割るたびに1回・使う前に約1秒の予告）。' +
-        (k === 'worm' ? 'レーンに沿って前へ数タイル跳ぶ。' : k === 'rootkit' ? '直前にいちばん削った武器の種類からのダメージが数秒半分。' : '近くの武器が数秒撃てなくなる。') + '</p>' +
+        (k === 'worm' ? 'レーンに沿って前へ数タイル跳ぶ。' : k === 'rootkit' ? '体が硬い。仕掛けは控えめで、直前にいちばん削った武器の種類からのダメージが数秒半分。' : 'ジャマーから最も近い ' + BAL.bossJamMax + ' 基へ腕を伸ばし、数秒撃てなくする（距離は問わない）。') + '</p>' +
         '<small>弱点：' + cond[k] + '</small></div>';
       el.appendChild(boss);
     }
