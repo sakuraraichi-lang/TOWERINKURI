@@ -616,7 +616,7 @@ const Game = {
     //   ・**レジェンドは別枠の掛け算のまま**（「この1枚で激変」を残す）。×1未満の代償も掛け算のまま
     //   前は全部が掛け算で、冷却フィン（×1.25）5枚で ×3.05、10凸なら ×43 まで伸びた
     const s = u.s;
-    if (!u.cardBase) { u.cardBase = { dmg: s.dmg, rate: s.rate / this.rateFx(u.adjAdd || 0) }; u.cAdd = { dmg: 0, rate: 0 }; u.cMul = { dmg: 1, rate: 1 }; }
+    if (!u.cardBase) { u.cardBase = { dmg: s.dmg, rate: s.rate / (1 + (u.adjAdd || 0)) }; u.cAdd = { dmg: 0, rate: 0 }; u.cMul = { dmg: 1, rate: 1 }; }
     const d0 = s.dmg, r0 = s.rate;
     this.withRank(id, u._rkAcc || (u._rkAcc = {}), () => CARDS[id].apply(p));
     const more = CARDS[id].rarity === 'legendary';
@@ -626,11 +626,12 @@ const Game = {
       if (more || f < 1) u.cMul[k] *= f; else u.cAdd[k] += f - 1;
     }
     s.dmg = u.cardBase.dmg * (1 + u.cAdd.dmg) * u.cMul.dmg;
-    // 隣り合う異種のレート（u.adjAdd・Game.updateAdj）は、札のレートの足し算 S の中に入れる（同じ上限 ×(1+R) に近づく）
-    s.rate = u.cardBase.rate * this.rateFx(u.cAdd.rate + (u.adjAdd || 0)) * u.cMul.rate;
+    // 隣り合う異種のレート（u.adjAdd・Game.updateAdj）は、**札の上限とは別の掛け算**（1006f・ユーザー）。
+    //   札の足し算 S の中に入れると、隣に置くほど札のレートの伸びしろが減り、レートの札が死に札になった
+    s.rate = u.cardBase.rate * this.rateFx(u.cAdd.rate) * u.cMul.rate * (1 + (u.adjAdd || 0));
   },
 
-  // レートの足し算 S（札の増分の合計＋隣り合う異種の増分）を倍率にする：×(1 ＋ R×S/(S＋R))。R＝BAL.cardRateCap（2 ＝ 最大 ×3）
+  // レートの足し算 S（札の増分の合計）を倍率にする：×(1 ＋ R×S/(S＋R))。R＝BAL.cardRateCap（2 ＝ 最大 ×3）
   rateFx(S) { const R = BAL.cardRateCap; return 1 + (S > 0 ? R * S / (S + R) : 0); },
 
   ownedWeaponIds() { return WEAPON_IDS.filter(wid => this.own('wc_' + wid) > 0); },
@@ -1072,8 +1073,10 @@ const Game = {
 
   // ---------- 隣り合う異種で強め合う（2026-10-05・設計書 DESIGN-IDEAS §2） ----------
   //   武器の六角の隣6つにある、**自分と違う種類**の武器の種類数（同じ種類は数えない）。1種類につき発射レート +BAL.adjBonus、BAL.adjMax 種類まで。
-  //   **火力には掛けない。**（ユーザー 2026-10-06）札のレートの足し算（applyCardUnit の cAdd.rate）の中に入れ、同じ上限（cardRateCap・最大 ×3）に近づく。
-  //   u.adjAdd（足し算の分）に持ち、u.s.rate へは「前の rateFx で割って新しい rateFx を掛ける」で入れる（札の足し算 cAdd.rate はそのまま使う）。
+  //   **火力には掛けない。**（ユーザー 2026-10-06）
+  //   **札のレートの上限（cardRateCap）とは別の掛け算 ×(1＋adjAdd)**（1006f・ユーザー「札の分とは別に固定値で上がるようにすれば混成がかなり効く…レートカードが死にピックになる可能性があるのはいただけません」）。
+  //   隣の分は BAL.adjMax 種類で止まるので、別に掛けても天井はある（札 ×3 × 隣 ×1.45）
+  //   u.adjAdd（足し算の分）に持ち、u.s.rate へは「前の ×(1＋adjAdd) で割って新しい ×(1＋adjAdd) を掛ける」で入れる。
   //   **置く・動かす・撤去する・全撤去・組み直し（applyMods）のたびに全部の基で数え直す**
   //   （applyMods が s を土台から組み直しても、札と同じく最後に掛け直すので消えない）
   adjTypesAt(c, r, selfId, units, ignore) {
@@ -1086,15 +1089,15 @@ const Game = {
     return Object.keys(seen);
   },
   adjAddOf(n) { return BAL.adjBonus * Math.min(n, BAL.adjMax); },
-  // 隣の異種 n 種で、実際にレートが何割上がるか（画面用・1006e）。札のレート（足し算 S）と同じ上限の式を通すので、名目の +15%×n より小さく、札を積むほど小さくなる
-  adjRateGain(n, S) { S = S || 0; return this.rateFx(S + this.adjAddOf(n)) / this.rateFx(S) - 1; },
+  // 隣の異種 n 種で、レートが何割上がるか（画面用）。1006f から札とは別の掛け算なので、札の量 S によらず +BAL.adjBonus×n（S は前の呼び出しとの互換のために受け取るだけ）
+  adjRateGain(n, S) { return this.adjAddOf(n); },
   updateAdj(run) {
     run = run || this.run;
     if (!run) return;
     for (const u of run.units) {
       u.adjTypes = this.adjTypesAt(u.c, u.r, u.id, run.units, u);
-      const a = this.adjAddOf(u.adjTypes.length), old = u.adjAdd || 0, S = (u.cAdd ? u.cAdd.rate : 0);
-      if (a !== old && u.s) u.s.rate = u.s.rate / this.rateFx(S + old) * this.rateFx(S + a);
+      const a = this.adjAddOf(u.adjTypes.length), old = u.adjAdd || 0;
+      if (a !== old && u.s) u.s.rate = u.s.rate / (1 + old) * (1 + a);
       u.adjAdd = a;
     }
   },
