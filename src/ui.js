@@ -454,7 +454,8 @@ const UI = {
   renderHud() {
     const r = Game.run;
     const np = (Game.perm.packs.basic || 0) + (Game.perm.packs.arms || 0)
-             + (Game.perm.packs.chem || 0) + (Game.perm.packs.syn || 0);
+             + (Game.perm.packs.chem || 0) + (Game.perm.packs.syn || 0)
+             + UPACK_IDS.reduce((a, k) => a + (Game.perm.packs[k] || 0), 0);   // 上位パック（アセンション）も数える
     if (this.el.badgePack) {
       // タブがまだ開いていないうちは、中身を匂わせない
       const show = np > 0 && Game.tabOpen('pack');
@@ -1958,7 +1959,7 @@ const UI = {
         '<div class="gs-box' + (PACK_IMG[pid] ? ' img' : '') + (pk.name.length > 6 ? ' long' : '') + '"' + (PACK_IMG[pid] ? ' style="--pimg:url(' + PACK_IMG[pid] + ')"' : '') + '><div class="pfx-strip"></div>' +
           '<div class="pfx-body"><i class="pfx-rv a"></i><i class="pfx-rv b"></i><i class="pfx-rv c"></i><i class="pfx-rv d"></i>' +
           '<div class="pfx-emb"><div class="pfx-logo">' + CardFX.logoSvg() + '</div></div>' +
-          '<div class="pfx-name">' + pk.name + '</div><div class="pfx-sub">' + (pk.upper ? 'ASCENSION ・ ' : '') + pk.size + ' CARDS</div><i class="pfx-haz"></i></div></div>' +
+          '<div class="pfx-name">' + pk.name + '</div><div class="pfx-sub">' + (pk.upper ? 'ASC ・ ' : '') + pk.size + ' CARDS</div><i class="pfx-haz"></i></div></div>' +
         '<div class="gs-stat ' + state[2] + '"><em>// ' + state[0] + '</em><span>' + state[1] + '</span></div>' +
         '<div class="gs-have"><em>// DATA PACKAGE</em><div class="gs-vfd"><span>所持</span><b>×' + have + '</b></div></div>' +
         (ok ? '' : '<div class="gs-lock">' + Icons.get('lock') + Pack.lockReason(perm, pid) + '</div>') +

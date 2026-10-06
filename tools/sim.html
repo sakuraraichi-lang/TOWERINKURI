@@ -1226,7 +1226,8 @@ function runStageInner(stageId, loadout, buys, opts) {
 // 実際、シナジーカードは2000回抽選して0回しか出なかった。
 // プレイヤーは貰ったパックを必ず開けるので、測定器も同じことをする
 // ---------------------------------------------------------------
-//   AUTO_EXCHANGE ＝ true なら、アセンション中は開ける前に上位パックへ交換できるだけ交換する（Asc.exchangeAll・本体の交換と同じ処理）。
+//   AUTO_EXCHANGE ＝ true なら、アセンション中は**ふつうのパックを開けずにためて**、上位パックへ交換できるだけ交換し、上位パックだけを開ける（Asc.exchangeAll・本体の交換と同じ処理・「パックは交換の通貨にしかならない」の遊び方）。
+//   false（既定）はふつうのパックを全部開ける（交換しない）。
 //   交換した回数は EXCH_COUNT に数える。上位パック（u_*）も開ける（札はアセンション専用の札）
 let AUTO_EXCHANGE = false, EXCH_COUNT = 0, UP_OPENED = 0;   // UP_OPENED ＝ 開けた上位パックの数
 function openAllPacks() {
@@ -1234,7 +1235,7 @@ function openAllPacks() {
   let opened = 0, got = 0;
   if (AUTO_EXCHANGE && Asc.on(Game.perm)) EXCH_COUNT += Asc.exchangeAll(Game.perm, Game.meta);
   for (let guard = 0; guard < 500; guard++) {
-    const pid = PACK_IDS.concat(UPACK_IDS).find(k => (Game.perm.packs[k] || 0) > 0 && Pack.isUnlocked(Game.perm, k));
+    const pid = ((AUTO_EXCHANGE && Asc.on(Game.perm)) ? UPACK_IDS : PACK_IDS.concat(UPACK_IDS)).find(k => (Game.perm.packs[k] || 0) > 0 && Pack.isUnlocked(Game.perm, k));
     if (!pid) break;
     Game.perm.packs[pid]--;
     for (const id of Pack.open(pid, luck)) { Game.grant(id, 1); got++; }
