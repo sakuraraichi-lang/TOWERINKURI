@@ -154,6 +154,7 @@ const Crowd = {
   },
 
   pair(a, b) {
+    if (a.noPush || b.noPush) return;           // ラスボスの頭と節は押し合わない（節は頭の跡に並ぶ）
     if (a.ghostT > 0 || b.ghostT > 0) return;   // 詰まりから抜け出している最中は押し合わない（combat.js の詰まりの検知）
     const dx = a.x - b.x, dy = a.y - b.y, rr = a.r + b.r, d2 = dx * dx + dy * dy;
     if (d2 >= rr * rr || d2 < 0.01) return;
@@ -292,8 +293,12 @@ const Combat = {
 
   isLastWave(run) { return run.wave >= BAL.wavesPerStage; },
 
+  // 第30章（ゲームの区切り）はラスボス専用。BAL.finalOn を切ると、ほかの節目の章と同じボス（口ごとに1体）に戻る
+  isFinalChapter(run) { return !!BAL.finalOn && run.stageIdx + 1 === MAIN_CHAPTERS; },
+
   // このウェーブにボスが出るか。**節目の章（BAL.bossChapters と、第31章から先の5章ごと）の、最後のウェーブだけ。**
   isBossWave(run) {
+    if (this.isFinalChapter(run)) return true;       // 第30章はラスボス（全ウェーブ・雑魚なし）
     if (!this.isLastWave(run)) return false;
     const ch = run.stageIdx + 1;
     return BAL.bossChapters.indexOf(ch) >= 0 || (ch > MAIN_CHAPTERS && ch % 5 === 0);
@@ -348,6 +353,122 @@ const Combat = {
     run.hasBoss = true;
   },
 
+  // ===== ラスボス「フォーマッタ」（第30章専用・BAL.final*） =====
+  //   頭1体（e.bk 'final'）＋胴の節 BAL.finalSegs 個。節は盤の上の本物の敵（e.seg が頭を指す）で、どの武器の当たりにも掛かる。
+  //   節に入ったダメージは damage() が頭へ BAL.finalBodyMul 倍で回す＝頭が弱点。節は頭の通った跡（e.trail）に並ぶだけで、自分では動かない。
+  //   ウェーブごとに1体だけ、口を順に替えて出す。HP はウェーブをまたいで持ち越す（run.finalHp・最大HPに対する割合）
+  spawnFinal(run) {
+    const st = run.stage;
+    const gEnd = globalWave(run.stageIdx, BAL.wavesPerStage);       // 最大HPはウェーブで変えない（最後のウェーブの基準で固定）
+    const chMul = this.chapterWeight(run);
+    const base = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, gEnd - 1) * Math.pow(BAL.stageHpMul, run.stageIdx) * chMul;
+    const maxHp = base * BAL.bossHp * ((BAL.bossHpBy || {})[run.stageIdx + 1] || 1) * BAL.finalHpMul;
+    if (run.finalHp === undefined || run.wave <= 1) { run.finalHp = 1; run.finalPh = 0; }
+    const mouths = (st.mouths && st.mouths.length) ? st.mouths : st.spawns.map((s, i) => [i]);
+    const m = mouths[(run.wave - 1) % mouths.length];
+    const si = m[(m.length / 2) | 0];
+    const sp = st.spawns[si], p = st.center(sp.c, sp.r);
+    const e = this.makeEnemy(run, ENEMY_TYPES.grunt, this.gw(run), p.x, p.y, si, maxHp);
+    e.hp = maxHp * run.finalHp;
+    e.lane = this.pickLane(run, si);
+    e.spd = BAL.finalSpeed;
+    e.r = BAL.finalR;
+    e.color = this.BOSS_KIND.final.col;
+    e.tname = 'boss'; e.boss = true; e.bk = 'final';
+    e.noStatus = true; e.noPush = true; e.ccUsed = Infinity;       // 状態異常・足止め・押し合いは効かない
+    e.coin = e.coin * BAL.finalCoin;
+    e.gap = BAL.finalGap; e.segN = BAL.finalSegs;
+    e.trail = [{ x: p.x, y: p.y }];
+    e.ph = run.finalPh;                         // 次に使う仕掛けの番号（HP の割合で進む・ウェーブをまたいで持ち越す）
+    e.tele = null; e.rec = {};
+    e.beamT = 0; e.beamTg = null;
+    // 胴の節：尾から先に積む（描く順＝尾が下・頭が最後に上）
+    const segs = [];
+    for (let k = BAL.finalSegs - 1; k >= 0; k--) {
+      const g = this.makeEnemy(run, ENEMY_TYPES.grunt, this.gw(run), p.x, p.y, si, maxHp);
+      g.seg = e; g.k = k; g.hidden = true; g.noStatus = true; g.noPush = true; g.ccUsed = Infinity;
+      g.spd = 0; g.lane = null; g.tname = 'bossSeg';
+      g.r = BAL.finalSegR * (1 - 0.35 * k / Math.max(1, BAL.finalSegs - 1));
+      g.color = this.BOSS_KIND.final.col;
+      g.coin = 0;
+      segs.push(g);
+    }
+    for (const g of segs) run.enemies.push(g);
+    run.enemies.push(e);
+    run.segN = segs.length;
+    run.finalHead = e;
+    run.hasBoss = true;
+  },
+  // 頭の節目の仕掛け：HP が BAL.finalPhaseAt を割るたびに1つ。使う前に BAL.finalTele 秒の予告。退く条件もここで見る
+  finalUpdate(run, e, dt) {
+    const k = Math.exp(-dt / BAL.bossRecTau);
+    for (const id in e.rec) e.rec[id] *= k;                 // 「直近に頭を削った武器」：時間で薄れる合計
+    if (e.beamT > 0 && (e.beamT -= dt) <= 0) e.beamTg = null;
+    if (e.tele) {
+      if (e.tele.kind !== 'resist') e.tele.targets = e.tele.kind === 'bite' ? this.biteTargets(run, e) : this.laserTargets(run, e);
+      if ((e.tele.t -= dt) <= 0) this.finalPhaseDo(run, e, e.tele);
+      return;
+    }
+    // 撃退：ウェーブ1〜4は、HP が決まった割合まで減ったら退く（次のウェーブへ・HP は持ち越す）
+    const ra = BAL.finalRetreatAt[run.wave - 1];
+    if (!this.isLastWave(run) && ra !== undefined && e.hp <= e.maxHp * ra) {
+      e.dead = true; e.retreat = true;
+      run.finalHp = Math.max(0.001, e.hp / e.maxHp); run.finalPh = e.ph;
+      run.retreatCut = { n: (run.retreatCut ? run.retreatCut.n : 0) + 1, wave: run.wave, left: run.finalHp };
+      this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 5, color: this.BOSS_KIND.final.col, life: 0.7 });
+      this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 2.5, color: '#fff3c8', life: 0.4 });
+      this.shake(run, 10, true);
+      return;
+    }
+    const at = BAL.finalPhaseAt[e.ph];
+    if (at !== undefined && e.hp <= e.maxHp * at) {
+      const kind = BAL.finalPhaseKinds[e.ph];
+      e.tele = { kind, t: BAL.finalTele, targets: kind === 'resist' ? null : (kind === 'bite' ? this.biteTargets(run, e) : this.laserTargets(run, e)),
+                 by: kind === 'resist' ? this.topRec(e) : null };
+      e.ph++;
+      run.finalPh = e.ph;
+      const col = this.BOSS_COL[kind];
+      this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 4, color: col, life: BAL.finalTele });
+      run.phaseCut = { n: (run.phaseCut ? run.phaseCut.n : 0) + 1, no: e.ph, kind, by: e.tele.by, bk: 'final' };
+    }
+  },
+  topRec(e) {
+    let best = 0, by = null;
+    for (const id in e.rec) if (WEAPONS[id] && e.rec[id] > best) { best = e.rec[id]; by = id; }
+    return by;
+  },
+  // 壊れていない武器のうち、頭に近い順
+  nearUnits(run, e) {
+    return run.units.filter(w => !w.broken).map(w => ({ w, d: Util.dist(e.x, e.y, w.x, w.y) })).sort((p, q) => p.d - q.d).map(o => o.w);
+  },
+  biteTargets(run, e) { return this.nearUnits(run, e).slice(0, 1); },
+  laserTargets(run, e) { return this.nearUnits(run, e).slice(0, BAL.finalLaserN); },
+  finalPhaseDo(run, e, tele) {
+    e.tele = null;
+    const col = this.BOSS_COL[tele.kind];
+    if (tele.kind === 'bite') {
+      // 噛みつき：予告の間に狙った武器を、その出撃の間なくす（盤には残骸が残り、置き直せず、コストも戻らない）
+      const tg = this.biteTargets(run, e);
+      for (const w of tg) {
+        w.broken = true; w.jamT = 0; w.target = null;
+        run.broken = (run.broken || 0) + 1;
+        this.fx(run, { type: 'boom', x: w.x, y: w.y, r: 46, color: col, life: 0.45 });
+        this.fx(run, { type: 'ring', x: w.x, y: w.y, r: 60, color: '#fff3c8', life: 0.5 });
+      }
+      this.shake(run, 8, true);
+    } else if (tele.kind === 'laser') {
+      const tg = this.laserTargets(run, e);
+      for (const w of tg) { w.jamT = BAL.finalLaserSec; this.fx(run, { type: 'ring', x: w.x, y: w.y, r: 34, color: col, life: 0.4 }); }
+      e.beamTg = tg; e.beamT = 0.6;
+      this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 3, color: col, life: 0.6 });
+      this.shake(run, 5, true);
+    } else {
+      // 耐性：直近に頭を削った武器の種類。そのウェーブの終わりまで半減（startWave で消える）
+      if (tele.by) run.finalRes[tele.by] = true;
+      this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 4, color: col, life: 0.5 });
+    }
+  },
+
   // ===== ボス3体と、それぞれの節目の仕掛け（docs/DESIGN-IDEAS-2026-10-05.md §1・1-2・BAL.boss*） =====
   //   ワーム＝跳躍（弱点：拘束・足止め／貫通が節をまとめて抜く）／ルートキット＝硬い・防壁は控えめ（弱点：拘束が微弱に効くだけ）／
   //   ジャマー＝沈黙（ジャマーから最も近い BAL.bossJamMax 基へ腕を伸ばして止める。弱点：遠くから撃つ武器・射程の長い武器）。HP が 75・50・25% を割るたびに1回（同じ仕掛けを3回）。使う前に約1秒の予告
@@ -355,8 +476,10 @@ const Combat = {
     worm:    { jp: 'ワーム',       en: 'WORM',    ph: 'jump', col: '#58e0a0', strong: '跳躍', weak: '拘束・足止めが効く／貫通が節をまとめて抜く' },
     rootkit: { jp: 'ルートキット', en: 'ROOTKIT', ph: 'wall', col: '#ff4d6a', strong: '硬い体（防壁は控えめ）', weak: '拘束が微弱に効く（弱点は少ない）' },
     jammer:  { jp: 'ジャマー',     en: 'JAMMER',  ph: 'jam',  col: '#9fb4c8', strong: '沈黙（近い4基を腕で止める）', weak: '遠くから撃つ武器・射程の長い武器' },
+    // ラスボス（第30章専用・BAL.bossKinds には入れない）。仕掛けは3つ：噛みつき・レーザー・耐性
+    final:   { jp: 'フォーマッタ', en: 'FORMATTER', ph: 'final', col: '#ff7a1a', strong: '噛みつき・レーザー・耐性', weak: '頭（胴は通りにくい）' },
   },
-  BOSS_COL: { jump: '#4ee0ff', wall: '#ffd24a', jam: '#d36bff' },
+  BOSS_COL: { jump: '#4ee0ff', wall: '#ffd24a', jam: '#d36bff', bite: '#ff7a1a', laser: '#ff3d7a', resist: '#fff35a' },
   // どの章のどの口に、どの個体か（固定・乱数にしない）。序盤（第 BAL.bossMixFrom 章より前）は1章1種：第5章ワーム・第10章ルートキット・第15章ジャマー。
   //   それ以降は口ごとに違う個体を混ぜる
   bossKindFor(ch, mi) {
@@ -366,14 +489,14 @@ const Combat = {
   },
   // ワームの体の節：頭が BAL.wormGap 進むごとに点を足し、節の数だけ残す
   wormFollow(e) {
-    const T = e.trail, gap = BAL.wormGap;
+    const T = e.trail, gap = e.gap || BAL.wormGap;
     let l = T[0], d = Util.dist(e.x, e.y, l.x, l.y);
     while (d >= gap) {
       const a = Util.angle(l.x, l.y, e.x, e.y);
       l = { x: l.x + Math.cos(a) * gap, y: l.y + Math.sin(a) * gap };
       T.unshift(l); d -= gap;
     }
-    if (T.length > BAL.wormSegs) T.length = BAL.wormSegs;
+    if (T.length > (e.segN || BAL.wormSegs)) T.length = e.segN || BAL.wormSegs;
   },
   bossPhaseUpdate(run, e, dt) {
     // 防壁の対象を決めるための「直近にいちばん削った武器」：時間で薄れる合計（BAL.bossRecTau 秒で 1/e）
@@ -442,6 +565,7 @@ const Combat = {
 
   startWave(run) {
     for (const w of run.units) w.jamT = 0;     // 沈黙は次のウェーブへ持ち越さない
+    run.finalRes = {};                         // ラスボスの耐性は、そのウェーブの終わりで消える
     run.phase = 'spawn';
     run.toSpawn = this.waveCount(run);
     // **湧き間隔は「そのウェーブの総数」で割る。**
@@ -452,7 +576,8 @@ const Combat = {
     // 穴の切り替え。**ウェーブごとに違う穴から始める**ので、同じ絵にならない
     run.mouthLeft = 0;
     run.hasBoss = false;
-    if (this.isBossWave(run)) this.spawnBoss(run);
+    if (this.isFinalChapter(run)) this.spawnFinal(run);
+    else if (this.isBossWave(run)) this.spawnBoss(run);
   },
 
   // そのウェーブが湧き切るまでの秒数。
@@ -661,6 +786,13 @@ const Combat = {
       return 0;
     }
     opts = opts || {};
+    // **ラスボスの胴の節**：入ったダメージは頭へ、BAL.finalBodyMul 倍で回す（弱点は頭）。節の見た目の位置で当たりを判定する
+    if (e.seg) {
+      const h = e.seg;
+      if (h.dead || e.hidden) return 0;
+      e.hitFlash = 0.1;
+      return this.damage(run, h, amount * BAL.finalBodyMul, Object.assign({}, opts, { body: true }));
+    }
     // **上位の敵の無効**（アセンション・BAL.ascImmuneMul）。damage() の入口で止めるので、状態異常（燃焼・感電・減速・凍結・閉じ込め・印）も付かない
     //   ゼロデイの弱点以外は半分（ascZdOther）。ランサムウェアの気配の中は ascRansomMul
     const by0 = opts.by || this._by;
@@ -706,8 +838,14 @@ const Combat = {
     const by = opts.by || this._by || 'other';
     // ボスの防壁：直前にいちばん削った武器の種類からのダメージは半分（無効にはしない）。直近の削り合計もここで付ける
     if (e.boss && e.rec) {
-      if (e.wallT > 0 && by === e.wallBy) dmg *= BAL.bossWallMul;
-      e.rec[by] = (e.rec[by] || 0) + dmg;
+      if (e.bk === 'final') {
+        // ラスボスの耐性：直近に頭を削った武器の種類（そのウェーブの終わりまで・頭にも胴にも効く）。直近の削りには頭に当たった分だけ数える
+        if (run.finalRes && run.finalRes[by]) dmg *= BAL.finalResMul;
+        if (!opts.body) e.rec[by] = (e.rec[by] || 0) + dmg;
+      } else {
+        if (e.wallT > 0 && by === e.wallBy) dmg *= BAL.bossWallMul;
+        e.rec[by] = (e.rec[by] || 0) + dmg;
+      }
     }
     const hp0 = e.hp;
     e.hp -= dmg;
@@ -722,6 +860,12 @@ const Combat = {
     //   opts.dot が立っているものは、燃焼・毒の雲など**すでに状態異常が
     //   起こしているダメージ**。ここへ付与を掛けると自分で自分を延長し続けて
     //   永久に切れなくなるので、付与（*Grant）は素の攻撃だけに掛ける
+    if (e.noStatus) {
+      // ラスボス：状態異常（感電・凍結・閉じ込め・燃焼・即死）は付かない
+      if (run.nums.length < 40 && dmg > 0) run.nums.push({ x: e.x + Util.rand(-6, 6), y: e.y - e.r, t: 0, life: 0.6, txt: Util.fmt(dmg), crit: crit, color: opts.color || '#fff' });
+      if (e.hp <= 0 && !e.dead) this.kill(run, e, opts);
+      return dmg;
+    }
     const sc = this.statusScale(e);
     const cck = this.ccK(e);
     const st = run.st;
@@ -825,6 +969,12 @@ const Combat = {
       // 倒した**その場所**の演出（0929p）：金の六角の輪が3重に広がり、データ片が弾ける（render.js の 'bossdown'）。
       //   一度きり・粒は16。fx の上限（240）に阻まれないよう直接積む。コアに着いて負けたとき（漏れ）はここを通らない
       run.fx.push({ type: 'bossdown', x: e.x, y: e.y, r: e.r, life: 1.1, t: 0 });
+      if (e.bk === 'final') {
+        run.finalKill = true;
+        for (const k of [1.4, 2.2]) this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 6 * k, color: '#ff7a1a', life: 0.9 });
+        run.fx.push({ type: 'bossdown', x: e.x, y: e.y, r: e.r * 1.6, life: 1.4, t: 0 });
+        this.shake(run, 22, true);
+      }
     }
     // **入れ子：倒すと、同じ場所から中身が1体出てくる。**（2026-09-28）最後の層（nest 1）は何も出さない
     if (e.nest > 1 && run.enemies.length < BAL.enemyCap) {
@@ -1600,7 +1750,7 @@ const Combat = {
           if (f.armorDown) { e.armorDown = (e.armorT > 0) ? Math.max(e.armorDown, f.armorDown) : f.armorDown; e.armorT = 0.6; }   // 腐蝕の雲
           // 場の減速にも遺物の軸を乗せる。**ここは damage() を通らないので、
           // 書き忘れると「毒の雲だけ遺物が効かない」ことになる**
-          if (f.slow && (!e.boss || e.bk === 'rootkit')) {
+          if (f.slow && !e.noStatus && (!e.boss || e.bk === 'rootkit')) {
             const ck = this.ccK(e);
             e.slow = Math.max(e.slow, Math.min(BAL.slowMax, (f.slow + run.st.slowAdd) * ck));
             e.slowT = Math.max(e.slowT, (0.5 + run.st.chillDur) * ck);
@@ -1612,7 +1762,7 @@ const Combat = {
           //   前は**雲の上にいる間だけ**削れていたので、
           //   「毒を受けた敵」という状態が存在せず、絵を足しようがなかった。
           //   炎上（`burnT`）と同じ形にして、雲を出たあとも少し続くようにする
-          if (f.kind === 'gas') {
+          if (f.kind === 'gas' && !e.noStatus) {
             e.poison = Math.max(e.poison || 0, f.dps * BAL.poisonKeep);
             e.poisonBy = f.by;
             e.poisonT = Math.max(e.poisonT || 0, BAL.poisonDur + run.st.burnDur);
@@ -1631,6 +1781,16 @@ const Combat = {
     for (let i = run.enemies.length - 1; i >= 0; i--) {
       const e = run.enemies[i];
       if (e.dead) { run.enemies.splice(i, 1); continue; }
+      // ラスボスの胴の節：頭の通った跡に並ぶだけ（頭が倒れた・退いたら一緒に消える）
+      if (e.seg) {
+        const h = e.seg;
+        if (h.dead) { e.dead = true; run.enemies.splice(i, 1); run.segN = Math.max(0, (run.segN || 0) - 1); continue; }
+        const T = h.trail, ok = e.k < T.length, q = ok ? T[e.k] : T[T.length - 1];
+        e.hidden = !ok; e.x = q.x; e.y = q.y; e.hp = h.hp; e.dist = h.dist;
+        if (e.hitFlash > 0) e.hitFlash -= dt;
+        if (e.shieldT > 0) e.shieldT -= dt;
+        continue;
+      }
       if (e.shock > 0) e.shock -= dt;
       if (e.chill > 0) e.chill -= dt;
       // 掴み・足止めで止められていた時間を数える（BAL.ccMaxSec で打ち止め）
@@ -1679,7 +1839,8 @@ const Combat = {
       }
       // （ボスが雑魚を出し続ける形は 2026-09-28 に撤去した。ボスのウェーブは雑魚が出ない・spawnBoss）
       // **再生。燃えている間は止まる**（炎上を積む意味をここで作る）
-      if (e.boss) this.bossPhaseUpdate(run, e, dt);
+      if (e.boss) { if (e.bk === 'final') this.finalUpdate(run, e, dt); else this.bossPhaseUpdate(run, e, dt); }
+      if (e.dead) continue;
       if (e.regen > 0 && e.burnT <= 0 && e.hp < e.maxHp) e.hp = Math.min(e.maxHp, e.hp + e.regen * dt);
 
       const tc = (e.x / TILE) | 0, tr = (e.y / TILE) | 0;
@@ -1786,6 +1947,7 @@ const Combat = {
         }
       }
 
+      if (w.broken) continue;                      // ラスボスに壊された武器（その出撃の間は動かない）
       if (w.muzzle > 0) w.muzzle -= dt;
       this.aimUpdate(w, run, dt);
       w.target = this.findTarget(w, run);
@@ -1924,7 +2086,7 @@ const Combat = {
           this.chainLightning(b.src, run, e, b.src.dyn.chargedChain || 2, b.dmg * 0.55);
         }
         if (b.src && b.src.flags.staticFoam && b.wid === 'bubble' && !e.dead && !this.inShield(run, e)) {
-          e.shock = Math.max(e.shock, b.src.s.shockDur);
+          if (!e.noStatus) e.shock = Math.max(e.shock, b.src.s.shockDur);
         }
 
         if (b.splash > 0) {

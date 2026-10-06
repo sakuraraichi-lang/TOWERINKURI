@@ -825,6 +825,7 @@ const Game = {
   moveUnit(u, c, r) {
     const run = this.run;
     if (!run || !this.canBuild()) return false;
+    if (u.broken) return false;          // ラスボスに壊された武器は動かせない（その出撃の間は残骸のまま）
     if (!this.canPlaceAt(c, r, u)) return false;
     const pos = run.stage.hexCenter(c, r);
     u.c = c; u.r = r; u.x = pos.x; u.y = pos.y;
@@ -838,6 +839,7 @@ const Game = {
     if (!run || !this.canBuild()) return false;
     const i = run.units.indexOf(u);
     if (i < 0) return false;
+    if (u.broken) return false;          // 壊された武器は片づけられず、コストも戻らない（その出撃の間）
     run.units.splice(i, 1);
     this.updateAdj(run);
     this.syncPlacements();
@@ -849,9 +851,10 @@ const Game = {
   clearUnits() {
     const run = this.run;
     if (!run || !this.canBuild()) return 0;
-    const n = run.units.length;
+    const keep = run.units.filter(u => u.broken);      // 壊された武器は外せない
+    const n = run.units.length - keep.length;
     if (!n) return 0;
-    run.units.length = 0;
+    run.units = keep;
     run.capUp = false;
     this.updateAdj(run);
     this.syncPlacements();   // 保存する配置も空になる（自動設置の元 lastPlace は、空のときは覚え直さない）
@@ -1083,7 +1086,7 @@ const Game = {
     const seen = {};
     const nb = MapGen.hexNbr(c, r);
     for (const o of units) {
-      if (o === ignore || o.id === selfId) continue;
+      if (o === ignore || o.id === selfId || o.broken) continue;
       for (const q of nb) if (q[0] === o.c && q[1] === o.r) { seen[o.id] = 1; break; }
     }
     return Object.keys(seen);

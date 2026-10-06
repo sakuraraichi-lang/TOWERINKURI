@@ -474,7 +474,7 @@ const UI = {
     //   準備フェーズとウェーブの始まりはカットイン（cutin）で見せる。ライフはコアの周りの輪で見える
     let left = '';
     if (Game.phase === 'battle' && r.phase !== 'build') {
-      left = 'W' + r.wave + '/' + BAL.wavesPerStage + (Combat.isLastWave(r) ? '★' : '') + '　残り ' + Util.fmt(r.toSpawn + r.enemies.length);
+      left = 'W' + r.wave + '/' + BAL.wavesPerStage + (Combat.isLastWave(r) ? '★' : '') + '　残り ' + Util.fmt(r.toSpawn + r.enemies.length - (r.segN || 0));
     } else if (Game.phase === 'battle') {
       left = 'W' + r.wave + '/' + BAL.wavesPerStage + '　突破';
     }
@@ -485,6 +485,10 @@ const UI = {
       const rest = r.enemies.filter(e => e.boss && !e.dead).length;
       if (this._bossKills > 0 && rest > 0) this.cutinBossDown(rest);
     }
+    // ラスボスを退けた／倒した（Combat.finalUpdate が run.retreatCut に積む・kill が run.finalKill を立てる）
+    if (r.retreatCut && r.retreatCut !== this._retreatCutObj) { this._retreatCutObj = r.retreatCut; this.cutinRetreat(r.retreatCut); }
+    if (r.finalKill && !this._finalKillSeen) { this._finalKillSeen = true; this.cutinFinalDown(); }
+    if (!r.finalKill) this._finalKillSeen = false;
     // ボスの節目の仕掛けの予告（Combat.bossPhaseUpdate が run.phaseCut に積む。新しい予告は新しいオブジェクト）
     if (r.phaseCut && r.phaseCut !== this._phaseCutObj) { this._phaseCutObj = r.phaseCut; this.cutinPhase(r.phaseCut); }
     // **ライフのバー。初期は常に出し、⚙で消せる**（2026-09-28・ユーザー「HPバーはデフォルトで常時表示で、設定から非表示にできる形のが良い」。
@@ -651,14 +655,26 @@ const UI = {
     const r = Game.run, seen = [];
     if (r) for (const e of r.enemies) if (e.boss && e.bk && seen.indexOf(e.bk) < 0) seen.push(e.bk);
     const nm = seen.map(k => Combat.BOSS_KIND[k].jp + ' ' + Combat.BOSS_KIND[k].en).join('／');
+    if (seen.indexOf('final') >= 0) {
+      const last = n >= BAL.wavesPerStage;
+      this.cutin('FINAL<em> WAVE ' + n + ' / ' + BAL.wavesPerStage + '</em>', nm + ' ─ ' + (last ? '今度こそ倒しきれ' : 'HP を削って撃退しろ（コアに届くと負け）'), 'boss');
+      return;
+    }
     this.cutin('BOSS<em> WAVE ' + n + ' / ' + BAL.wavesPerStage + '</em>', (nm ? nm + ' ─ ' : 'ボスが来る ─ ') + 'コアに届く前に倒せ', 'boss');
   },
   // ボスの節目の仕掛けの予告（約1秒前）。「// PHASE n ─ JUMP 跳躍」。小さな斜めの帯・仕掛けごとの色
   cutinPhase(pc) {
     const N = { jump: ['JUMP', '跳躍', 'まもなく前へ跳ぶ ─ 奥にも火力を'],
                 wall: ['FIREWALL', '防壁', ''],
-                jam: ['JAM', '沈黙', '腕が伸びる ─ いちばん近い4基が止まる'] }[pc.kind];
+                jam: ['JAM', '沈黙', '腕が伸びる ─ いちばん近い4基が止まる'],
+                bite: ['BITE', '噛みつき', '大顎が開く ─ いちばん近い武器が1基壊される（この出撃のあいだ戻らない）'],
+                laser: ['LASER', 'レーザー', 'いちばん近い' + BAL.finalLaserN + '基を狙っている ─ 撃てなくなる'],
+                resist: ['ADAPT', '耐性', ''] }[pc.kind];
     let sub = N[2];
+    if (pc.kind === 'resist') {
+      const nm = pc.by && WEAPONS[pc.by] ? WEAPONS[pc.by].name : '';
+      sub = nm ? '頭を削っていた ' + nm + ' に慣れる ─ このウェーブのあいだ半分になる' : '慣れる相手がいない';
+    }
     if (pc.kind === 'wall') {
       const nm = pc.by && WEAPONS[pc.by] ? WEAPONS[pc.by].name : '';
       sub = nm ? nm + ' のダメージが半分になる ─ 別の武器で削れ' : '効く相手がいない';
@@ -667,6 +683,14 @@ const UI = {
     this.cutin(who + 'PHASE ' + pc.no + '<em> ─ ' + N[0] + ' ' + N[1] + '</em>', sub, 'phase');
     const ci = this.el.cutin && this.el.cutin.querySelector('.ci');
     if (ci) ci.style.setProperty('--ck', Combat.BOSS_COL[pc.kind]);
+  },
+  // ラスボスを退けた（ウェーブ1〜4）。HP は持ち越す
+  cutinRetreat(rc) {
+    this.cutin('REPELLED<em> ─ 撃退</em>', 'フォーマッタは退いた ─ 残り HP ' + Math.round(rc.left * 100) + '%・次のウェーブでまた来る', 'down');
+  },
+  // ラスボスを倒した（第30章の突破）
+  cutinFinalDown() {
+    this.cutin('FORMATTER DOWN', '初期化は止まった ─ 全章踏破', 'down');
   },
   // ボスを1体倒した（まだ残りがいる）とき
   cutinBossDown(rest) {
@@ -1776,7 +1800,7 @@ const UI = {
     // **ボスも敵の一覧に入れる**（1005d・ユーザー「敵一覧にボスを入れていいです、ボスのタブをわざわざ増やす必要はありません」）。
     //   ボスは ENEMY_TYPES の1種ではなく Combat.spawnBoss が作る（中身は grunt を硬く・遅く・大きくしたもの）。
     //   画面の名前は「ルートキット」（コアを乗っ取る不正プログラム。世界観の敵の名前と同じ付け方・仮）
-    const bossCh = BAL.bossChapters.join('・');
+    const bossCh = BAL.bossChapters.filter(c => !(BAL.finalOn && c === MAIN_CHAPTERS)).join('・');   // 第30章はラスボス専用（下の行）
     //   **3体に分けた**（強み1つ・弱点1つ）。出る章は固定：第5章ワーム・第10章ルートキット・第15章ジャマー、第${BAL.bossMixFrom}章から口ごとに混ざる
     const cond = {
       worm: '足止め・掴みが効く（合計 ' + BAL.ccMaxSec + ' 秒まで）。数節の体を貫通する弾・光線がまとめて抜く。減速は効かない',
@@ -1793,6 +1817,18 @@ const UI = {
         (k === 'worm' ? 'レーンに沿って前へ数タイル跳ぶ。' : k === 'rootkit' ? '体が硬い。仕掛けは控えめで、直前にいちばん削った武器の種類からのダメージが数秒半分。' : 'ジャマーから最も近い ' + BAL.bossJamMax + ' 基へ腕を伸ばし、数秒撃てなくする（距離は問わない）。') + '</p>' +
         '<small>弱点：' + cond[k] + '</small></div>';
       el.appendChild(boss);
+    }
+    if (BAL.finalOn) {
+      const K = Combat.BOSS_KIND.final;
+      const fb = Util.el('div', 'erow eboss');
+      fb.innerHTML = '<span class="edot">' + this.ringGlyph(null, 14, K.col) + '</span>' +
+        '<div class="ebody"><b>' + K.jp + '<em>' + K.en + ' ─ FINAL BOSS</em><u>第30章</u></b>' +
+        '<p>すべてを初期化する不正プログラム。大型の長い蛇で、頭と ' + BAL.finalSegs + ' 節の胴がうねる道をゆっくり進む。第30章は雑魚が出ず、ウェーブ1〜4はこの1体を<strong>撃退</strong>（HP が ' +
+        BAL.finalRetreatAt.map(x => Math.round(x * 100) + '%').join('・') + ' まで減ると退く・HP は持ち越し）、ウェーブ5で<strong>倒す</strong>。コアに着いたらその場で負け。</p>' +
+        '<p>強み：<strong>噛みつき</strong>（大顎で近い武器1基を壊す・その出撃のあいだ戻らずコストも戻らない）／<strong>レーザー</strong>（近い ' + BAL.finalLaserN + ' 基を ' + BAL.finalLaserSec +
+        ' 秒撃てなくする）／<strong>耐性</strong>（直近に頭を削った武器の種類のダメージが、そのウェーブのあいだ半分）。節目ごとに使い、使う前に約 ' + BAL.finalTele + ' 秒の予告。</p>' +
+        '<small>弱点：<strong>頭</strong>。胴の節は ' + Math.round(BAL.finalBodyMul * 100) + '% しか通らない。状態異常・減速・足止め・掴み・即死は効かない（固定の DPS チェック）。射程の長い単体の武器で頭を撃て</small></div>';
+      el.appendChild(fb);
     }
     const note = Util.el('div', 'erow eboss');
     note.innerHTML = '<div class="ebody"><p>節目の章（第' + bossCh + '章、第31章から先は5章ごと）の最後のウェーブに、湧き口ごとに1体。そのウェーブは雑魚が出ない。' +

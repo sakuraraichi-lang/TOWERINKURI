@@ -1907,6 +1907,21 @@ const Render = {
       // 台座は作り置きの絵（面取りした金属板＋武器の色のネオンの輪）
       const ped = this.pedestalSprite(c);
       ctx.drawImage(ped.cv, u.x - ped.h, u.y - ped.h, ped.h * 2, ped.h * 2);
+      // ラスボスに噛み砕かれた武器：砲塔は描かず、割れた台座と焦げた断面（その出撃の間は残る）
+      if (u.broken) {
+        ctx.save();
+        ctx.translate(u.x, u.y);
+        ctx.fillStyle = 'rgba(8,6,6,0.82)'; ctx.beginPath(); ctx.arc(0, 0, 17, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = '#ff7a1a'; ctx.lineWidth = 2; ctx.lineJoin = 'miter';
+        ctx.beginPath();                                  // 大顎の歯形（ぎざぎざの割れ目）
+        for (let i = 0; i <= 8; i++) { const x = -15 + i * 3.75; ctx[i ? 'lineTo' : 'moveTo'](x, (i % 2 ? 5 : -5)); }
+        ctx.stroke();
+        ctx.globalAlpha = 0.7;
+        ctx.strokeStyle = '#3a2a22'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(-9, -12); ctx.lineTo(4, 3); ctx.lineTo(11, 12); ctx.moveTo(10, -10); ctx.lineTo(-2, 6); ctx.stroke();
+        ctx.restore();
+        continue;
+      }
       // ボスの沈黙：撃てない武器は紫の輪と×（残り秒に応じて薄れる）
       if (u.jamT > 0) {
         ctx.save();
@@ -2530,6 +2545,92 @@ const Render = {
     ctx.restore();
   },
 
+  // ===== ラスボス「フォーマッタ」の絵（頭・節・仕掛けの印）。ドット絵にせず、線と面で描く =====
+  //   胴の節：装甲の板（暗い地・オレンジの縁・継ぎ目の光）。うねるように少し揺れる。頭に近いほど大きい。ダメージを受けた瞬間は白
+  finalSeg(ctx, e, run) {
+    const r = e.r, t = run.time || 0, flash = e.hitFlash > 0;
+    const wob = Math.sin(t * 3 + e.k * 0.9) * 2.5;
+    ctx.save(); ctx.translate(0, wob);
+    ctx.fillStyle = 'rgba(0,0,0,0.8)'; this.hexPathOn(ctx, 0, 0, r + 3); ctx.fill();
+    ctx.fillStyle = flash ? '#ffffff' : '#363c48'; this.hexPathOn(ctx, 0, 0, r); ctx.fill();
+    ctx.strokeStyle = flash ? '#ffffff' : '#ff7a1a'; ctx.lineWidth = 2.5; this.hexPathOn(ctx, 0, 0, r); ctx.stroke();
+    ctx.strokeStyle = flash ? '#cccccc' : 'rgba(255,122,26,0.45)'; ctx.lineWidth = 1.5;     // 内側の板の線
+    this.hexPathOn(ctx, 0, 0, r * 0.55); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-r * 0.9, 0); ctx.lineTo(-r * 0.55, 0); ctx.moveTo(r * 0.9, 0); ctx.lineTo(r * 0.55, 0); ctx.stroke();
+    ctx.restore();
+  },
+  //   頭：大顎。黒い装甲の楔形に、上下に開く2本の大顎・オレンジの単眼。噛みつきの予告では顎がいっぱいに開き、閉じる
+  finalHead(ctx, e, run) {
+    const r = e.r, t = run.time || 0, flash = e.hitFlash > 0;
+    const T = e.tele && e.tele.kind === 'bite' ? e.tele : null;
+    let open = 0.28 + 0.12 * Math.sin(t * 4);
+    if (T) { const p = 1 - Math.max(0, T.t) / BAL.finalTele; open = p < 0.8 ? 0.28 + 0.9 * (p / 0.8) : 1.18 - 1.0 * ((p - 0.8) / 0.2); }
+    ctx.save(); ctx.rotate(e.ang || 0);
+    ctx.lineJoin = 'miter'; ctx.lineCap = 'round';
+    // 大顎（頭の前・上下）
+    for (const s of [-1, 1]) {
+      ctx.save(); ctx.rotate(s * open);
+      ctx.fillStyle = flash ? '#fff' : '#14161c'; ctx.strokeStyle = flash ? '#fff' : '#ff7a1a'; ctx.lineWidth = 2.5;
+      ctx.beginPath();
+      ctx.moveTo(r * 0.3, s * r * 0.15); ctx.lineTo(r * 1.25, s * r * 0.1); ctx.lineTo(r * 1.9, -s * r * 0.15);
+      ctx.lineTo(r * 1.15, s * r * 0.45); ctx.lineTo(r * 0.3, s * r * 0.62);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = flash ? '#fff' : '#fff3c8';                  // 内側の歯
+      for (let i = 0; i < 3; i++) { const x = r * (0.6 + i * 0.3); ctx.beginPath(); ctx.moveTo(x, s * r * 0.12); ctx.lineTo(x + r * 0.12, -s * r * 0.12); ctx.lineTo(x + r * 0.2, s * r * 0.1); ctx.closePath(); ctx.fill(); }
+      ctx.restore();
+    }
+    // 頭の本体：六角の装甲板
+    ctx.fillStyle = 'rgba(0,0,0,0.8)'; this.hexPathOn(ctx, 0, 0, r + 4); ctx.fill();
+    ctx.fillStyle = flash ? '#ffffff' : '#262a33'; this.hexPathOn(ctx, 0, 0, r); ctx.fill();
+    ctx.strokeStyle = flash ? '#ffffff' : '#ff7a1a'; ctx.lineWidth = 3; this.hexPathOn(ctx, 0, 0, r); ctx.stroke();
+    ctx.strokeStyle = flash ? '#cccccc' : 'rgba(255,122,26,0.5)'; ctx.lineWidth = 2; this.hexPathOn(ctx, 0, 0, r * 0.62); ctx.stroke();
+    // 単眼（弱点の目印）：脈打つ。ここを撃て
+    const beat = 0.5 + 0.5 * Math.sin(t * 5);
+    ctx.save(); ctx.shadowColor = '#ff7a1a'; ctx.shadowBlur = 8 + beat * 12;
+    ctx.fillStyle = flash ? '#fff' : '#ff7a1a'; ctx.beginPath(); ctx.arc(r * 0.18, 0, r * 0.3, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+    ctx.fillStyle = '#fff6e0'; ctx.beginPath(); ctx.arc(r * 0.24, 0, r * 0.11, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+  },
+  //   仕掛けの印。噛みつき＝狙われた武器の六角に点滅する枠・レーザー＝頭から近い6基へ線（予告は細く点滅・撃つと太く）・耐性＝頭の周りに黄色い六角の板。ボスの座標に平行移動済みで呼ぶ
+  finalMark(ctx, e, run) {
+    const T = e.tele, t = run.time;
+    const tele = (kind) => T && T.kind === kind;
+    const hexHit = (u, col, w) => {
+      ctx.save(); ctx.translate(u.x - e.x, u.y - e.y);
+      ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t * 26); ctx.strokeStyle = col; ctx.lineWidth = w || 3;
+      this.hexPathOn(ctx, 0, 0, MapGen.HEX_R - 2); ctx.stroke();
+      ctx.restore();
+    };
+    if (tele('bite')) { for (const u of T.targets || []) hexHit(u, Combat.BOSS_COL.bite, 4); }
+    const beams = tele('laser') ? T.targets : (e.beamT > 0 ? e.beamTg : null);
+    if (beams && beams.length) {
+      const col = Combat.BOSS_COL.laser, firing = !T;
+      ctx.save(); ctx.lineCap = 'round';
+      for (const u of beams) {
+        const dx = u.x - e.x, dy = u.y - e.y;
+        if (T) hexHit(u, col);
+        ctx.globalAlpha = firing ? Math.min(1, e.beamT / 0.3) : 0.35 + 0.35 * Math.sin(t * 30);
+        ctx.strokeStyle = col; ctx.lineWidth = firing ? 7 : 2; ctx.shadowColor = col; ctx.shadowBlur = firing ? 14 : 0;
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(dx, dy); ctx.stroke();
+        if (firing) { ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(dx, dy); ctx.stroke(); }
+      }
+      ctx.restore();
+    }
+    const hasRes = run.finalRes && Object.keys(run.finalRes).length > 0;
+    if (tele('resist') || hasRes) {
+      ctx.save();
+      ctx.strokeStyle = Combat.BOSS_COL.resist; ctx.lineWidth = 3;
+      ctx.globalAlpha = tele('resist') ? 0.5 + 0.5 * Math.sin(t * 26) : 0.8;
+      const hexR = e.r + 24;
+      ctx.beginPath();
+      for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3; ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * hexR, Math.sin(a) * hexR); }
+      ctx.closePath(); ctx.stroke();
+      if (!T) { ctx.globalAlpha = 0.12; ctx.fillStyle = Combat.BOSS_COL.resist; ctx.fill(); }
+      ctx.restore();
+    }
+  },
+
   // ボス3体の体（1体ずつ線で描く。数は多くても数体なので、作り置きの絵にはしない）。ボスの座標に平行移動済みで呼ぶ。
   //   ワーム＝丸い頭に目と牙・あとに節がつながる（e.trail）／ルートキット＝大きな棘の冠をかぶった暗い体と赤い単眼／
   //   ジャマー＝装甲板の八角・回る歯車・アンテナと電波（機械）。col は体の色（ダメージを受けた瞬間は白）
@@ -2645,12 +2746,15 @@ const Render = {
     const poison = _poisonBuf, stun = _stunBuf;
     poison.length = 0; stun.length = 0;
     for (const e of run.enemies) {
+      if (e.hidden) continue;                 // ラスボスの節で、まだ口から出ていないもの
       ctx.save();
       ctx.translate(e.x, e.y);
       // **体は作り置きのドット絵**（enemySprite・ENEMY_PIX）。数百体でも貼るだけ。
       //   向きでは回さない（昔のゲームの敵は正面を向いている）。同じ種類は揃って2コマで足踏みする（2026-09-28）
       const col = e.hitFlash > 0 ? '#ffffff' : e.chill > 0 ? '#7fd8ff' : e.burnT > 0 ? '#ff9a4a' : e.color;
-      if (e.boss && e.bk) this.bossBody(ctx, e, run, e.hitFlash > 0 ? '#ffffff' : e.color);
+      if (e.seg) this.finalSeg(ctx, e, run);
+      else if (e.boss && e.bk === 'final') this.finalHead(ctx, e, run);
+      else if (e.boss && e.bk) this.bossBody(ctx, e, run, e.hitFlash > 0 ? '#ffffff' : e.color);
       else if (e.upper) {
         const uc = (e.poly && col === e.color) ? SYS_INFO[SYS_ORDER[e.polyI]].color : col;
         const spr = this.upperSprite(e.upper, uc, e.r, (((run.time || 0) * 2.4) | 0) & 1);
@@ -2682,12 +2786,22 @@ const Render = {
         ctx.strokeStyle = f < 0.25 ? '#ff5a5a' : '#ffb347'; ctx.lineWidth = 5;
         ctx.beginPath(); ctx.arc(0, 0, e.r + 6, -Math.PI / 2, -Math.PI / 2 + Math.PI * 2 * f); ctx.stroke();
         // 節目の目盛り（HP の輪の上の 75・50・25%。使い終えた仕掛けは消える）
-        for (let k = e.ph || 0; k < 3; k++) {
-          const ak = -Math.PI / 2 + Math.PI * 2 * BAL.bossPhaseAt[k];
+        const PA = e.bk === 'final' ? BAL.finalPhaseAt : BAL.bossPhaseAt;
+        if (e.bk === 'final' && !Combat.isLastWave(run)) {        // 撃退の線（ここまで削れば退く）
+          const ra = BAL.finalRetreatAt[run.wave - 1];
+          if (ra !== undefined) {
+            const ak = -Math.PI / 2 + Math.PI * 2 * ra;
+            ctx.strokeStyle = '#7ee3a0'; ctx.lineWidth = 3;
+            ctx.beginPath(); ctx.moveTo(Math.cos(ak) * (e.r + 1), Math.sin(ak) * (e.r + 1)); ctx.lineTo(Math.cos(ak) * (e.r + 15), Math.sin(ak) * (e.r + 15)); ctx.stroke();
+          }
+        }
+        for (let k = e.ph || 0; k < PA.length; k++) {
+          if (e.bk === 'final' && k > (e.ph || 0) + 1) break;       // 次の2つだけ（10個全部は輪が埋まる）
+          const ak = -Math.PI / 2 + Math.PI * 2 * PA[k];
           ctx.strokeStyle = '#fff'; ctx.lineWidth = 2;
           ctx.beginPath(); ctx.moveTo(Math.cos(ak) * (e.r + 2), Math.sin(ak) * (e.r + 2)); ctx.lineTo(Math.cos(ak) * (e.r + 11), Math.sin(ak) * (e.r + 11)); ctx.stroke();
         }
-        this.bossPhaseMark(ctx, e, run);
+        if (e.bk === 'final') this.finalMark(ctx, e, run); else this.bossPhaseMark(ctx, e, run);
         ctx.restore();
       }
       // 装甲：厚い縁。**残っている装甲が見えるように**

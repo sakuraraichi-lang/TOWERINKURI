@@ -214,6 +214,13 @@ const DebugRoom = {
         ['上位の敵：サンドボックス（場を無効・ガスと泡が効かない）', () => me.upperBattle('sandbox')],
         ['上位の敵：ポリモーフ（約4秒ごとに無効の系統が 物理→光学→属性→場 と切り替わる・色と輪）', () => me.upperBattle('polymorph')],
         ['上位の敵：ゼロデイ（弱点以外は半分・頭の上の金の縁の印が弱点）', () => me.upperBattle('zeroday')],
+        ['ラスボス：フォーマッタ（蛇の節・頭が弱点・視点が頭を追う）', () => me.finalBattle('walk')],
+        ['ラスボス：噛みつき（予告で大顎が開く→近い武器が1基壊れて残骸が残る）', () => me.finalBattle('bite')],
+        ['ラスボス：レーザー（近い6基へ線→撃てなくなる）', () => me.finalBattle('laser')],
+        ['ラスボス：耐性（頭を削った武器の種類が半分・黄色い六角の板）', () => me.finalBattle('resist')],
+        ['ラスボス：撃退（ウェーブ1で HP が80%まで減って退く）', () => me.finalBattle('retreat')],
+        ['ラスボス：撃破（ウェーブ5・倒したときの演出）', () => me.finalBattle('kill')],
+        ['ラスボスの撃退・撃破の帯', () => { UI.cutinRetreat({ n: 1, wave: 1, left: 0.8 }); setTimeout(() => UI.cutinFinalDown(), 3200); }],
         ['レーザーライフルの光線（壁で2回はね返る）', () => me.laserDemo()],
         ['触手の6種の攻撃（順番に出す）', () => me.tentacleDemo()],
         ['触手：引き寄せ', () => me.tentacleDemo('pull')],
@@ -812,6 +819,67 @@ const DebugRoom = {
       for (let i = 0; i < (inSh ? 6 : 1); i++) Combat.update(run, dt);
       if (now - t0 > 40000 && !e.dead) Combat.damage(run, e, e.maxHp * 2, { by: 'debug' });   // 倒しきれない見本は、40秒で片づける
       if (!run.enemies.some(x => !x.dead) || now - t0 > 52000) doneAt = now;
+    }, 16);
+  },
+
+  // ラスボスの見本（第30章の盤・セーブは変えない）。act：walk＝歩くだけ／bite・laser・resist＝その仕掛けを1回／retreat＝ウェーブ1で退く／kill＝ウェーブ5で倒す。
+  //   頭の近くにガトリングを足す（run.units に足すだけ・配置の記録には触れない）。HP を節目の直前まで一気に減らして、仕掛けを出させる。視点は頭を追う（スマホ幅）
+  finalBattle(act) {
+    this._btEnd();
+    this._dirEnd();
+    this._btSnap = { perm: JSON.parse(JSON.stringify(Game.perm)), meta: JSON.parse(JSON.stringify(Game.meta)) };
+    this._saveHold();
+    const perm = Game.perm, cur = perm.currentStage, orig = Game.stageUnlocked;
+    let run;
+    try { Game.stageUnlocked = () => true; run = Game.startPrep('ch30'); }
+    finally { Game.stageUnlocked = orig; perm.currentStage = cur; }
+    this._btRun = run;
+    Render.fit(); UI.renderTray();
+    run.phase = 'build'; run.wave = act === 'kill' ? BAL.wavesPerStage - 1 : 0;
+    Game.startNextWave();
+    UI._bossKills = 0; UI._finalKillSeen = false;
+    UI.cutinWave(run.wave);
+    const b = run.finalHead;
+    if (!b) { UI.toastMsg('ラスボスが出ませんでした（BAL.finalOn）', '#ff4a66', 'error'); this._btEnd(); return; }
+    let t0 = performance.now(), tOut = null, done = false, doneAt = 0, last = t0, armed = false, phEnd = 0;
+    this._bt = setInterval(() => {
+      if (!this.el || Game.run !== run) { this._btEnd(); return; }
+      const now = performance.now();
+      const dt = Math.min(0.05, (now - last) / 1000); last = now;
+      if (done) {
+        Combat.update(run, dt);
+        if (!run.fx.length || now - doneAt > 2500) this._btEnd();
+        return;
+      }
+      if (!b.dead && Render.canPan()) {
+        Render.cam.x += (b.x - Render.viewW / 2 - Render.cam.x) * 0.25;
+        Render.cam.y += (b.y - Render.viewH / 2 - Render.cam.y) * 0.25;
+        Render.fit();
+      }
+      const inSh = !b.dead && Combat.inShield(run, b);
+      let sig = null;
+      for (let i = 0; i < (inSh ? 6 : 1); i++) sig = Combat.update(run, dt) || sig;
+      if (!inSh && tOut === null) tOut = now;
+      if (tOut !== null && !armed) {
+        armed = true;
+        const all = run.stage.hexCells().map(h => { const c = run.stage.hexCenter(h.c, h.r); return { h, d: Util.dist(b.x, b.y, c.x, c.y) }; })
+          .filter(o => o.d > 50).sort((p, q) => p.d - q.d);
+        const used = new Set(run.units.map(u => u.c + ',' + u.r));
+        for (const o of all.filter(o => !used.has(o.h.c + ',' + o.h.r)).slice(0, 8)) run.units.push(Game.newUnit('gatling', o.h.c, o.h.r));
+        const to = (frac) => Combat.damage(run, b, Math.max(0, b.hp - b.maxHp * frac), { by: 'gatling', src: null });
+        if (act === 'bite') to(0.91);
+        else if (act === 'laser') { b.ph = 1; run.finalPh = 1; to(0.85); }
+        else if (act === 'resist') { b.ph = 2; run.finalPh = 2; b.rec.gatling = 1; to(0.71); }
+        else if (act === 'retreat') to(0.79);
+        else if (act === 'kill') { b.ph = 9; run.finalPh = 9; to(0.3); }
+      }
+      if (armed && ['bite', 'laser', 'resist'].indexOf(act) >= 0 && !b.dead) {
+        if (b.ph >= (act === 'bite' ? 1 : act === 'laser' ? 2 : 3) && !b.tele) { phEnd = phEnd || now; if (now - phEnd > 4500) { b.dead = true; } }
+      }
+      if (armed && act === 'kill' && !b.dead && now - tOut > 2500) Combat.damage(run, b, b.maxHp * 2, { by: 'debug' });
+      if (act === 'walk' && !b.dead && tOut !== null && now - tOut > 25000) b.dead = true;
+      if (sig === 'stageclear' || sig === 'waveclear') { done = true; UI.toastMsg('ラスボスの見本：終わり（見本・記録なし）', '#ffc24a', 'demo'); doneAt = now; }
+      if (now - t0 > 90000) { done = true; doneAt = now; }
     }, 16);
   },
 
