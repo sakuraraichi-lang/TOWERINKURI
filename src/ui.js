@@ -1047,6 +1047,14 @@ const UI = {
     }
   },
 
+  // 第30章の準備の画面で、コストの上限が低いときの一言（BAL.finalLowCostFrac）。出さないときは null。確認室は _lowCostDemo で出させる
+  lowCostNote(run) {
+    if (!run || run.over || !Game.canBuild()) return null;
+    const maxCap = BAL.costBase + SKILLS.filter(s => s.gkey === 'units').length * BAL.costPerNode;
+    const low = Game.costCap() < maxCap * BAL.finalLowCostFrac;
+    if (!this._lowCostDemo && !(Combat.isFinalChapter(run) && low)) return null;
+    return 'コストの上限が低い。手前の章で強化してから挑もう';
+  },
   renderTut() {
     const p = this.el.tut;
     if (!p) return;
@@ -1057,6 +1065,14 @@ const UI = {
     if (run && run.over && (Game.perm.tut || 0) === this.TUT.length - 1) {
       Game.perm.tut = this.TUT.length;
       Game.save();
+    }
+    // 第30章の準備で、コストの上限が低いままなら一言（初めて手に取った武器の一言が出ているあいだは、そちらを先に）
+    const low = this.lowCostNote(run);
+    if (low && !(this.tip && this.placingType === this.tip.wid)) {
+      const html = '<i>HINT</i><b>' + low + '</b>';
+      if (p.innerHTML !== html) p.innerHTML = html;
+      p.classList.add('on');
+      return;
     }
     // 2回目以降の出撃では出さない。**一度覚えたものを毎回見せない**
     if (!run || run.over || Game.perm.totalRuns > 1 || (Game.perm.tut || 0) >= this.TUT.length) {

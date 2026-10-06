@@ -220,6 +220,7 @@ const DebugRoom = {
         ['ラスボス：耐性（頭を削った武器の種類が半分・黄色い六角の板）', () => me.finalBattle('resist')],
         ['ラスボス：撃退（ウェーブ1で HP が80%まで減って退く）', () => me.finalBattle('retreat')],
         ['ラスボス：撃破（ウェーブ5・倒したときの演出）', () => me.finalBattle('kill')],
+        ['第30章の準備の一言（コストの上限が低いとき・6秒）', () => { UI._lowCostDemo = true; UI.renderTut(); setTimeout(() => { UI._lowCostDemo = false; UI.renderTut(); }, 6000); }],
         ['ラスボスの撃退・撃破の帯', () => { UI.cutinRetreat({ n: 1, wave: 1, left: 0.8 }); setTimeout(() => UI.cutinFinalDown(), 3200); }],
         ['レーザーライフルの光線（壁で2回はね返る）', () => me.laserDemo()],
         ['触手の6種の攻撃（順番に出す）', () => me.tentacleDemo()],

@@ -399,6 +399,22 @@ const Combat = {
     run.finalHead = e;
     run.hasBoss = true;
   },
+  // 第30章で負けたとき、頭を削った割合ぶんのコインを出す（BAL.finalLossCoinK・撃退と負けの両方を累計の割合で数える。1出撃1回だけ）。
+  //   雑魚が出ない第30章は、負けるとコインが入らず、コインが無いとスキルツリーが買えず抜け出せなかった
+  finalLossCoin(run) {
+    const h = run.finalHead;
+    if (!h || run.finalLossPaid) return 0;
+    run.finalLossPaid = true;
+    //   頭がコアに着いて負けたときも h.dead は立つ（HP は削れたまま）ので、dead では分けない。退いた頭だけ持ち越しの割合を見る
+    const left = (!h.retreat && h.maxHp > 0) ? h.hp / h.maxHp : (run.finalHp === undefined ? 1 : run.finalHp);
+    const cut = Util.clamp(1 - left, 0, 1);
+    const coin = h.coin * run.coinMul * run.mods.coin * cut * BAL.finalLossCoinK;
+    if (!(coin > 0)) return 0;
+    Game.meta.coins += coin;
+    run.coinsEarned += coin;
+    run.finalLossGot = coin;
+    return coin;
+  },
   // 頭の節目の仕掛け：HP が BAL.finalPhaseAt を割るたびに1つ。使う前に BAL.finalTele 秒の予告。退く条件もここで見る
   finalUpdate(run, e, dt) {
     const k = Math.exp(-dt / BAL.bossRecTau);
@@ -1929,7 +1945,7 @@ const Combat = {
     // 敵が動き終わったあとで押し合う。**重なったまま進ませない**
     Crowd.apply(run, dt);
 
-    if (run.lives <= 0) { run.lives = 0; return 'dead'; }
+    if (run.lives <= 0) { run.lives = 0; this.finalLossCoin(run); return 'dead'; }
 
     // --- ユニット ---
     for (const w of run.units) {
