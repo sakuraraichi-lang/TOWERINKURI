@@ -1,0 +1,90 @@
+{
+ "off": [
+  {
+   "res": "clear",
+   "leak": 124,
+   "lost": 124,
+   "by": {
+    "swift": 34,
+    "nest": 28,
+    "swarm": 21,
+    "grunt": 1,
+    "shield": 1,
+    "split": 37,
+    "regen": 2
+   },
+   "cnt": 2619,
+   "sec": 297,
+   "ms": 14640,
+   "kills": 21380,
+   "wave": 5
+  },
+  {
+   "res": "clear",
+   "leak": 138,
+   "lost": 138,
+   "by": {
+    "swarm": 33,
+    "swift": 31,
+    "nest": 36,
+    "split": 36,
+    "shield": 2
+   },
+   "cnt": 2619,
+   "sec": 297,
+   "ms": 10862,
+   "kills": 21259,
+   "wave": 5
+  }
+ ],
+ "on": [
+  {
+   "res": "clear",
+   "leak": 103,
+   "lost": 563,
+   "by": {
+    "swift": 9,
+    "nest": 9,
+    "swarm": 7,
+    "trojan": 13,
+    "grunt": 20,
+    "polymorph": 5,
+    "faraday": 5,
+    "split": 17,
+    "ghost": 3,
+    "ransom": 12,
+    "shield": 1,
+    "sandbox": 2
+   },
+   "cnt": 1476,
+   "sec": 184,
+   "ms": 7865,
+   "kills": 11799,
+   "wave": 5
+  },
+  {
+   "res": "clear",
+   "leak": 121,
+   "lost": 812,
+   "by": {
+    "swift": 15,
+    "swarm": 11,
+    "nest": 20,
+    "ransom": 20,
+    "regen": 2,
+    "faraday": 8,
+    "polymorph": 8,
+    "sandbox": 7,
+    "ghost": 4,
+    "trojan": 12,
+    "split": 6,
+    "grunt": 8
+   },
+   "cnt": 1476,
+   "sec": 184,
+   "ms": 7403,
+   "kills": 11856,
+   "wave": 5
+  }
+ ]
+}
