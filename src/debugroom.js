@@ -796,6 +796,7 @@ const DebugRoom = {
     }
     const g = 1;     // 見本の武器は札なしの素の強さなので、HPは第1ウェーブ並み（倒れる様子まで見えるように）
     const e = Combat.makeEnemy(run, t, g, p.x, p.y, 0);
+    e.hp = e.maxHp = e.maxHp * 0.1;                 // 見本のHP：本物の1割（見本の武器は札なしの素の強さ）
     e.spd *= 0.3;                                   // 見本なので、ゆっくり歩かせる（武器との関係を見る時間をとる）
     run.enemies.push(e);
     UI.toastMsg('見本：' + t.jp + '（' + t.en + '・約40秒）', t.color, 'demo');

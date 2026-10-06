@@ -78,19 +78,19 @@ const SYS_INFO = {
 // ポリモーフが切り替わる順・ゼロデイの弱点に選ばれる系統（掴みは入れない：触手だけが効かない敵・だけが効く敵は作らない）
 const SYS_ORDER = ['phys', 'optic', 'elem', 'field'];
 const UPPER_TYPES = {
-  trojan:    { name: 'trojan', up: true, hp: 10, spd: 0.55, r: 17, coin: 10, color: '#e0a640', jp: 'トロイ', en: 'TROJAN',
+  trojan:    { name: 'trojan', up: true, hp: 100, spd: 0.55, r: 17, coin: 100, color: '#e0a640', jp: 'トロイ', en: 'TROJAN',
     desc: '硬くて遅い。倒すと中からパケットを数体こぼす。', want: '1体に強い武器と、こぼれた雑魚を拾う武器の両方' },
-  ransom:    { name: 'ransom', up: true, hp: 10, spd: 0.80, r: 14, coin: 10, color: '#ff6a5c', jp: 'ランサムウェア', en: 'RANSOMWARE',
+  ransom:    { name: 'ransom', up: true, hp: 100, spd: 0.80, r: 14, coin: 100, color: '#ff6a5c', jp: 'ランサムウェア', en: 'RANSOMWARE',
     desc: '近くの敵が受けるダメージを大きく減らす気配をまとう（本体は対象外）。', want: '先に狙って倒す・遠くから届かせる' },
-  ghost:     { name: 'ghost', up: true, hp: 10, spd: 1.00, r: 13, coin: 10, color: '#cfe4ff', jp: 'ゴースト', en: 'GHOST', imm: ['phys'],
+  ghost:     { name: 'ghost', up: true, hp: 100, spd: 1.00, r: 13, coin: 100, color: '#cfe4ff', jp: 'ゴースト', en: 'GHOST', imm: ['phys'],
     desc: '実体がない。弾も刃もすり抜ける。', want: '属性・光学・場・掴みを混ぜる' },
-  faraday:   { name: 'faraday', up: true, hp: 10, spd: 0.70, r: 14, coin: 10, color: '#8fb0c8', jp: 'ファラデー', en: 'FARADAY', imm: ['elem'],
+  faraday:   { name: 'faraday', up: true, hp: 100, spd: 0.70, r: 14, coin: 100, color: '#8fb0c8', jp: 'ファラデー', en: 'FARADAY', imm: ['elem'],
     desc: '遮蔽された殻。熱も電気も冷気も通さない。', want: '物理・光学・場・掴みを混ぜる' },
-  sandbox:   { name: 'sandbox', up: true, hp: 10, spd: 0.80, r: 14, coin: 10, color: '#7fd9a0', jp: 'サンドボックス', en: 'SANDBOX', imm: ['field'],
+  sandbox:   { name: 'sandbox', up: true, hp: 100, spd: 0.80, r: 14, coin: 100, color: '#7fd9a0', jp: 'サンドボックス', en: 'SANDBOX', imm: ['field'],
     desc: '隔離された箱。ガスも泡も受けつけない。', want: '直接当てる武器を混ぜる' },
-  polymorph: { name: 'polymorph', up: true, hp: 30, spd: 0.70, r: 18, coin: 30, color: '#ff8ad8', jp: 'ポリモーフ', en: 'POLYMORPH', poly: true,
+  polymorph: { name: 'polymorph', up: true, hp: 300, spd: 0.70, r: 18, coin: 300, color: '#ff8ad8', jp: 'ポリモーフ', en: 'POLYMORPH', poly: true,
     desc: '姿を変え続ける。数秒ごとに、無効になる系統が 物理→光学→属性→場 の順で切り替わる（体の色と輪で分かる）。', want: '系統を散らした混成' },
-  zeroday:   { name: 'zeroday', up: true, hp: 100, spd: 0.45, r: 24, coin: 100, color: '#ff3d5a', jp: 'ゼロデイ', en: 'ZERO-DAY', zd: true,
+  zeroday:   { name: 'zeroday', up: true, hp: 1000, spd: 0.45, r: 24, coin: 1000, color: '#ff3d5a', jp: 'ゼロデイ', en: 'ZERO-DAY', zd: true,
     desc: 'とても硬く遅い。弱点の系統（章ごとに固定・頭の上の印）のほかは、ダメージが半分しか通らない。', want: '弱点の系統をそろえる' },
 };
 for (const k in UPPER_TYPES) UPPER_TYPES[k].k = UPPER_TYPES[k].hp;
@@ -1904,7 +1904,7 @@ const Combat = {
       // コアに触れた敵は、ライフを1つ持っていって消える（＝漏れ）。**コアが2つ以上なら、どれに触れても同じライフ**
       if ((run.towers || [tw]).some(T => Util.dist(e.x, e.y, T.x, T.y) <= T.r + e.r)) {
         // **ボスがコアに着いたら、その場で負け**（残りのライフを全部持っていく・2026-09-28 ユーザー「倒せなかった場合強制的に敗北」）
-        const cost = e.boss ? Math.max(run.lives, BAL.leakLives) : e.upper ? BAL.ascUpperLeak : BAL.leakLives;
+        const cost = e.boss ? Math.max(run.lives, BAL.leakLives) : e.upper ? Math.max(BAL.leakLives, Math.round(e.k * BAL.ascUpperLeakK)) : BAL.leakLives;
         run.lives -= cost;
         run.leaked++;
         run.livesLost += cost;
