@@ -291,7 +291,100 @@ const Music = {
       g.gain.setTargetAtTime(0.09 * v, t + 0.003, o.mute ? 0.03 : 0.3); g.gain.setTargetAtTime(0.0001, t + len, 0.03);
       oss.forEach(x => { x.start(t); x.stop(t + len + 0.25); });
     },
+    // スーパーソウ（ずらしたノコギリ7本）。o.cut で明るさ、o.pluck で短くはじく
+    supersaw(B, t, m, d, v, o) {
+      const c = B.c, f = Music.hz(m), out = Music._bus(B, o.dest, o.wet != null ? o.wet : 0.3, o.del != null ? o.del : 0.18);
+      const lp = c.createBiquadFilter(), g = c.createGain();
+      lp.type = 'lowpass'; lp.Q.value = 0.7;
+      const cut = o.cut || 5000;
+      if (o.pluck) { lp.frequency.setValueAtTime(cut, t); lp.frequency.setTargetAtTime(cut * 0.15, t, 0.06); }
+      else lp.frequency.value = cut;
+      lp.connect(g); g.connect(out);
+      const oss = [-24, -14, -6, 0, 6, 14, 24].map((det, i) => { const x = c.createOscillator(); x.type = 'sawtooth'; x.frequency.value = f; x.detune.value = det; x.connect(lp); return x; });
+      if (o.pluck) { g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.05 * v, t + 0.004); g.gain.setTargetAtTime(0.0001, t + 0.004, Math.min(0.12, d * 0.5)); }
+      else Music._env(g, t, 0.012, 0.045 * v * (o.lvl || 1), 0.3, 0.8, 0.08, t + d);
+      const end = t + (o.pluck ? Math.min(d, 0.5) + 0.2 : d + 0.6);
+      oss.forEach(x => { x.start(t); x.stop(end); });
+    },
+    // シンセのリード（ノコギリ＋矩形・下からすくう・遅れてビブラート）。サイバー・ZZZ
+    synlead(B, t, m, d, v, o) {
+      const c = B.c, f = Music.hz(m), out = Music._bus(B, o.dest, 0.22, 0.22);
+      const lp = c.createBiquadFilter(), g = c.createGain();
+      lp.type = 'lowpass'; lp.Q.value = o.q || 3;
+      const cut = o.cut || 3200;
+      lp.frequency.setValueAtTime(cut * 1.8, t); lp.frequency.setTargetAtTime(cut, t, 0.08);
+      lp.connect(g); g.connect(out);
+      const vib = c.createOscillator(), vg = c.createGain();
+      vib.frequency.value = 5.5; vg.gain.setValueAtTime(0, t);
+      if (d > 0.35) { vg.gain.setValueAtTime(0, t + 0.2); vg.gain.linearRampToValueAtTime(20, t + Math.min(d, 0.55)); }
+      vib.connect(vg);
+      const oss = [['sawtooth', -5], ['square', 5]].map(([ty, det]) => {
+        const x = c.createOscillator(); x.type = ty; x.detune.value = det;
+        const gl = o.glide == null ? 1 : o.glide;
+        if (gl) { x.frequency.setValueAtTime(f * Math.pow(2, -gl / 12), t); x.frequency.setTargetAtTime(f, t, 0.025); } else x.frequency.value = f;
+        vg.connect(x.detune); x.connect(lp); return x;
+      });
+      Music._env(g, t, 0.006, 0.1 * v, 0.2, 0.75, 0.05, t + d);
+      [...oss, vib].forEach(x => { x.start(t); x.stop(t + d + 0.4); });
+    },
+    // リースベース（ずらした2本のノコギリが唸る・ゆっくり開閉するフィルタ）。サイバー
+    reese(B, t, m, d, v, o) {
+      const c = B.c, f = Music.hz(m), out = Music._bus(B, o.dest, 0.03, 0);
+      const lp = c.createBiquadFilter(), g = c.createGain(), lfo = c.createOscillator(), lg = c.createGain();
+      lp.type = 'lowpass'; lp.frequency.value = 520; lp.Q.value = 2;
+      lfo.frequency.value = 0.45; lg.gain.value = 300; lfo.connect(lg); lg.connect(lp.frequency);
+      const sh = Music._shaper(B), dr = c.createGain(); dr.gain.value = 1.6;
+      lp.connect(dr); dr.connect(sh); sh.connect(g); g.connect(out);
+      const oss = [-16, 16].map(det => { const x = c.createOscillator(); x.type = 'sawtooth'; x.frequency.value = f; x.detune.value = det; x.connect(lp); return x; });
+      const sub = c.createOscillator(), sg = c.createGain(); sub.frequency.value = f; sg.gain.value = 0.6; sub.connect(sg); sg.connect(g);
+      Music._env(g, t, 0.01, 0.2 * v, 0.4, 0.85, 0.06, t + d);
+      [...oss, sub, lfo].forEach(x => { x.start(t); x.stop(t + d + 0.4); });
+    },
+    // スラップベース（FM・親指の芯と、o.pop で指で引っかけた明るい音）。ZZZ
+    slap(B, t, m, d, v, o) {
+      const c = B.c, f = Music.hz(m), out = Music._bus(B, o.dest, 0.05, 0);
+      const car = c.createOscillator(), mod = c.createOscillator(), mg = c.createGain(), g = c.createGain();
+      car.frequency.value = f; mod.frequency.value = f * (o.pop ? 3 : 1);
+      mg.gain.setValueAtTime(f * (o.pop ? 6 : 7), t); mg.gain.setTargetAtTime(f * 0.4, t, o.pop ? 0.05 : 0.03);
+      mod.connect(mg); mg.connect(car.frequency); car.connect(g); g.connect(out);
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime((o.pop ? 0.32 : 0.48) * v, t + 0.002);
+      g.gain.setTargetAtTime(0.22 * v, t + 0.002, 0.08); g.gain.setTargetAtTime(0.0001, t + d, 0.03);
+      [car, mod].forEach(x => { x.start(t); x.stop(t + d + 0.3); });
+    },
+    // ブラス（ノコギリ3本・フィルタが開いて吹き上がる）。アーケード・ZZZ の合いの手
+    brass(B, t, m, d, v, o) {
+      const c = B.c, f = Music.hz(m), out = Music._bus(B, o.dest, 0.25, 0.08);
+      const lp = c.createBiquadFilter(), g = c.createGain();
+      lp.type = 'lowpass'; lp.Q.value = 1.2;
+      lp.frequency.setValueAtTime(500, t); lp.frequency.linearRampToValueAtTime(Math.min(6000, f * 7), t + 0.04); lp.frequency.setTargetAtTime(Math.min(3200, f * 3.5), t + 0.04, 0.15);
+      lp.connect(g); g.connect(out);
+      const oss = [-8, 0, 8].map(det => { const x = c.createOscillator(); x.type = 'sawtooth'; x.frequency.value = f; x.detune.value = det; x.connect(lp); return x; });
+      Music._env(g, t, 0.015, 0.09 * v, 0.2, 0.7, 0.05, t + d);
+      oss.forEach(x => { x.start(t); x.stop(t + d + 0.3); });
+    },
+    // クリーンのギターのカッティング（チャカ）。ZZZ のファンク
+    cut(B, t, m, d, v, o) {
+      const c = B.c, f = Music.hz(m), out = Music._bus(B, o.dest, 0.12, 0);
+      const pan = c.createStereoPanner(); pan.pan.value = o.pan || 0.35; pan.connect(out);
+      const bp = c.createBiquadFilter(), g = c.createGain();
+      bp.type = 'bandpass'; bp.frequency.value = 1700; bp.Q.value = 1.1;
+      bp.connect(g); g.connect(pan);
+      const x = c.createOscillator(); x.type = 'sawtooth'; x.frequency.value = f; x.connect(bp);
+      const len = o.mute ? 0.035 : Math.min(d, 0.12);
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.3 * v, t + 0.002); g.gain.setTargetAtTime(0.0001, t + len, 0.02);
+      x.start(t); x.stop(t + len + 0.15);
+    },
     // ---- 打楽器（m は使わない）----
+    clap(B, t, m, d, v, o) {
+      const c = B.c, out = Music._bus(B, o.dest, 0.3, 0);
+      const n = c.createBufferSource(); n.buffer = B.noise;
+      const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1300; bp.Q.value = 1.2;
+      const g = c.createGain(); n.connect(bp); bp.connect(g); g.connect(out);
+      g.gain.setValueAtTime(0.0001, t);
+      [0, 0.011, 0.022].forEach(dt => { g.gain.setValueAtTime(0.35 * v, t + dt); g.gain.setTargetAtTime(0.02, t + dt + 0.001, 0.004); });
+      g.gain.setValueAtTime(0.3 * v, t + 0.033); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2);
+      n.start(t, Math.random() * 0.5); n.stop(t + 0.22);
+    },
     kick(B, t, m, d, v, o) {
       const c = B.c, out = Music._bus(B, o.dest, 0, 0);
       const os = c.createOscillator(), g = c.createGain();
@@ -301,7 +394,7 @@ const Music = {
       os.start(t); os.stop(t + 0.4);
     },
     snare(B, t, m, d, v, o) {
-      const c = B.c, out = Music._bus(B, o.dest, 0.18, 0);
+      const c = B.c, out = Music._bus(B, o.dest, o.wet != null ? o.wet : 0.18, 0);
       const n = c.createBufferSource(); n.buffer = B.noise;
       const bp = c.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = 1900; bp.Q.value = 0.7;
       const g = c.createGain(); n.connect(bp); bp.connect(g); g.connect(out);
@@ -384,6 +477,9 @@ const Music = {
     return out.sort((x, y) => x - y);
   },
 
+  // 低音の音域（33〜45）に畳む
+  _low(m) { while (m > 45) m -= 12; while (m < 33) m += 12; return m; },
+
   STYLES: {
     // ホーム：喫茶店のリラックス（エレピ・ブラシ・丸いベース・揺れる16分）
     home: { label: 'ホーム', bpm: 84, swing: 0.18, tonic: 62, mode: 'major', delayBeats: 0.75, gain: 0.6 },
@@ -392,6 +488,18 @@ const Music = {
     //   和音は RPG の定番の進行（i → ♭VI → ♭VII → V…）で、モチーフの和音の根を上書きする
     battle: { label: '戦闘', bpm: 168, swing: 0, tonic: 57, mode: 'minor', delayBeats: 0.75, gain: 0.95, roots: [0, 5, 6, 4, 0, 5, 3, 4] },
     // コミカル：跳ねる長調・スタッカート・ズンチャ
+    // 10-07 ユーザー「近未来的な曲調、サイバーパンク風、ゼンレスゾーンゼロ風、シューティングゲーム風、アーケードゲーム風」
+    //   ※ 既存の曲の旋律・音色の固有の意匠は写さない。ジャンルと雰囲気だけ
+    // 近未来：4つ打ち・裏のハイハット・ポンプする（サイドチェインふうの）スーパーソウの和音
+    future: { label: '近未来', bpm: 124, swing: 0, tonic: 54, mode: 'minor', delayBeats: 0.75, gain: 0.8, roots: [0, 5, 2, 6, 0, 5, 3, 4] },
+    // サイバーパンク：半分の速さに感じるビート・唸るリースベース・歪んだ空気・16分の酸っぱいアルペジオ
+    cyber: { label: 'サイバーパンク', bpm: 96, swing: 0, tonic: 52, mode: 'minor', delayBeats: 0.75, gain: 0.85, roots: [0, 5, 0, 6, 0, 5, 3, 4] },
+    // ZZZ 風：街のファンク（スラップベース・クリーンのカッティング・ブラスの合いの手・跳ねる16分のブレイクビーツ）
+    zzz: { label: 'ストリート・ファンク', bpm: 114, swing: 0.1, tonic: 59, mode: 'dorian', delayBeats: 0.75, gain: 0.85 },
+    // シューティング：速い・16分のアルペジオ・オクターブで走るベース・スーパーソウのリード
+    shmup: { label: 'シューティング', bpm: 176, swing: 0, tonic: 57, mode: 'minor', delayBeats: 0.75, gain: 0.85, roots: [0, 5, 6, 4, 0, 5, 3, 4] },
+    // アーケード：80年代の FM（はじくベース・ブラスの合いの手・残響の大きいスネア）
+    arcade: { label: 'アーケード', bpm: 144, swing: 0, tonic: 60, mode: 'dorian', delayBeats: 0.5, gain: 0.85 },
     comic: { label: 'コミカル', bpm: 128, swing: 0.12, tonic: 60, mode: 'major', delayBeats: 0.5, gain: 0.9 },
     // シリアス：遅い・フリジア・低い弦と太鼓
     serious: { label: 'シリアス', bpm: 66, swing: 0, tonic: 50, mode: 'phrygian', delayBeats: 1, gain: 0.8 },
@@ -462,6 +570,67 @@ const Music = {
         note(b0, 1, this.deg(r, T, M) - 24 + 12, 0.9, 'timp');
         if (bar % 2 === 1) note(b0 + 12, 1, this.deg(r, T, M) - 24 + 12, 0.6, 'timp');
         if (bar === 0 || bar === 4) note(b0, 1, this.deg(0, T, M) + 24, 0.6, 'bell');
+      } else if (style === 'future') {
+        const root = this._low(this.deg(r, T, M));
+        [2, 6, 10, 14].forEach(q => note(b0 + q, 2, root, 0.55, 'subbass'));
+        [0, 4, 8, 12].forEach(q => note(b0 + q, 1, 0, 0.95, 'kick', { kickHz: 150, kickLen: 0.35 }));
+        [4, 12].forEach(q => note(b0 + q, 1, 0, 0.8, 'clap'));
+        [2, 6, 10, 14].forEach(q => note(b0 + q, 1, 0, 0.5, 'hat', { open: true }));
+        for (let q = 0; q < 16; q++) if (q % 2) note(b0 + q, 1, 0, 0.22, 'hat');
+        // 和音：8分で鳴らし、拍の頭は小さく・裏は大きく（キックに押されて息をするように）
+        const ch = this._chord(r, 4, T, M, 60);
+        for (let q = 0; q < 16; q += 2) ch.forEach(m => note(b0 + q, 2, m, q % 4 ? 0.85 : 0.3, 'supersaw', { pluck: true, cut: 3800, wet: 0.2, del: 0.1 }));
+        if (bar >= 4) { const a = this._chord(r, 3, T, M, 78); for (let q = 0; q < 16; q += 2) note(b0 + q, 1, a[(q / 2) % 3], 0.3, 'bell'); }
+        if (bar === 0 || bar === 4) note(b0, 1, 0, 0.8, 'crash');
+      } else if (style === 'cyber') {
+        const root = this._low(this.deg(r, T, M));
+        note(b0, 10, root, 0.9, 'reese'); note(b0 + 10, 6, root + (bar % 2 ? 12 : 0), 0.8, 'reese');
+        [0, 6, 10].forEach(q => note(b0 + q, 1, 0, 1, 'kick', { kickHz: 120, kickLen: 0.45 }));
+        note(b0 + 8, 1, 0, 1, 'snare', { wet: 0.35 }); note(b0 + 8, 1, 0, 0.6, 'clap');
+        for (let q = 0; q < 16; q++) note(b0 + q, 1, 0, q % 4 === 2 ? 0.55 : 0.28, 'hat');
+        if (bar % 2 === 1) [14.5, 15, 15.5].forEach(q => note(b0 + q, 0.5, 0, 0.35, 'hat'));
+        // 16分のアルペジオ：低いところで、フィルタを少しずつ開く
+        const ch = this._chord(r, 3, T, M, 64);
+        for (let q = 0; q < 16; q++) note(b0 + q, 0.8, ch[(q * 2) % 3] + (q % 8 === 7 ? 12 : 0), 0.4, 'synlead', { glide: 0, cut: 700 + bar * 180, q: 6 });
+        this._chord(r, 3, T, M, 55).forEach(m => note(b0, 16, m, 0.35, 'strings'));
+        if (bar === 0 || bar === 4) note(b0, 1, 0, 0.7, 'crash');
+      } else if (style === 'zzz') {
+        const root = this._low(this.deg(r, T, M)), fifth = root + 7;
+        [[0, root, 0], [3, root, 0], [6, root + 12, 1], [7, root, 0], [10, root, 0], [12, fifth, 0], [14, root + 12, 1]]
+          .forEach(([q, m, pop]) => note(b0 + q, pop ? 1 : 1.6, m, 0.65, 'slap', { pop: !!pop }));
+        [0, 7, 10].forEach(q => note(b0 + q, 1, 0, 0.9, 'kick', { kickHz: 130, kickLen: 0.3 }));
+        [4, 12].forEach(q => note(b0 + q, 1, 0, 0.9, 'snare'));
+        [9, 15].forEach(q => note(b0 + q, 1, 0, 0.18, 'snare'));
+        for (let q = 0; q < 16; q++) note(b0 + q, 1, 0, q === 14 ? 0.5 : (q % 2 ? 0.25 : 0.45), 'hat', { open: q === 14 });
+        // カッティング：9th の和音を、鳴らす（チャ）と消す（チャカ）で
+        const vo = [2, 4, 6, 8].map(k => { let m = this.deg(r + k, T, M); while (m < 60) m += 12; while (m >= 73) m -= 12; return m; });
+        [[2, 0], [3, 1], [6, 0], [10, 0], [11, 1], [14, 0]].forEach(([q, mute]) => vo.forEach(m => note(b0 + q, 1, m, mute ? 0.5 : 0.8, 'cut', { mute: !!mute })));
+        vo.forEach(m => note(b0, 8, m - 12, 0.3, 'epiano'));
+        if (bar % 2 === 1) this._chord(r, 3, T, M, 64).forEach(m => note(b0 + 14, 2, m, 0.85, 'brass'));
+        if (bar === 0 || bar === 4) note(b0, 1, 0, 0.6, 'crash');
+      } else if (style === 'shmup') {
+        const root = this._low(this.deg(r, T, M));
+        for (let q = 0; q < 16; q += 2) note(b0 + q, 2, root + ((q / 2) % 2 ? 12 : 0), 0.5, 'fmbass');
+        [0, 6, 8, 10].forEach(q => note(b0 + q, 1, 0, 0.9, 'kick'));
+        [4, 12].forEach(q => note(b0 + q, 1, 0, 0.95, 'snare'));
+        for (let q = 0; q < 16; q += 2) note(b0 + q, 1, 0, 0.55, 'hat');
+        if (bar === 3 || bar === 7) [12, 13, 14, 15].forEach(q => note(b0 + q, 1, 0, 0.5 + (q - 12) * 0.13, 'snare'));
+        const ch = this._chord(r, 3, T, M, 69);
+        for (let q = 0; q < 16; q++) note(b0 + q, 1, ch[q % 3] + (q % 6 >= 3 ? 12 : 0), 0.35, 'chip');
+        this._chord(r, 3, T, M, 57).forEach(m => note(b0, 16, m, 0.4, 'supersaw', { cut: 1800, wet: 0.4, del: 0 }));
+        if (bar === 0 || bar === 4) note(b0, 1, 0, 1, 'crash');
+      } else if (style === 'arcade') {
+        const root = this._low(this.deg(r, T, M));
+        [[0, 0], [3, 0], [6, 12], [8, 0], [10, 0], [13, 12]].forEach(([q, o]) => note(b0 + q, 2, root + o, 0.6, 'fmbass'));
+        [0, 8, 10].forEach(q => note(b0 + q, 1, 0, 0.9, 'kick', { kickHz: 150, kickLen: 0.25 }));
+        [4, 12].forEach(q => note(b0 + q, 1, 0, 1, 'snare', { wet: 0.55 }));
+        for (let q = 0; q < 16; q += 2) note(b0 + q, 1, 0, 0.5, 'hat');
+        const ch = this._chord(r, 3, T, M, 62);
+        [[0, 2], [6, 2]].forEach(([q, l]) => ch.forEach(m => note(b0 + q, l, m, 0.75, 'brass')));
+        if (bar % 2 === 1) ch.forEach(m => note(b0 + 14, 2, m + 12, 0.6, 'brass'));
+        const a = this._chord(r, 3, T, M, 74);
+        for (let q = 0; q < 16; q++) note(b0 + q, 1, a[q % 3], 0.2, 'chip');
+        if (bar === 0 || bar === 4) note(b0, 1, 0, 0.8, 'crash');
       } else if (style === 'jazz') {
         // 歩くベース：4分で 根 → 3度 → 5度 → 次の根へ半音で寄る
         const fold = m => { while (m > 50) m -= 12; while (m < 38) m += 12; return m; };
@@ -495,6 +664,11 @@ const Music = {
       }
       else if (style === 'comic') { note(n.s, Math.min(n.l, 1.5), m + 12, 0.95, 'chip'); note(n.s, Math.min(n.l, 2), m + 24, 0.5, 'bell'); }
       else if (style === 'serious') note(n.s, n.l, m + 12, 0.85, 'strings');
+      else if (style === 'future') { note(n.s, n.l, m + 12, 0.9, 'supersaw', { cut: 4200, lvl: 2.6 }); note(n.s, Math.min(n.l, 2), m + 24, 0.3, 'bell'); }
+      else if (style === 'cyber') { note(n.s, n.l, m + 12, 1, 'guitar', { pan: 0 }); note(n.s, n.l, m, 0.5, 'synlead', { cut: 1600 }); }
+      else if (style === 'zzz') { note(n.s, n.l, m + 12, 1.3, 'synlead', { cut: 3600 }); if (n.l >= 4) note(n.s, Math.min(n.l, 4), m, 0.6, 'brass'); }
+      else if (style === 'shmup') { note(n.s, n.l, m + 12, 1, 'supersaw', { cut: 6500, lvl: 3 }); note(n.s, Math.min(n.l, 1.5), m + 24, 0.4, 'chip'); }
+      else if (style === 'arcade') { note(n.s, n.l, m + 12, 0.95, 'fmlead'); note(n.s, Math.min(n.l, 1.5), m + 24, 0.45, 'chip'); }
       else if (style === 'jazz') { note(n.s, n.l, m + 12, 0.9, 'mute'); if (n.l >= 4) note(n.s, 1, m, 0.25, 'bell'); }
     }
     return { style, bpm: S.bpm, swing: S.swing || 0, swing8: S.swing8 || 0, steps: 128, ev, delayBeats: S.delayBeats, gain: S.gain };
