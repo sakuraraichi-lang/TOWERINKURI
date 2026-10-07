@@ -13,7 +13,8 @@
 //     Music.stop()
 //     Music.renderOffline(song, 秒)               … OfflineAudioContext で書き出して、音割れ・無音・NaN を数値で確かめる
 //
-//   motif の形：{ notes: [[度数, 開始(16分), 長さ(16分)], …]（2小節＝32）, h: [1小節目の和音の根の度数, 2小節目] }
+//   motif の形：{ notes: [[度数, 開始(16分), 長さ(16分), 半音のずらし(省略可)], …]（2小節＝32）, h: [1小節目の和音の根の度数, 2小節目] }
+//     半音のずらし：-1 で半音下げる（ブルーノートの ♭5 など、旋法の外の音）
 // ---------------------------------------------------------------
 'use strict';
 
@@ -197,6 +198,50 @@ const Music = {
       Music._env(g, t, 0.01, 0.35 * v, 0.3, 0.75, 0.05, t + d * 0.92);
       os.start(t); os.stop(t + d + 0.4);
     },
+    // ミュートのトランペット（ジャズ）：ノコギリ2本を細い帯域に通し、吹き始めに少し「ワ」と開く
+    mute(B, t, m, d, v, o) {
+      const c = B.c, f = Music.hz(m), out = Music._bus(B, o.dest, 0.3, 0.12);
+      const bp = c.createBiquadFilter(), lp = c.createBiquadFilter(), g = c.createGain();
+      bp.type = 'bandpass'; bp.Q.value = 2.2;
+      bp.frequency.setValueAtTime(f * 1.5, t); bp.frequency.linearRampToValueAtTime(Math.min(4200, f * 3.2), t + 0.07);
+      bp.frequency.setTargetAtTime(Math.min(3400, f * 2.4), t + 0.07, 0.2);
+      lp.type = 'lowpass'; lp.frequency.value = 5200;
+      bp.connect(lp); lp.connect(g); g.connect(out);
+      const vib = c.createOscillator(), vg = c.createGain();
+      vib.frequency.value = 5.2; vg.gain.setValueAtTime(0, t); vg.gain.linearRampToValueAtTime(d > 0.35 ? 14 : 0, t + Math.min(0.5, d));
+      vib.connect(vg);
+      const oss = [-5, 5].map(det => { const x = c.createOscillator(); x.type = 'sawtooth'; x.frequency.value = f; x.detune.value = det; vg.connect(x.detune); x.connect(bp); return x; });
+      // 吹き込みのすくい上げ（少し下から当てる）
+      oss.forEach(x => { x.frequency.setValueAtTime(f * 0.97, t); x.frequency.exponentialRampToValueAtTime(f, t + 0.05); });
+      Music._env(g, t, 0.025, 0.6 * v, 0.25, 0.7, 0.06, t + d);
+      [...oss, vib].forEach(x => { x.start(t); x.stop(t + d + 0.5); });
+    },
+    // ウッドベース（はじいてすぐ減衰する丸い低音）
+    upright(B, t, m, d, v, o) {
+      const c = B.c, f = Music.hz(m), out = Music._bus(B, o.dest, 0.08, 0);
+      const os = c.createOscillator(), os2 = c.createOscillator(), lp = c.createBiquadFilter(), g = c.createGain();
+      os.type = 'triangle'; os.frequency.value = f; os2.type = 'sine'; os2.frequency.value = f * 2;
+      const g2 = c.createGain(); g2.gain.value = 0.25;
+      lp.type = 'lowpass'; lp.frequency.setValueAtTime(1400, t); lp.frequency.setTargetAtTime(500, t, 0.06);
+      os.connect(lp); os2.connect(g2); g2.connect(lp); lp.connect(g); g.connect(out);
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.42 * v, t + 0.008);
+      g.gain.setTargetAtTime(0.2 * v, t + 0.008, 0.12); g.gain.setTargetAtTime(0.0001, t + d, 0.05);
+      [os, os2].forEach(x => { x.start(t); x.stop(t + d + 0.4); });
+    },
+    // ライドシンバル（金属の FM ＋ 高いノイズ）
+    ride(B, t, m, d, v, o) {
+      const c = B.c, out = Music._bus(B, o.dest, 0.2, 0);
+      const n = c.createBufferSource(); n.buffer = B.noise;
+      const hp = c.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 6500;
+      const g = c.createGain(); n.connect(hp); hp.connect(g); g.connect(out);
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.11 * v, t + 0.002); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+      const car = c.createOscillator(), mod = c.createOscillator(), mg = c.createGain(), pg = c.createGain(), php = c.createBiquadFilter();
+      car.frequency.value = 3150; mod.frequency.value = 4410; mg.gain.value = 2600;
+      mod.connect(mg); mg.connect(car.frequency); php.type = 'highpass'; php.frequency.value = 2500;
+      car.connect(php); php.connect(pg); pg.connect(out);
+      pg.gain.setValueAtTime(0.0001, t); pg.gain.linearRampToValueAtTime(0.055 * v, t + 0.002); pg.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
+      n.start(t, Math.random() * 0.4); n.stop(t + 0.55); [car, mod].forEach(x => { x.start(t); x.stop(t + 0.75); });
+    },
     // ---- 打楽器（m は使わない）----
     kick(B, t, m, d, v, o) {
       const c = B.c, out = Music._bus(B, o.dest, 0, 0);
@@ -265,13 +310,13 @@ const Music = {
   _melody(motif) {
     const out = [];
     const add = (notes, dDeg, offStep, filter) => {
-      for (const [d, s, l] of notes) if (!filter || filter(s)) out.push({ d: d + dDeg, s: s + offStep, l });
+      for (const [d, s, l, a] of notes) if (!filter || filter(s)) out.push({ d: d + dDeg, s: s + offStep, l, a: a || 0 });
     };
     add(motif.notes, 0, 0);
     add(motif.notes, 2, 32);
     add(motif.notes, 0, 64);
     add(motif.notes, 0, 96, s => s < 16);
-    out.push({ d: 0, s: 96 + 16, l: 14 });
+    out.push({ d: 0, s: 96 + 16, l: 14, a: 0 });
     return out;
   },
   _roots(motif) {
@@ -299,6 +344,8 @@ const Music = {
     comic: { label: 'コミカル', bpm: 128, swing: 0.12, tonic: 60, mode: 'major', delayBeats: 0.5, gain: 0.9 },
     // シリアス：遅い・フリジア・低い弦と太鼓
     serious: { label: 'シリアス', bpm: 66, swing: 0, tonic: 50, mode: 'phrygian', delayBeats: 1, gain: 0.8 },
+    // ジャズ：跳ねる8分（3連の揺れ）・ドリア・歩くベース・ライド・根音を抜いた9thの和音
+    jazz: { label: 'ジャズ', bpm: 138, swing8: 0.64, tonic: 62, mode: 'dorian', delayBeats: 0.75, gain: 0.85 },
     // モチーフだけ
     plain: { label: 'モチーフだけ', bpm: 100, swing: 0, tonic: 57, mode: 'minor', delayBeats: 0.5, gain: 1 },
   },
@@ -309,7 +356,7 @@ const Music = {
     const mel = this._melody(motif), roots = this._roots(motif);
     const note = (s, l, m, v, inst, o) => ev.push({ s, l, m, v, inst, o: o || {} });
     if (style === 'plain') {
-      for (const n of motif.notes) note(n[1], n[2], this.deg(n[0], T, M) + 12, 0.9, 'plain');
+      for (const n of motif.notes) note(n[1], n[2], this.deg(n[0], T, M) + 12 + (n[3] || 0), 0.9, 'plain');
       return { style, bpm: S.bpm, swing: 0, steps: 32 + 8, ev, delayBeats: S.delayBeats, gain: S.gain };
     }
     for (let bar = 0; bar < 8; bar++) {
@@ -357,23 +404,50 @@ const Music = {
         note(b0, 1, this.deg(r, T, M) - 24 + 12, 0.9, 'timp');
         if (bar % 2 === 1) note(b0 + 12, 1, this.deg(r, T, M) - 24 + 12, 0.6, 'timp');
         if (bar === 0 || bar === 4) note(b0, 1, this.deg(0, T, M) + 24, 0.6, 'bell');
+      } else if (style === 'jazz') {
+        // 歩くベース：4分で 根 → 3度 → 5度 → 次の根へ半音で寄る
+        const fold = m => { while (m > 50) m -= 12; while (m < 38) m += 12; return m; };
+        const root = fold(this.deg(r, T, M)), next = fold(this.deg(roots[(bar + 1) % 8], T, M));
+        const walk = bar % 2 === 0
+          ? [root, fold(this.deg(r + 2, T, M)), fold(this.deg(r + 4, T, M)), next + (next > root ? -1 : 1)]
+          : [root, fold(this.deg(r + 4, T, M)), fold(this.deg(r + 5, T, M)), next + 1];
+        walk.forEach((m, i) => note(b0 + i * 4, 3.6, m, i === 0 ? 0.95 : 0.8, 'upright'));
+        // 根を抜いた和音（3・5・7・9度）。チャールストン（1拍目と2拍目の裏）と、次の小節への食い込み
+        const voice = [2, 4, 6, 8].map(k => { let m = this.deg(r + k, T, M); while (m < 57) m += 12; while (m >= 70) m -= 12; return m; }).sort((x, y) => x - y);
+        const hits = bar % 2 === 0 ? [[0, 3, 0.36], [6, 2, 0.3]] : [[4, 2, 0.28], [14, 2, 0.33]];
+        hits.forEach(([q, l, v]) => voice.forEach(m => note(b0 + q, l, m, v, 'epiano')));
+        // ライド：チン・チキ・チン・チキ（チキの「キ」は跳ねた8分の裏）
+        [0, 4, 6, 8, 12, 14].forEach(q => note(b0 + q, 1, 0, q % 4 === 0 ? 0.85 : 0.55, 'ride'));
+        // ハイハットを足で（2拍目と4拍目）・ブラシのスネアの合いの手・羽のように軽いキック
+        [4, 12].forEach(q => note(b0 + q, 1, 0, 0.5, 'hat'));
+        if (bar % 2 === 1) note(b0 + 14, 1, 0, 0.45, 'brush');
+        if (bar % 4 === 3) note(b0 + 10, 1, 0, 0.35, 'snare');
+        [0, 8].forEach(q => note(b0 + q, 1, 0, 0.3, 'kick', { kickHz: 90, kickLen: 0.2 }));
+        if (bar === 0) note(b0, 1, 0, 0.5, 'crash');
       }
     }
     // 旋律
     for (const n of mel) {
-      const m = this.deg(n.d, T, M);
+      const m = this.deg(n.d, T, M) + n.a;
       if (style === 'home') note(n.s, n.l, m + 12, 0.85, 'epiano');
       else if (style === 'battle') { note(n.s, n.l, m + 12, 0.95, 'fmlead'); }
       else if (style === 'comic') { note(n.s, Math.min(n.l, 1.5), m + 12, 0.95, 'chip'); note(n.s, Math.min(n.l, 2), m + 24, 0.5, 'bell'); }
       else if (style === 'serious') note(n.s, n.l, m + 12, 0.85, 'strings');
+      else if (style === 'jazz') { note(n.s, n.l, m + 12, 0.9, 'mute'); if (n.l >= 4) note(n.s, 1, m, 0.25, 'bell'); }
     }
-    return { style, bpm: S.bpm, swing: S.swing, steps: 128, ev, delayBeats: S.delayBeats, gain: S.gain };
+    return { style, bpm: S.bpm, swing: S.swing || 0, swing8: S.swing8 || 0, steps: 128, ev, delayBeats: S.delayBeats, gain: S.gain };
   },
 
   // ---------- 鳴らす ----------
   _stepSec(song) { return 60 / song.bpm / 4; },
   _time(song, s, t0) {
     const st = this._stepSec(song);
+    if (song.swing8) {
+      // 8分の跳ね：1拍（16分4つ）の前半を r、後半を 1-r に引き伸ばす（r=2/3 で3連）
+      const beat = Math.floor(s / 4), f = (s - beat * 4) / 4, r = song.swing8;
+      const g = f < 0.5 ? f * 2 * r : r + (f - 0.5) * 2 * (1 - r);
+      return t0 + (beat + g) * 4 * st;
+    }
     const sw = (Math.floor(s) % 2 === 1) ? song.swing * st : 0;
     return t0 + s * st + sw;
   },
