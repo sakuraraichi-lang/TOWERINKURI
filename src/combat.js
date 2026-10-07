@@ -814,7 +814,9 @@ const Combat = {
       amount *= 1 - e.barrier;
       // 2026-10-07 ユーザー：1発ごとの下がり幅はアセンションのレベルで減る（Lv1〜5：0.5%・6〜10：0.25%・11〜15：0.125%・16〜20：0.065%・21から先は0.065%のまま）
       const alv = Asc.lv(Game.perm), steps = BAL.ascBarrierStepByLv;
-      const step = steps[Math.min(steps.length - 1, Math.max(0, Math.ceil(alv / 5) - 1))];
+      //   21から先は5レベルごとに半分ずつ下げる（2026-10-07 ユーザー）
+      const si = Math.max(0, Math.ceil(alv / 5) - 1);
+      const step = si < steps.length ? steps[si] : steps[steps.length - 1] * Math.pow(0.5, si - steps.length + 1);
       e.barrier = Math.max(0, e.barrier - step);
     }
     // **ラスボスの胴の節**：入ったダメージは頭へ、BAL.finalBodyMul 倍で回す（弱点は頭）。節の見た目の位置で当たりを判定する
