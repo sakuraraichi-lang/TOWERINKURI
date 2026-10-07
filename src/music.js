@@ -72,6 +72,16 @@ const Music = {
     return { c, master, rev, dly, noise: nb, lofi: null };
   },
 
+  // 歪みの曲線（出口ごとに1つ作って使い回す）
+  _shaper(B) {
+    if (!B._curve) {
+      const n = 2048, k = 3, cv = new Float32Array(n);
+      for (let i = 0; i < n; i++) { const x = i / (n - 1) * 2 - 1; cv[i] = Math.tanh(k * x) / Math.tanh(k); }
+      B._curve = cv;
+    }
+    const sh = B.c.createWaveShaper(); sh.curve = B._curve; sh.oversample = '2x';
+    return sh;
+  },
   // 1音の行き先：乾いた音・リバーブ・ディレイへ送る量
   _bus(B, dest, wet, del) {
     const g = B.c.createGain();
@@ -242,6 +252,45 @@ const Music = {
       pg.gain.setValueAtTime(0.0001, t); pg.gain.linearRampToValueAtTime(0.055 * v, t + 0.002); pg.gain.exponentialRampToValueAtTime(0.0001, t + 0.7);
       n.start(t, Math.random() * 0.4); n.stop(t + 0.55); [car, mod].forEach(x => { x.start(t); x.stop(t + 0.75); });
     },
+    // エレキギターのリード（RPG の戦闘曲の主旋律）
+    //   ノコギリ2本 → 歪み（tanh）→ キャビネットの帯域。長い音は下からチョーキングで当て、遅れてビブラート
+    //   o.pan で左右、o.bend で「下から何半音すくうか」（0 で無し）
+    guitar(B, t, m, d, v, o) {
+      const c = B.c, f = Music.hz(m), out = Music._bus(B, o.dest, 0.16, o.harm ? 0.08 : 0.2);
+      const pan = c.createStereoPanner(); pan.pan.value = o.pan || 0; pan.connect(out);
+      const hp = c.createBiquadFilter(), drive = c.createGain(), sh = Music._shaper(B), pk = c.createBiquadFilter(), cab = c.createBiquadFilter(), g = c.createGain();
+      hp.type = 'highpass'; hp.frequency.value = 180; drive.gain.value = 5;
+      pk.type = 'peaking'; pk.frequency.value = 1800; pk.Q.value = 1; pk.gain.value = 5;
+      cab.type = 'lowpass'; cab.frequency.value = 4200; cab.Q.value = 0.9;
+      hp.connect(drive); drive.connect(sh); sh.connect(pk); pk.connect(cab); cab.connect(g); g.connect(pan);
+      const bend = o.bend == null ? (d > 0.3 ? 2 : 0) : o.bend;
+      const vib = c.createOscillator(), vg = c.createGain();
+      vib.frequency.value = 6.2; vg.gain.setValueAtTime(0, t);
+      if (d > 0.35) { vg.gain.setValueAtTime(0, t + 0.22); vg.gain.linearRampToValueAtTime(32, t + Math.min(d, 0.6)); }
+      vib.connect(vg);
+      const oss = [-7, 7].map(det => {
+        const x = c.createOscillator(); x.type = 'sawtooth'; x.detune.value = det;
+        if (bend) { x.frequency.setValueAtTime(f * Math.pow(2, -bend / 12), t); x.frequency.setTargetAtTime(f, t + 0.02, 0.045); }
+        else x.frequency.value = f;
+        vg.connect(x.detune); x.connect(hp); return x;
+      });
+      Music._env(g, t, 0.004, 0.16 * v, 0.4, 0.75, 0.05, t + d);
+      [...oss, vib].forEach(x => { x.start(t); x.stop(t + d + 0.4); });
+    },
+    // エレキギターの刻み（パワーコード＝根・5度・オクターブ）。o.mute で手のひらで消した短い刻み
+    gtrchug(B, t, m, d, v, o) {
+      const c = B.c, f = Music.hz(m), out = Music._bus(B, o.dest, 0.06, 0);
+      const pan = c.createStereoPanner(); pan.pan.value = o.pan || 0; pan.connect(out);
+      const drive = c.createGain(), sh = Music._shaper(B), cab = c.createBiquadFilter(), g = c.createGain();
+      drive.gain.value = 4; cab.type = 'lowpass'; cab.Q.value = 0.8;
+      cab.frequency.setValueAtTime(o.mute ? 1500 : 3400, t); if (o.mute) cab.frequency.setTargetAtTime(500, t, 0.04);
+      drive.connect(sh); sh.connect(cab); cab.connect(g); g.connect(pan);
+      const oss = [1, 1.4983, 2].map((k, i) => { const x = c.createOscillator(); x.type = 'sawtooth'; x.frequency.value = f * k; x.detune.value = (i - 1) * 4; x.connect(drive); return x; });
+      const len = o.mute ? Math.min(d, 0.11) : d;
+      g.gain.setValueAtTime(0.0001, t); g.gain.linearRampToValueAtTime(0.14 * v, t + 0.003);
+      g.gain.setTargetAtTime(0.09 * v, t + 0.003, o.mute ? 0.03 : 0.3); g.gain.setTargetAtTime(0.0001, t + len, 0.03);
+      oss.forEach(x => { x.start(t); x.stop(t + len + 0.25); });
+    },
     // ---- 打楽器（m は使わない）----
     kick(B, t, m, d, v, o) {
       const c = B.c, out = Music._bus(B, o.dest, 0, 0);
@@ -339,7 +388,9 @@ const Music = {
     // ホーム：喫茶店のリラックス（エレピ・ブラシ・丸いベース・揺れる16分）
     home: { label: 'ホーム', bpm: 84, swing: 0.18, tonic: 62, mode: 'major', delayBeats: 0.75, gain: 0.6 },
     // 戦闘：PC-88 の FM（速い・短調・オクターブで跳ねるベース・16分のハイハット）
-    battle: { label: '戦闘', bpm: 152, swing: 0, tonic: 57, mode: 'minor', delayBeats: 0.75, gain: 1 },
+    //   10-07 ユーザー「戦闘曲のメインの音をギターの様にしてRPGの戦闘曲っぽく」→ 歪んだギターの主旋律・刻み・ツインのハモり
+    //   和音は RPG の定番の進行（i → ♭VI → ♭VII → V…）で、モチーフの和音の根を上書きする
+    battle: { label: '戦闘', bpm: 168, swing: 0, tonic: 57, mode: 'minor', delayBeats: 0.75, gain: 0.95, roots: [0, 5, 6, 4, 0, 5, 3, 4] },
     // コミカル：跳ねる長調・スタッカート・ズンチャ
     comic: { label: 'コミカル', bpm: 128, swing: 0.12, tonic: 60, mode: 'major', delayBeats: 0.5, gain: 0.9 },
     // シリアス：遅い・フリジア・低い弦と太鼓
@@ -353,7 +404,7 @@ const Music = {
   // 1ループぶんの音符の一覧：{ s（16分の位置）, l（長さ16分）, m（MIDI）, v, inst, o }
   arrange(motif, style) {
     const S = this.STYLES[style], T = S.tonic, M = S.mode, ev = [];
-    const mel = this._melody(motif), roots = this._roots(motif);
+    const mel = this._melody(motif), roots = S.roots || this._roots(motif);
     const note = (s, l, m, v, inst, o) => ev.push({ s, l, m, v, inst, o: o || {} });
     if (style === 'plain') {
       for (const n of motif.notes) note(n[1], n[2], this.deg(n[0], T, M) + 12 + (n[3] || 0), 0.9, 'plain');
@@ -375,18 +426,25 @@ const Music = {
         note(b0 + 4, 1, 0, 0.35, 'wood', {}); note(b0 + 12, 1, 0, 0.35, 'wood', {});
         note(b0, 16, this._chord(r, 1, T, M, 67)[0], 0.5, 'pad', { padCut: 900 });
       } else if (style === 'battle') {
-        // ベース：8分でオクターブを跳ねる（FM）
-        const root = this.deg(r, T, M) - 12;
-        for (let q = 0; q < 16; q += 2) note(b0 + q, 2, root + (q % 4 === 2 ? 12 : 0), 0.85, 'fmbass');
-        // アルペジオ（チップ・16分）
-        const ch = this._chord(r, 3, T, M, 69);
-        for (let q = 0; q < 16; q++) note(b0 + q, 1, ch[q % 3] + (q % 6 >= 3 ? 12 : 0), 0.45, 'chip');
-        // ドラム
-        note(b0, 1, 0, 1, 'kick'); note(b0 + 6, 1, 0, 0.8, 'kick'); note(b0 + 8, 1, 0, 1, 'kick'); note(b0 + 11, 1, 0, 0.7, 'kick');
+        let root = this.deg(r, T, M) - 12;
+        while (root > 45) root -= 12; while (root < 33) root += 12;
+        // ベース：8分で根を刻む（FM）。小節の最後だけオクターブで跳ねる
+        for (let q = 0; q < 16; q += 2) note(b0 + q, 2, root + (q === 14 ? 12 : 0), 0.62, 'fmbass');
+        // リズムギター（左右に2本）：3・3・2 で鳴らし切ってから、8分の刻み
+        const pc = root + 12;
+        [[-0.65, 0], [0.65, 0.04]].forEach(([pan, lag]) => {
+          [[0, 3], [3, 3], [6, 2]].forEach(([q, l]) => note(b0 + q + lag, l, pc, 0.9, 'gtrchug', { pan }));
+          [8, 10, 12, 14].forEach(q => note(b0 + q + lag, 2, pc, 0.75, 'gtrchug', { pan, mute: true }));
+        });
+        // ドラム：3・3・2 に合わせたキック・2拍4拍のスネア・8分のハイハット
+        [0, 3, 6, 8, 10].forEach(q => note(b0 + q, 1, 0, q === 0 ? 1 : 0.8, 'kick'));
         note(b0 + 4, 1, 0, 1, 'snare'); note(b0 + 12, 1, 0, 1, 'snare');
-        for (let q = 0; q < 16; q++) note(b0 + q, 1, 0, q % 2 ? 0.45 : 0.8, 'hat');
-        if (bar === 0 || bar === 4) note(b0, 1, 0, 0.9, 'crash');
-        note(b0, 16, this._chord(r, 1, T, M, 64)[0], 0.6, 'pad', { padCut: 1800 });
+        for (let q = 0; q < 16; q += 2) note(b0 + q, 1, 0, q % 4 ? 0.5 : 0.75, 'hat');
+        if (bar === 3 || bar === 7) [12, 13, 14, 15].forEach(q => note(b0 + q, 1, 0, 0.55 + (q - 12) * 0.12, 'snare'));
+        if (bar === 0 || bar === 4) note(b0, 1, 0, 1, 'crash');
+        // 後ろで薄く弦（RPG の厚み）と、PC-88 のアルペジオを奥に
+        this._chord(r, 3, T, M, 60).forEach(m => note(b0, 16, m, 0.45, 'strings'));
+        if (bar % 4 >= 2) { const ch = this._chord(r, 3, T, M, 72); for (let q = 0; q < 16; q++) note(b0 + q, 1, ch[q % 3], 0.22, 'chip'); }
       } else if (style === 'comic') {
         // ズンチャ：根音と5度を交互に・裏で和音を短く
         const root = this.deg(r, T, M) - 12, fifth = this.deg(r + 4, T, M) - 24;
@@ -430,7 +488,11 @@ const Music = {
     for (const n of mel) {
       const m = this.deg(n.d, T, M) + n.a;
       if (style === 'home') note(n.s, n.l, m + 12, 0.85, 'epiano');
-      else if (style === 'battle') { note(n.s, n.l, m + 12, 0.95, 'fmlead'); }
+      else if (style === 'battle') {
+        note(n.s, n.l, m + 12, 1, 'guitar', { pan: -0.15 });
+        // 5〜6小節目（2回目の提示）はツインギター：3度下でハモる
+        if (n.s >= 64 && n.s < 96) note(n.s, n.l, this.deg(n.d - 2, T, M) + n.a + 12, 0.7, 'guitar', { pan: 0.45, harm: true });
+      }
       else if (style === 'comic') { note(n.s, Math.min(n.l, 1.5), m + 12, 0.95, 'chip'); note(n.s, Math.min(n.l, 2), m + 24, 0.5, 'bell'); }
       else if (style === 'serious') note(n.s, n.l, m + 12, 0.85, 'strings');
       else if (style === 'jazz') { note(n.s, n.l, m + 12, 0.9, 'mute'); if (n.l >= 4) note(n.s, 1, m, 0.25, 'bell'); }
