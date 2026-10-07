@@ -1,0 +1,202 @@
+<meta charset="utf-8">
+<title>モチーフ試聴室</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=Dela+Gothic+One&family=Share+Tech+Mono&family=Zen+Kaku+Gothic+New:wght@400;700&display=swap">
+<style>
+/* 放送の帯（題字 X1 と同じ語彙）を頭に1本。下は候補のカードを並べ、各カードに「同じフレーズを曲調で替える」スイッチ */
+:root {
+  --ink: #0c0b0e;        /* 地 */
+  --panel: #16151b;      /* カード */
+  --line: #2c2a33;       /* 罫 */
+  --fg: #f4f1ea;         /* 文字 */
+  --dim: #a5a1ad;        /* 補足 */
+  --orange: #ff7a1a;     /* アクセント（帯の上・再生中） */
+  --yellow: #ffd23a;     /* 帯の下・LED */
+  --f-disp: 'Dela Gothic One', 'Hiragino Kaku Gothic StdN', 'Yu Gothic', sans-serif;
+  --f-latin: 'Anton', 'Impact', 'Arial Narrow', sans-serif;
+  --f-body: 'Zen Kaku Gothic New', 'Hiragino Sans', 'Yu Gothic', 'Meiryo', sans-serif;
+  --f-mono: 'Share Tech Mono', ui-monospace, Consolas, monospace;
+  color-scheme: dark;
+}
+html, body { background: var(--ink); color: var(--fg); }
+body { font-family: var(--f-body); font-size: 15px; line-height: 1.7; padding-inline: 16px; padding-block: 0 48px; }
+.wrap { max-width: 980px; margin: 0 auto; }
+
+.band { margin: 20px 0 22px; background: #000; border-top: 4px solid var(--orange); border-bottom: 4px solid var(--yellow); padding: 16px 18px 14px; transform: skewX(-6deg); }
+.band > * { transform: skewX(6deg); }
+.band em { display: block; font-family: var(--f-mono); font-style: normal; font-size: 12px; letter-spacing: .14em; color: var(--yellow); }
+.band h1 { margin: 2px 0 0; font-family: var(--f-disp); font-weight: 400; font-size: clamp(26px, 6vw, 40px); line-height: 1.15; text-wrap: balance; }
+.band p { margin: 6px 0 0; color: var(--dim); font-size: 13px; max-width: 62ch; }
+
+.transport { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 5; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px 12px; margin-bottom: 18px; background: rgba(12, 11, 14, .96); border: 1px solid var(--line); }
+.vfd { flex: 1 1 260px; min-width: 0; font-family: var(--f-mono); font-size: 13px; letter-spacing: .06em; color: var(--yellow); background: #050505; border: 1px solid #222; padding: 6px 10px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
+.vfd.idle { color: #6c6872; }
+.stop { font-family: var(--f-latin); font-size: 16px; letter-spacing: .08em; color: var(--ink); background: var(--orange); border: 0; padding: 7px 16px; cursor: pointer; }
+.vol { display: flex; align-items: center; gap: 8px; font-family: var(--f-mono); font-size: 12px; color: var(--dim); }
+.vol input { width: 110px; accent-color: var(--orange); }
+
+.grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 440px), 1fr)); gap: 16px; }
+.card { background: var(--panel); border: 1px solid var(--line); padding: 16px 16px 14px; display: grid; gap: 10px; min-width: 0; }
+.card.on { border-color: var(--orange); }
+.head { display: flex; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.head .id { font-family: var(--f-latin); font-size: 30px; line-height: 1; color: var(--orange); letter-spacing: .02em; }
+.head h2 { margin: 0; font-family: var(--f-disp); font-weight: 400; font-size: 21px; line-height: 1.2; }
+.head .en { font-family: var(--f-mono); font-size: 12px; letter-spacing: .14em; color: var(--dim); }
+.shape { margin: 0; color: var(--fg); font-size: 14px; }
+.notes { font-family: var(--f-mono); font-size: 14px; letter-spacing: .04em; color: var(--yellow); overflow-x: auto; white-space: nowrap; }
+.notes small { color: var(--dim); font-family: var(--f-body); letter-spacing: 0; margin-left: 8px; }
+canvas.roll { width: 100%; height: 92px; display: block; background: #0a090c; border: 1px solid #221f27; }
+.keys { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px; }
+.key { position: relative; font-family: var(--f-body); font-weight: 700; font-size: 13px; color: var(--fg); background: #1f1d25; border: 1px solid #34313c; border-bottom-width: 3px; padding: 10px 4px 8px; cursor: pointer; line-height: 1.2; }
+.key small { display: block; font-family: var(--f-mono); font-weight: 400; font-size: 10px; color: var(--dim); margin-top: 3px; letter-spacing: .04em; }
+.key::before { content: ''; position: absolute; top: 5px; right: 5px; width: 6px; height: 6px; border-radius: 50%; background: #3a3740; }
+.key:hover { border-color: #4a4652; }
+.key.on { background: #2a1a0e; border-color: var(--orange); }
+.key.on::before { background: var(--yellow); box-shadow: 0 0 6px var(--yellow); }
+.key:focus-visible, .stop:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+@media (max-width: 420px) { .keys { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.how { margin-top: 26px; border-top: 1px solid var(--line); padding-top: 16px; display: grid; gap: 6px; max-width: 70ch; }
+.how h3 { margin: 0; font-family: var(--f-disp); font-weight: 400; font-size: 18px; }
+.how p, .how li { margin: 0; color: var(--dim); font-size: 14px; }
+.how ul { margin: 0; padding-left: 1.2em; display: grid; gap: 4px; }
+@media (prefers-reduced-motion: reduce) { .band { transform: none; } .band > * { transform: none; } }
+</style>
+
+<div class="wrap">
+  <header class="band">
+    <em>// LEITMOTIF AUDITION — EXMENT MACHINA</em>
+    <h1>モチーフ試聴室</h1>
+    <p>このゲームのライトモチーフの候補です。同じフレーズを、ホーム・戦闘・コミカル・シリアスの曲調に乗せ替えて鳴らせます。どの曲調でも「あのフレーズだ」と分かるものを選んでください。</p>
+  </header>
+
+  <div class="transport" role="group" aria-label="再生">
+    <div class="vfd idle" id="vfd">STANDBY　候補のスイッチを押すと鳴ります</div>
+    <button class="stop" id="stop" type="button">STOP</button>
+    <label class="vol" for="vol">VOL <input id="vol" type="range" min="0" max="100" value="70"></label>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+  <section class="how">
+    <h3>選び方と、返してほしいこと</h3>
+    <ul>
+      <li>まず「モチーフだけ」で、メロディそのものが耳に残るかを聴いてください</li>
+      <li>次に4つの曲調で、どれに乗せても同じフレーズだと分かるかを聴いてください</li>
+      <li>返事は「Bがいい」「Aの前半とDの後半」「Cをもっと明るく」のような言葉で十分です。選んだモチーフでホーム曲を作ります</li>
+    </ul>
+    <p>音はすべてこのページのコードで合成しています（音源ファイルなし）。伴奏・音色は試作で、決まったモチーフに合わせて作り込みます。</p>
+  </section>
+</div>
+
+<script src="src/music.js"></script>
+<script>
+(() => {
+  // 候補のモチーフ：[度数, 開始(16分), 長さ(16分)] で2小節。h は1・2小節目の和音の根（度数）
+  const MOTIFS = [
+    { id: 'A', name: '起動', en: 'BOOT', h: [0, 4],
+      shape: '5度ぽんと跳ね上がり、階段で降りてくる。後半は下から主音へ帰る',
+      notes: [[0,0,2],[4,2,4],[3,6,2],[2,8,2],[3,10,6],[1,16,2],[-1,18,2],[0,20,10]] },
+    { id: 'B', name: '信号', en: 'SIGNAL', h: [0, 4],
+      shape: '同じ音を2回叩く電子音の合図から始まる。短く、合図として鳴らしやすい',
+      notes: [[4,0,1],[4,1,1],[2,2,2],[3,4,2],[1,6,6],[2,16,1],[2,17,1],[0,18,2],[1,20,2],[-1,22,2],[0,24,8]] },
+    { id: 'C', name: '上昇', en: 'RISE', h: [0, 4],
+      shape: '和音を駆け上がって7度に届き、1つ戻る。広がりがあり、盛り上げに強い',
+      notes: [[0,0,2],[2,2,2],[4,4,2],[6,6,4],[5,10,2],[4,12,4],[3,16,2],[4,18,2],[1,20,4],[0,24,8]] },
+    { id: 'D', name: '核', en: 'CORE', h: [0, 5],
+      shape: '3つ階段で登って跳ねる。音域が狭く、口ずさみやすい',
+      notes: [[0,0,3],[1,3,1],[2,4,2],[4,6,4],[3,10,6],[1,16,3],[2,19,1],[0,20,12]] },
+  ];
+  const STYLES = [
+    ['plain', 'モチーフだけ'], ['home', 'ホーム'], ['battle', '戦闘'], ['comic', 'コミカル'], ['serious', 'シリアス'],
+  ];
+  const MODE_JP = { major: '長調', minor: '短調', dorian: 'ドリア', phrygian: 'フリジア', mixo: 'ミクソリディア' };
+  const SOL = ['ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'];
+  const grid = document.getElementById('grid'), vfd = document.getElementById('vfd');
+  let playing = null;
+
+  const solfa = (m) => m.notes.map((n, i) => {
+    const s = SOL[((Music.deg(n[0], 57, 'minor') % 12) + 12) % 12];
+    return (n[1] >= 16 && (i === 0 || m.notes[i - 1][1] < 16) ? '｜ ' : '') + s;
+  }).join(' ');
+
+  function drawRoll(cv, m, head) {
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const w = cv.clientWidth, h = cv.clientHeight;
+    if (cv.width !== Math.round(w * dpr)) { cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr); }
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    g.clearRect(0, 0, w, h);
+    const ds = m.notes.map(n => n[0]), lo = Math.min(...ds) - 1, hi = Math.max(...ds) + 1;
+    const x = s => 6 + (s / 32) * (w - 12), y = d => 6 + (1 - (d - lo) / (hi - lo)) * (h - 12);
+    for (let s = 0; s <= 32; s += 4) {
+      g.strokeStyle = s % 16 === 0 ? '#3a3640' : '#1f1d24';
+      g.lineWidth = 1; g.beginPath(); g.moveTo(x(s) + .5, 4); g.lineTo(x(s) + .5, h - 4); g.stroke();
+    }
+    const bh = Math.max(6, (h - 12) / (hi - lo) * 0.7);
+    for (const [d, s, l] of m.notes) {
+      const on = head !== null && head >= s && head < s + l;
+      g.fillStyle = on ? '#ffd23a' : '#ff7a1a';
+      g.fillRect(x(s) + 1, y(d) - bh / 2, Math.max(3, x(s + l) - x(s) - 2), bh);
+    }
+    if (head !== null) {
+      g.strokeStyle = '#f4f1ea'; g.lineWidth = 1.5;
+      g.beginPath(); g.moveTo(x(head), 3); g.lineTo(x(head), h - 3); g.stroke();
+    }
+  }
+
+  const cards = MOTIFS.map(m => {
+    const el = document.createElement('article');
+    el.className = 'card';
+    el.innerHTML =
+      '<div class="head"><span class="id">' + m.id + '</span><h2>' + m.name + '</h2><span class="en">' + m.en + '</span></div>' +
+      '<p class="shape">' + m.shape + '</p>' +
+      '<div class="notes">' + solfa(m) + '<small>（ラ短調で書いたとき）</small></div>' +
+      '<canvas class="roll" aria-label="モチーフ ' + m.id + ' の音の並び"></canvas>' +
+      '<div class="keys">' + STYLES.map(([k, jp]) => {
+        const S = Music.STYLES[k];
+        return '<button type="button" class="key" data-k="' + k + '" id="k-' + m.id + '-' + k + '">' + jp +
+          '<small>' + S.bpm + ' BPM・' + MODE_JP[S.mode] + '</small></button>';
+      }).join('') + '</div>';
+    grid.appendChild(el);
+    const cv = el.querySelector('canvas');
+    el.querySelectorAll('.key').forEach(b => b.addEventListener('click', () => start(m, b.dataset.k, el, b)));
+    return { m, el, cv };
+  });
+  const redraw = () => cards.forEach(c => drawRoll(c.cv, c.m, null));
+  redraw();
+  window.addEventListener('resize', redraw);
+
+  function start(m, k, el, btn) {
+    stop();
+    const song = Music.arrange(m, k);
+    const S = Music.STYLES[k];
+    playing = { m, k, el, btn };
+    el.classList.add('on'); btn.classList.add('on');
+    vfd.classList.remove('idle');
+    const card = cards.find(c => c.m === m);
+    Music.play(song, (step) => {
+      const bar = Math.floor(step / 16) + 1, bars = Math.ceil(song.steps / 16);
+      vfd.textContent = 'PLAY ' + m.id + '「' + m.name + '」 ／ ' + S.label + '　' + S.bpm + ' BPM・' + MODE_JP[S.mode] + '　小節 ' + Math.min(bar, bars) + ' / ' + bars;
+      const inMotif = k === 'plain' ? step : ((step % 32 + 32) % 32);
+      drawRoll(card.cv, m, (k === 'plain' || step < 32 || (step >= 64 && step < 96)) ? inMotif : null);
+    });
+    setVol();
+  }
+  function stop() {
+    Music.stop();
+    if (playing) { playing.el.classList.remove('on'); playing.btn.classList.remove('on'); }
+    playing = null;
+    vfd.classList.add('idle'); vfd.textContent = 'STANDBY　候補のスイッチを押すと鳴ります';
+    redraw();
+  }
+  function setVol() {
+    const v = document.getElementById('vol').value / 100;
+    if (Music._B) Music._B.master.gain.value = 0.55 * (Music._B.songGain || 1) * v * v * 1.6;
+  }
+  document.getElementById('stop').addEventListener('click', stop);
+  document.getElementById('vol').addEventListener('input', setVol);
+  window.MotifLab = { MOTIFS, STYLES };
+})();
+</script>
