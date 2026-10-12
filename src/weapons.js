@@ -157,7 +157,7 @@ const WEAPONS = {
     // **【2026-09-30 段3】スナイパー → レーザーライフル。**id は 'sniper' のまま（セーブ・カード・連携の互換のため。画面の名前だけ変える）。
     //   弾を飛ばさず、壁で2回折り返す光線を引く（Combat.laser）。線の上の敵を全部貫く。太さは前の弾（当たり半径20）より少し太い 24。
     //   ユーザーの答え4（設計書 DESIGN-REBUILD §7）。下の「スナイパー」の経緯は、弾だった頃の測定として残す
-    id: 'sniper', sys: 'optic', cost: 3, cat: 'long', name: 'レーザーライフル', short: 'LSR', icon: Icons.get('sniper'), color: '#6fe3ff', src: 'stage', arcFix: 0.16,
+    id: 'sniper', sys: 'optic', cost: 2, /* 2026-10-12 ユーザー：3→2（序盤の配布にしては重すぎる） */ cat: 'long', name: 'レーザーライフル', short: 'LSR', icon: Icons.get('sniper'), color: '#6fe3ff', src: 'stage', arcFix: 0.16,
     // **貫通役。** 並んだ敵を撃ち抜くのが仕事なので、狙うのは「敵が濃いほう」。
     // 以前は最も硬い敵（＝たいてい後方のタンク）を狙っていて、
     // 1.28秒に1発しかないのに目の前の群れを素通りしていた
