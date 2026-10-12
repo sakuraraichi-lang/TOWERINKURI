@@ -3,13 +3,16 @@
 //
 //   このファイルの受け持ち（8種）：
 //     resonator    プラズマボール（済・手本）
-//     thunderwhip  航海の悪夢
-//     hellmist     爆裂放射器
-//     vortex       相反の渦
-//     cryobeam     凍結光線
-//     convergence  スーパーノヴァ
-//     chainstrike  磁気嵐
-//     stormcloud   雷雲
+//     thunderwhip  航海の悪夢（段2）：雷を纏った竜巻（足元の渦・巻き上がる風の帯・中を走る稲妻・掴んだ敵に絡む触手）
+//     hellmist     爆裂放射器（段2）：橙から毒の緑へ変わる炎の放射・先で連鎖する火球・毒の煙
+//     vortex       相反の渦（段2）：範囲いっぱいに氷と炎の2本の腕が巻く渦・凍って燃える敵から白い蒸気
+//     cryobeam     凍結光線（段2）：青白い太い光線と霜の結晶・反射した所に透き通った氷の棘山
+//     convergence  スーパーノヴァ（段2）：道1本分の太さの光の奔流（流れる模様と粒）・反射の角の閃光・多段ヒットの光
+//     chainstrike  磁気嵐（段2）：帯電したミサイル・着弾点に渦巻く嵐と磁力線の輪・稲妻
+//     stormcloud   雷雲（段2）：毒の緑を帯びた厚い雲（揺れる縁・中で光る・毒の雨）・枝分かれする太い落雷
+//
+//   段2の7種は、Combat が出す演出（光線 'laser'・爆発 'boom'）を Fusion.reskin で合成の演出に差し替えて描くものがある（当たりは変えない）。
+//   見本の部屋の「4つの時刻」と的の並べ方は、このファイルの末尾（SR_ELEM）で DebugRoom.SR に足す。
 //
 //   書き方：合成武器ごとに1つの物を作り、FusionFX.register(合成の id, 物) で登録する。物に書けるもの（どれも省ける）：
 //     turret(c)                 砲台の絵（作り置き。+x が砲身の向き・およそ ±20。FusionFX.turretSprite が 1.2 倍して描く）
@@ -87,7 +90,7 @@ const FX_RESONATOR = {
     FxKit.glow(ctx, z.x, z.y, R * 0.32, '#b44aff', 0.45 * fa);
     // 放電の筋：中心の電極から球の内側へ。球の中の敵がいれば、その敵へ筋が伸びる（指が触れた所に筋が寄る、おもちゃの動き）
     const tg = this._pbT; tg.length = 0;
-    if (typeof Fusion !== 'undefined' && typeof Grid !== 'undefined') for (const e of Fusion.nearestTo(z.x, z.y, R0 * 0.95, 3)) tg.push(e);
+    if (typeof Fusion !== 'undefined' && typeof Grid !== 'undefined') for (const e of Fusion.nearestTo(z.x, z.y, R0 * 0.95, 7)) tg.push(e);
     const n = 7, fr = Math.floor(T * 22), ends = [];
     ctx.beginPath();
     for (let i = 0; i < n; i++) {
@@ -150,3 +153,815 @@ const FX_RESONATOR = {
 };
 FusionFX.register('resonator', FX_RESONATOR);
 
+
+// ===============================================================
+// 段2（2026-10-12）：雷・光線・炎の7種。共通の道具
+// ===============================================================
+const FXE = {
+  _all: [],
+  // 電撃の鎖（Fusion.chainFrom の fxk）：太い3層のジグザグ・跳んだ先に閃光と火花。鎖の全部の区間を1本の折れ線にして3層を1回ずつ
+  //   o: { w 太さ, body 本体の色, glow 外光の色, hit 跳んだ先の色, lift 最初の点を上へ持ち上げる px, amp 振れ幅 }
+  chain(ctx, f, k, o) {
+    const T = k * f.life, a = 1 - k * 0.7, pts = f.pts, fr = Math.floor(T * 40), seed = f.seed || 0, all = this._all;
+    all.length = 0;
+    for (let i = 0; i < pts.length - 1; i++) {
+      const p = pts[i], q = pts[i + 1], px = p.x, py = p.y - (i === 0 && o.lift ? o.lift : 0);
+      const L = Math.hypot(q.x - px, q.y - py);
+      const J = FxKit.jag(px, py, q.x, q.y, Math.max(3, Math.min(7, Math.round(L / 16))), Math.min(o.amp || 12, L * 0.16), seed + i * 7 + fr);
+      for (let j = all.length ? 1 : 0; j < J.length; j++) all.push(J[j]);
+    }
+    FxKit.beam(ctx, c => FxKit.poly(c, all), o.w * (1 - k * 0.5) + 1, o.body, a, o.glow);
+    ctx.globalCompositeOperation = 'lighter';
+    if (o.lift) FxKit.glow(ctx, pts[0].x, pts[0].y - o.lift, 20, o.glow, 0.8 * (1 - k));
+    for (let i = 1; i < pts.length; i++) {
+      const q = pts[i];
+      FxKit.flash(ctx, q.x, q.y, 24, T, o.hit, 0.09);
+      FxKit.glow(ctx, q.x, q.y, 14, o.hit, 0.6 * (1 - k));
+      FxKit.sparks(ctx, { x: q.x, y: q.y, t: T, seed: seed + i * 13, n: 4, life: 0.2, v: 220, drag: 7, size: 2.8, c0: '#ffffff', c1: o.hit });
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  },
+  // 少し行き過ぎて戻る伸び（0〜1 → 0〜1。途中で 1 を少し超える）
+  back(q) { q = FxKit.clamp01(q) - 1; return 1 + 2.7 * q * q * q + 1.7 * q * q; },
+  // 砲台の部品：金属の塗り（上が明るい）と黒い縁
+  metal(c, y0, y1, hi, lo) { const g = c.createLinearGradient(0, y0, 0, y1); g.addColorStop(0, hi || '#c4cad6'); g.addColorStop(1, lo || '#4f5664'); return g; },
+  edge(c, lw) { c.lineJoin = 'round'; c.lineCap = 'round'; c.lineWidth = lw || 2; c.strokeStyle = 'rgba(0,0,0,0.85)'; c.stroke(); },
+  ball(c, x, y, r, c0, c1, c2) {
+    const g = c.createRadialGradient(x - r * 0.3, y - r * 0.3, 0.2, x, y, r);
+    g.addColorStop(0, c0); g.addColorStop(0.45, c1); g.addColorStop(1, c2);
+    c.beginPath(); c.arc(x, y, r, 0, 7); c.fillStyle = g; c.fill();
+  },
+  // 決まった時刻の Game.run の時間（見本の部屋でも本番でも同じ）
+  now() { return typeof Game !== 'undefined' && Game.run ? Game.run.time : 0; },
+  // 折れ線の長さ（区間ごと）を out に入れて合計を返す
+  lens(pts, out) { out.length = 0; let L = 0; for (let i = 1; i < pts.length; i++) { const d = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y); out.push(d); L += d; } return L; },
+};
+
+// ---------------------------------------------------------------
+// 航海の悪夢（触手＋テスラ）：雷を纏った竜巻。足元の渦（敵の下）・巻き上がる風の帯と中を走る稲妻・掴んだ敵に絡みつく触手（敵の上）
+// ---------------------------------------------------------------
+const FX_THUNDERWHIP = {
+  // 砲台：テスラの丸い胴から、電気のコイルを巻いた太い触手が前へうねり、先に紫の電極の玉
+  turret(c) {
+    for (const s of [-1, 1]) {                                          // 後ろの電極の脚
+      c.beginPath(); c.moveTo(-8, s * 4); c.lineTo(-17, s * 10); c.lineTo(-15, s * 12.5); c.lineTo(-6, s * 7); c.closePath();
+      FXE.edge(c, 2); c.fillStyle = '#7a6ac8'; c.fill();
+      c.fillStyle = '#e6dcff'; c.beginPath(); c.arc(-16, s * 11.2, 1.4, 0, 7); c.fill();
+    }
+    c.beginPath(); c.arc(-6, 0, 8.5, 0, 7); FXE.edge(c, 2.4); c.fillStyle = FXE.metal(c, -8, 8); c.fill();
+    c.lineWidth = 1.6; c.strokeStyle = '#a890ff'; c.beginPath(); c.arc(-6, 0, 5.6, 0, 7); c.stroke();
+    // 触手（根元が太く先が細い・うねる）
+    const P = [];
+    for (let i = 0; i <= 12; i++) { const q = i / 12, x = -2 + 22 * q; P.push({ x, y: Math.sin(q * 5.2 + 0.6) * 4.2 * (0.4 + q) }); }
+    FxKit.ribbon(c, P, q => 9 - 5.5 * q); FXE.edge(c, 2.4);
+    const tg = c.createLinearGradient(0, -6, 0, 6); tg.addColorStop(0, '#b47ae8'); tg.addColorStop(1, '#5a2a90');
+    c.fillStyle = tg; c.fill();
+    c.fillStyle = '#ffd0f0';
+    for (const i of [3, 6, 9]) { c.beginPath(); c.arc(P[i].x, P[i].y + 2.2 - i * 0.08, 1.1, 0, 7); c.fill(); }
+    c.lineWidth = 1.1; c.strokeStyle = '#e6dcff'; c.beginPath();                // 巻きついた電気のコイル
+    for (let i = 1; i < 12; i++) { const p = P[i], s = i % 2 ? -1 : 1; c[i > 1 ? 'lineTo' : 'moveTo'](p.x, p.y + s * (4.4 - i * 0.22)); }
+    c.stroke();
+    FXE.ball(c, P[12].x + 1, P[12].y, 4.2, '#ffffff', '#c09aff', '#4a2a8a');
+    c.lineWidth = 0.9; c.strokeStyle = 'rgba(255,255,255,0.9)'; c.beginPath(); c.arc(P[12].x + 1, P[12].y, 4.2, 0, 7); c.stroke();
+  },
+  fade(z) { return Math.min(FxKit.clamp01(z.t / 0.15), FxKit.clamp01((z.dur - z.t) / 0.35)); },
+  // 敵の下：足元の渦（当たる範囲そのものの大きさの3本の腕）と範囲の縁
+  ground(ctx, z) {
+    const T = z.t, R = z.r, fa = this.fade(z);
+    if (fa <= 0.01) return;
+    const rot = -T * 5.5;
+    ctx.globalCompositeOperation = 'lighter';
+    FxKit.glow(ctx, z.x, z.y, R * 1.15, '#5a3ad8', 0.32 * fa);
+    ctx.fillStyle = '#9a86ff'; ctx.globalAlpha = 0.4 * fa;
+    for (let j = 0; j < 3; j++) {
+      const pts = [];
+      for (let i = 0; i <= 10; i++) { const q = i / 10, a = rot + j * 2.094 + q * 2.6, rr = R * (0.16 + 0.86 * q); pts.push({ x: z.x + Math.cos(a) * rr, y: z.y + Math.sin(a) * rr }); }
+      FxKit.ribbon(ctx, pts, q => 10 * (1 - q) + 1); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 0.45 * fa; ctx.strokeStyle = '#b8a8ff'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(z.x, z.y, R, 0, 7); ctx.stroke();
+    ctx.globalAlpha = 1;
+    FxKit.flash(ctx, z.x, z.y, R * 1.1, T, '#a890ff', 0.12);
+    FxKit.hexWave(ctx, z.x, z.y, R * 1.25, T / 0.4, '#a890ff', 4);
+    if (z.dur - T < 0.35) FxKit.hexWave(ctx, z.x, z.y, R * 1.3, 1 - (z.dur - T) / 0.35, '#d8d0ff', 3);
+  },
+  // 敵の上：竜巻の漏斗（風の帯は細い線の重なりなので、下の敵と道が透けて見える）・中を走る稲妻・掴んだ敵に絡む触手
+  _tg: [],
+  funnel(ctx, z) {
+    const T = z.t, R = z.r, fa = this.fade(z);
+    if (fa <= 0.01) return;
+    const grow = FxKit.ease(T / 0.3), H = R * 2.0 * (0.35 + 0.65 * grow), bx = z.x, by = z.y, sway = Math.sin(T * 2.3) * 7;
+    const N = 7, seed = z.sd === undefined ? (z.sd = Math.abs((z.x * 7 + z.y * 3) | 0) % 97) : z.sd;
+    const band = i => { const q = i / (N - 1), rx = R * (0.2 + 0.88 * Math.pow(q, 1.25)) * (0.6 + 0.4 * grow); return { q, cx: bx + sway * q * q, cy: by - H * q, rx, ry: rx * 0.3 }; };
+    // 奥の半分（薄く）
+    ctx.beginPath();
+    for (let i = 0; i < N; i++) { const b = band(i); ctx.moveTo(b.cx + b.rx, b.cy); ctx.ellipse(b.cx, b.cy, b.rx, b.ry, 0, 0, Math.PI, true); }
+    ctx.globalAlpha = 0.4 * fa; ctx.strokeStyle = '#6a5ac8'; ctx.lineWidth = 3; ctx.stroke();
+    // 中を走る稲妻（ちらつく・上から下へ）
+    const fr = Math.floor(T * 16);
+    const top = band(N - 1);
+    for (let j = 0; j < 2; j++) {
+      if (FxKit.h(fr + j * 31, seed) < 0.35) continue;
+      const J = FxKit.jag(top.cx + (FxKit.h(fr + 7, seed + j) - 0.5) * top.rx, top.cy, bx + (FxKit.h(fr + 9, seed + j) - 0.5) * R * 0.3, by - R * 0.15, 7, R * 0.28, seed + fr * 3 + j);
+      FxKit.beam(ctx, c => FxKit.poly(c, J), 4.5, '#e6dcff', 0.95 * fa, '#8a6aff');
+    }
+    // 手前の半分：回る風の帯（下の段は細く・上の段は太く）。3層（外光・本体・白い芯）
+    for (const [i0, i1, w] of [[0, 3, 5.5], [3, N, 8.5]]) {
+      ctx.beginPath();
+      for (let i = i0; i < i1; i++) {
+        const b = band(i), ph = ((-T * (6 + 4 * b.q) + i * 1.3) % Math.PI + Math.PI) % Math.PI;
+        for (const s of [0, Math.PI * 0.5]) {
+          const a0 = (ph + s) % Math.PI, a1 = Math.min(Math.PI, a0 + 1.15);
+          ctx.moveTo(b.cx + Math.cos(a0) * b.rx, b.cy + Math.sin(a0) * b.ry);
+          ctx.ellipse(b.cx, b.cy, b.rx, b.ry, 0, a0, a1);
+        }
+      }
+      ctx.lineCap = 'round';
+      ctx.globalAlpha = 0.3 * fa; ctx.strokeStyle = '#6a4aff'; ctx.lineWidth = w * 2.4; ctx.stroke();
+      ctx.globalAlpha = 0.85 * fa; ctx.strokeStyle = '#b8acff'; ctx.lineWidth = w; ctx.stroke();
+      ctx.globalAlpha = 0.95 * fa; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.2, w * 0.33); ctx.stroke();
+    }
+    // 上の雲の傘と足元の光
+    ctx.globalCompositeOperation = 'lighter';
+    FxKit.glow(ctx, top.cx, top.cy, top.rx * 1.25, '#6a4aff', 0.5 * fa);
+    if (FxKit.h(fr + 31, seed) >= 0.35) FxKit.glow(ctx, top.cx, top.cy, top.rx * 0.9, '#e6dcff', 0.55 * fa);
+    FxKit.glow(ctx, bx, by, R * 0.55, '#a890ff', 0.5 * fa);
+    // 巻き上げられる破片（漏斗のまわりを回る）
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const q = 0.1 + 0.85 * FxKit.h(i, seed), b = band(Math.min(N - 1, Math.round(q * (N - 1)))), an = -T * (7 + 3 * FxKit.h(i + 20, seed)) + FxKit.h(i + 40, seed) * 6.28;
+      const x = b.cx + Math.cos(an) * b.rx * 1.12, y = b.cy + Math.sin(an) * b.ry * 1.12 - (T * 40 + i * 9) % 12, s = 2 + 1.6 * FxKit.h(i + 60, seed);
+      ctx.rect(x - s / 2, y - s / 2, s, s);
+    }
+    ctx.globalAlpha = 0.85 * fa; ctx.fillStyle = '#e0d8ff'; ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    // 掴んだ敵に絡む触手（範囲の中の近い敵3体まで）
+    const tg = this._tg; tg.length = 0;
+    if (typeof Fusion !== 'undefined' && typeof Grid !== 'undefined') for (const e of Fusion.nearestTo(z.x, z.y, R, 2)) tg.push(e);
+    for (let n = 0; n < tg.length; n++) this.tentacle(ctx, z, tg[n], band(1), n, fa, seed);
+    ctx.globalAlpha = 1;
+  },
+  tentacle(ctx, z, e, b, n, fa, seed) {
+    const T = z.t, sx = b.cx, sy = b.cy, dx = e.x - sx, dy = e.y - sy, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L, nx = -uy, ny = ux;
+    const sg = n % 2 ? -1 : 1, er = (e.r || 10) + 4, pts = [];
+    for (let i = 0; i <= 8; i++) {                                    // 漏斗から敵へ（弧を描いてうねる）
+      const s = i / 8, bow = Math.sin(Math.PI * s) * Math.min(18, L * 0.3) * sg + Math.sin(T * 9 + s * 6 + n) * 2.5 * s;
+      pts.push({ x: sx + dx * s * (1 - er / L * 0.6) + nx * bow, y: sy + dy * s * (1 - er / L * 0.6) + ny * bow });
+    }
+    const a0 = Math.atan2(-uy, -ux);                                   // 敵のまわりを1周ちょっと巻く
+    for (let i = 1; i <= 9; i++) { const a = a0 + sg * i * 0.78 + T * 2 * sg; pts.push({ x: e.x + Math.cos(a) * er * (1 - i * 0.03), y: e.y + Math.sin(a) * er * (1 - i * 0.03) }); }
+    const wd = q => 5.5 * (1 - q) + 1.5;
+    FxKit.ribbon(ctx, pts, q => wd(q) + 2); ctx.globalAlpha = 0.7 * fa; ctx.fillStyle = '#1a0830'; ctx.fill();
+    FxKit.ribbon(ctx, pts, wd); ctx.globalAlpha = 0.95 * fa; ctx.fillStyle = '#9a52d8'; ctx.fill();
+    ctx.beginPath(); for (let i = 1; i < 12; i++) ctx[i > 1 ? 'lineTo' : 'moveTo'](pts[i].x - nx * 1.2, pts[i].y - ny * 1.2);
+    ctx.globalAlpha = 0.6 * fa; ctx.strokeStyle = '#f0d0ff'; ctx.lineWidth = 1.2; ctx.stroke();       // ぬめりの光
+    ctx.fillStyle = '#ffd0f0'; ctx.globalAlpha = 0.9 * fa; ctx.beginPath();
+    for (const i of [2, 4, 6]) { const p = pts[i]; ctx.moveTo(p.x + nx * 2 + 1.2, p.y + ny * 2); ctx.arc(p.x + nx * 2, p.y + ny * 2, 1.2, 0, 7); }
+    ctx.fill();
+    // 絡んだ所の電撃（ちらつく）
+    const fr = Math.floor(T * 20);
+    ctx.globalCompositeOperation = 'lighter';
+    FxKit.glow(ctx, e.x, e.y, 16, '#c8b0ff', (0.45 + 0.35 * FxKit.h(fr, seed + n)) * fa);
+    if (FxKit.h(fr + 5, seed + n) > 0.45) {
+      const a = FxKit.h(fr + 11, seed + n) * 6.28, J = FxKit.jag(e.x + Math.cos(a) * er, e.y + Math.sin(a) * er, e.x + Math.cos(a + 2.4) * er * 1.3, e.y + Math.sin(a + 2.4) * er * 1.3, 4, 4, fr + n);
+      FxKit.beam(ctx, c => FxKit.poly(c, J), 2, '#ffffff', 0.9 * fa, '#a890ff');
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  },
+  zones: { twister(ctx, z) { this.ground(ctx, z); } },
+  over: { twister(ctx, z) { this.funnel(ctx, z); } },
+  fx: { nmzap(ctx, f, k) { FXE.chain(ctx, f, k, { w: 5.5, body: '#dcd0ff', glow: '#6a4aff', hit: '#b8a0ff', lift: 34 }); } },
+};
+FusionFX.register('thunderwhip', FX_THUNDERWHIP);
+
+// ---------------------------------------------------------------
+// 爆裂放射器（火炎＋毒ガス）：根元は白熱の橙・先へ行くほど毒の黄緑に変わる炎の放射。炎の先で火球が連鎖して弾け、毒の煙が残る
+// ---------------------------------------------------------------
+const FX_HELLMIST = {
+  // 砲台：後ろに毒の緑のボンベ（危険の縞）・真ん中に六角の混合室・前へ太いノズル（先が黄緑に焼けている）
+  turret(c) {
+    c.beginPath(); c.rect(-19, -8, 13, 16); FXE.edge(c, 2.2);
+    const tg = c.createLinearGradient(0, -8, 0, 8); tg.addColorStop(0, '#b8f06a'); tg.addColorStop(0.5, '#5aa82a'); tg.addColorStop(1, '#2a5a14'); c.fillStyle = tg; c.fill();
+    c.fillStyle = '#1a1d24'; for (const x of [-17, -12.5]) { c.beginPath(); c.moveTo(x, -8); c.lineTo(x + 2.4, -8); c.lineTo(x + 0.4, 8); c.lineTo(x - 2, 8); c.closePath(); c.fill(); }
+    c.fillStyle = '#ffd24a'; c.fillRect(-15.4, -8, 1.5, 16);
+    c.beginPath(); c.rect(-7, -2.2, 5, 4.4); FXE.edge(c, 1.6); c.fillStyle = '#6a7080'; c.fill();     // 管
+    c.beginPath(); FxKit.hexAdd(c, 1, 0, 7.4, Math.PI / 6); FXE.edge(c, 2.2); c.fillStyle = FXE.metal(c, -7, 7); c.fill();
+    FXE.ball(c, 1, 0, 3.6, '#fff6c0', '#ffa030', '#7a2a08');
+    c.beginPath(); c.moveTo(6, -4.6); c.lineTo(19, -3.4); c.lineTo(22, -5.4); c.lineTo(22, 5.4); c.lineTo(19, 3.4); c.lineTo(6, 4.6); c.closePath();
+    FXE.edge(c, 2.2); c.fillStyle = FXE.metal(c, -5, 5, '#d0d4de', '#5a6070'); c.fill();
+    c.fillStyle = '#ff8a2a'; c.fillRect(11, -4.2, 2.2, 8.4); c.fillStyle = '#9ad82a'; c.fillRect(14.4, -3.9, 1.6, 7.8);
+    c.fillStyle = '#d8f06a'; c.beginPath(); c.ellipse(22, 0, 1.6, 4.6, 0, 0, 7); c.fill();
+    c.fillStyle = '#ffffff'; c.beginPath(); c.ellipse(22, 0, 0.7, 2.4, 0, 0, 7); c.fill();
+  },
+  // 作り置きの炎の塊（白→黄→橙→赤）・毒の炎の塊（淡黄→黄緑→緑）・火球（白い芯・橙・外は毒の緑）・毒の煙
+  spr(kind) {
+    const S = { fire: [[0, 'rgba(255,252,230,1)'], [0.18, 'rgba(255,226,130,0.95)'], [0.45, 'rgba(255,140,40,0.75)'], [0.72, 'rgba(220,60,20,0.38)'], [1, 'rgba(120,20,10,0)']],
+      tox: [[0, 'rgba(246,255,190,0.95)'], [0.3, 'rgba(206,236,70,0.8)'], [0.62, 'rgba(120,196,40,0.42)'], [1, 'rgba(40,90,20,0)']],
+      ball: [[0, 'rgba(255,255,255,1)'], [0.16, 'rgba(255,248,205,1)'], [0.36, 'rgba(255,206,64,0.98)'], [0.6, 'rgba(255,118,26,0.92)'], [0.8, 'rgba(156,206,40,0.72)'], [1, 'rgba(70,130,20,0)']],
+      smoke: [[0, 'rgba(78,104,44,0.62)'], [0.5, 'rgba(62,86,36,0.34)'], [1, 'rgba(40,52,26,0)']] }[kind];
+    return FxKit.sprite('fz-hm-' + kind, 32, FxKit.res(), c => {
+      const g = c.createRadialGradient(0, 0, 0, 0, 0, 32);
+      for (const [p, col] of S) g.addColorStop(p, col);
+      c.fillStyle = g; c.beginPath(); c.arc(0, 0, 32, 0, 7); c.fill();
+    });
+  },
+  put(ctx, S, x, y, r, a) { if (a <= 0.004 || r <= 0.5) return; ctx.globalAlpha = a > 1 ? 1 : a; ctx.drawImage(S.cv, x - r, y - r, r * 2, r * 2); },
+  // 炎の放射：撃ち口の閃光・炎の塊が外へ流れる（遠いほど大きく、毒の色へ）・白熱の芯の流れ・火の粉
+  cone(ctx, f, k) {
+    const T = k * f.life, ux = Math.cos(f.a), uy = Math.sin(f.a), nx = -uy, ny = ux, r = f.r, tw = Math.tan(f.arc), seed = f.seed || 0;
+    const out = T < 0.18 ? 1 : FxKit.clamp01(1 - (T - 0.18) / (f.life - 0.18));
+    const mx = f.x + ux * 22, my = f.y + uy * 22;
+    FxKit.flash(ctx, mx, my, 34, T, '#ffb030', 0.09);
+    const fire = this.spr('fire'), tox = this.spr('tox');
+    ctx.globalCompositeOperation = 'lighter';
+    for (let j = 0; j < 22; j++) {
+      const age = T - j * 0.006;
+      if (age <= 0) continue;
+      const h1 = FxKit.h(j, seed), h2 = FxKit.h(j + 40, seed);
+      const q = FxKit.ease(Math.min(1, age / 0.2)) * (0.72 + 0.3 * h1), d = 18 + (r - 18) * q;
+      const lat = (h2 * 2 - 1) * tw * d * 0.78 + Math.sin(T * 26 + j * 1.7) * 3;
+      const px = f.x + ux * d + nx * lat, py = f.y + uy * d + ny * lat, s = 9 + 30 * q;
+      const al = Math.min(1, age / 0.04) * out * (1 - q * 0.3), g = FxKit.clamp01((q - 0.42) / 0.36);
+      if (g < 1) this.put(ctx, fire, px, py, s, al * (1 - g) * 0.85);
+      if (g > 0) this.put(ctx, tox, px, py, s * 1.05, al * g * 0.8);
+    }
+    // 白熱の芯の流れ（3本・撃ち口から6割まで）
+    const reach = r * 0.62 * FxKit.ease(Math.min(1, T / 0.08));
+    ctx.fillStyle = '#fff4c8';
+    for (let i = -1; i <= 1; i++) {
+      const P = [];
+      for (let j = 0; j <= 6; j++) {
+        const s = j / 6, d = 14 + reach * s, lat = i * tw * d * 0.42 + Math.sin(T * 30 + s * 5 + i * 2) * 3 * s;
+        P.push({ x: f.x + ux * d + nx * lat, y: f.y + uy * d + ny * lat });
+      }
+      ctx.globalAlpha = (i ? 0.55 : 0.85) * out;
+      FxKit.ribbon(ctx, P, q => (i ? 7 : 11) * Math.sin(Math.PI * Math.min(1, q * 0.9 + 0.1)) + 1); ctx.fill();
+    }
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    FxKit.sparks(ctx, { x: mx, y: my, t: T, seed: seed + 3, n: 10, life: 0.32, v: r * 2.6, drag: 2.5, a: f.a, spread: f.arc * 1.6, size: 2.6, c0: '#fff0b0', c1: '#b8e03a' });
+  },
+  // 炎の先の爆発（Combat.explode の演出を差し替え）：大きな火球＋まわりで小さな火球が連鎖・毒の緑の六角の衝撃波・火の粉・毒の煙（余韻）
+  blast(ctx, f, k) {
+    const T = k * f.life, r = f.r, seed = f.seed || 0, ball = this.spr('ball');
+    FxKit.flash(ctx, f.x, f.y, r * 0.75, T, '#ffd040', 0.1);
+    if (T < 0.3) this.put(ctx, ball, f.x, f.y, r * (0.4 + 0.72 * FxKit.ease(Math.min(1, T / 0.09))), Math.pow(1 - T / 0.3, 1.3) * 0.8);
+    for (let i = 0; i < 3; i++) {                                      // 連鎖する小さな火球
+      const t0 = 0.05 + i * 0.06, q = (T - t0) / 0.24;
+      if (q <= 0 || q >= 1) continue;
+      const an = FxKit.h(i, seed) * 6.28, d = r * (0.5 + 0.25 * FxKit.h(i + 9, seed));
+      this.put(ctx, ball, f.x + Math.cos(an) * d, f.y + Math.sin(an) * d, r * (0.22 + 0.24 * FxKit.ease(Math.min(1, q * 2.5))), Math.pow(1 - q, 1.4) * 0.95);
+      FxKit.flash(ctx, f.x + Math.cos(an) * d, f.y + Math.sin(an) * d, r * 0.35, T - t0, '#ffd040', 0.07);
+    }
+    FxKit.hexWave(ctx, f.x, f.y, r * 1.15, T / 0.4, '#c8e03a', 4);
+    FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed: seed + 1, n: 12, life: 0.55, v: r * 4, drag: 3.5, g: 220, size: 3, c0: '#fff0b0', c1: '#9ad82a' });
+    // 毒の煙（ゆっくり広がって上へ）
+    const sm = this.spr('smoke');
+    ctx.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < 6; i++) {
+      const t0 = 0.12 + i * 0.04, q = (T - t0) / (f.life - t0);
+      if (q <= 0 || q >= 1) continue;
+      const an = FxKit.h(i + 20, seed) * 6.28, d = r * (0.15 + 0.5 * FxKit.h(i + 30, seed)) + q * 16;
+      this.put(ctx, sm, f.x + Math.cos(an) * d, f.y + Math.sin(an) * d - q * 16, r * (0.32 + 0.3 * q), 0.6 * Math.sin(Math.PI * q));
+    }
+    ctx.globalAlpha = 1;
+  },
+  fx: { hellcone(ctx, f, k) { this.cone(ctx, f, k); }, hellblast(ctx, f, k) { this.blast(ctx, f, k); } },
+};
+FusionFX.register('hellmist', FX_HELLMIST);
+
+// ---------------------------------------------------------------
+// 相反の渦（凍結＋火炎）：範囲いっぱいに、氷の腕と炎の腕が巻く渦（中心が白く光る）。腕は細る帯なので、下の道と敵が透けて見える
+// ---------------------------------------------------------------
+const FX_VORTEX = {
+  // 砲台：氷と炎の巴（半分ずつの丸）から、前へ氷の刃と炎の舌が逆向きに反って伸びる
+  turret(c) {
+    // 炎の舌（下へ反る）
+    c.beginPath(); c.moveTo(-2, 3); c.quadraticCurveTo(10, 14, 21, 6); c.quadraticCurveTo(12, 9, 3, -1); c.closePath();
+    FXE.edge(c, 2.2); const fg = c.createLinearGradient(0, 0, 20, 8); fg.addColorStop(0, '#fff0b0'); fg.addColorStop(0.5, '#ff8a2a'); fg.addColorStop(1, '#d83a10'); c.fillStyle = fg; c.fill();
+    // 氷の刃（上へ反る・面が2つ）
+    c.beginPath(); c.moveTo(-2, -3); c.quadraticCurveTo(10, -14, 21, -6); c.quadraticCurveTo(12, -9, 3, 1); c.closePath();
+    FXE.edge(c, 2.2); const ig = c.createLinearGradient(0, -10, 20, -4); ig.addColorStop(0, '#ffffff'); ig.addColorStop(0.5, '#9fe6ff'); ig.addColorStop(1, '#3a9ad8'); c.fillStyle = ig; c.fill();
+    c.lineWidth = 0.9; c.strokeStyle = 'rgba(255,255,255,0.9)'; c.beginPath(); c.moveTo(1, -2); c.quadraticCurveTo(11, -10, 20, -6); c.stroke();
+    // 巴の丸
+    c.beginPath(); c.arc(-6, 0, 9.5, 0, 7); FXE.edge(c, 2.6); c.fillStyle = '#ff7a2a'; c.fill();
+    c.beginPath(); c.arc(-6, 0, 9.5, -Math.PI / 2, Math.PI / 2, true); c.arc(-6, 4.75, 4.75, Math.PI / 2, -Math.PI / 2, true); c.arc(-6, -4.75, 4.75, Math.PI / 2, Math.PI * 1.5, false); c.closePath();
+    c.fillStyle = '#7fe6ff'; c.fill();
+    c.fillStyle = '#ffd0a0'; c.beginPath(); c.arc(-6, -4.75, 1.6, 0, 7); c.fill();
+    c.fillStyle = '#e6fbff'; c.beginPath(); c.arc(-6, 4.75, 1.6, 0, 7); c.fill();
+    c.lineWidth = 1.2; c.strokeStyle = 'rgba(255,255,255,0.75)'; c.beginPath(); c.arc(-6, 0, 7.6, Math.PI * 1.05, Math.PI * 1.45); c.stroke();
+  },
+  // 腕の中心線（中心から範囲いっぱいへ・巻きながら）
+  arm(f, R, rot, off) {
+    const pts = [];
+    for (let i = 0; i <= 22; i++) { const q = i / 22, a = rot + off + q * 3.4, rr = R * (0.05 + 0.95 * q); pts.push({ x: f.x + Math.cos(a) * rr, y: f.y + Math.sin(a) * rr }); }
+    return pts;
+  },
+  _st: [],
+  draw(ctx, f, k) {
+    const T = k * f.life, R0 = f.r, grow = FxKit.ease(Math.min(1, T / 0.18)), R = R0 * (0.35 + 0.65 * grow);
+    const fa = k < 0.55 ? 1 : 1 - (k - 0.55) / 0.45, rot = (f.ph || 0) + T * 4.2;
+    // 範囲の縁：半分が氷・半分が炎の輪（回る）
+    ctx.lineCap = 'round';
+    for (const [c0, a0] of [['#7fe6ff', rot], ['#ff8a3a', rot + Math.PI]]) {
+      ctx.beginPath(); ctx.arc(f.x, f.y, R, a0, a0 + Math.PI);
+      ctx.globalAlpha = 0.18 * fa; ctx.strokeStyle = c0; ctx.lineWidth = 9; ctx.stroke();
+      ctx.globalAlpha = 0.6 * fa; ctx.lineWidth = 2.4; ctx.stroke();
+    }
+    const W = q => (4 + 15 * Math.pow(1 - q, 1.2)) * Math.min(1, q / 0.07 + 0.25);
+    const ICE = ['#3ab8ff', '#8fe8ff', '#ffffff'], FIRE = ['#ff4a1a', '#ff8a3a', '#fff0c0'];
+    for (const [col, off] of [[ICE, 0], [FIRE, Math.PI]]) {
+      // 残像（少し前の角度・薄く）
+      FxKit.ribbon(ctx, this.arm(f, R, rot - 0.32, off), W); ctx.globalAlpha = 0.22 * fa; ctx.fillStyle = col[1]; ctx.fill();
+      const P = this.arm(f, R, rot, off);
+      FxKit.ribbon(ctx, P, q => W(q) * 2.3); ctx.globalAlpha = 0.22 * fa; ctx.fillStyle = col[0]; ctx.fill();
+      FxKit.ribbon(ctx, P, W); ctx.globalAlpha = 0.78 * fa; ctx.fillStyle = col[1]; ctx.fill();
+      FxKit.ribbon(ctx, P, q => W(q) * 0.28); ctx.globalAlpha = 0.9 * fa; ctx.fillStyle = col[2]; ctx.fill();
+    }
+    // 腕から外へ散る氷の結晶と火の粉
+    ctx.globalCompositeOperation = 'lighter';
+    for (const [col, off, sh] of [['#e6fbff', 0, 1], ['#ffc060', Math.PI, 0]]) {
+      ctx.beginPath();
+      for (let i = 0; i < 9; i++) {
+        const q = (i + 0.5) / 9, a = rot + off + q * 3.4 - 0.15, rr = R * (0.05 + 0.95 * q) + 10 + T * 46 * (0.5 + FxKit.h(i, off ? 7 : 3));
+        if (rr > R0 * 1.08) continue;
+        const x = f.x + Math.cos(a) * rr, y = f.y + Math.sin(a) * rr, s = 2.4 + 2 * FxKit.h(i + 5, off ? 7 : 3);
+        if (sh) { ctx.moveTo(x, y - s * 1.6); ctx.lineTo(x + s * 0.7, y); ctx.lineTo(x, y + s * 1.6); ctx.lineTo(x - s * 0.7, y); ctx.closePath(); }
+        else ctx.rect(x - s / 2, y - s / 2, s, s);
+      }
+      ctx.globalAlpha = 0.9 * fa; ctx.fillStyle = col; ctx.fill();
+    }
+    // 中心の白い光
+    FxKit.glow(ctx, f.x, f.y, 46, '#ffd0e8', 0.8 * fa);
+    FxKit.glow(ctx, f.x, f.y, 18, '#ffffff', 0.9 * fa);
+    // 凍って燃えている敵から白い蒸気（範囲の中の近い敵8体まで）
+    const st = this._st; st.length = 0;
+    if (typeof Fusion !== 'undefined' && typeof Grid !== 'undefined') for (const e of Fusion.nearestTo(f.x, f.y, R0, 8)) if (e.chill > 0 && e.burnT > 0) st.push(e);
+    for (let n = 0; n < st.length; n++) {
+      const e = st[n];
+      FxKit.glow(ctx, e.x, e.y - 4, 16, '#ffffff', 0.35 * fa);
+      for (let j = 0; j < 3; j++) {
+        const q = ((T * 1.6 + j / 3 + n * 0.13) % 1), x = e.x + (FxKit.h(j + n * 3, 5) - 0.5) * 12 + Math.sin(T * 6 + j) * 2;
+        FxKit.glow(ctx, x, e.y - 6 - q * 22, 7 + q * 6, '#ffffff', 0.55 * (1 - q) * fa);
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    FxKit.flash(ctx, f.x, f.y, 64, T, '#ffb0d8', 0.1);
+    FxKit.hexWave(ctx, f.x, f.y, R0 * 1.02, T / 0.45, '#ff9ad0', 5);
+  },
+  fx: { vortex(ctx, f, k) { this.draw(ctx, f, k); } },
+};
+FusionFX.register('vortex', FX_VORTEX);
+
+// ---------------------------------------------------------------
+// 凍結光線（レーザー＋凍結）：青白い太い光線（白い芯・水色の光）と、線に沿って残る霜の結晶。反射した所に透き通った氷の棘山
+// ---------------------------------------------------------------
+const FX_CRYOBEAM = {
+  // 砲台：後ろに六角の氷の結晶の器（雪の結晶が透ける）・前へ長い光線の銃身（水色の溝）・銃身に氷の棘・先に水色のレンズ
+  turret(c) {
+    c.beginPath(); c.rect(-2, -3.4, 24, 6.8); FXE.edge(c, 2.2); c.fillStyle = FXE.metal(c, -3.4, 3.4, '#e0e6f0', '#5a6274'); c.fill();
+    c.fillStyle = '#7fe6ff'; c.fillRect(2, -0.9, 18, 1.8);
+    for (const [x, s] of [[6, -1], [12, 1], [17, -1]]) {
+      c.beginPath(); c.moveTo(x - 2.2, s * 3.2); c.lineTo(x + 0.4, s * 8.6); c.lineTo(x + 2.4, s * 3.2); c.closePath();
+      FXE.edge(c, 1.4); c.fillStyle = '#c8f4ff'; c.fill();
+    }
+    FXE.ball(c, 22.5, 0, 3.8, '#ffffff', '#8fe8ff', '#1a6a9a');
+    c.beginPath(); FxKit.hexAdd(c, -9, 0, 10); FXE.edge(c, 2.6);
+    const hg = c.createLinearGradient(-16, -9, -2, 9); hg.addColorStop(0, '#e6fbff'); hg.addColorStop(0.5, '#7fd8f8'); hg.addColorStop(1, '#2a7ab8'); c.fillStyle = hg; c.fill();
+    c.lineWidth = 1.3; c.strokeStyle = '#ffffff'; c.beginPath();
+    for (let i = 0; i < 3; i++) { const a = i * Math.PI / 3 + Math.PI / 6; c.moveTo(-9 + Math.cos(a) * 6, Math.sin(a) * 6); c.lineTo(-9 - Math.cos(a) * 6, -Math.sin(a) * 6); }
+    c.stroke();
+    c.fillStyle = '#ffffff'; c.beginPath(); c.arc(-9, 0, 1.6, 0, 7); c.fill();
+  },
+  // 作り置き：雪の結晶（霜）・氷の棘1本（下が根元）・地面の霜の跡
+  snow() {
+    return FxKit.sprite('fz-cb-snow', 8, FxKit.res(), c => {
+      c.lineCap = 'round';
+      for (const [w, col] of [[3.2, 'rgba(120,220,255,0.45)'], [1.3, '#ffffff']]) {
+        c.lineWidth = w; c.strokeStyle = col; c.beginPath();
+        for (let i = 0; i < 3; i++) { const a = i * Math.PI / 3; c.moveTo(Math.cos(a) * 6, Math.sin(a) * 6); c.lineTo(-Math.cos(a) * 6, -Math.sin(a) * 6); }
+        for (let i = 0; i < 6; i++) { const a = i * Math.PI / 3, x = Math.cos(a) * 3.6, y = Math.sin(a) * 3.6; c.moveTo(x, y); c.lineTo(x + Math.cos(a + 0.8) * 2, y + Math.sin(a + 0.8) * 2); c.moveTo(x, y); c.lineTo(x + Math.cos(a - 0.8) * 2, y + Math.sin(a - 0.8) * 2); }
+        c.stroke();
+      }
+    });
+  },
+  spike() {
+    return FxKit.sprite('fz-cb-spike', 22, FxKit.res(), c => {
+      c.lineJoin = 'round';
+      const TIP = [0, -20], BL = [-7, 17], BM = [1, 20], BR = [7, 17];
+      c.beginPath(); c.moveTo(...TIP); c.lineTo(...BL); c.lineTo(...BM); c.lineTo(...BR); c.closePath();
+      c.lineWidth = 2; c.strokeStyle = 'rgba(8,40,70,0.7)'; c.stroke();
+      c.beginPath(); c.moveTo(...TIP); c.lineTo(...BL); c.lineTo(...BM); c.closePath();
+      let g = c.createLinearGradient(0, -20, 0, 20); g.addColorStop(0, 'rgba(255,255,255,0.97)'); g.addColorStop(0.5, 'rgba(200,244,255,0.82)'); g.addColorStop(1, 'rgba(140,216,250,0.62)'); c.fillStyle = g; c.fill();
+      c.beginPath(); c.moveTo(...TIP); c.lineTo(...BM); c.lineTo(...BR); c.closePath();
+      g = c.createLinearGradient(0, -20, 0, 20); g.addColorStop(0, 'rgba(210,246,255,0.92)'); g.addColorStop(0.5, 'rgba(90,184,236,0.75)'); g.addColorStop(1, 'rgba(40,120,200,0.6)'); c.fillStyle = g; c.fill();
+      c.lineWidth = 0.9; c.strokeStyle = '#ffffff'; c.beginPath(); c.moveTo(...TIP); c.lineTo(...BM); c.stroke();
+      c.lineWidth = 1.4; c.strokeStyle = 'rgba(255,255,255,0.85)'; c.beginPath(); c.moveTo(-1.2, -12); c.lineTo(-4, 6); c.stroke();
+    });
+  },
+  frost() {
+    return FxKit.sprite('fz-cb-frost', 60, FxKit.res(), c => {
+      const g = c.createRadialGradient(0, 0, 0, 0, 0, 58);
+      g.addColorStop(0, 'rgba(210,246,255,0.42)'); g.addColorStop(0.6, 'rgba(150,222,255,0.2)'); g.addColorStop(1, 'rgba(150,222,255,0)');
+      c.fillStyle = g; c.beginPath(); c.arc(0, 0, 58, 0, 7); c.fill();
+      c.lineCap = 'round'; c.lineWidth = 1.3; c.strokeStyle = 'rgba(235,252,255,0.55)'; c.beginPath();
+      for (let i = 0; i < 7; i++) {
+        let a = i * 0.9 + 0.3, x = 0, y = 0;
+        c.moveTo(0, 0);
+        for (let j = 1; j <= 4; j++) { a += (FxKit.h(i * 5 + j, 3) - 0.5) * 0.7; x += Math.cos(a) * 11; y += Math.sin(a) * 11; c.lineTo(x, y); }
+      }
+      c.stroke();
+    });
+  },
+  _ln: [],
+  // 光線（Combat.laser の演出を差し替え）
+  ray(ctx, f, k) {
+    const T = k * f.life, pts = f.pts, hw = f.w || 22, seed = f.seed || 0;
+    const main = FxKit.clamp01(1 - T / 0.16), a = T < 0.16 ? 1 : FxKit.clamp01(1 - (T - 0.16) / (f.life - 0.16));
+    const W = hw * 1.15 * (0.25 + 0.75 * main) * (T < 0.03 ? 0.6 + 0.4 * T / 0.03 : 1);
+    FxKit.beam(ctx, c => FxKit.poly(c, pts), W, '#8fe8ff', a * (0.45 + 0.55 * main), '#2a9aff');
+    // 線に沿って残る霜の結晶（左右に交互・撃った所から順に咲く）
+    const S = this.snow(), ln = this._ln, L = FXE.lens(pts, ln);
+    let seg = 0, acc = 0;
+    for (let d = 20, i = 0; d < L; d += 26, i++) {
+      while (seg < ln.length - 1 && d > acc + ln[seg]) { acc += ln[seg]; seg++; }
+      const p = pts[seg], q = pts[seg + 1], u = ln[seg] ? (d - acc) / ln[seg] : 0, tx = (q.x - p.x) / (ln[seg] || 1), ty = (q.y - p.y) / (ln[seg] || 1);
+      const app = FxKit.clamp01((T - d / 6000) / 0.06);
+      if (app <= 0) continue;
+      const side = i % 2 ? 1 : -1, off = side * (W * 0.42 + 3 + 4 * FxKit.h(i, seed)), s = (5 + 4 * FxKit.h(i + 30, seed)) * FXE.back(app) * (0.7 + 0.3 * a);
+      const x = p.x + (q.x - p.x) * u - ty * off, y = p.y + (q.y - p.y) * u + tx * off;
+      ctx.globalAlpha = Math.min(1, a * 1.3); ctx.drawImage(S.cv, x - s, y - s, s * 2, s * 2);
+    }
+    ctx.globalAlpha = 1;
+    // 撃ち口と、反射した所・行き止まりの閃光と氷の粒
+    ctx.globalCompositeOperation = 'lighter';
+    FxKit.glow(ctx, pts[0].x, pts[0].y, 40 * (0.5 + 0.5 * main), '#8fe8ff', 0.9 * a);
+    FxKit.flash(ctx, pts[0].x, pts[0].y, 44, T, '#8fe8ff', 0.08);
+    for (let i = 1; i < pts.length; i++) {
+      const p = pts[i];
+      FxKit.flash(ctx, p.x, p.y, 46, T - 0.01, '#bff0ff', 0.12);
+      FxKit.glow(ctx, p.x, p.y, 30, '#8fe8ff', 0.7 * a);
+      FxKit.sparks(ctx, { x: p.x, y: p.y, t: T, seed: seed + i * 11, n: 8, life: 0.4, v: 210, drag: 5, size: 3.4, shape: 'shard', c0: '#ffffff', c1: '#7fe6ff' });
+    }
+    ctx.globalCompositeOperation = 'source-over';
+  },
+  // 氷の棘山（場）：地面の霜・根元から生える透き通った氷柱（真ん中ほど高い・少し行き過ぎて止まる）・先のきらめき・最後に砕ける
+  spikes(ctx, z) {
+    const T = z.t, R = z.r, out = FxKit.clamp01((z.dur - T) / 0.4), seed = z.sd === undefined ? (z.sd = Math.abs((z.x * 7 + z.y * 3) | 0) % 97) : z.sd;
+    const F = this.frost(), sp = this.spike();
+    ctx.globalAlpha = Math.min(1, T / 0.08) * out; ctx.drawImage(F.cv, z.x - R * 1.15, z.y - R * 1.15, R * 2.3, R * 2.3);
+    if (!z._sk) {                                                       // 並びは場ごとに1回だけ決める（奥から手前へ描く）
+      z._sk = [];
+      for (let i = 0; i < 12; i++) {
+        const an = FxKit.h(i, seed) * 6.28, d = R * 0.82 * Math.sqrt(FxKit.h(i + 20, seed));
+        z._sk.push({ x: z.x + Math.cos(an) * d, y: z.y + Math.sin(an) * d * 0.8 + 6, h: 18 + 28 * (1 - d / R) * (0.6 + 0.4 * FxKit.h(i + 40, seed)), w: 9 + 5 * FxKit.h(i + 60, seed), dl: d / R * 0.07 + FxKit.h(i + 80, seed) * 0.03 });
+      }
+      z._sk.sort((p, q) => p.y - q.y);
+    }
+    const sink = 0.25 + 0.75 * out;
+    for (const s of z._sk) {
+      const g = FXE.back((T - s.dl) / 0.16);
+      if (g <= 0.01) continue;
+      const H = s.h * g * sink, sx = s.w / 14, sy = H / 40;
+      ctx.globalAlpha = 0.92 * Math.sqrt(out);
+      ctx.drawImage(sp.cv, s.x - 22 * sx, s.y - H / 2 - 22 * sy, 44 * sx, 44 * sy);
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 4; i++) {                                       // 先のきらめき
+      const s = z._sk[(i * 3 + 2) % z._sk.length], tw = Math.max(0, Math.sin(T * 3.1 + i * 1.9));
+      FxKit.glow(ctx, s.x + 0.5, s.y - s.h * sink, 9, '#e6fbff', 0.8 * tw * out);
+    }
+    FxKit.glow(ctx, z.x, z.y, R * 0.95, '#bff0ff', 0.18 * out);
+    FxKit.flash(ctx, z.x, z.y, R * 1.1, T, '#bff0ff', 0.1);
+    FxKit.hexWave(ctx, z.x, z.y, R * 1.2, T / 0.38, '#bff0ff', 4);
+    if (T < 0.45) FxKit.sparks(ctx, { x: z.x, y: z.y, t: T, seed: seed + 5, n: 10, life: 0.45, v: R * 4.5, drag: 5, size: 3.6, shape: 'shard', c0: '#ffffff', c1: '#7fe6ff' });
+    if (out < 1) FxKit.sparks(ctx, { x: z.x, y: z.y - 10, t: z.dur - 0.4 < 0 ? T : T - (z.dur - 0.4), seed: seed + 9, n: 12, life: 0.4, v: R * 4, drag: 3, g: 240, size: 4, shape: 'shard', c0: '#ffffff', c1: '#8fe8ff' });
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  },
+  // 霜の線（場・敵の下）：光線が通った帯に、霜の白い縁と結晶が残って薄れていく（帯の太さ＝当たる太さ）
+  frostline(ctx, z) {
+    const T = z.t, fa = Math.min(1, T / 0.05) * FxKit.clamp01((z.dur - T) / 0.5);
+    if (fa <= 0.01) return;
+    const S = this.snow(), sd = z.sd === undefined ? (z.sd = Math.abs((z.x * 7 + z.y * 3) | 0) % 97) : z.sd;
+    ctx.translate(z.x, z.y); ctx.rotate(z.a);
+    ctx.globalAlpha = 0.2 * fa; ctx.fillStyle = '#9fe6ff'; ctx.fillRect(-z.hw, -z.hh * 0.85, z.hw * 2, z.hh * 1.7);
+    ctx.globalAlpha = 0.55 * fa; ctx.strokeStyle = '#e6fbff'; ctx.lineWidth = 1.6; ctx.beginPath();
+    ctx.moveTo(-z.hw, -z.hh * 0.85); ctx.lineTo(z.hw, -z.hh * 0.85); ctx.moveTo(-z.hw, z.hh * 0.85); ctx.lineTo(z.hw, z.hh * 0.85); ctx.stroke();
+    ctx.globalAlpha = 0.8 * fa;
+    for (let d = -z.hw + 12, i = 0; d < z.hw - 6; d += 30, i++) {
+      const y = (FxKit.h(i, sd) - 0.5) * z.hh * 1.3, s = 4 + 3 * FxKit.h(i + 30, sd);
+      ctx.drawImage(S.cv, d - s, y - s, s * 2, s * 2);
+    }
+    ctx.globalAlpha = 1;
+  },
+  fx: { cryoray(ctx, f, k) { this.ray(ctx, f, k); } },
+  zones: { spikes(ctx, z) { this.spikes(ctx, z); }, frostline(ctx, z) { this.frostline(ctx, z); } },
+};
+FusionFX.register('cryobeam', FX_CRYOBEAM);
+
+// ---------------------------------------------------------------
+// スーパーノヴァ（レーザー＋ミサイル）：道1本分の太さの、撃ち続ける光の奔流（白い芯・黄・橙・赤の外光）。
+//   流れる模様と光の粒は盤の時刻（run.time）で動くので、1発ずつの光線が重なっても途切れずに流れて見える。反射の角で閃光・当たっている敵に多段ヒットの光
+// ---------------------------------------------------------------
+const FX_CONVERGENCE = {
+  // 砲台：太い砲身（中に橙白の光の溝）と、両脇にミサイルの筒（赤い弾頭）。先に集光のレンズ
+  turret(c) {
+    for (const s of [-1, 1]) {
+      c.beginPath(); c.rect(-12, s * 8.5 - 3.4, 16, 6.8); FXE.edge(c, 2); c.fillStyle = FXE.metal(c, s * 8.5 - 3.4, s * 8.5 + 3.4, '#b8bfcc', '#4a5060'); c.fill();
+      c.beginPath(); c.moveTo(4, s * 8.5 - 2.6); c.lineTo(10, s * 8.5); c.lineTo(4, s * 8.5 + 2.6); c.closePath(); FXE.edge(c, 1.4); c.fillStyle = '#ff5a3a'; c.fill();
+    }
+    c.beginPath(); c.moveTo(-10, -6); c.lineTo(17, -5); c.lineTo(17, 5); c.lineTo(-10, 6); c.closePath(); FXE.edge(c, 2.4); c.fillStyle = FXE.metal(c, -6, 6, '#e2e6ee', '#5a6070'); c.fill();
+    const g = c.createLinearGradient(0, -2.6, 0, 2.6); g.addColorStop(0, '#ff8a2a'); g.addColorStop(0.5, '#fff6d0'); g.addColorStop(1, '#ff8a2a');
+    c.fillStyle = g; c.fillRect(-6, -2.2, 22, 4.4);
+    c.beginPath(); c.rect(16, -7, 4, 14); FXE.edge(c, 2); c.fillStyle = '#3a3f4c'; c.fill();
+    FXE.ball(c, 21, 0, 4.4, '#ffffff', '#ffe08a', '#c84a10');
+    c.fillStyle = '#ffd24a'; c.fillRect(-9, -6, 2.2, 12);
+  },
+  _ln: [],
+  ray(ctx, f, k) {
+    const pts = f.pts, hw = f.w || 30, rt = FXE.now(), a = k < 0.7 ? 1 : (1 - k) / 0.3;
+    if (a <= 0.01 || pts.length < 2) return;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    FxKit.poly(ctx, pts);
+    ctx.globalAlpha = 0.2 * a; ctx.strokeStyle = '#ff3a10'; ctx.lineWidth = hw * 2.5; ctx.stroke();      // 外光（赤）
+    ctx.globalAlpha = 0.3 * a; ctx.strokeStyle = '#ff7a1a'; ctx.lineWidth = hw * 1.55; ctx.stroke();     // 本体（橙）
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.28 * a; ctx.strokeStyle = '#ffb840'; ctx.lineWidth = hw * 0.85; ctx.stroke();     // 内（黄）
+    // 流れる模様（2つの速さの光の筋）
+    ctx.setLineDash([24, 34]); ctx.lineDashOffset = -rt * 820;
+    ctx.globalAlpha = 0.32 * a; ctx.strokeStyle = '#fff0b8'; ctx.lineWidth = hw * 0.5; ctx.stroke();
+    ctx.setLineDash([9, 52]); ctx.lineDashOffset = -rt * 1300;
+    ctx.globalAlpha = 0.2 * a; ctx.strokeStyle = '#ffc060'; ctx.lineWidth = hw * 1.15; ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.globalAlpha = 0.85 * a; ctx.strokeStyle = '#fffaf0'; ctx.lineWidth = 5; ctx.stroke();            // 白い芯
+    // 光の粒（帯の中を流れる）
+    ctx.globalCompositeOperation = 'lighter';
+    const ln = this._ln, L = FXE.lens(pts, ln), M = Math.min(36, Math.floor(L / 20));
+    ctx.beginPath();
+    for (let i = 0; i < M; i++) {
+      let d = (i * L / M + rt * 640 + FxKit.h(i, 1) * 30) % L, seg = 0;
+      while (seg < ln.length - 1 && d > ln[seg]) { d -= ln[seg]; seg++; }
+      const p = pts[seg], q = pts[seg + 1], u = ln[seg] ? d / ln[seg] : 0, tx = (q.x - p.x) / (ln[seg] || 1), ty = (q.y - p.y) / (ln[seg] || 1);
+      const lat = (FxKit.h(i + 50, 1) - 0.5) * hw * 1.3, s = 2 + 2.6 * FxKit.h(i + 90, 1);
+      const x = p.x + (q.x - p.x) * u - ty * lat, y = p.y + (q.y - p.y) * u + tx * lat;
+      ctx.moveTo(x + tx * s * 2, y + ty * s * 2); ctx.lineTo(x - ty * s * 0.5, y + tx * s * 0.5); ctx.lineTo(x - tx * s * 2, y - ty * s * 2); ctx.lineTo(x + ty * s * 0.5, y - tx * s * 0.5); ctx.closePath();
+    }
+    ctx.globalAlpha = 0.9 * a; ctx.fillStyle = '#fffbe8'; ctx.fill();
+    // 撃ち口・反射の角（まぶしい閃光と回る十字の光）・行き止まり
+    const ux = (pts[1].x - pts[0].x) / (ln[0] || 1), uy = (pts[1].y - pts[0].y) / (ln[0] || 1);
+    FxKit.glow(ctx, pts[0].x + ux * 22, pts[0].y + uy * 22, hw * 1.5, '#ffd080', 0.85 * a);
+    FxKit.glow(ctx, pts[0].x + ux * 22, pts[0].y + uy * 22, hw * 0.6, '#ffffff', 0.9 * a);
+    ctx.fillStyle = '#ffffff';
+    for (let i = 1; i < pts.length; i++) {
+      const p = pts[i], end = i === pts.length - 1, pul = 0.85 + 0.15 * Math.sin(rt * 40 + i);
+      FxKit.glow(ctx, p.x, p.y, hw * (end ? 1.6 : 2.6) * pul, '#ff9a30', 0.6 * a);
+      FxKit.glow(ctx, p.x, p.y, hw * (end ? 0.8 : 1.3) * pul, '#ffffff', 0.85 * a);
+      if (end) continue;
+      const r = hw * 1.5 * pul, an = rt * 3 + i;
+      ctx.globalAlpha = 0.9 * a;
+      for (const b of [an, an + Math.PI / 2]) {
+        const cx = Math.cos(b) * r, cy = Math.sin(b) * r;
+        FxKit.ribbon(ctx, [{ x: p.x - cx, y: p.y - cy }, { x: p.x, y: p.y }, { x: p.x + cx, y: p.y + cy }], q => 4.5 * Math.sin(Math.PI * q) + 0.3); ctx.fill();
+      }
+    }
+    // 当たっている敵：細かいヒットの光（1秒に9回・敵ごとにずらす）
+    const H = f.hits;
+    if (H) for (let n = 0, m = 0; n < H.length && m < 10; n++) {
+      const e = H[n];
+      if (!e || e.dead) continue;
+      m++;
+      const ph = (rt * 9 + n * 0.37) % 1;
+      FxKit.glow(ctx, e.x, e.y, 13, '#ffffff', 0.3 * (1 - ph) * a);
+      FxKit.sparks(ctx, { x: e.x, y: e.y, t: ph * 0.12, seed: n * 7 + Math.floor(rt * 9), n: 4, life: 0.12, v: 300, drag: 6, size: 2.6, c0: '#ffffff', c1: '#ffb040' });
+      FxKit.hexWave(ctx, e.x, e.y, 18, ph, '#fff0b0', 2);
+    }
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  },
+  fx: { novaray(ctx, f, k) { this.ray(ctx, f, k); } },
+};
+FusionFX.register('convergence', FX_CONVERGENCE);
+
+// ---------------------------------------------------------------
+// 磁気嵐（ミサイル＋テスラ）：コイルを巻いた帯電したミサイル（青紫の尾・放電）。着弾点に、渦巻く嵐の帯・磁力線の輪・落ちる稲妻
+// ---------------------------------------------------------------
+const FX_CHAINSTRIKE = {
+  // 砲台：ミサイルの箱から、コイルを巻いた2発のミサイルが前を向く。上下にテスラの電極
+  turret(c) {
+    for (const s of [-1, 1]) {
+      c.beginPath(); c.moveTo(-6, s * 9); c.lineTo(4, s * 15); c.lineTo(6, s * 13); c.lineTo(-3, s * 7); c.closePath(); FXE.edge(c, 1.8); c.fillStyle = '#7a6ac8'; c.fill();
+      c.fillStyle = '#e6dcff'; c.beginPath(); c.arc(5, s * 14, 1.5, 0, 7); c.fill();
+    }
+    c.beginPath(); c.rect(-15, -9, 15, 18); FXE.edge(c, 2.4); c.fillStyle = FXE.metal(c, -9, 9, '#b8bfcc', '#454b5a'); c.fill();
+    c.fillStyle = '#9a7cff'; c.fillRect(-13, -1, 11, 2);
+    for (const y of [-4.6, 4.6]) {
+      c.beginPath(); c.moveTo(-3, y - 2.8); c.lineTo(13, y - 2.8); c.quadraticCurveTo(21, y, 13, y + 2.8); c.lineTo(-3, y + 2.8); c.closePath();
+      FXE.edge(c, 1.8); c.fillStyle = FXE.metal(c, y - 2.8, y + 2.8, '#e0e4ec', '#5a6070'); c.fill();
+      c.beginPath(); c.moveTo(13, y - 2.8); c.quadraticCurveTo(21, y, 13, y + 2.8); c.closePath(); c.fillStyle = '#b58bff'; c.fill();
+      c.fillStyle = '#e8a050'; for (const x of [1, 5.5]) c.fillRect(x, y - 3.1, 1.6, 6.2);
+    }
+    c.lineWidth = 1; c.strokeStyle = '#ffffff'; c.beginPath(); c.moveTo(18, -9); c.lineTo(20, -6.5); c.lineTo(18.5, -5.5); c.lineTo(21, -3); c.stroke();
+  },
+  // 作り置きのミサイル（+x が前）：濃い機体・コイルの輪2つ・紫白の弾頭・羽
+  body() {
+    return FxKit.sprite('fz-cs-msl', 18, FxKit.res(), c => {
+      for (const s of [-1, 1]) { c.beginPath(); c.moveTo(-13, s * 2); c.lineTo(-16, s * 8); c.lineTo(-9, s * 3.5); c.closePath(); FXE.edge(c, 1.6); c.fillStyle = '#7a6ac8'; c.fill(); }
+      c.beginPath(); c.moveTo(-14, -4.4); c.lineTo(8, -4.4); c.quadraticCurveTo(17, -3, 18, 0); c.quadraticCurveTo(17, 3, 8, 4.4); c.lineTo(-14, 4.4); c.closePath();
+      FXE.edge(c, 2.2); c.fillStyle = FXE.metal(c, -4.4, 4.4, '#8a86a8', '#2a2640'); c.fill();
+      c.beginPath(); c.moveTo(8, -4.4); c.quadraticCurveTo(17, -3, 18, 0); c.quadraticCurveTo(17, 3, 8, 4.4); c.closePath();
+      const g = c.createLinearGradient(8, 0, 18, 0); g.addColorStop(0, '#7a5aff'); g.addColorStop(1, '#f0e8ff'); c.fillStyle = g; c.fill();
+      for (const x of [-7, -1]) { c.beginPath(); c.ellipse(x, 0, 1.6, 5.6, 0, 0, 7); c.fillStyle = '#e8a050'; c.fill(); c.lineWidth = 0.8; c.strokeStyle = '#5a3008'; c.stroke(); }
+      c.fillStyle = '#d8c7ff'; c.fillRect(-12, -1, 3, 2);
+    });
+  },
+  missile(ctx, b, by, br, run) {
+    const t = run.time, sp = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / sp, uy = b.vy / sp, trav = Math.hypot(b.x - b.ox, b.y - b.oy);
+    const seed = Math.abs((b.ox * 0.37 + b.oy * 0.11) | 0) % 50, L = Math.min(52, trav + 6), nx = -uy, ny = ux;
+    ctx.globalCompositeOperation = 'lighter';
+    const P = [];
+    for (let j = 0; j <= 6; j++) { const s = j / 6, w = Math.sin(t * 38 + j * 1.3 + seed) * 2.2 * s; P.push({ x: b.x - ux * (12 + L * s) + nx * w, y: by - uy * (12 + L * s) + ny * w }); }
+    FxKit.ribbon(ctx, P, q => 11 * (1 - q) + 0.5); ctx.globalAlpha = 0.6; ctx.fillStyle = '#6a4aff'; ctx.fill();
+    FxKit.ribbon(ctx, P, q => 4.5 * (1 - q) + 0.3); ctx.globalAlpha = 0.95; ctx.fillStyle = '#e6dcff'; ctx.fill();
+    FxKit.glow(ctx, b.x - ux * 12, by - uy * 12, 18, '#a890ff', 0.85);
+    FxKit.glow(ctx, b.x, by, 24, '#7a5aff', 0.45);
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    const S = this.body();
+    ctx.save(); ctx.translate(b.x, by); ctx.rotate(Math.atan2(uy, ux)); ctx.drawImage(S.cv, -S.h, -S.h, S.h * 2, S.h * 2); ctx.restore();
+    const fr = Math.floor(t * 30);                                     // 機体のまわりの放電（ちらつく）
+    for (let i = 0; i < 2; i++) {
+      if (FxKit.h(fr + i * 3, seed) < 0.4) continue;
+      const s0 = (FxKit.h(fr + i * 5, seed) - 0.5) * 20, side = i ? 1 : -1;
+      const J = FxKit.jag(b.x + ux * s0 + nx * side * 5, by + uy * s0 + ny * side * 5, b.x + ux * (s0 - 6) + nx * side * 15, by + uy * (s0 - 6) + ny * side * 15, 3, 3.5, fr + i);
+      FxKit.beam(ctx, c => FxKit.poly(c, J), 1.8, '#f0e8ff', 0.95, '#8a6aff');
+    }
+  },
+  // 着弾（Combat.explode の演出を差し替え）：閃光・六角の衝撃波・火花
+  boom(ctx, f, k) {
+    const T = k * f.life, seed = f.seed || 0;
+    FxKit.flash(ctx, f.x, f.y, f.r * 0.95, T, '#b58bff', 0.1);
+    FxKit.hexWave(ctx, f.x, f.y, f.r * 1.15, T / 0.42, '#b58bff', 4);
+    ctx.globalCompositeOperation = 'lighter';
+    FxKit.glow(ctx, f.x, f.y, f.r * 0.7, '#9a7cff', 0.7 * (1 - k));
+    ctx.globalCompositeOperation = 'source-over';
+    FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed: seed + 2, n: 10, life: 0.5, v: f.r * 4, drag: 4, size: 3, c0: '#ffffff', c1: '#9a7cff' });
+  },
+  // 残る嵐（場・敵の下）：渦巻く嵐の帯・磁力線の輪・範囲の縁。稲妻は場の当たり（magzap）が描く
+  storm(ctx, z) {
+    const T = z.t, R = z.r, ph = z.ph || 0;
+    const grow = FxKit.ease(Math.min(1, T / 0.18)), fa = Math.min(1, T / 0.08) * FxKit.clamp01((z.dur - T) / 0.4);
+    if (fa <= 0.01) return;
+    const Rr = R * (0.45 + 0.55 * grow), arms = [];
+    for (let j = 0; j < 3; j++) {
+      const P = [];
+      for (let i = 0; i <= 14; i++) { const q = i / 14, a = ph - T * 4.5 + j * 2.094 + q * 2.4, rr = Rr * (0.18 + 0.82 * q); P.push({ x: z.x + Math.cos(a) * rr, y: z.y + Math.sin(a) * rr }); }
+      arms.push(P);
+    }
+    const wd = q => 12 * Math.sin(Math.PI * Math.min(1, q * 1.1)) + 1.5;
+    for (const P of arms) { FxKit.ribbon(ctx, P, q => wd(q) * 1.7); ctx.globalAlpha = 0.28 * fa; ctx.fillStyle = '#241a48'; ctx.fill(); }
+    ctx.globalCompositeOperation = 'lighter';
+    for (const P of arms) { FxKit.ribbon(ctx, P, wd); ctx.globalAlpha = 0.5 * fa; ctx.fillStyle = '#7a66e0'; ctx.fill(); }
+    for (const P of arms) { FxKit.ribbon(ctx, P, q => wd(q) * 0.25); ctx.globalAlpha = 0.75 * fa; ctx.fillStyle = '#e6dcff'; ctx.fill(); }
+    FxKit.glow(ctx, z.x, z.y, R * 0.5, '#9a7cff', 0.5 * fa);
+    FxKit.glow(ctx, z.x, z.y, 12, '#ffffff', 0.8 * fa);
+    ctx.globalCompositeOperation = 'source-over';
+    // 磁力線の輪（左右の極を結ぶ輪が4つ・点線が流れる）
+    ctx.save(); ctx.translate(z.x, z.y); ctx.rotate(ph * 0.5 + T * 1.1);
+    ctx.setLineDash([5, 6]); ctx.lineCap = 'round';
+    ctx.beginPath();
+    for (const m of [0.5, 0.85]) for (const s of [-1, 1]) { const rx = R * 0.5 * m * (0.6 + 0.4 * grow); ctx.moveTo(s * rx * 2, 0); ctx.ellipse(s * rx, 0, rx, rx * 0.62, 0, 0, Math.PI * 2); }
+    ctx.lineDashOffset = -T * 70;
+    ctx.globalAlpha = 0.35 * fa; ctx.strokeStyle = '#7a5aff'; ctx.lineWidth = 5; ctx.stroke();
+    ctx.globalAlpha = 0.85 * fa; ctx.strokeStyle = '#d8ccff'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.setLineDash([]); ctx.restore();
+    ctx.globalAlpha = 0.5 * fa; ctx.strokeStyle = '#b58bff'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(z.x, z.y, R * grow, 0, 7); ctx.stroke();
+    ctx.globalAlpha = 1;
+  },
+  lobs: { magmissile(ctx, b, by, br, run) { this.missile(ctx, b, by, br, run); } },
+  zones: { magstorm(ctx, z) { this.storm(ctx, z); } },
+  fx: {
+    magboom(ctx, f, k) { this.boom(ctx, f, k); },
+    magzap(ctx, f, k) { FXE.chain(ctx, f, k, { w: 5.5, body: '#d4c4ff', glow: '#6a4aff', hit: '#a88aff', lift: 0 }); },
+  },
+};
+FusionFX.register('chainstrike', FX_CHAINSTRIKE);
+
+// ---------------------------------------------------------------
+// 雷雲（テスラ＋毒ガス）：毒の緑を帯びた厚い雲（塊の縁が揺れる・中で稲光が点滅・毒の雨）。雲は敵の下に描くので、敵は雲の上で読める。
+//   落雷は太い（白い芯・枝分かれ・2回光る）
+// ---------------------------------------------------------------
+const FX_STORMCLOUD = {
+  // 砲台：毒の緑のボンベの上に小さな雷雲。前へ伸びた電極の棒と、雲の下の小さな稲妻
+  turret(c) {
+    c.beginPath(); c.arc(-6, 2, 9, 0, 7); FXE.edge(c, 2.4);
+    const tg = c.createRadialGradient(-9, -1, 1, -6, 2, 9); tg.addColorStop(0, '#c8f08a'); tg.addColorStop(0.6, '#5aa82a'); tg.addColorStop(1, '#2a5a14'); c.fillStyle = tg; c.fill();
+    c.fillStyle = '#1a1d24'; c.fillRect(-14, 1, 16, 2.2);
+    c.beginPath(); c.rect(1, -1.6, 15, 3.2); FXE.edge(c, 1.8); c.fillStyle = FXE.metal(c, -1.6, 1.6); c.fill();
+    FXE.ball(c, 18, 0, 3.6, '#ffffff', '#c8b0ff', '#4a3a8a');
+    for (const [x, y, r] of [[-11, -8, 5], [-5, -10.5, 6], [1.5, -8, 4.8], [-4, -6, 5]]) {
+      c.beginPath(); c.arc(x, y, r, 0, 7); c.lineWidth = 2.2; c.strokeStyle = 'rgba(0,0,0,0.8)'; c.stroke();
+    }
+    for (const [x, y, r] of [[-11, -8, 5], [-5, -10.5, 6], [1.5, -8, 4.8], [-4, -6, 5]]) {
+      const g = c.createRadialGradient(x - 1.5, y - 2, 0.5, x, y, r); g.addColorStop(0, '#a89ad0'); g.addColorStop(1, '#4a4070'); c.fillStyle = g; c.beginPath(); c.arc(x, y, r, 0, 7); c.fill();
+    }
+    c.lineWidth = 1.4; c.strokeStyle = '#fff6a0'; c.beginPath(); c.moveTo(-3, -4); c.lineTo(-5, 0); c.lineTo(-2.4, 0); c.lineTo(-4.6, 4); c.stroke();
+  },
+  // 作り置きの雲の塊：芯が濃い紫灰・上が明るい・縁に毒の緑
+  puff() {
+    return FxKit.sprite('fz-sc-puff', 40, FxKit.res(), c => {
+      let g = c.createRadialGradient(0, 4, 0, 0, 2, 40);
+      g.addColorStop(0, 'rgba(126,116,170,1)'); g.addColorStop(0.68, 'rgba(98,90,142,0.97)'); g.addColorStop(0.84, 'rgba(92,146,74,0.85)'); g.addColorStop(0.93, 'rgba(40,46,40,0.55)'); g.addColorStop(1, 'rgba(30,36,30,0)');   // 縁をはっきり（塊が読める）・縁に毒の緑と暗い影
+      c.fillStyle = g; c.beginPath(); c.arc(0, 0, 40, 0, 7); c.fill();
+      g = c.createRadialGradient(-8, -14, 0, -8, -12, 24); g.addColorStop(0, 'rgba(214,206,250,0.75)'); g.addColorStop(1, 'rgba(176,166,224,0)');
+      c.fillStyle = g; c.beginPath(); c.arc(-8, -12, 24, 0, 7); c.fill();
+    });
+  },
+  // 雲の塊の並び [横, 縦, 大きさ]（範囲の半径に対する割合・奥から手前）
+  PUFF: [[-0.42, -0.42, 0.42], [0.08, -0.5, 0.5], [0.5, -0.36, 0.4], [-0.72, -0.08, 0.4], [-0.32, -0.12, 0.5], [0.18, -0.14, 0.52], [0.66, -0.04, 0.42], [-0.45, 0.16, 0.38], [0.02, 0.18, 0.42], [0.46, 0.16, 0.38]],
+  cloud(ctx, z) {
+    const T = z.t, R = z.r, seed = z.sd === undefined ? (z.sd = Math.abs((z.x * 7 + z.y * 3) | 0) % 97) : z.sd;
+    const inA = FxKit.ease(Math.min(1, T / 0.35)), out = FxKit.clamp01((z.dur - T) / 0.5), fa = Math.min(inA, out), sc = 0.6 + 0.4 * inA * (0.85 + 0.15 * out);
+    const cx = z.x, cy = z.y - R * 0.3;
+    // 地面：範囲の輪（点線・毒の緑と紫）
+    ctx.setLineDash([7, 7]); ctx.lineDashOffset = -T * 12;
+    ctx.globalAlpha = 0.55 * fa; ctx.strokeStyle = '#9a8ae0'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(z.x, z.y, R, 0, 7); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.globalCompositeOperation = 'lighter';
+    FxKit.glow(ctx, z.x, z.y, R * 1.05, '#5aa82a', 0.16 * fa);
+    // 毒の雨（雲の下から地面へ）
+    ctx.beginPath();
+    for (let i = 0; i < 16; i++) {
+      const x = cx + (FxKit.h(i, seed) - 0.5) * R * 1.5 * sc, top = cy + R * 0.1, span = R * 0.95, y = top + ((T * 230 + FxKit.h(i + 20, seed) * span) % span);
+      ctx.moveTo(x, y); ctx.lineTo(x - 2, y + 8);
+    }
+    ctx.globalAlpha = 0.55 * fa; ctx.strokeStyle = '#b8f07a'; ctx.lineWidth = 1.6; ctx.lineCap = 'round'; ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over';
+    // 雲の塊（縁が揺れる）
+    const S = this.puff();
+    for (let i = 0; i < this.PUFF.length; i++) {
+      const p = this.PUFF[i], s = R * p[2] * sc * (1 + 0.07 * Math.sin(T * 1.7 + i * 1.3)) * 1.05;
+      const x = cx + p[0] * R * sc + Math.sin(T * 0.9 + i) * 2.5, y = cy + p[1] * R * sc + Math.cos(T * 1.1 + i * 2) * 1.8;
+      ctx.globalAlpha = 0.8 * fa; ctx.drawImage(S.cv, x - s, y - s, s * 2, s * 2);
+    }
+    // 中で光る稲光と、雲の中を走る小さな稲妻
+    const fr = Math.floor(T * 9);
+    ctx.globalCompositeOperation = 'lighter';
+    FxKit.glow(ctx, cx, cy + R * 0.2, R * 0.9, '#8ad84a', 0.14 * fa);
+    if (FxKit.h(fr, seed) > 0.45) {
+      const p = this.PUFF[Math.floor(FxKit.h(fr + 50, seed) * this.PUFF.length)], q = this.PUFF[Math.floor(FxKit.h(fr + 60, seed) * this.PUFF.length)];
+      const px = cx + p[0] * R * sc, py = cy + p[1] * R * sc;
+      FxKit.glow(ctx, px, py, R * 0.6, '#d8c8ff', 0.7 * fa);
+      const J = FxKit.jag(px, py, cx + q[0] * R * sc, cy + q[1] * R * sc, 5, 8, fr + seed);
+      FxKit.beam(ctx, c => FxKit.poly(c, J), 2.6, '#f0e8ff', 0.8 * fa, '#8a6aff');
+    }
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    FxKit.flash(ctx, cx, cy, R * 0.9, T, '#b8a8ff', 0.12);
+    FxKit.hexWave(ctx, z.x, z.y, R * 1.15, T / 0.45, '#9a8ae0', 4);
+    if (out < 1) FxKit.hexWave(ctx, z.x, z.y, R * 1.2, 1 - out, '#c8f08a', 3);
+  },
+  // 落雷：雲から敵へ、太い3層のジグザグと枝2本。0.11秒光って一度暗くなり、もう一度落ちる（形が変わる）
+  strike(ctx, f, k) {
+    const T = k * f.life, seed = f.seed || 0, ox = (f.fromX !== undefined ? f.fromX * 0.45 + f.x * 0.55 : f.x) + (FxKit.h(1, seed) - 0.5) * 16, oy = f.fromY;
+    const a = T < 0.11 ? 1 : T < 0.15 ? 0.25 : T < 0.22 ? 0.95 : Math.max(0, 1 - (T - 0.22) / (f.life - 0.22)) * 0.35, re = T < 0.15 ? 0 : 1;
+    const M = FxKit.jag(ox, oy, f.x, f.y, 7, 13, seed + re * 11);
+    ctx.globalCompositeOperation = 'lighter';
+    FxKit.glow(ctx, ox, oy, 40, '#d8c8ff', 0.45 * a);
+    ctx.globalCompositeOperation = 'source-over';
+    FxKit.beam(ctx, c => FxKit.poly(c, M), 8, '#ece4ff', a, '#8a6aff');
+    for (const [i, s] of [[2, 1], [4, -1]]) {                            // 枝
+      const p = M[i], q = M[i + 1], an = Math.atan2(q.y - p.y, q.x - p.x) + s * 0.75, L = 22 + 12 * FxKit.h(i, seed + re);
+      const B = FxKit.jag(p.x, p.y, p.x + Math.cos(an) * L, p.y + Math.sin(an) * L, 3, 5, seed + i + re * 7);
+      FxKit.beam(ctx, c => FxKit.poly(c, B), 3.2, '#ece4ff', a * 0.85, '#8a6aff');
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    FxKit.flash(ctx, f.x, f.y, 26, T, '#d8c7ff', 0.1);
+    FxKit.flash(ctx, f.x, f.y, 30, T - 0.15, '#d8c7ff', 0.08);
+    FxKit.glow(ctx, f.x, f.y, 24, '#a8e07a', 0.45 * (1 - k));
+    ctx.globalCompositeOperation = 'source-over';
+    FxKit.hexWave(ctx, f.x, f.y, 36, T / 0.28, '#d8c7ff', 3);
+    FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed: seed + 4, n: 9, life: 0.3, v: 240, drag: 4, g: 300, size: 2.8, c0: '#ffffff', c1: '#a8e07a' });
+    ctx.globalAlpha = 1;
+  },
+  zones: { storm(ctx, z) { this.cloud(ctx, z); } },
+  fx: {
+    strike(ctx, f, k) { this.strike(ctx, f, k); },
+    stormzap(ctx, f, k) { FXE.chain(ctx, f, k, { w: 4.5, body: '#e0d8ff', glow: '#5a9a2a', hit: '#b8f07a', amp: 10 }); },
+  },
+};
+FusionFX.register('stormcloud', FX_STORMCLOUD);
+
+// ---------------------------------------------------------------
+// 確認室の見本の部屋（DebugRoom.SR）：このファイルの7種の「4つの時刻」と的の並べ方。
+//   debugroom.js はこのファイルより後に読むので、ページを読み終わってから足す（測定器 tools/sim.html には DebugRoom が無いので何もしない）
+//   face 武器の向き（度）・foes 的の位置 [前へ, 横へ]・times 4つの時刻・look 映す中心（前へ）・w 画面の横幅に映す盤の幅
+// ---------------------------------------------------------------
+const SR_ELEM = {
+  thunderwhip: { face: -90, foes: [[60, 0], [95, -14], [130, 12], [165, -10], [200, 8], [240, 0]], times: [[0.06, '出る'], [0.5, '進む'], [1.25, '絡む'], [2.85, '消える']], look: 120, w: 300 },
+  hellmist: { face: -90, foes: [[60, 0], [95, -14], [130, 12], [160, -10], [190, 8], [215, 0]], times: [[0.04, '噴く'], [0.12, '炎の先'], [0.24, '爆発'], [0.8, '毒の煙']], look: 115, w: 300 },
+  vortex: { face: -90, foes: [[40, 0], [80, -14], [120, 12], [160, -10], [195, 8], [-40, 0]], times: [[0.04, '出る'], [0.18, '渦'], [0.42, '回る'], [0.66, '消える']], look: 30, w: 460 },
+  cryobeam: { face: -90, foes: [[70, 0], [110, -8], [150, 8], [190, -6], [230, 6], [270, 0]], times: [[0.03, '撃つ'], [0.12, '光線'], [0.4, '棘山'], [3.0, '砕ける']], look: 150, w: 360 },
+  convergence: { face: -90, foes: [[60, 0], [95, -10], [130, 10], [165, -8], [200, 6], [240, 0]], times: [[0.02, '撃つ'], [0.04, '奔流'], [0.06, '多段'], [0.085, '消える']], look: 130, w: 320 },
+  chainstrike: { face: -90, foes: [[120, 0], [150, -30], [170, 26], [195, -12], [215, 30], [235, 0]], times: [[0.2, '飛ぶ'], [0.45, '着弾'], [0.7, '嵐'], [1.15, '余韻']], look: 130, w: 320 },
+  stormcloud: { face: -90, foes: [[80, 0], [105, -30], [125, 28], [150, -12], [170, 30], [195, 0]], times: [[0.15, '湧く'], [0.48, '落雷'], [2.0, '漂う'], [4.75, '消える']], look: 110, w: 300 },
+};
+if (typeof window !== 'undefined' && window.addEventListener) window.addEventListener('load', () => {
+  if (typeof DebugRoom !== 'undefined' && DebugRoom.SR) for (const k of Object.keys(SR_ELEM)) if (!DebugRoom.SR[k]) DebugRoom.SR[k] = SR_ELEM[k];
+});

@@ -708,7 +708,7 @@ FP('hellmist', { rankAxis: 'blast', name: '連鎖爆燃', desc: '爆発が炎の
   apply(run) { for (const w of run.units) if (w.fuse === 'hellmist') fcOf(w).blasts = Game.rki(FCK.fp_hellmist.blasts, 'blast'); } });
 FP('napalm', { rankAxis: 'bomb', name: '噴火の連打', desc: '火山弾 +' + FCK.fp_napalm.bombs + '発',
   apply(run) { for (const w of run.units) if (w.fuse === 'napalm') fcOf(w).bombs = Game.rki(FCK.fp_napalm.bombs, 'bomb'); } });
-FP('vortex', { rankAxis: 'shatter', name: '熱割れ', desc: '凍って燃えている敵が割れて爆ぜる（ダメージ ×' + FCK.fp_vortex.shatter + '）',
+FP('vortex', { rankAxis: 'shatter', name: '熱割れ', desc: '凍って燃えた敵が割れる爆発 +' + pc(FCK.fp_vortex.shatter) + '%',
   apply(run) { for (const w of run.units) if (w.fuse === 'vortex') fcOf(w).shatter = Game.rka(FCK.fp_vortex.shatter, 'shatter'); } });
 FP('icefoam', { rankAxis: 'chain', name: '連鎖凍裂', desc: '破裂が近くの敵' + FCK.fp_icefoam.chain + '体へ連鎖する',
   apply(run) { for (const w of run.units) if (w.fuse === 'icefoam') fcOf(w).chain = Game.rki(FCK.fp_icefoam.chain, 'chain'); } });
