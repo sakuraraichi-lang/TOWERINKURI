@@ -356,7 +356,14 @@ const Render = {
     this.offY = ((st.h + this.insT + this.insB) * s <= this.cssH)
       ? Util.clamp((this.cssH - st.h * s) / 2, I.t, this.cssH - I.b - st.h * s)
       : -this.cam.y * s;
+    // 確認室の見本の部屋（DebugRoom.showroom）：見本のあいだだけ、決めた点を決めた倍率で映す。{ x, y（盤の座標）, s（画面px／盤px）, cy（画面の縦の位置 0〜1） }
+    if (this.zoom) {
+      const z = this.zoom;
+      this.scale = z.s; this.viewW = this.cssW / z.s; this.viewH = this.cssH / z.s;
+      this.offX = this.cssW / 2 - z.x * z.s; this.offY = this.cssH * (z.cy || 0.5) - z.y * z.s;
+    }
   },
+  zoom: null,
 
   // **盤の上に重なって、押せなくしている札**の高さ。左上の「火力」・残りウェーブ・ライフの帯と、左下の減速・加速の説明。
   //   （2026-09-29・第20〜30章の広い盤で、盤の端の六角がこの札の下になり、置く操作そのものができなかった。
@@ -445,6 +452,7 @@ const Render = {
     this.aims(ctx, run);
     this.core(ctx, run);
     this.enemies(ctx, run);
+    FusionFX.zonesOver(ctx, run);    // 合成武器の場のうち、敵の上に描くもの（異界の剣の触手・fusionfx.js）
     this.bullets(ctx, run);
     this.units(ctx, run);
     this.adjLines(ctx, run);
@@ -1952,10 +1960,7 @@ const Render = {
       const tur = fd ? FusionFX.turretSprite(this, u.fuse) : this.turretSprite(u.id, c);
       ctx.drawImage(tur.cv, -tur.h, -tur.h, tur.h * 2, tur.h * 2);
       ctx.restore();
-      if (fd) {                                         // 合成した印：台座のふちに金の輪
-        ctx.save(); ctx.globalAlpha = 0.9; ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 1.6;
-        this.hexPathOn(ctx, u.x, u.y, MapGen.HEX_R - 1.5); ctx.stroke(); ctx.restore();
-      }
+      if (fd) FusionFX.rim(this, ctx, u, fd);          // 合成した印：台座のふちに合成の色の光と金の輪（作り置き・fusionfx.js）
 
       // --- 発砲の火。砲身の先に出す（後退とは無関係の位置） ---
       if (u.muzzle > 0) {
@@ -1988,7 +1993,7 @@ const Render = {
   },
 
   // 作り置きの絵の解像度（画面の拡大率に合わせる）
-  spriteRes() { return Math.min(3, Math.max(1.5, Math.round((this.scale || 1) * (this.dpr || 1) * 3) / 2)); },
+  spriteRes() { return Math.min(this.zoom ? 6 : 3, Math.max(1.5, Math.round((this.scale || 1) * (this.dpr || 1) * 3) / 2)); },
 
   // **コイン：歯車の縁の硬貨。**（ユーザー 2026-09-24「ギアのようなコイン」）画面の Icons.coin と同じ形
   coinSprite() {

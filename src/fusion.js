@@ -174,7 +174,10 @@ const Fusion = {
       if (best.upper && Combat.immune(best, 'elem')) break;
       if (best.res && best.res.elec) break;
     }
-    if (pts.length > 1) Combat.fx(run, { type: 'bolt', pts, life: 0.13, color: o.color || '#c9b3ff' });
+    if (pts.length > 1) {
+      if (o.fxk) this.fx(run, { k: o.fxk, pts, life: 0.2, color: o.color || '#c9b3ff', r0: o.r0 || 0, seed: ((run.time * 1000) | 0) % 997 });   // 合成武器の絵（fusionfx.js）
+      else Combat.fx(run, { type: 'bolt', pts, life: 0.13, color: o.color || '#c9b3ff' });
+    }
   },
 
   // 好きな点から弾を出す（Combat.spawnBullet は撃ち口から出るので、出したあとで置き直す）
@@ -287,7 +290,7 @@ const FUSIONS = {
         Combat.spawnBullet(w, run, a, {
           color: '#ffe066', fx: 'star', bulletR: w.s.bulletR,
           onConsume: (rr, b) => {
-            Combat.explode(rr, b.x, b.y, P.burstR, b.dmg * P.burstMul, { color: '#ffe066' }); Fusion.fx(rr, { k: 'starburst', x: b.x, y: b.y, r: P.burstR, color: '#ffe066', life: 0.4 });
+            Combat.explode(rr, b.x, b.y, P.burstR, b.dmg * P.burstMul, { color: '#ffe066' }); Fusion.fx(rr, { k: 'starburst', x: b.x, y: b.y, r: P.burstR, color: '#ffe066', life: 0.9, rot: (b.x * 0.07) % 6.28, seed: Math.abs((b.x * 7 + b.y * 3) | 0) % 97 });
             if (mk) Fusion.mark(rr, b.x, b.y, P.burstR, mk);
             // 連鎖星砕（fp_starassault）：弾けた破片がもう一度弾ける
             if (F.frag) {
@@ -296,7 +299,7 @@ const FUSIONS = {
                 const px = b.x + Math.cos(a0 + k * 6.2832 / F.frag) * P.burstR * 0.8, py = b.y + Math.sin(a0 + k * 6.2832 / F.frag) * P.burstR * 0.8;
                 Fusion.later(rr, K.delay, () => {
                   Combat.explode(rr, px, py, P.burstR * K.r, b.dmg * P.burstMul * K.mul, { color: '#ffe066' });
-                  Fusion.fx(rr, { k: 'starburst', x: px, y: py, r: P.burstR * K.r, color: '#ffe066', life: 0.3 });
+                  Fusion.fx(rr, { k: 'starburst', x: px, y: py, r: P.burstR * K.r, color: '#ffe066', life: 0.6, rot: (px * 0.07) % 6.28, seed: Math.abs((px * 7 + py * 3) | 0) % 97 });
                   if (mk) Fusion.mark(rr, px, py, P.burstR * K.r, mk);
                 });
               }
@@ -304,6 +307,7 @@ const FUSIONS = {
           },
         });
       }
+      Fusion.fx(run, { k: 'starmuzzle', x: w.x + Math.cos(w.angle) * 24, y: w.y + Math.sin(w.angle) * 24, a: w.angle, life: 0.1 });   // 撃つ瞬間の発射炎（絵だけ）
     },
   },
 
@@ -384,7 +388,8 @@ const FUSIONS = {
         const cx = w.x + Math.cos(a) * P.dist, cy = w.y + Math.sin(a) * P.dist;
         const hw = P.len / 2, hh = P.wid / 2;
         for (const e of Fusion.rectEnemies(cx, cy, a, hw, hh)) Combat.damage(run, e, w.s.dmg, { color: '#f4d8ff', crit: w.s.crit, critMul: w.s.critMul, exec: w.s.execThr });
-        const rz = { kind: 'rift', shape: 'rect', x: cx, y: cy, a, hw, hh, dur: P.dur * (1 + (F.durK || 0)), tick: P.tick, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.6, color: '#c85ab0', dcolor: '#ffb0e8' };
+        const seed = (w.shots * 7 + i * 3) % 100;
+        const rz = { kind: 'rift', shape: 'rect', x: cx, y: cy, a, hw, hh, dur: P.dur * (1 + (F.durK || 0)), tick: P.tick, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.6, color: '#c85ab0', dcolor: '#ffb0e8', seed };
         // 二本の触手（fp_voidblade）：裂け目が長く残り、触手が突き刺す
         if (F.tent) rz.pulse = { every: K.every, fn: (rr, z) => {
           const list = Fusion.rectEnemies(z.x, z.y, z.a, z.hw, z.hh);
@@ -407,7 +412,7 @@ const FUSIONS = {
             }
           }
         }
-        Fusion.fx(run, { k: 'voidslash', x: cx, y: cy, a, hw, hh, life: 0.4, seed: (w.shots * 7 + i * 3) % 100 });
+        Fusion.fx(run, { k: 'voidslash', x: cx, y: cy, a, hw, hh, life: 0.45, seed });
       }
       Snd.shot(w.id);
       Combat.shake(run, 2.4);
@@ -763,7 +768,7 @@ const FUSIONS = {
         pulse: { every: P.zapEvery, fn: (rr, z) => {
           // 放電過多（fp_resonator）：電撃が当たる敵が増える
           for (const e of Fusion.nearestTo(z.x, z.y, z.r * P.reach, P.zaps + (F.zaps || 0))) {
-            Fusion.chainFrom(w, rr, e, w.s.chain, w.s.dmg * P.zapMul, w.s.chainFalloff, { fromX: z.x, fromY: z.y, direct: true, color: '#e6d0ff' });
+            Fusion.chainFrom(w, rr, e, w.s.chain, w.s.dmg * P.zapMul, w.s.chainFalloff, { fromX: z.x, fromY: z.y, direct: true, color: '#e6d0ff', fxk: 'zap', r0: z.r });
           }
           // 雷の往復（fl_arc）：電撃が、雷雲の中の敵にも跳ぶ
           if (arc) {

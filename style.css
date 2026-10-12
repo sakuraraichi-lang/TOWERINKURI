@@ -2249,6 +2249,17 @@ body:not(.tabsoff) #home #panel{animation:panelIn .2s cubic-bezier(.2,.8,.2,1);}
   background:var(--key-face);border:1px solid var(--key-edge);border-radius:7px;box-shadow:var(--key-bevel),var(--key-lift);
   transition:transform .08s ease-out,box-shadow .08s ease-out;}
 .dbg-key:active{transform:translateY(2px);box-shadow:var(--key-press);}
+/* 合成武器の見本の部屋（1012・DebugRoom.showroom）：盤を大きく映すあいだ、確認室のパネルを隠して下に操作の帯だけ出す */
+#srbar{position:fixed;left:0;right:0;bottom:0;max-width:560px;margin:0 auto;z-index:46;padding:8px 10px 12px;display:grid;gap:6px;
+  background:rgba(10,12,18,.94);border-top:1px solid rgba(255,138,31,.45);border-radius:14px 14px 0 0;}
+#srbar .sr-top,#srbar .sr-ctl{display:flex;gap:6px;align-items:center;}
+#srbar .sr-name{flex:1;min-width:0;display:grid;line-height:1.2;text-align:center;}
+#srbar .sr-name b{font-size:15px;font-weight:900;}
+#srbar .sr-name span{font-size:10px;color:var(--mute,#9aa3b5);}
+#srbar .sr-times{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;}
+#srbar .dbg-key{padding:8px 6px;}
+#srbar .dbg-key small{display:block;font-size:10px;opacity:.75;font-weight:700;}
+#srbar .sr-t{flex:1;text-align:right;font:700 12px ui-monospace,monospace;color:#ffd24a;}
 .cfgroom .box::before,.cfgroom .box::after{display:none;}
 .cfgroom .box{display:grid;place-items:center;font-size:11px;color:var(--acc);}
 
@@ -2994,3 +3005,4 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 .rb-wait.done b{text-shadow:0 0 12px #ff7a18;}
 /* 2026-10-12：コストの下の文は武器を手に取っているときだけ。空のときは行ごと消す */
 .hcost .hc-s:empty{display:none;}
+body.sr-on #tut{display:none !important;}

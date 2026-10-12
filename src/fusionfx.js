@@ -102,17 +102,20 @@ const FusionFX = {
     const h = 40, K = 1.12;                   // 部品は ±12 ほど。台座の六角（半径27）に対して小さく見えたので少し大きく描く
     const cv = document.createElement('canvas'); cv.width = cv.height = Math.ceil(h * 2 * res);
     const c = cv.getContext('2d'); c.setTransform(res * K, 0, 0, res * K, h * res, h * res);
-    c.save(); c.shadowColor = 'rgba(0,0,0,0.8)'; c.shadowBlur = 5; c.shadowOffsetY = 2;
-    // 後ろ：B（逆向き・小さく）。前：A。前後に伸びた2つの部品で、どの A＋B かが形で読める
-    c.save(); c.translate(-3, 0); c.rotate(Math.PI); c.scale(0.78, 0.78); this.part(c, f.b, B.color); c.restore();
-    c.save(); c.translate(2, 0); this.part(c, f.a, A.color); c.restore();
-    // 真ん中：合成の色の六角の芯と、金の印（後ろの2点）
-    c.beginPath();
-    for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i; c[i ? 'lineTo' : 'moveTo'](Math.cos(a) * 6.6, Math.sin(a) * 6.6); }
-    c.closePath(); this.fin(c, f.color, 2.4, 6);
-    c.fillStyle = '#fff'; c.beginPath(); c.arc(0, 0, 1.9, 0, 7); c.fill();
-    c.fillStyle = '#ffd24a';
-    for (const y of [-6.2, 6.2]) { c.beginPath(); c.moveTo(-1.5, y); c.lineTo(1.5, y - 2.2); c.lineTo(1.5, y + 2.2); c.closePath(); c.fill(); }
+    c.save(); c.shadowColor = 'rgba(0,0,0,0.8)'; c.shadowBlur = 5; c.shadowOffsetY = 2;   // 作り置きの絵なので影のぼかしは1回だけ
+    if (this.turretArt[fid]) { c.save(); c.scale(1.2, 1.2); this.turretArt[fid].call(this.REG[fid], c, f); c.restore(); }
+    else {
+      // 後ろ：B（逆向き・小さく）。前：A。前後に伸びた2つの部品で、どの A＋B かが形で読める
+      c.save(); c.translate(-3, 0); c.rotate(Math.PI); c.scale(0.78, 0.78); this.part(c, f.b, B.color); c.restore();
+      c.save(); c.translate(2, 0); this.part(c, f.a, A.color); c.restore();
+      // 真ん中：合成の色の六角の芯と、金の印（後ろの2点）
+      c.beginPath();
+      for (let i = 0; i < 6; i++) { const a = Math.PI / 3 * i; c[i ? 'lineTo' : 'moveTo'](Math.cos(a) * 6.6, Math.sin(a) * 6.6); }
+      c.closePath(); this.fin(c, f.color, 2.4, 6);
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(0, 0, 1.9, 0, 7); c.fill();
+      c.fillStyle = '#ffd24a';
+      for (const y of [-6.2, 6.2]) { c.beginPath(); c.moveTo(-1.5, y); c.lineTo(1.5, y - 2.2); c.lineTo(1.5, y + 2.2); c.closePath(); c.fill(); }
+    }
     c.restore();
     c.globalCompositeOperation = 'source-atop';
     const g = c.createLinearGradient(-h * 0.6, -h * 0.6, h * 0.6, h * 0.6);
@@ -121,6 +124,9 @@ const FusionFX = {
     c.fillStyle = g; c.fillRect(-h, -h, h * 2, h * 2);
     return (this._tur[key] = { cv, h });
   },
+
+  // 合成した砲台の絵：src/fusionfx/*.js が register の turret で登録する（無い合成武器は、A と B の部品を重ねた絵）
+  turretArt: {},
 
   // 図鑑用の絵（データURL）。台座の上に砲塔を右向きで
   icon(R, fid) {
@@ -145,17 +151,14 @@ const FusionFX = {
   bullets(ctx, list, run) {
     const t = run.time;
     for (const b of list) {
+      const hb = this._bul[b.fx];                                    // 合成武器ごとのファイル（src/fusionfx/*.js）が登録した形
+      if (hb) { ctx.save(); hb.fn.call(hb.o, ctx, b, t, run); ctx.restore(); continue; }
       const sp = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / sp, uy = b.vy / sp;
       // 尾（進んできた向きの逆へ）
       ctx.globalAlpha = 0.45; ctx.strokeStyle = b.color; ctx.lineWidth = Math.max(2, b.r * 0.8); ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - ux * b.r * 3.2, b.y - uy * b.r * 3.2); ctx.stroke();
       ctx.globalAlpha = 1;
-      if (b.fx === 'star') {           // 5つ角の星（スターアサルト）：大きめ・回る・白い芯
-        const r = Math.max(6, b.r * 1.9);
-        this.star(ctx, b.x, b.y, r, r * 0.45, t * 14 + b.x * 0.01, 5);
-        ctx.fillStyle = b.color; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(40,24,0,0.9)'; ctx.stroke();
-        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(b.x, b.y, r * 0.22, 0, 7); ctx.fill();
-      } else if (b.fx === 'chakram') {   // 輪の刃（円環刃）：外の輪・内の輪・4本のスポーク。回る
+      if (b.fx === 'chakram') {   // 輪の刃（円環刃）：外の輪・内の輪・4本のスポーク。回る
         const r = Math.max(7, b.r * 1.35), a0 = t * 18;
         ctx.lineWidth = 2.6; ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, 7); ctx.stroke();
         ctx.lineWidth = 1.8; ctx.strokeStyle = b.color; ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, 7); ctx.stroke();
@@ -187,28 +190,10 @@ const FusionFX = {
     ctx.beginPath(); ctx.arc(x, y, R + W * 0.5, a0, a1); ctx.stroke();
   },
   draw(ctx, f, k, R) {
+    const hf = this._fx[f.k];                                       // 合成武器ごとのファイルが登録した演出
+    if (hf) { ctx.save(); hf.fn.call(hf.o, ctx, f, k, R); ctx.restore(); ctx.globalAlpha = 1; return; }
     const ease = 1 - (1 - k) * (1 - k);
     switch (f.k) {
-      case 'starburst': {
-        ctx.globalAlpha = (1 - k) * 0.9; ctx.strokeStyle = f.color; ctx.lineWidth = 3 * (1 - k) + 1;
-        this.star(ctx, f.x, f.y, f.r * (0.4 + ease * 0.7), f.r * (0.18 + ease * 0.3), k * 1.2, 5); ctx.stroke();
-        ctx.globalAlpha = (1 - k) * 0.28; ctx.fillStyle = f.color; ctx.fill();
-        break; }
-      case 'voidslash': {   // 異界の剣：白い斬撃が走り、裂け目が開き、紫のレンズになって閉じる（長辺は横＝向きに垂直）
-        ctx.save(); ctx.translate(f.x, f.y); ctx.rotate(f.a);
-        const L = f.hh, W = f.hw;
-        const slashK = Math.min(1, k / 0.25);                 // 最初の 25%：白い斬撃が端から端へ走る
-        ctx.globalAlpha = (1 - k) * 0.95; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3.2 * (1 - k) + 1; ctx.lineCap = 'round';
-        ctx.beginPath(); ctx.moveTo(W * 0.2, -L); ctx.lineTo(-W * 0.2, -L + 2 * L * slashK); ctx.stroke();
-        if (k > 0.12) {                                         // 空間が割ける：レンズ形
-          const q = Math.min(1, (k - 0.12) / 0.35), open = Math.sin(Math.min(1, q) * Math.PI * 0.5) * (1 - Math.max(0, (k - 0.6) / 0.4));
-          ctx.beginPath(); ctx.moveTo(0, -L);
-          ctx.quadraticCurveTo(W * 1.1 * open + W * 0.2, 0, 0, L); ctx.quadraticCurveTo(-W * 1.1 * open - W * 0.2, 0, 0, -L); ctx.closePath();
-          ctx.globalAlpha = 0.85 * (1 - k * 0.5); ctx.fillStyle = '#1a0630'; ctx.fill();
-          ctx.globalAlpha = (1 - k); ctx.strokeStyle = '#d070ff'; ctx.lineWidth = 2.4; ctx.stroke();
-        }
-        ctx.restore();
-        break; }
       case 'redslash': {    // フランベルジュ：細い赤の斬撃。白い刃先と、飛び散る火の粉
         const a0 = f.a - f.arc, a1 = f.a + f.arc, head = a0 + (a1 - a0) * Math.min(1, k * 3);
         ctx.lineCap = 'round';
@@ -344,6 +329,8 @@ const FusionFX = {
 
   // 落ちてくる弾（Combat.spawnLob の fx）。ポッピングスター：泡を纏った流れ星（光の尾を引く）
   lob(ctx, b, by, br, run) {
+    const hl = this._lob[b.fx];                                     // 合成武器ごとのファイルが登録した落ちてくる弾
+    if (hl) { ctx.save(); hl.fn.call(hl.o, ctx, b, by, br, run); ctx.restore(); return; }
     const sp = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / sp, uy = b.vy / sp, t = run.time;
     const r = Math.max(7, br * 1.9);
     ctx.save();
@@ -366,19 +353,9 @@ const FusionFX = {
     for (const z of zs) {
       const k = z.t / z.dur, fade = Math.min(1, (1 - k) * 2.2, k * 8 + 0.3);
       ctx.save();
-      if (z.kind === 'rift') {            // 異界の剣：裂け目（暗い紫のレンズ）と、中から伸びる触手
-        ctx.translate(z.x, z.y); ctx.rotate(z.a);
-        const L = z.hh, W = z.hw * 0.9;
-        ctx.beginPath(); ctx.moveTo(0, -L); ctx.quadraticCurveTo(W * 1.15, 0, 0, L); ctx.quadraticCurveTo(-W * 1.15, 0, 0, -L); ctx.closePath();
-        ctx.globalAlpha = 0.82 * fade; ctx.fillStyle = '#16052a'; ctx.fill();
-        ctx.globalAlpha = 0.9 * fade; ctx.strokeStyle = '#d070ff'; ctx.lineWidth = 2; ctx.stroke();
-        ctx.strokeStyle = '#c85ab0'; ctx.lineWidth = 3; ctx.lineCap = 'round';
-        for (let i = 0; i < 6; i++) {
-          const y0 = -L * 0.85 + (L * 1.7) * (i / 5), sw = Math.sin(t * 6 + i * 1.7);
-          ctx.beginPath(); ctx.moveTo(0, y0);
-          ctx.quadraticCurveTo(W * 0.5 * (i % 2 ? 1 : -1) + sw * 5, y0 + 4, W * 0.9 * (i % 2 ? 1 : -1) + sw * 7, y0 - 3 + sw * 3);
-          ctx.stroke();
-        }
+      const hz = this._zone[z.kind];                                 // 合成武器ごとのファイルが登録した場
+      if (hz) {
+        hz.fn.call(hz.o, ctx, z, run);
       } else if (z.kind === 'abyss') {    // 狂気の海底：大きな泡（深い青緑）。外から中心へ流れ込む渦の筋と、閉じ込められた光
         const near = Math.max(0, (k - 0.78) / 0.22);          // 破裂の間際：泡が膨らんで赤みを帯びる
         const R = z.r * (1 + near * 0.12);
@@ -426,28 +403,6 @@ const FusionFX = {
         }
         ctx.globalAlpha = 0.7 * fade; ctx.fillStyle = '#fff0c0'; ctx.beginPath(); ctx.arc(z.x, z.y, R * 0.16, 0, 7); ctx.fill();
         ctx.globalCompositeOperation = 'source-over';
-      } else if (z.kind === 'plasmaball') { // プラズマボール：おもちゃのプラズマボール。ガラスの球・中心の電極・四方へ走るフィラメント
-        const R = z.r;
-        const gr = ctx.createRadialGradient(z.x, z.y, 2, z.x, z.y, R);
-        gr.addColorStop(0, 'rgba(255,230,255,0.9)'); gr.addColorStop(0.18, 'rgba(180,110,255,0.7)'); gr.addColorStop(1, 'rgba(40,10,90,0.35)');
-        ctx.globalAlpha = fade; ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(z.x, z.y, R, 0, 7); ctx.fill();
-        ctx.save(); ctx.shadowColor = '#d8a8ff'; ctx.shadowBlur = 10; ctx.lineCap = 'round';
-        const seed = Math.floor(t * 12);
-        for (let i = 0; i < 8; i++) {
-          const a = (i / 8) * Math.PI * 2 + Math.sin(seed * 12.9898 + i * 4.1) * 0.5, len = R * (0.75 + 0.22 * Math.sin(seed * 7.3 + i * 2.7));
-          ctx.globalAlpha = 0.9 * fade; ctx.strokeStyle = i % 3 ? '#e6c8ff' : '#ffffff'; ctx.lineWidth = 1.6;
-          ctx.beginPath(); ctx.moveTo(z.x, z.y);
-          const m1 = a + Math.sin(seed * 5.1 + i) * 0.35, m2 = a + Math.sin(seed * 3.3 + i * 2) * 0.3;
-          ctx.lineTo(z.x + Math.cos(m1) * len * 0.35, z.y + Math.sin(m1) * len * 0.35);
-          ctx.lineTo(z.x + Math.cos(m2) * len * 0.7, z.y + Math.sin(m2) * len * 0.7);
-          ctx.lineTo(z.x + Math.cos(a) * len, z.y + Math.sin(a) * len);
-          ctx.stroke();
-        }
-        ctx.restore();
-        ctx.globalAlpha = fade; ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(z.x, z.y, R * 0.12, 0, 7); ctx.fill();
-        ctx.strokeStyle = 'rgba(255,255,255,0.8)'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(z.x, z.y, R, 0, 7); ctx.stroke();
-        ctx.globalAlpha = 0.55 * fade; ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.ellipse(z.x - R * 0.42, z.y - R * 0.5, R * 0.16, R * 0.09, -0.6, 0, 7); ctx.fill();      // ガラスの映り込み
-        ctx.fillStyle = '#2a2230'; ctx.globalAlpha = 0.9 * fade; ctx.beginPath(); ctx.ellipse(z.x, z.y + R * 1.08, R * 0.5, R * 0.14, 0, 0, 7); ctx.fill();       // 台座
       } else if (z.kind === 'aquaregia') {  // 王水：黄金の液体。金の面・ゆっくり広がる波紋・きらめき
         const R = z.r * (0.9 + 0.1 * Math.min(1, k * 6));
         const gr = ctx.createRadialGradient(z.x, z.y, R * 0.1, z.x, z.y, R);
@@ -495,6 +450,47 @@ const FusionFX = {
       }
       ctx.restore();
     }
+  },
+
+  // ---------- 敵の上に描く場の部分（Render.draw が敵のあとで呼ぶ） ----------
+  zonesOver(ctx, run) {
+    const zs = run.fzones;
+    if (!zs || !zs.length) return;
+    for (const z of zs) {
+      const h = this._over[z.kind];
+      if (!h) continue;
+      ctx.save(); h.fn.call(h.o, ctx, z, run); ctx.restore();
+    }
+    ctx.globalAlpha = 1;
+  },
+
+  // ---------- 合成武器ごとの絵の登録（レジストリ・2026-10-12 段1） ----------
+  //   src/fusionfx/fx-*.js が FusionFX.register(合成の id, 物) で登録する。書き方は各ファイルの冒頭。
+  //   形（弾の fx）・演出の k・場の kind は全体で1つの名前。同じ名前を2回登録したら警告を出す（3人が並べて作るとき、ぶつかりに気づけるように）
+  REG: {}, _bul: {}, _lob: {}, _fx: {}, _zone: {}, _over: {},
+  register(fid, o) {
+    if (this.REG[fid]) console.warn('FusionFX.register：' + fid + ' を2回登録しました');
+    if (typeof FUSIONS !== 'undefined' && !FUSIONS[fid]) console.warn('FusionFX.register：' + fid + ' という合成武器はありません');
+    this.REG[fid] = o;
+    if (o.turret) this.turretArt[fid] = o.turret;
+    for (const [part, tbl] of [['bullets', this._bul], ['lobs', this._lob], ['fx', this._fx], ['zones', this._zone], ['over', this._over]]) {
+      for (const name of Object.keys(o[part] || {})) {
+        if (tbl[name]) console.warn('FusionFX.register：' + part + ' の「' + name + '」は ' + tbl[name].fid + ' が登録済み（' + fid + '）');
+        tbl[name] = { fid, o, fn: o[part][name] };
+      }
+    }
+  },
+
+  // ---------- 合成した砲台の縁の光（全24種）：合成の色の柔らかい光と金の線（作り置き） ----------
+  rim(R, ctx, u, fd) {
+    const S = FxKit.sprite('fz-rim-' + fd.color, MapGen.HEX_R + 9, FxKit.res(), c => {
+      c.lineJoin = 'round';
+      for (const [w, a] of [[10, 0.1], [6.5, 0.16], [3.6, 0.3]]) { c.beginPath(); FxKit.hexAdd(c, 0, 0, MapGen.HEX_R - 1.5); c.globalAlpha = a; c.strokeStyle = fd.color; c.lineWidth = w; c.stroke(); }
+      c.globalAlpha = 0.95; c.beginPath(); FxKit.hexAdd(c, 0, 0, MapGen.HEX_R - 1.5); c.strokeStyle = '#ffd24a'; c.lineWidth = 1.7; c.stroke();
+      c.globalAlpha = 0.6; c.strokeStyle = '#ffffff'; c.lineWidth = 0.6; c.stroke();
+    });
+    ctx.save(); ctx.globalAlpha = 0.85 + 0.15 * Math.sin((Game.run ? Game.run.time : 0) * 3 + u.x * 0.01);
+    ctx.drawImage(S.cv, u.x - S.h, u.y - S.h, S.h * 2, S.h * 2); ctx.restore();
   },
 
   // ---------- 合成ボタン（盤の上・A の左上に光る） ----------

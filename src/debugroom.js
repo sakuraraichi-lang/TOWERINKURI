@@ -616,6 +616,9 @@ const DebugRoom = {
   _fusionButtons() {
     const me = this;
     const out = [
+      ['見本の部屋：異界の剣（大きく映す・時刻を止める・前後で24種）', () => me.showroom('voidblade')],
+      ['見本の部屋：スターアサルト', () => me.showroom('starassault')],
+      ['見本の部屋：プラズマボール', () => me.showroom('resonator')],
       ['合成の流れ：異界の剣（刀＋触手・コスト8）→「合」を2回タップ', () => me.fuseDemo('voidblade')],
       ['合成の流れ：相反の渦（凍結＋火炎・コスト9）', () => me.fuseDemo('vortex')],
       ['合成の流れ：スターアサルト（ガトリング＋手裏剣・コスト4）', () => me.fuseDemo('starassault')],
@@ -695,6 +698,222 @@ const DebugRoom = {
       Combat.update(run, dt);
     }, 16);
     UI.toastMsg('見本：' + f.name + '（約7秒）', f.color, 'demo');
+  },
+
+  // ---------------------------------------------------------------
+  // 合成武器の見本の部屋（2026-10-12 段1・設計 docs/FUSION-ART-DIRECTION-2026-10-12.md）
+  //   合成武器を1種、盤の真ん中あたりに置き、前に動かない的を並べ、**視点を寄せて大きく映す**（見本のあいだだけ Render.zoom）。
+  //   時刻のボタン：t=0 に**1発だけ**撃たせ、その時刻まで 1/60 秒ずつ進めて止める。押すたびに最初から・乱数を固定してやり直すので、
+  //     同じ時刻は必ず同じ絵になる（「撃つ瞬間・飛ぶ途中・当たり・余韻」を止めて見比べる）。コマ送りも同じ作り
+  //   再生：本物の撃ち方（連射）のまま動かし続ける。止めると、その場で止まる
+  //   セーブは変えない：武器は run.units に一時的に置くだけ（配置の記録に書かない）・保存は止める・run 側の値は終わりに戻す。的は倒れない（HP 1e12）
+  // ---------------------------------------------------------------
+  //   face … 武器の向き（度・Game.FACES のどれか）／ foes … 的の位置 [前へ, 横へ]（盤の px）／ times … 4つの時刻と名前／ look … 映す中心（武器から前へ）／ w … 画面の横幅に映す盤の幅
+  SR: {
+    starassault: { face: -90, foes: [[70, 0], [105, 3], [140, -3], [175, 2], [210, -2], [250, 0]], times: [[0.07, '撃つ'], [0.2, '飛ぶ'], [0.4, '当たり'], [0.75, '余韻']], look: 125, w: 300 },
+    voidblade: { face: -30, foes: [[80, -140], [100, -80], [75, -20], [110, 30], [85, 90], [105, 150]], times: [[0.04, '斬撃'], [0.2, '裂ける'], [0.6, '触手'], [2.45, '閉じる']], look: 85, w: 330 },
+    resonator: { face: -90, foes: [[150, 0], [128, -48], [176, 44], [196, -30], [112, 40], [226, 10]], times: [[0.05, '出る'], [0.2, '放電'], [0.36, '電撃'], [4.38, '消える']], look: 150, w: 300 },
+  },
+  SR_DEF: { face: -90, foes: [[60, 0], [95, -14], [130, 12], [165, -10], [200, 8], [240, 0]], times: [[0.05, '撃つ'], [0.2, '飛ぶ'], [0.5, '当たり'], [1.0, '余韻']], look: 120, w: 300 },
+  _srRng(seed) {
+    let a = seed >>> 0;
+    return () => { a = (a + 0x6D2B79F5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  },
+  showroom(fid) {
+    const run = Game.run;
+    if (!run || !run.stage || !FUSIONS[fid]) return;
+    this._cdEnd(); this._dirEnd();
+    if (!this._sr) {
+      const keep = {};
+      for (const k of this._CDKEEP.concat(['time'])) keep[k] = run[k];
+      this._sr = { run, keep, orig: run.units, enemies: [], fid, T: 0, mode: 'frozen' };
+      this._saveHold();
+      if (this.el) this.el.style.display = 'none';
+      document.body.classList.add('sr-on');   // チュートリアルの札を隠す（style.css）
+      this._srBar();
+    }
+    const S = this._sr;
+    S.fid = fid;
+    // 置く六角：向きの前がなるべく通路で（的が道の上に並ぶ）、盤の真ん中に近い所
+    const cfg = this.SR[fid] || this.SR_DEF, st = run.stage, a = cfg.face * Math.PI / 180, ux = Math.cos(a), uy = Math.sin(a);
+    const need = Math.max.apply(null, cfg.foes.map(q => q[0])) + 20;
+    let best = null;
+    for (const h of (st.vec && st.vec.hexes) || []) {
+      let len = 0;
+      for (let d = 20; d <= need; d += 10) { if (!st.walkable(((h.x + ux * d) / TILE) | 0, ((h.y + uy * d) / TILE) | 0)) break; len = d; }
+      const sc = len - Util.dist(h.x, h.y, st.w / 2, st.h * 0.55) * 0.12;
+      if (!best || sc > best.sc) best = { sc, h };
+    }
+    if (!best) return;
+    S.h = best.h;
+    Render.zoom = { x: S.h.x + ux * cfg.look, y: S.h.y + uy * cfg.look, s: Render.cssW / cfg.w, cy: 0.4 };
+    Render.fit();
+    this._srTimes();
+    this.srAt(cfg.times[2][0]);
+  },
+  // 武器と的を最初の状態に作り直す
+  _srBuild() {
+    const S = this._sr, run = S.run, f = FUSIONS[S.fid], cfg = this.SR[S.fid] || this.SR_DEF;
+    clearInterval(this._srPlay);
+    run.fields.length = 0; run.bullets.length = 0; run.fx.length = 0; run.nums.length = 0;
+    if (run.fzones) run.fzones.length = 0; if (run.later) run.later.length = 0;
+    for (const en of S.enemies) en.dead = true;
+    run.enemies = run.enemies.filter(en => !S.enemies.includes(en));
+    run.time = 0; run.shake = 0;
+    const a = cfg.face * Math.PI / 180, ux = Math.cos(a), uy = Math.sin(a);
+    const u = Game.newUnit(f.a, S.h.c, S.h.r, a);
+    u.fuse = S.fid;
+    u.s = Object.assign({}, u.def.base, BAL.fusion[S.fid].stat);
+    u.s.arc = u.arc;
+    run.units = [u];
+    const t = ENEMY_TYPES.grunt, g = Math.max(Combat.gw(run), 1), enemies = [];
+    for (const [d, off] of cfg.foes) {
+      const en = Combat.makeEnemy(run, t, g, u.x + ux * d - uy * off, u.y + uy * d + ux * off, 0, 1e12);
+      en.spd = 0; en.lane = null;
+      run.enemies.push(en); enemies.push(en);
+    }
+    if (u.def.aimPoint) { const m = enemies[(enemies.length / 2) | 0]; u.ax = m.x; u.ay = m.y; u.aim = { x: m.x, y: m.y }; }
+    S.u = u; S.enemies = enemies;
+  },
+  // 1/60 秒を1回。single … 最初の1発のあとは撃たせない（時刻を止めて見るとき）
+  _srStep(i, single) {
+    const S = this._sr, run = S.run, cfg = this.SR[S.fid] || this.SR_DEF;
+    Combat.update(run, 1 / 60);
+    run.shake = 0;
+    run.nums.length = 0;   // ダメージの数字は出さない（的の HP が 1e12 なので、最大HPの割合で削る効果が「833M」のような数字で演出を覆う）
+    if (i === 0) {
+      if (single) S.u.cd = 1e9;
+      // 撃った弾の線の上に的を並べ直す（散らばりで外れないように）・見本の弾は壁で止めない（盤によっては的の手前が壁なので）
+      const b = run.bullets.find(q => q.src === S.u);
+      if (b) {
+        const sp = Math.hypot(b.vx, b.vy) || 1, vx = b.vx / sp, vy = b.vy / sp;
+        cfg.foes.forEach(([d, off], k) => { const en = S.enemies[k]; if (en) { en.x = b.ox + vx * d - vy * off; en.y = b.oy + vy * d + vx * off; } });
+      }
+    }
+    for (const b of run.bullets) if (b.src === S.u) b.through = true;
+  },
+  // 時刻 T で止める（最初からやり直し・乱数を固定）
+  srAt(T) {
+    const S = this._sr;
+    if (!S) return;
+    T = Math.max(1 / 60, T);
+    this._srBuild();
+    S.mode = 'frozen';
+    const R = Math.random;
+    Math.random = this._srRng(20261012);
+    try {
+      S.u.cd = 0;
+      const n = Math.round(T * 60);
+      for (let i = 0; i < n; i++) this._srStep(i, true);
+      S.T = n / 60;
+    } finally { Math.random = R; }
+    this._srLabel();
+  },
+  srFrame(dir) {
+    const S = this._sr;
+    if (!S) return;
+    if (S.mode === 'frozen') return this.srAt(S.T + dir / 60);
+    clearInterval(this._srPlay); S.mode = 'paused';
+    if (dir > 0) { this._srStep(-1, false); S.T += 1 / 60; }
+    this._srLabel();
+  },
+  srPlay() {
+    const S = this._sr;
+    if (!S) return;
+    if (S.mode === 'play') { clearInterval(this._srPlay); S.mode = 'paused'; this._srLabel(); return; }
+    if (S.mode === 'frozen') { this._srBuild(); S.u.cd = 0; S.T = 0; }
+    S.mode = 'play';
+    let last = performance.now(), i = S.T > 0 ? -1 : 0;
+    this._srPlay = setInterval(() => {
+      if (Game.run !== S.run || !this._sr) { clearInterval(this._srPlay); return; }
+      const now = performance.now();
+      let n = Math.min(4, Math.round((now - last) / (1000 / 60)));
+      if (n > 0) last = now;
+      while (n-- > 0) { this._srStep(i, false); i = -1; S.T += 1 / 60; }
+      if (S.T > 8) { this._srBuild(); S.u.cd = 0; S.T = 0; i = 0; }
+      this._srLabel();
+    }, 16);
+    this._srLabel();
+  },
+  srNext(d) {
+    const S = this._sr;
+    if (!S) return;
+    const i = FUSION_IDS.indexOf(S.fid), n = FUSION_IDS.length;
+    this.showroom(FUSION_IDS[((i + d) % n + n) % n]);
+  },
+  // 見本の部屋の操作の帯（画面の下）
+  _srBar() {
+    const bar = Util.el('div', 'srbar');
+    bar.id = 'srbar';
+    bar.innerHTML = '<div class="sr-top"><button class="dbg-key sr-prev">◀ 前</button><div class="sr-name"></div><button class="dbg-key sr-next">次 ▶</button><button class="dbg-key sr-x">閉じる</button></div>' +
+      '<div class="sr-times"></div>' +
+      '<div class="sr-ctl"><button class="dbg-key sr-play">▶ 再生</button><button class="dbg-key sr-b">− コマ</button><button class="dbg-key sr-f">+ コマ</button><div class="sr-t"></div></div>';
+    const on = (sel, fn) => bar.querySelector(sel).addEventListener('click', () => { try { fn(); } catch (e) { console.error('見本の部屋', e); } });
+    on('.sr-prev', () => this.srNext(-1)); on('.sr-next', () => this.srNext(1)); on('.sr-x', () => this.srEnd());
+    on('.sr-play', () => this.srPlay()); on('.sr-b', () => this.srFrame(-1)); on('.sr-f', () => this.srFrame(1));
+    document.body.appendChild(bar);
+    this._srEl = bar;
+  },
+  _srTimes() {
+    const S = this._sr, el = this._srEl;
+    if (!S || !el) return;
+    const f = FUSIONS[S.fid], cfg = this.SR[S.fid] || this.SR_DEF;
+    el.querySelector('.sr-name').innerHTML = '<b style="color:' + f.color + '">' + f.name + '</b><span>' + WEAPONS[f.a].name + '＋' + WEAPONS[f.b].name + '　' + (FUSION_IDS.indexOf(S.fid) + 1) + ' / ' + FUSION_IDS.length + '</span>';
+    const row = el.querySelector('.sr-times');
+    row.innerHTML = '';
+    for (const [t, name] of cfg.times) {
+      const b = Util.el('button', 'dbg-key');
+      b.innerHTML = name + '<small>' + t.toFixed(2) + 's</small>';
+      b.addEventListener('click', () => this.srAt(t));
+      row.appendChild(b);
+    }
+  },
+  _srLabel() {
+    const S = this._sr, el = this._srEl;
+    if (!S || !el) return;
+    el.querySelector('.sr-t').textContent = 't = ' + S.T.toFixed(3) + 's' + (S.mode === 'play' ? '' : '　停止');
+    el.querySelector('.sr-play').textContent = S.mode === 'play' ? '⏸ 止める' : '▶ 再生';
+  },
+  // 重さ：いま止めている絵の、合成武器の演出だけを n 回描いた1回あたりの時間（ms）。最後に1回だけ getImageData(1px) で描き終わりを待つ（GPU の分も入る）。
+  //   **ページを開いてから1回だけ測る。**getImageData を一度呼ぶと Chrome がこのキャンバスを CPU 描きに切り替え、そのあとの数字は別物になる
+  srPerf(n) {
+    const run = Game.run, ctx = Render.ctx, k = Render.scale * Render.dpr;
+    n = n || 200;
+    const fx = run.fx.filter(f => f.type === 'fx'), bl = run.bullets.filter(b => b.fx);
+    const one = () => {
+      ctx.save(); ctx.setTransform(k, 0, 0, k, Render.offX * Render.dpr, Render.offY * Render.dpr);
+      FusionFX.zones(ctx, run); FusionFX.zonesOver(ctx, run);
+      if (bl.length) FusionFX.bullets(ctx, bl, run);
+      for (const f of fx) FusionFX.draw(ctx, f, f.t / f.life, Render);
+      ctx.restore();
+    };
+    for (let i = 0; i < 5; i++) one();                       // 作り置きの絵とグラデーションを先に作る
+    const t0 = performance.now();
+    for (let i = 0; i < n; i++) one();
+    const js = (performance.now() - t0) / n;
+    ctx.getImageData(0, 0, 1, 1);
+    const all = (performance.now() - t0) / n;
+    return { js: +js.toFixed(4), withGpu: +all.toFixed(4), n, scale: +Render.scale.toFixed(3), dpr: Render.dpr, fx: fx.length, zones: (run.fzones || []).length, bullets: bl.length };
+  },
+  srEnd() {
+    clearInterval(this._srPlay);
+    const S = this._sr;
+    if (!S) return;
+    this._sr = null;
+    const run = S.run;
+    run.units = S.orig;
+    for (const en of S.enemies) en.dead = true;
+    run.enemies = run.enemies.filter(en => !S.enemies.includes(en));
+    run.fields.length = 0; run.bullets.length = 0; run.fx.length = 0; run.nums.length = 0;
+    if (run.fzones) run.fzones.length = 0; if (run.later) run.later.length = 0;
+    for (const k of Object.keys(S.keep)) { if (S.keep[k] === undefined) delete run[k]; else run[k] = S.keep[k]; }
+    if (run.dmgBy) for (const k of Object.keys(run.dmgBy)) delete run.dmgBy[k];
+    if (run.killBy) for (const k of Object.keys(run.killBy)) delete run.killBy[k];
+    Render.zoom = null; Render.fit();
+    if (this._srEl) { this._srEl.remove(); this._srEl = null; }
+    if (this.el) this.el.style.display = '';
+    document.body.classList.remove('sr-on');
+    this._saveRelease();
   },
 
   // 札の新しい挙動の見本（2026-09-30 段3b）。裏の準備フェーズの盤に、**その札を掛けた武器を1基**と、**動かない的**を並べ、本物の戦闘（Combat.update）を数秒だけ進める。
@@ -1123,6 +1342,7 @@ const DebugRoom = {
   },
 
   close() {
+    this.srEnd();
     this._cdEnd();
     this._btEnd();
     this._dirEnd();
