@@ -1143,8 +1143,10 @@ const Combat = {
       range: s.range * 1.35,
       ox: w.x, oy: w.y,
       hits: 0,                       // 何体を貫いたか。軌跡の太さになる
-      through: !!w.def.wallThrough,  // 壁を抜けるか（触手・刀・範囲もの）
+      through: o.through !== undefined ? !!o.through : !!w.def.wallThrough,  // 壁を抜けるか（触手・刀・範囲もの。合成武器は弾ごとに決められる）
       target: null,
+      // 合成武器（fusion.js）の弾：絵の形（fx）・当たったとき・使い切ったとき（貫通を使い切る／最後の跳ね返り）・消えるとき（射程・寿命・壁）
+      fx: o.fx || null, onHit: o.onHit || null, onConsume: o.onConsume || null, onEnd: o.onEnd || null,
     });
   },
 
@@ -1160,7 +1162,7 @@ const Combat = {
       dmg: 0, r: w.s.bulletR, pierce: 0, bounce: 0, hit: null,
       splash: 0, splashMul: 1, homing: 0, crit: 0, critMul: 2,
       exec: 0, shock: 0, slow: 0, slowDur: 0, stun: 0, burn: 0, burnDur: 0,
-      color: o.color || '#8fd94a', lob: true, mark: !!o.mark, rocket: !!o.rocket, through: true,
+      color: o.color || '#8fd94a', lob: true, mark: !!o.mark, rocket: !!o.rocket, through: true, fx: o.fx || null,   // fx＝合成武器の落ちてくる弾の形（fusionfx.js）
       landX: tx, landY: ty, onLand: o.onLand,
       life: 5, src: w, wid: w.id, range: w.s.range * 1.8, ox: sx, oy: sy, target: null,
     });
@@ -1369,17 +1371,19 @@ const Combat = {
     return pts;
   },
 
-  laser(w, run, angle) {
+  //   o（合成武器・fusion.js）… opts：当てるときの damage の追加（凍らせる等）／ hits：貫いた敵を入れる配列／ color：光の色。戻り値は { pts }（無ければ null）
+  laser(w, run, angle, o) {
     Snd.shot(w.id);
     const pts = this.laserPath(w, run, angle);
-    if (!pts || pts.length < 2) return;
+    if (!pts || pts.length < 2) return null;
     const s = w.s;
     let dmg = s.dmg;
     if (run.resonance > 0) dmg *= (1 + run.resonance);      // 弾道共鳴（ガトリング＋レーザー）
     const half = s.bulletR;                                   // 線の太さの半分
-    const hit = new Set();
+    let hit = new Set();
     let hits = 0;
     for (let i = 1; i < pts.length; i++) {
+      if (o && o.multi) hit = new Set();   // 合成武器（スーパーノヴァ）：折り返して重なった区間では、同じ敵にもう一度当たる（区間ごとに1回）
       const a = pts[i - 1], b = pts[i];
       const len = Math.hypot(b.x - a.x, b.y - a.y);
       const near = Grid.query((a.x + b.x) * 0.5, (a.y + b.y) * 0.5, len * 0.5 + half + 24, _q);
@@ -1389,17 +1393,19 @@ const Combat = {
         if (Util.segDist2(a.x, a.y, b.x, b.y, e.x, e.y) > reach * reach) continue;
         hit.add(e);
         hits++;
-        this.damage(run, e, dmg, {
+        if (o && o.hits) o.hits.push(e);
+        this.damage(run, e, dmg, Object.assign({
           crit: s.crit, critMul: s.critMul, exec: s.execThr, shock: s.shockDur,
           slow: s.slow, slowDur: s.slowDur,
           burn: s.burn ? s.dmg * s.burn : 0, burnDur: s.burnDur, color: w.def.color,
           forceCrit: !!(w.flags.frostCrit && e.chill > 0),
-        });
+        }, o && o.opts));
         // 曳光指示・狙撃指示：レーザーが通った敵に印が残る
         if (w.flags.spot && !e.dead) e.spotT = 3;
       }
     }
-    this.fx(run, { type: 'laser', pts, w: half, n: hits, color: w.def.color, life: 0.26 });
+    this.fx(run, { type: 'laser', pts, w: half, n: hits, color: (o && o.color) || w.def.color, life: (o && o.life) || 0.26 });
+    return { pts };
   },
 
   // ================= 触手の6種の攻撃（2026-09-30 段3・weapons.js の tentacle） =================
@@ -1808,6 +1814,8 @@ const Combat = {
       }
     }
 
+    Fusion.tick(run, dt);   // 合成武器の「遅れて起きること」と居座る場（fusion.js）
+
     // --- 敵 ---
     const tw = run.tower;
     run.trafficT += dt;
@@ -2003,7 +2011,9 @@ const Combat = {
         w.n = this.shotCount(w);       // この発射で撃つ弾数。fire から参照する
         this._by = w.id;               // この発射で起きたダメージは、この武器のもの（damage の記録）
         this._src = w;                 // その1基（装甲貫通・青い炎が読む）
-        w.def.fire(w, run);
+        // 合成武器は A の代わりに自分の攻撃（fusion.js）。**狙う敵が居なくて撃たなかった（false を返した）ときは、撃ったことにせず、次のフレームでまた試す**
+        //   （砲身の線に敵が掛かった瞬間に撃てる。撃たないまま次の撃つ時刻まで待つと、首振りの線が敵を横切る一瞬を逃す）
+        if ((w.fuse ? FUSIONS[w.fuse].fire : w.def.fire)(w, run) === false) { w.cd = 0; w.muzzle = 0; w.shots--; }
         this._by = null; this._src = null;
       }
     }
@@ -2078,6 +2088,7 @@ const Combat = {
             a: Math.atan2(py - b.y, px - b.x), n: 4, sp: 26,
           });
         }
+        if (b.onEnd) b.onEnd(run, b);
         run.bullets.splice(i, 1); continue;
       }
 
@@ -2103,6 +2114,7 @@ const Combat = {
           forceCrit: !!(b.src && b.src.flags.frostCrit && e.chill > 0),
         });
 
+        if (b.onHit) b.onHit(run, b, e);
         if (b.tracer > 0 && !e.dead) {
           e.armorDown = (e.armorT > 0) ? Math.max(e.armorDown, b.tracer) : b.tracer;
           e.armorT = BAL.cardFx.tracerDur;
@@ -2168,6 +2180,8 @@ const Combat = {
         } else { consumed = true; break; }
       }
       if (consumed) {
+        if (b.onConsume) b.onConsume(run, b);
+        if (b.onEnd) b.onEnd(run, b);
         // **貫通したことを見せる。** カウンタを減らすだけでは何も伝わらない
         if (b.long && b.hits > 0 && run.fx.length < 150) {
           this.fx(run, { type: 'trail', x1: b.ox, y1: b.oy, x2: b.x, y2: b.y,
@@ -2198,6 +2212,7 @@ const Combat = {
 
   bulletEnd(run, b) {
     if (b.lob && b.onLand) { b.onLand(run, b.x, b.y); return; }
+    if (b.onEnd) b.onEnd(run, b);
     if (b.splash > 0) {
       this.explode(run, b.x, b.y, b.splash, b.dmg * b.splashMul, {});
       if (b.src && b.src.dyn.cluster && !b.child) this.cluster(run, b);

@@ -103,7 +103,7 @@ const UPACK_IDS = ['u_basic', 'u_arms', 'u_chem', 'u_syn', 'u_relic'];
     { id: 'u_relic', base: 'relic', ap: 'relic', name: '上位の常駐パック', color: '#ffd29a', desc: '持っているだけで効く、アセンション専用の常駐',
       weights: { common: 46, rare: 40, epic: 14, legendary: 0 } },
     //   連携：レジェンドの枠は**合成の札**（合成武器の企画書の解禁・上位の連携パックでいちばん出にくい・ユーザー 2026-10-06）。
-    //   合成武器の一覧をユーザーが見てから作るので、いまは中身が空（Pack.UPPER_FUSION）＝出ない。重みは「出る枠」を決めてあるだけ
+    //   中身は合成の札24枚（fusion.js・Pack.UPPER_FUSION）。ほかの札はレジェンドに無いので、レジェンドの重み 3 はそのまま合成の札が出る割合（いちばん出にくい）
     { id: 'u_syn',   base: 'syn',   ap: 'syn',   name: '上位の連携パック', color: '#e2b8ff', desc: '系統をそろえるほど効く札',
       weights: { common: 40, rare: 42, epic: 15, legendary: 3 } },
   ];
@@ -182,14 +182,14 @@ const Pack = {
     }).r;
   },
 
-  // 合成の札（上位の連携パックのレジェンド）。**合成武器の一覧をユーザーが見てから作る**ので、いまは空。空なら出ない
-  UPPER_FUSION: [],
+  // 合成の札（上位の連携パックのレジェンド・合成武器24種の解禁・1枚で1つの合成）。空なら出ない
+  UPPER_FUSION: FUSION_IDS.map(f => 'fus_' + f),     // 合成の札24枚（fusion.js・cards.js。ap:'syn'・レジェンド）
 
   // 上位パックの、指定レアリティの札（合成の札はレジェンドに入る）
   upperCards(packId, r) {
     const pack = PACKS[packId];
     const pool = CARD_IDS.filter(id => CARDS[id].ap === pack.ap && CARDS[id].rarity === r);
-    if (pack.ap === 'syn' && r === 'legendary') for (const id of this.UPPER_FUSION) if (CARDS[id]) pool.push(id);
+    if (pack.ap === 'syn' && r === 'legendary') for (const id of this.UPPER_FUSION) if (CARDS[id] && pool.indexOf(id) < 0) pool.push(id);   // ap で拾った分と二重に入れない
     return pool;
   },
 

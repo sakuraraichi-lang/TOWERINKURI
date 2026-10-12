@@ -514,6 +514,27 @@ const UI = {
     if (b) { b.classList.remove('arm'); b.textContent = '全撤去'; }
   },
 
+  // **合成ボタン（盤の上・A の左上）を押したとき。**（2026-10-06・fusion.js・fusionfx.js）
+  //   1回目のタップで「○○　コスト +n　もう一度タップ」の札に開き、2回目で合成する（B が消えるので、押し間違いを1回挟む）。コストが足りないときは理由を言う
+  fuseTap(b) {
+    const o = b.o;
+    if (!o.ok) { Snd.deny(); this.toastMsg(o.why, '#ff8080', 'limit'); return; }
+    if (FusionFX._arm !== b.key) { FusionFX.arm(b.key); Snd.ui(); return; }
+    FusionFX._arm = null;
+    const f = FUSIONS[o.fid], x = o.a.x, y = o.a.y;
+    const r = Game.fuseUnits(o.a, o.b, o.fid);
+    if (!r.ok) { Snd.deny(); this.toastMsg(r.why, '#ff8080', 'limit'); return; }
+    Snd.place();
+    if (Game.run) {
+      Combat.fx(Game.run, { type: 'fx', k: 'starburst', x, y, r: 54, color: f.color, life: 0.55 });
+      Combat.fx(Game.run, { type: 'fx', k: 'pop', x, y, r: 40, color: '#ffd24a', life: 0.45 });
+    }
+    this.toastMsg('合成：' + f.name + '（コスト +' + r.cost + '）', f.color, 'fuse');
+    this.selected = r.unit;
+    Game.save();
+    this.renderTray();
+  },
+
   // **盤の左上の「コスト 使用/上限」と「全撤去」。**（2026-09-30 段1b）準備フェーズとウェーブの合間（置ける間）だけ出す。
   //   コストの上限が前に見たときより上がっていたら（run.capUp・Game.checkCapUp）、全撤去のボタンを光らせる
   renderCost() {
@@ -900,7 +921,7 @@ const UI = {
     // 掴んで動かす取っ手。ここだけがドラッグを受ける
     const info = Util.el('div', 'usel uhandle');
     info.innerHTML = '<i class="ugrip"></i>' +
-      '<b style="color:' + u.def.color + '">' + u.def.name + '</b>' +
+      '<b style="color:' + Game.unitColor(u) + '">' + Game.unitName(u) + '</b>' +
       '<span id="uInfo">' + uInfoText() + '</span>';
     this.bindPopDrag(info);
     p.appendChild(info);
@@ -911,6 +932,11 @@ const UI = {
     //   0930：**向きが攻撃に関係しない武器には花を出さない**（Game.usesFace）。指定攻撃は、選んだまま盤をタップすると着弾円がそこへ動く（着弾円のボタンは無くした）。凍結装置は向きが要らない
     if (build) p.appendChild(Util.el('div', 'udhint', spot ? '盤をタップ：着弾円がそこへ動く' : omni ? '向きは関係なし（円の中に全部効く）' : '向き：まわりの六角をタップ'));
 
+    // 合成した武器：どの A＋B か・コスト（合成は A の札だけが乗る）
+    if (u.fuse) {
+      const f = FUSIONS[u.fuse];
+      p.appendChild(Util.el('div', 'udhint', '合成：' + WEAPONS[f.a].name + '＋' + WEAPONS[f.b].name + '（コスト' + f.cost + '）　' + WEAPONS[f.a].name + 'の札が乗る'));
+    }
     // 隣り合う異種の内訳（Game.updateAdj）
     {
       const names = (u.adjTypes || []).map(id => WEAPONS[id].name);
@@ -1772,7 +1798,8 @@ const UI = {
   //   rerender … タブを押したときの描き直し（省くとパネルの描き直し。確認室の見本は自分の板を描き直す）
   panelCollection(p, rerender) {
     const re = rerender || (() => this.renderPanel());
-    const IDS = CARD_IDS.filter(id => !CARDS[id].upper && !CARDS[id].ap);   // 上位札は持ち物ではない（上位のタブで別に見せる）。アセンション専用の札も別のタブ（apex）
+    const isApex = (id) => !!CARDS[id].ap && CARDS[id].kind !== 'fusion';      // 合成の札は ap を持つが、専用の「合成」タブで見せる
+    const IDS = CARD_IDS.filter(id => !CARDS[id].upper && !isApex(id));   // 上位札は持ち物ではない（上位のタブで別に見せる）。アセンション専用の札も別のタブ（apex）
     const total = IDS.length;
     const have = IDS.filter(id => Game.own(id) > 0).length;
     const head = Util.el('div', 'phead');
@@ -1793,11 +1820,12 @@ const UI = {
       { kind: 'key',     name: '鍵',     sub: '機能を開く' },
       { kind: 'apex',    name: 'アセンション', sub: '上位パックのみ' },
       { kind: 'upper',   name: '上位',   sub: '前提2枚で3択に出る' },
+      { kind: 'fusion',  name: '合成',   sub: 'A＋B＝C' },
       { kind: 'enemy',   name: '敵',     sub: '侵入してくるプログラム。縁の色の切れた輪が耐性の印' },
     ];
-    const idsOf = (kind) => kind === 'enemy' ? [] : kind === 'apex' ? (Asc.on(Game.perm) ? CARD_IDS.filter(id => CARDS[id].ap) : [])
+    const idsOf = (kind) => kind === 'enemy' ? [] : kind === 'apex' ? (Asc.on(Game.perm) ? CARD_IDS.filter(isApex) : [])
       : CARD_IDS.filter(id => kind === 'upper' ? CARDS[id].upper
-      : (!CARDS[id].upper && !CARDS[id].ap && CARDS[id].kind === kind));
+      : (!CARDS[id].upper && !isApex(id) && CARDS[id].kind === kind));
     const tabs = tabsDef.filter(t => t.kind === 'enemy' || idsOf(t.kind).length);
     if (!tabs.some(t => t.kind === this.collTab)) this.collTab = tabs[0].kind;
     const tab = tabs.find(t => t.kind === this.collTab);
@@ -1816,6 +1844,7 @@ const UI = {
     p.appendChild(Util.el('div', 'sk-sub', tab.sub));
 
     if (tab.kind === 'enemy') { this.collEnemies(p); return; }
+    if (tab.kind === 'fusion') { this.collFusions(p); return; }
 
     let ids = idsOf(tab.kind).sort((a, b) =>
       (BAL.rarityOrder.indexOf(CARDS[b].rarity) - BAL.rarityOrder.indexOf(CARDS[a].rarity)) || a.localeCompare(b));
@@ -1855,6 +1884,26 @@ const UI = {
 
   // **敵の図鑑**（2026-09-30 段3・ユーザー「今の敵はどいつがどんな能力なのかわからないので、今のやつにつけて図鑑などに載せたって良いですね」）
   //   名前・能力・耐性（付き始める章）・出始める章。出始める章は通算ウェーブ（ENEMY_TYPES.from）から出す。1005c から図鑑の「敵」のタブ
+  // **合成武器の図鑑**（2026-10-06）：どの A＋B か・コスト・担当する範囲・挙動。札を持っていない合成は伏せ気味に
+  collFusions(p) {
+    const el = Util.el('div', 'elist');
+    el.appendChild(Util.el('div', 'erow eup-h')).innerHTML = '<div class="ebody"><b>合成武器<em>FUSION</em><u>' + FUSION_IDS.filter(f => Fusion.owned(f)).length + ' / ' + FUSION_IDS.length + '</u></b>' +
+      '<p>隣り合う A と B ＋ 札で、A の左上に「合」。合成後は A として扱う（A の札が乗る）。コストは A＋B＋' + BAL.fuseExtraCost + '。</p></div>';
+    for (const fid of FUSION_IDS) {
+      const f = FUSIONS[fid], A = WEAPONS[f.a], B = WEAPONS[f.b], have = Fusion.owned(fid);
+      let img = '';
+      try { img = '<img class="eimg" alt="" src="' + FusionFX.icon(Render, fid) + '">'; } catch (e) { img = ''; }
+      const row = Util.el('div', 'erow' + (have ? '' : ' noown'));
+      row.innerHTML = '<span class="edot">' + img + '</span>' +
+        '<div class="ebody"><b style="color:' + f.color + '">' + f.name + '<em>' + f.short + '</em><u>コスト ' + f.cost + '（' + A.cost + '＋' + B.cost + '＋' + BAL.fuseExtraCost + '）</u></b>' +
+        '<p><strong style="color:' + A.color + '">' + A.name + '</strong>＋<strong style="color:' + B.color + '">' + B.name + '</strong>　担当：' + f.role + (have ? '' : '　（札：未所持）') + '</p>' +
+        '<p>' + f.desc + '</p></div>';
+      if (!have) row.style.opacity = '0.62';
+      el.appendChild(row);
+    }
+    p.appendChild(el);
+  },
+
   collEnemies(p) {
     const el = Util.el('div', 'elist');
     for (const t of Object.values(ENEMY_TYPES)) {
@@ -1986,7 +2035,7 @@ const UI = {
       '</div>' +
       '<div class="gs-info"><i class="gs-lamp"></i><em>// ' + pid.toUpperCase() + ' ／ ' + pk.size + ' CARDS</em><b>' + pk.name + '</b><span>' + pk.desc + '</span></div>';
     if (asc) gs.insertAdjacentHTML('afterbegin', '<div class="gs-asc"><em>// ASCENSION TERMINAL</em><b>アセンション専用　パック端末</b></div>');
-    // 提供割合（weights は合計100）。**上位パックは、中身のあるレア度だけで100に直して見せる**（合成の札がまだ無いので、連携のレジェンドは0%）
+    // 提供割合（weights は合計100）。**上位パックは、中身のあるレア度だけで100に直して見せる**（中身が無いレア度は0%。連携のレジェンドは合成の札）
     const sysR = Util.el('div', 'gs-sys');
     sysR.innerHTML = '<em>// DROP RATE</em><span>提供割合</span>';
     gs.appendChild(sysR);
@@ -2644,6 +2693,7 @@ const UI = {
     warn:   ['WARNING', '#ff5566', 1.9],
     lock:   ['LOCKED', '#ff5566', 1.9],
     limit:  ['LIMIT', '#ff5566', 1.9],
+    fuse:   ['FUSION', '#ffd24a', 2.4, true],
     capup:  ['CAPACITY UP', '#ffc24a', 2.8],
     error:  ['ERROR', '#ff4a66', 2.2],
     demo:   ['DEMO', '#ffc24a', 2.2],

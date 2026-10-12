@@ -21,7 +21,7 @@
 const PACK_IMG = { basic: 'assets/packs/basic.png', arms: 'assets/packs/arms.png', chem: 'assets/packs/chem.png', relic: 'assets/packs/relic.png', syn: 'assets/packs/syn.png' };
 
 const CardFX = {
-  KIND_NAME: { weapon: '武器', mod: '武器強化', generic: '汎用', synergy: '連携', perm: '常駐', key: '鍵' },
+  KIND_NAME: { weapon: '武器', mod: '武器強化', generic: '汎用', synergy: '連携', perm: '常駐', key: '鍵', fusion: '合成' },
   RAR_EN: { common: 'COMMON', rare: 'RARE', epic: 'EPIC', legendary: 'LEGENDARY' },
 
   // カードの絵の色。武器ものは武器の色、それ以外は種類ごと
@@ -29,6 +29,7 @@ const CardFX = {
     if (c.weapon && WEAPONS[c.weapon]) return WEAPONS[c.weapon].color;
     if (c.kind === 'synergy' && c.requires && WEAPONS[c.requires[0]]) return WEAPONS[c.requires[0]].color;
     if (c.kind === 'perm') return '#ffb43c';
+    if (c.kind === 'fusion' && FUSIONS[c.fusion]) return FUSIONS[c.fusion].color;
     if (c.kind === 'generic') return '#9fe0c0';
     return '#9fb2c4';
   },
@@ -47,7 +48,7 @@ const CardFX = {
   artHtml(c) {
     const img = (id) => '<img class="cimg" src="assets/icons/' + id + '.png" alt="" draggable="false" decoding="async">';
     if (c.kind === 'perm') return img('perm');
-    if (c.kind === 'synergy') { const r = (c.requires || []).filter(w => WEAPONS[w]); return r.length ? r.map(img).join('') : img('synergy'); }
+    if (c.kind === 'synergy' || c.kind === 'fusion') { const r = (c.requires || []).filter(w => WEAPONS[w]); return r.length ? r.map(img).join('') : img('synergy'); }
     if (c.weapon && WEAPONS[c.weapon]) return img(c.weapon);
     return img('generic');
   },
@@ -67,7 +68,7 @@ const CardFX = {
     el.innerHTML =
       '<div class="cf-frame">' +
         '<div class="cf-top"><span class="cf-name">' + c.name + '</span></div>' +
-        '<div class="cf-art"><div class="cf-icon' + ((c.kind === 'synergy' && (c.requires || []).length > 1) ? ' dual' : '') + '">' + this.artHtml(c) + '</div>' +
+        '<div class="cf-art"><div class="cf-icon' + (((c.kind === 'synergy' || c.kind === 'fusion') && (c.requires || []).length > 1) ? ' dual' : '') + '">' + this.artHtml(c) + '</div>' +
           '<div class="cf-kind">' + (this.KIND_NAME[c.kind] || '') + '</div>' +
           (c.upper ? '<div class="cf-upr"><i>▲</i>UPPER</div>' : '') +
           (o.isNew ? '<div class="cf-new">NEW</div>' : '') + '</div>' +

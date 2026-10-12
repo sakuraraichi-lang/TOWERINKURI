@@ -708,9 +708,15 @@ const Game = {
     const run = this.run;
     if (!run) return 0;
     let n = 0;
-    for (const u of run.units) n += (u.def && u.def.cost) || 0;
+    for (const u of run.units) n += this.unitCost(u);
     return n;
   },
+
+  // そのユニットのコスト。合成した武器は A＋B＋BAL.fuseExtraCost（fusion.js）
+  unitCost(u) { return u.fuse ? FUSIONS[u.fuse].cost : ((u.def && u.def.cost) || 0); },
+  // 盤の上と札の上で見せる名前・色（合成した武器は合成の名前と色）
+  unitName(u) { return u.fuse ? FUSIONS[u.fuse].name : u.def.name; },
+  unitColor(u) { return u.fuse ? FUSIONS[u.fuse].color : u.def.color; },
 
   // その武器をもう1基置いてもコストの上限に収まるか
   canAfford(weaponId) { return this.costUsed() + this.costOf(weaponId) <= this.costCap() && !this.sameMax(weaponId); },
@@ -748,7 +754,7 @@ const Game = {
     const st = this.run.stage;
     const pos = st.hexCenter(c, r);
     const u = {
-      id: weaponId, def, s: Object.assign({}, def.base), flags: {}, dyn: { heat: 0 }, n: 1,
+      id: weaponId, def, fuse: null, s: Object.assign({}, def.base), flags: {}, dyn: { heat: 0 }, n: 1,   // fuse＝合成武器の id（fusion.js）。id は A のまま
       c, r, x: pos.x, y: pos.y,
       face: this.snapFace(face !== undefined ? face : this.defaultFacing(st, c, r, def)),   // 保存された向き（360度の頃のもの）も6方向に丸める
       arc: def.arcFix,   // 射界は武器ごとの固定値（2026-09-30 段1a）。保存された値は読まない
@@ -871,6 +877,41 @@ const Game = {
     return n;
   },
 
+  // **合成**（2026-10-06・fusion.js・企画書 docs/FUSION-ORDER-2026-10-06.md）。
+  //   A（合成していない）の隣の B（合成していない）を、その合成の札を持っているとき、A の場所で C にする（B は消える）。
+  //   コストは A＋B＋BAL.fuseExtraCost。上限を超えるときはできない（理由を返す）。置ける間（準備・ウェーブの合間）だけ。
+  //   C は A のまま（u.id）なので、A の札は applyMods が引いた順に掛け直す（B の札は乗らない）。配置の保存は syncPlacements の f
+  fuseUnits(a, b, fid) {
+    const run = this.run;
+    if (!run || !this.canBuild()) return { ok: false, why: '戦闘中は合成できません' };
+    const f = FUSIONS[fid];
+    if (!f || !run.units.includes(a) || !run.units.includes(b) || a.fuse || b.fuse || a.id !== f.a || b.id !== f.b) return { ok: false, why: 'その組み合わせは合成できません' };
+    if (!Fusion.owned(fid)) return { ok: false, why: '合成の札がありません' };
+    if (a.broken || b.broken) return { ok: false, why: '壊れた武器は合成できません' };
+    if (!MapGen.hexNbr(a.c, a.r).some(q => q[0] === b.c && q[1] === b.r)) return { ok: false, why: '隣り合っていません' };
+    const dc = f.cost - a.def.cost - b.def.cost;
+    if (this.costUsed() + dc > this.costCap()) return { ok: false, why: 'コストが足りません（合成は +' + dc + '・残り ' + (this.costCap() - this.costUsed()) + '）' };
+    run.units.splice(run.units.indexOf(b), 1);
+    a.fuse = fid;
+    this.applyMods();          // C の数値（A の基礎に合成の値＋A の札）を組み直す。隣の数え直し（updateAdj）も中で呼ばれる
+    this.syncPlacements();
+    return { ok: true, unit: a, cost: dc };
+  },
+
+  // 合成した武器を直接置く（測定器・確認室用。盤の上の A＋B の合成と同じ結果になる）。置けなければ null
+  placeFusedUnit(fid, c, r) {
+    const run = this.run, f = FUSIONS[fid];
+    if (!run || !f || !this.canPlaceAt(c, r)) return null;
+    if (this.costUsed() + f.cost > this.costCap() || this.sameMax(f.a)) return null;
+    const u = this.newUnit(f.a, c, r);
+    u.fuse = fid;
+    if (this.usesAimPoint(u.def)) { const p = this.defaultAimPoint(u); u.ax = p.x; u.ay = p.y; }
+    run.units.push(u);
+    this.applyMods();
+    this.syncPlacements();
+    return u;
+  },
+
   // **コストの上限が、前に見たときより上がっているか。**（準備の画面を開くたびに main.toPrep が呼ぶ）
   //   上がっていて、盤に武器があるなら run.capUp を立てる（全撤去のボタンを光らせ、通知を出す）。
   //   初めて見るとき・下がっているとき（再起動でツリーが戻った）は、覚え直すだけで立てない
@@ -918,14 +959,14 @@ const Game = {
   // ちょうどいい幅の 33撃破 に対して 6撃破）。爆風はカードで大きくなるので、円も追随させる
   spotRange(def) { return (def && def.spot) || 30; },
   spotR(u) {
-    return Math.max(this.spotRange(u.def), u.s.splash || 0);
+    return Math.max(u.fuse && u.s.spot ? u.s.spot : this.spotRange(u.def), u.s.splash || 0);   // 合成武器は自分の円の大きさ
   },
 
   syncPlacements() {
     const run = this.run;
     if (!run) return;
     this.perm.placements[run.stageId] = run.units.map(u => ({
-      w: u.id, c: u.c, r: u.r, a: +u.face.toFixed(4),
+      w: u.id, c: u.c, r: u.r, a: +u.face.toFixed(4), f: u.fuse || undefined,   // f＝合成武器の id（B は消えているので A の位置に1つだけ）
       // 着弾点を持つ武器は、その点も覚える
       ax: (u.ax === undefined || u.ax === null) ? null : Math.round(u.ax),
       ay: (u.ay === undefined || u.ay === null) ? null : Math.round(u.ay),
@@ -997,9 +1038,13 @@ const Game = {
       cnt[p.w] = (cnt[p.w] || 0) + 1;
       // 置ける六角で、先に読み戻したものと重なっていないこと（this.run === run）
       if (!this.canPlaceAt(p.c, p.r)) continue;
-      if (cost + WEAPONS[p.w].cost > this.costCap()) break;
-      cost += WEAPONS[p.w].cost;
+      // 合成した武器（f）：札を持っているときだけ。A として数える（同じ武器の上限・系統）
+      const fz = (p.f && FUSIONS[p.f] && FUSIONS[p.f].a === p.w && Fusion.owned(p.f)) ? p.f : null;
+      const uc = fz ? FUSIONS[fz].cost : WEAPONS[p.w].cost;
+      if (cost + uc > this.costCap()) break;
+      cost += uc;
       const nu = this.newUnit(p.w, p.c, p.r, p.a);   // p.arc（古いセーブの射界）は読まない
+      nu.fuse = fz;
       if (p.ax !== undefined && p.ax !== null) { nu.ax = p.ax; nu.ay = p.ay; }
       run.units.push(nu);
       // 保存に着弾点が無い古いデータでも、必要な武器なら既定の点を入れておく
@@ -1124,6 +1169,7 @@ const Game = {
     run.st = mods.relic.st;
     for (const u of run.units) {
       u.s = Object.assign({}, u.def.base);
+      if (u.fuse) Object.assign(u.s, BAL.fusion[u.fuse].stat);   // 合成武器：A の基礎性能に上書き（札・ツリーはこの上に乗る）
       u.s.arc = u.arc;
       // **武器カードの凸。**（ユーザー 2026-09-24「入手出来るカード全てに」）
       //   同じ武器カードが被るほど、その武器の基本ダメージが上がる。倍率は他のカードと同じ rankMul

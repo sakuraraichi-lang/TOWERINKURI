@@ -67,6 +67,8 @@ while ((m = re.exec(html))) {
     code += '\n;// ---- tools/sim.html（中の測定コード）\n' + m[2];
   }
 }
+// 環境変数 SIM_EXTRA に、カンマ区切りで本体のファイル（例 src/render.js,src/fusionfx.js）を書くと、sim.html の分のあとへ足して読む（描画の確認用・2026-10-06）
+for (const f of (process.env.SIM_EXTRA || '').split(',').filter(Boolean)) code += '\n;// ---- ' + f + '\n' + fs.readFileSync(path.resolve(ROOT, f), 'utf8');
 vm.runInContext(code, ctx, { filename: 'sim-bundle.js' });
 
 // 最後の文の前に return を差し込む（括弧・文字列の中の ; と改行は区切りにしない）

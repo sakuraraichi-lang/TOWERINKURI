@@ -21,7 +21,7 @@ const DebugRoom = {
 
   // 手札に依らない見本のカード（種類ごとに先頭のもの）
   _cards(rar, n) {
-    return CARD_IDS.filter(id => CARDS[id].rarity === rar && !CARDS[id].upper && !['weapon', 'perm', 'key'].includes(CARDS[id].kind)).slice(0, n || 1);
+    return CARD_IDS.filter(id => CARDS[id].rarity === rar && !CARDS[id].upper && !['weapon', 'perm', 'key', 'fusion'].includes(CARDS[id].kind)).slice(0, n || 1);
   },
 
   // 結果画面の見本
@@ -83,6 +83,9 @@ const DebugRoom = {
     this._saveRelease();
     const run = Game.run;
     for (const x of [sn.unit].concat(sn.extra || [])) { if (run && x) { const i = run.units.indexOf(x); if (i >= 0) run.units.splice(i, 1); } }
+    if (sn.card) { if (sn.card.had === undefined) delete Game.perm.collection[sn.card.id]; else Game.perm.collection[sn.card.id] = sn.card.had; }   // 合成の流れの見本（fuseDemo）：借りた札を戻す
+    if (sn.capFn) Game.costCap = sn.capFn;
+    FusionFX._arm = null;
     Game.perm.placements = sn.placements; Game.perm.lastPlace = sn.lastPlace; Game.perm.tut = sn.tut;
     if (UI.selected === sn.unit) UI.selected = null;
     if (run) run.capUp = false;   // 全撤去を光らせる見本（capDemo）の印
@@ -276,6 +279,7 @@ const DebugRoom = {
         ['連続で6個（差し替わる）', () => ['weapon', 'wave', 'buy', 'warn', 'card', 'lock'].forEach((k, i) => setTimeout(() =>
           UI.toastMsg(['新しい武器 ガトリング', 'ウェーブ ' + (i + 1) + ' 突破', '3件 購入　コイン 900', 'コスト不足', '取得: 見本のカード', '開いていません'][i], '#ffc24a', k), i * 260))],
       ]],
+      ['合成武器（A＋B＝C・2026-10-06）', me._fusionButtons()],
       ['スキルツリー（ノードを取った瞬間）', [
         ['1つ取る（火力の連なり）', () => me.skill('normal')],
         ['コストの上限を取る（増設完了の帯）', () => me.skill('units')],
@@ -442,7 +446,7 @@ const DebugRoom = {
     el.innerHTML = '<div class="rs-ban"><em>// DEBUG ROOM</em><b>カードのレア度の見比べ</b><span>色と明るさで4種が見分けられるか（セーブは変わりません）</span></div>';
     const body = Util.el('div', 'dbgpk-b');
     const RO = BAL.rarityOrder;
-    const pool = (r) => CARD_IDS.filter(id => CARDS[id].rarity === r && !['weapon', 'perm', 'key'].includes(CARDS[id].kind));
+    const pool = (r) => CARD_IDS.filter(id => CARDS[id].rarity === r && !['weapon', 'perm', 'key', 'fusion'].includes(CARDS[id].kind));
     // 説明がいちばん長い札を種類ごとに1枚（3行になるものが、下の★の帯に隠れないかを見る）
     const longest = (r) => pool(r).sort((a, b) => UI.shortDesc(CARDS[b]).length - UI.shortDesc(CARDS[a]).length)[0];
     const section = (title, cls, mk) => {
@@ -604,6 +608,94 @@ const DebugRoom = {
     }, 16);
   },
 
+  // 合成武器の見本（2026-10-06・fusion.js）
+  //   fuseDemo … 盤の真ん中に A を置き、隣に B を置く。**合成の札を借りて**（見本が終わったら戻す）合成ボタン「合」が A の左上に光る。本物のボタンを押せる
+  //     （1回目のタップで札が開き、2回目で合成）。コストの上限は見本のあいだだけ広げる。セーブは触らない（_dirEnd が配置・札・上限を戻す）
+  //   fusionDemo … 合成した武器を1基と、動かない的6体を並べ、本物の戦闘（Combat.update）で約7秒撃たせる（札の見本 cardDemo と同じ作り）
+  _fusionButtons() {
+    const me = this;
+    const out = [
+      ['合成の流れ：異界の剣（刀＋触手・コスト8）→「合」を2回タップ', () => me.fuseDemo('voidblade')],
+      ['合成の流れ：相反の渦（凍結＋火炎・コスト9）', () => me.fuseDemo('vortex')],
+      ['合成の流れ：スターアサルト（ガトリング＋手裏剣・コスト4）', () => me.fuseDemo('starassault')],
+      ['合成の流れ：コストが足りないとき（「合」が薄い・押すと理由）', () => me.fuseDemo('icefoam', true)],
+      ['片づける', () => me._dirEnd()],
+    ];
+    for (const fid of FUSION_IDS) {
+      const f = FUSIONS[fid];
+      out.push([f.name + '（' + WEAPONS[f.a].name + '＋' + WEAPONS[f.b].name + '・コスト' + f.cost + '）', () => me.fusionDemo(fid)]);
+    }
+    return out;
+  },
+  fuseDemo(fid, poor) {
+    const f = FUSIONS[fid];
+    this.dirDemo('mid', f.a);
+    const run = Game.run;
+    if (!this._dirSnap || !run) return;
+    const u = this._dirSnap.unit, st = run.stage;
+    const free = MapGen.hexNbr(u.c, u.r).filter(q => st.hexBuildable(q[0], q[1]) && !Game.unitAt(q[0], q[1]));
+    if (!free.length) { UI.toastMsg('隣に置ける六角がありません', '#ff4a66', 'error'); return; }
+    const b = Game.newUnit(f.b, free[0][0], free[0][1], Game.FACES[0]);
+    run.units.push(b);
+    this._dirSnap.extra = [b];
+    this._dirSnap.card = { id: Fusion.cardId(fid), had: Game.perm.collection[Fusion.cardId(fid)] };
+    Game.perm.collection[Fusion.cardId(fid)] = 1;
+    this._dirSnap.capFn = Game.costCap;
+    const used = WEAPONS[f.a].cost + WEAPONS[f.b].cost;
+    Game.costCap = poor ? () => Game.costUsed() + 1 : () => 200;
+    Game.applyMods();
+    for (const o of [u, b]) if (Game.usesAimPoint(o.def)) { const ap = Game.defaultAimPoint(o); o.ax = ap.x; o.ay = ap.y; }
+    UI.selected = null;
+    UI.renderTray();
+    UI.toastMsg('見本：' + f.name, f.color, 'demo');
+  },
+  fusionDemo(fid) {
+    const run = Game.run, f = FUSIONS[fid];
+    if (!run || !run.stage || !f) return;
+    this._cdEnd();
+    const st = run.stage, hx = (st.vec && st.vec.hexes) || [];
+    let best = null;
+    for (const h of hx) {
+      if (h.y > st.h * 0.5 || h.y < 80) continue;
+      for (const a of Game.FACES) {
+        let len = 0;
+        for (let d = 10; d <= 220; d += 10) {
+          if (!st.walkable(((h.x + Math.cos(a) * d) / TILE) | 0, ((h.y + Math.sin(a) * d) / TILE) | 0)) break;
+          len = d;
+        }
+        const sc = len - Math.abs(h.x - st.w / 2) * 0.05;
+        if (!best || sc > best.sc) best = { sc, h, a, len };
+      }
+    }
+    if (!best) return;
+    const u = Game.newUnit(f.a, best.h.c, best.h.r, best.a);
+    u.fuse = fid;
+    u.s = Object.assign({}, u.def.base, BAL.fusion[fid].stat);
+    u.s.arc = u.arc;
+    const keep = {};
+    for (const k of this._CDKEEP) keep[k] = run[k];
+    const orig = run.units; run.units = [u];
+    const t = ENEMY_TYPES.grunt, g = Math.max(Combat.gw(run), 1);
+    const enemies = [];
+    const L = Math.max(90, best.len), N = 6;
+    for (let i = 0; i < N; i++) {
+      const dd = 45 + (L - 60) * i / (N - 1);
+      const ex = best.h.x + Math.cos(best.a) * dd + Math.sin(best.a) * (i % 2 ? 7 : -7), ey = best.h.y + Math.sin(best.a) * dd - Math.cos(best.a) * (i % 2 ? 7 : -7);
+      const en = Combat.makeEnemy(run, t, g, ex, ey, 0, 1e12);
+      en.spd = 0; en.lane = null;
+      run.enemies.push(en); enemies.push(en);
+    }
+    if (u.def.aimPoint) { const m = enemies[(N / 2) | 0]; u.ax = m.x; u.ay = m.y; u.aim = { x: m.x, y: m.y }; }
+    this._cdState = { run, u, enemies, keep, orig };
+    let last = performance.now(), el = 0;
+    this._cd = setInterval(() => {
+      const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now; el += dt;
+      if (Game.run !== run || el > 7) { this._cdEnd(); return; }
+      Combat.update(run, dt);
+    }, 16);
+    UI.toastMsg('見本：' + f.name + '（約7秒）', f.color, 'demo');
+  },
+
   // 札の新しい挙動の見本（2026-09-30 段3b）。裏の準備フェーズの盤に、**その札を掛けた武器を1基**と、**動かない的**を並べ、本物の戦闘（Combat.update）を数秒だけ進める。
   //   的は、武器の向きにまっすぐ通る道の上（見える範囲の上の半分から探す。下半分は確認室のパネルが覆う）。装甲・耐火の札は、それを試せる敵（ファイアウォール・ボット群）にする。
   //   **セーブにも配置にも触らない**：武器は run.units に一時的に足すだけ（placeUnit は通らない）。run 側の値（chillVuln・cageVuln・apen など）・与ダメージの記録は、終わりに元へ戻す。
@@ -617,6 +709,7 @@ const DebugRoom = {
     for (const en of d.enemies) en.dead = true;
     run.enemies = run.enemies.filter(en => !d.enemies.includes(en));
     run.fields.length = 0; run.bullets.length = 0; run.fx.length = 0; run.nums.length = 0;
+    if (run.fzones) run.fzones.length = 0; if (run.later) run.later.length = 0;      // 合成武器の場・遅れて起きること（fusion.js）
     for (const k of this._CDKEEP) { if (d.keep[k] === undefined) delete run[k]; else run[k] = d.keep[k]; }
     if (run.dmgBy) for (const k of Object.keys(run.dmgBy)) delete run.dmgBy[k];
     if (run.killBy) for (const k of Object.keys(run.killBy)) delete run.killBy[k];

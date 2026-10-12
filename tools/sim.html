@@ -46,6 +46,7 @@
 <script src="../src/stages.js"></script>
 <script src="../src/mapgen.js"></script>
 <script src="../src/weapons.js"></script>
+<script src="../src/fusion.js"></script>
 <script src="../src/cards.js"></script>
 <script src="../src/skilltree.js"></script>
 <script src="../src/relics.js"></script>
@@ -746,25 +747,38 @@ function heatField(st, range, arc, traffic) {
 //   編成の種類ごとに使ったコストが等しくなるように、1基ずつ配る（使ったコストがいちばん少ない種類に次の1基。同じなら編成の順）。
 //   コストの上限に収まらなくなるまで。**これは「上手な混成」の代用**（1種だけ・安い武器だけを上限まで並べる置き方はしない）。
 //   すでに盤にある武器のコストは使用済みとして数える（ウェーブ間の置き直しは、先に全部外してから呼ぶ）
+// **合成武器（2026-10-06）**：opts.fusions（FUSE_LIST）の合成は 'F:'＋id という種類として数える（コストは A＋B＋2）。opts.noPlain なら、編成の武器そのものは置かない
+let FUSE_LIST = [], NO_PLAIN = false;
+const typeCost = (t) => t.startsWith('F:') ? FUSIONS[t.slice(2)].cost : WEAPONS[t].cost;
+const typeKey = (u) => u.fuse ? 'F:' + u.fuse : u.id;
 function costWant(exclude) {
-  const types = Game.loadoutWeapons().filter(t => !(exclude && exclude[t]));
+  const types = (NO_PLAIN ? [] : Game.loadoutWeapons()).concat(FUSE_LIST.map(f => 'F:' + f)).filter(t => !(exclude && exclude[t]));
   const cap = Game.costCap();
   const spent = {}, num = {};
   for (const t of types) { spent[t] = 0; num[t] = 0; }
   let used = 0;
-  for (const u of (Game.run ? Game.run.units : [])) { used += u.def.cost; if (spent[u.id] !== undefined) { spent[u.id] += u.def.cost; num[u.id]++; } }
+  for (const u of (Game.run ? Game.run.units : [])) { const c = Game.unitCost(u), k = typeKey(u); used += c; if (spent[k] !== undefined) { spent[k] += c; num[k]++; } }
   const want = [];
   for (;;) {
     let best = null;
     for (const t of types) {
-      if (used + WEAPONS[t].cost > cap) continue;
+      if (used + typeCost(t) > cap) continue;
       if (num[t] >= BAL.sameWeaponMax) continue;       // 同じ武器の上限（本体の Game.sameMax と同じ）
       if (best === null || spent[t] < spent[best]) best = t;
     }
     if (!best) break;
-    want.push(best); spent[best] += WEAPONS[best].cost; num[best]++; used += WEAPONS[best].cost;
+    want.push(best); spent[best] += typeCost(best); num[best]++; used += typeCost(best);
   }
   return want;
+}
+// 種類（武器 id か 'F:'＋合成 id）を置く／その武器の基礎性能（ツリー込み）を返す
+function placeType(wid, c, r) { return wid.startsWith('F:') ? Game.placeFusedUnit(wid.slice(2), c, r) : Game.placeUnit(wid, c, r); }
+function statFake(wid, mods) {
+  const f = wid.startsWith('F:') ? FUSIONS[wid.slice(2)] : null, def = WEAPONS[f ? f.a : wid];
+  const fake = { def, s: Object.assign({}, def.base) };
+  if (f) Object.assign(fake.s, BAL.fusion[f.id].stat);
+  Skill.applyTo(fake, mods);
+  return fake;
 }
 
 // ウェーブ間に置き直す。**全部どけてから、通行量を見て置き直す**
@@ -772,10 +786,8 @@ function replaceUnits(run) {
   const st = run.stage;
   const mods = Skill.mods(Game.meta, Game.perm);
   const statOf = (wid) => {
-    const def = WEAPONS[wid];
-    const fake = { def, s: Object.assign({}, def.base) };
-    Skill.applyTo(fake, mods);
-    return { range: fake.s.range, arc: fake.s.arc, thru: !!def.wallThrough };
+    const fake = statFake(wid, mods);
+    return { range: fake.s.range, arc: fake.s.arc, thru: !!fake.def.wallThrough };
   };
   for (const u of run.units.slice()) Game.removeUnit(u);   // 先に全部どける（costWant は盤にある分を使用済みと数える）
   const want = costWant();
@@ -801,7 +813,7 @@ function replaceUnits(run) {
     const spaced = order.filter(f => far(f.c, f.r, 5));
     for (const f of spaced.concat(order)) {
       if (!Game.canPlaceAt(f.c, f.r)) continue;
-      u = Game.placeUnit(wid, f.c, f.r);
+      u = placeType(wid, f.c, f.r);
       if (u) { pick = f; break; }
     }
     if (!u) return false;
@@ -902,9 +914,7 @@ function autoPlaceRange(run) {
 
   // この時点で乗っているのはスキルだけ（カードは戦闘中に引く）
   const statOf = (wid) => {
-    const def = WEAPONS[wid];
-    const fake = { def, s: Object.assign({}, def.base) };
-    Skill.applyTo(fake, mods);
+    const fake = statFake(wid, mods);
     return { range: fake.s.range, arc: fake.s.arc };
   };
 
@@ -931,7 +941,7 @@ function autoPlaceRange(run) {
     let u = null, pick = null;
     for (const f of open.filter(f => far(f.c, f.r, 5)).concat(open)) {
       if (!Game.canPlaceAt(f.c, f.r)) continue;
-      u = Game.placeUnit(wid, f.c, f.r);
+      u = placeType(wid, f.c, f.r);
       if (u) { pick = f; break; }
     }
     if (!u) return false;
@@ -1045,6 +1055,8 @@ function runStageInner(stageId, loadout, buys, opts) {
   }
   for (const w of loadout) if (!Game.own('wc_' + w)) Game.grant('wc_' + w, 1);
   Game.perm.currentStage = stageId;
+  FUSE_LIST = opts.fusions || []; NO_PLAIN = !!opts.noPlain;
+  for (const f of FUSE_LIST) Game.grant('fus_' + f, 1);
   // **前の測定の配置を読み戻させない。**（2026-09-24）
   //   startPrep は保存された配置（perm.placements）を読み戻すので、前の測定が置いたものが
   //   先に盤に乗り、そのあとの自動配置と食い合っていた。同じ条件で置けた数が

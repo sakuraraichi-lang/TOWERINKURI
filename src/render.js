@@ -9,6 +9,7 @@ const _bulGroups = new Map();
 const _poisonBuf = [], _stunBuf = [], _fieldBuf = [];
 const _armX = new Array(13), _armY = new Array(13), _armW = new Array(13);   // 触手の腕の1本ぶんの作業用（Render.tentArm）
 
+const _fxBul = [];       // 合成武器の弾（fusionfx.js）のまとめ描き用
 const _spins = [];        // 手裏剣のまとめ描き用（毎フレーム作り直さない）
 const _spinPts = new Float32Array(16);
 
@@ -440,6 +441,7 @@ const Render = {
 
     this.arcs(ctx, run);
     this.fields(ctx, run);
+    FusionFX.zones(ctx, run);        // 合成武器の居座る場（裂け目・雲・凍った線など）
     this.aims(ctx, run);
     this.core(ctx, run);
     this.enemies(ctx, run);
@@ -449,6 +451,7 @@ const Render = {
     this.effects(ctx, run);
     this.numbers(ctx, run);
     this.dirRingDraw(ctx);
+    FusionFX.drawBtns(this, ctx);    // 合成ボタン（A の左上に光る）
 
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     this.miniMap(ctx);
@@ -1895,7 +1898,8 @@ const Render = {
   units(ctx, run) {
     const build = run.phase === 'build' || Game.phase !== 'battle';
     for (const u of run.units) {
-      const c = u.def.color;
+      const fd = u.fuse ? FUSIONS[u.fuse] : null;     // 合成武器：色・砲塔・名札は合成のもの（u.def は A のまま）
+      const c = fd ? fd.color : u.def.color;
       const sel = UI.selected === u;
 
       // --- 台座。**六角1つ。**（ユーザー 2026-09-23）
@@ -1945,9 +1949,13 @@ const Render = {
       ctx.rotate(u.angle);
       // 撃った瞬間に後ろへ下がる。**動いて見えるのはこれだけで足りる**
       if (u.muzzle > 0) ctx.translate(-u.muzzle * 26, 0);
-      const tur = this.turretSprite(u.id, c);
+      const tur = fd ? FusionFX.turretSprite(this, u.fuse) : this.turretSprite(u.id, c);
       ctx.drawImage(tur.cv, -tur.h, -tur.h, tur.h * 2, tur.h * 2);
       ctx.restore();
+      if (fd) {                                         // 合成した印：台座のふちに金の輪
+        ctx.save(); ctx.globalAlpha = 0.9; ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 1.6;
+        this.hexPathOn(ctx, u.x, u.y, MapGen.HEX_R - 1.5); ctx.stroke(); ctx.restore();
+      }
 
       // --- 発砲の火。砲身の先に出す（後退とは無関係の位置） ---
       if (u.muzzle > 0) {
@@ -1974,7 +1982,7 @@ const Render = {
         ctx.fillStyle = c;
         ctx.font = 'bold 7px system-ui,sans-serif';
         ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(u.def.short, u.x, u.y + 18);
+        ctx.fillText(fd ? fd.short : u.def.short, u.x, u.y + 18);
       }
     }
   },
@@ -3052,6 +3060,7 @@ const Render = {
         }
         const by = b.y - h;
         const br = b.r * (1 + h / 90);     // 高いほど大きく＝こちらに近い
+        if (b.fx) { FusionFX.lob(ctx, b, by, br, run); continue; }   // 合成武器の落ちてくる弾（ポッピングスターの流れ星・fusionfx.js）
         if (b.rocket) {                    // ミサイル：機体と噴射炎
           const sp = Math.hypot(b.vx, b.vy) || 1;
           const ux = b.vx / sp, uy = b.vy / sp;
@@ -3095,6 +3104,7 @@ const Render = {
         }
         continue;
       }
+      if (b.fx) { _fxBul.push(b); continue; }   // 合成武器の弾（星・輪・苦無・fusionfx.js）
       if (b.spin) { spins.push(b); continue; }   // 手裏剣はあとでまとめて描く
       const sp = Math.hypot(b.vx, b.vy) || 1;
       // **太い弾を、太い棒で描かない。**（2026-09-22）
@@ -3167,6 +3177,7 @@ const Render = {
       }
     }
 
+    if (_fxBul.length) { FusionFX.bullets(ctx, _fxBul, run); _fxBul.length = 0; }
     //          にじみ          本体          白い芯
     const A = [0.20, 0.95, 0.55], W = [2.8, 1.0, 0.34];
     for (let pass = 0; pass < 3; pass++) {
@@ -3413,6 +3424,8 @@ const Render = {
           ctx.beginPath(); ctx.arc(pts[i].x, pts[i].y, wd * 0.45 * (1 - k * 0.5), 0, Math.PI * 2); ctx.fill();
         }
         ctx.restore();
+      } else if (f.type === 'fx') {
+        FusionFX.draw(ctx, f, k, this);      // 合成武器の演出（fusionfx.js）
       } else if (f.type === 'bolt') {
         ctx.globalAlpha = 1 - k;
         ctx.save();

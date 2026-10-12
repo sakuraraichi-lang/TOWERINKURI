@@ -656,6 +656,20 @@ for (const id of Object.keys(CARDS)) {
   if (c.upper && c.needs) c.desc += '（前提：' + c.needs.map(n => CARDS[n] ? CARDS[n].name : n).join('＋') + '）';
 }
 
+// ============ 合成の札（2026-10-06・fusion.js・企画書 docs/FUSION-ORDER-2026-10-06.md）============
+//   **1枚で1つの合成**（ユーザー「1枚で1つでいいです」）。持っているときだけ、盤の上でその合成の選択肢（合成ボタン）が出る。
+//   レジェンドで、いちばん出にくい（ユーザー「レア度はレジェンドで最も入手しにくいものとしてください」）。
+//   **上位の連携パック（アセンション専用の札・設計書 DESIGN-ASCENSION-V2 §9）のレジェンドの枠から出る**（ap:'syn'・packs.js の Pack.UPPER_FUSION）。
+//   ふつうのパックにも3択にも出ない（draft.js・Pack.cardsOfRarity）。凸は無い（効果が数値ではなく解禁のため noRank）
+for (const fid of FUSION_IDS) {
+  const f = FUSIONS[fid];
+  CARDS['fus_' + fid] = {
+    id: 'fus_' + fid, kind: 'fusion', fusion: fid, requires: [f.a, f.b], rarity: 'legendary', maxStack: 1, noRank: true, ap: 'syn',   // ap＝上位の連携パックから出る（packs.js の UPPER_FUSION）
+    name: '合成：' + f.name,
+    desc: WEAPONS[f.a].name + '＋' + WEAPONS[f.b].name + '＝' + f.name + '（コスト' + f.cost + '）',
+  };
+}
+
 const CARD_IDS = Object.keys(CARDS);
 
 // **凸の主な軸の自己点検**（2026-09-30 段3b）。凸は札の rankAxis の軸にだけ効く（state.js の rk/rka/rki）。

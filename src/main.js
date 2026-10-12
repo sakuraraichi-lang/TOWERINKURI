@@ -227,6 +227,9 @@ const Main = {
       if (!run || run.over) return;
 
       // 向きの指定：選んでいるユニットのまわりの六角（花）を押したら、その方向が向きになる（Render.dirRing）
+      // 合成ボタン（A の左上に光る・fusionfx.js）。向きの花より先に取る
+      const fz = FusionFX.hit(Render, e.clientX, e.clientY);
+      if (fz) { UI.fuseTap(fz); e.preventDefault(); return; }
       const di = Render.dirHit(e.clientX, e.clientY);
       if (di >= 0) {
         Game.aimUnit(UI.selected, Game.FACES[di]);

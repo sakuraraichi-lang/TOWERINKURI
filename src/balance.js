@@ -6,7 +6,7 @@
 // 版。**ホームの右上に出る。**
 // 「更新されていない気がする」と思ったとき、ここの文字列が合っているかで
 // 端末のキャッシュの問題か、配信の問題かを一目で切り分けられる
-const BUILD = '1012e';
+const BUILD = '1012f';
 
 // パッチノート。**版の数字だけでは「で、何が変わったの」に答えていない**ので、
 // ホーム右上の版をタップしたときに、ここへの入口を出す
@@ -1073,6 +1073,66 @@ const BAL = {
   },
   rarityOrder: ['common', 'rare', 'epic', 'legendary'],
 };
+// ---------------------------------------------------------------
+// 合成武器（2026-10-06・src/fusion.js・企画書 docs/FUSION-ORDER-2026-10-06.md）
+//   A＋B＝C。C は A として扱う（A の札が乗る・A の15基の上限に数える・A の系統）。コストは A＋B＋fuseExtraCost（例外なし）。
+//   **重い合成ほど性能を盛る**（ユーザー「コストは例外なしで、重いやつほど性能は盛る様に」）。
+//   stat … A の基礎性能に上書きする値（札・ツリーはこの上に乗る） ／ p … その合成だけの値
+//   数値は tools/measure/fusion.js で、第31章（コスト上限48）の漏れを、A と B を同じコストずつ置いた混成（AB）の ×(1.15−0.075×コスト) に合わせた。重い合成ほど、混成より強い
+// ---------------------------------------------------------------
+BAL.fuseExtraCost = 2;        // 合成のとき余分に払うコスト
+BAL.fusionZoneMax = 120;      // 居座る場（合成武器の裂け目・雲・凍った線など）の同時の数
+BAL.fusion = {
+  // 1 ガトリング＋手裏剣（コスト4）スターアサルト
+  starassault: { stat: { dmg: 20, rate: 4.5, range: 270, pierce: 4, bulletR: 5.5, speed: 560, spread: 0.05 }, p: { burstR: 64, burstMul: 0.9 } },
+  // 2 ガトリング＋テスラ（5）プラズマチェーン
+  plasmachain: { stat: { dmg: 10, rate: 4.2, range: 215, pierce: 1, chain: 2, chainFalloff: 0.8, shockDur: 0.8 }, p: { chainMul: 0.6 } },
+  // 3 手裏剣＋刀（6）円環刃
+  chakram: { stat: { dmg: 100, rate: 1.5, range: 340, speed: 560, bulletR: 14, bounce: 7 }, p: { backMul: 1 } },
+  // 4 手裏剣＋毒ガス（5）悪魔の流れ星
+  toxblade: { stat: { dmg: 30, rate: 2, range: 240, speed: 500, bulletR: 5.5, bounce: 3 }, p: { chance: 0.7, cloudR: 46, cloudDur: 3, cloudDps: 0.35, slow: 0.1, vuln: 0.1 } },
+  // 5 刀＋触手（8）異界の剣
+  voidblade: { stat: { dmg: 120, rate: 1, range: 168, crit: 0.2, critMul: 2.5 }, p: { tilt: 0.1, dist: 92, len: 115, wid: 360, dur: 2.6, tick: 0.35, dps: 0.6, slow: 0.4 } },
+  // 6 刀＋火炎（8）フランベルジュ：3連の高威力の滅多斬り
+  flameblade: { stat: { dmg: 60, rate: 2.2, range: 185, cone: 1.35, crit: 0.15, critMul: 2, burn: 0.6, burnDur: 3 }, p: { slashes: 5, spreadK: 0.8, subArc: 0.5 } },
+  // 7 触手＋泡（9）狂気の海底：大きな泡・集敵・触手の一突きで破裂
+  abyssnet: { stat: { dmg: 60, rate: 0.6, range: 300, count: 2, stunDur: 0.5 }, p: { R: 100, dur: 3, dps: 0.6, pull: 160, burstR: 105, burstMul: 3.2 } },
+  // 8 触手＋テスラ（7）航海の悪夢：雷を纏った竜巻
+  thunderwhip: { stat: { dmg: 3, rate: 0.4, range: 230, knock: 60, knockDur: 0.3, chain: 3, chainFalloff: 0.85, shockDur: 1.2 }, p: { start: 24, R: 50, dur: 3, speed: 55, dps: 0.5, chainEvery: 0.45, chainMul: 1.6 } },
+  // 9 火炎＋毒ガス（7）爆裂放射器：長い炎＋先で爆発＋毒
+  hellmist: { stat: { dmg: 28, rate: 2.2, range: 190, cone: 0.45, burn: 0.5, burnDur: 3, fieldR: 80, fieldDur: 3, fieldVuln: 0.2 }, p: { at: 0.85, blastR: 80, blastMul: 2.2, every: 1, dps: 1, slow: 0.15 } },
+  // 10 火炎＋迫撃砲（8）ヴォルケイノブラスト：正面へ火山弾
+  napalm: { stat: { dmg: 34, rate: 0.6, range: 330, burn: 0.6, burnDur: 3.5, splash: 56, speed: 330 }, p: { bombs: 5, fan: 0.22, fanK: 1.5, poolR: 62, poolDur: 3.5, poolDps: 0.5 } },
+  // 11 凍結＋火炎（9）相反の渦
+  vortex: { stat: { dmg: 50, rate: 1.2, range: 210, slow: 0.5, slowDur: 2.6, burn: 0.5, burnDur: 3 }, p: {  } },
+  // 12 凍結＋泡（10）永久凍土：火力は低く、足止めは絶大
+  icefoam: { stat: { dmg: 8, rate: 0.95, range: 320, slow: 0.9, slowDur: 4, stunDur: 3.4 }, p: { n: 40, cages: 14, delay: 2.2, shardR: 52, shardMul: 1.2, shardSlow: 0.6, shardSlowDur: 2 } },
+  // 13 レーザー＋凍結（9）凍結光線：反射した所に氷の棘山
+  cryobeam: { stat: { dmg: 36, rate: 1, range: 430, pierce: 20, bulletR: 22, reflect: 2, slow: 0.55, slowDur: 2.2 }, p: { spikeR: 48, spikeDur: 3.2, spikeDps: 2.2, spikeSlow: 0.6 } },
+  // 14 レーザー＋ミサイル（9）スーパーノヴァ：道1本分の太さ・絶え間ない・多段ヒット
+  convergence: { stat: { dmg: 6, rate: 9, range: 440, bulletR: 30, reflect: 2 }, p: { life: 0.12 } },
+  // 15 ミサイル＋迫撃砲（9）滅尽嵐：着弾に火炎旋風
+  carpet: { stat: { dmg: 8, rate: 0.85, range: 400, speed: 420, splash: 60, spot: 100 }, p: { R: 50, dur: 2.5, dps: 1.2, burn: 0.4, drift: 14 } },
+  // 16 ミサイル＋テスラ（8）磁気嵐
+  chainstrike: { stat: { dmg: 30, rate: 0.85, range: 360, speed: 430, splash: 90, spot: 128, chain: 6, chainFalloff: 0.9, shockDur: 1.5 }, p: { pillarR: 96, chainMul: 0.65 } },
+  // 17 テスラ＋毒ガス（6）雷雲
+  stormcloud: { stat: { dmg: 11, rate: 0.55, range: 210, chain: 2, chainFalloff: 0.85, shockDur: 1.2, fieldR: 92, fieldDur: 5 }, p: { strikeEvery: 0.42, strikeMul: 2.2, drift: 9, strikeR: 0.9 } },
+  // 18 テスラ＋泡（8）プラズマボール
+  resonator: { stat: { dmg: 28, rate: 0.45, range: 230, chain: 3, chainFalloff: 0.85, shockDur: 1.4 }, p: { at: 0.75, R: 72, dur: 4.5, dps: 1.4, zapEvery: 0.3, zaps: 2, reach: 1.5, zapMul: 2 } },
+  // 19 毒ガス＋泡（8）王水：黄金の液体・極めて高い妨害
+  acidfoam: { stat: { dmg: 10, rate: 0.6, range: 340, speed: 280, bulletR: 6, fieldR: 140, fieldDur: 6, fieldVuln: 0.65 }, p: { dps: 0.8, slow: 0.8, armorDown: 0.6 } },
+  // 20 毒ガス＋迫撃砲（7）破滅の雨：毒の持続を捨てた超高火力の砲撃
+  toxmortar: { stat: { dmg: 140, rate: 0.4, range: 400, speed: 240, splash: 140, fieldR: 90, fieldDur: 1.6, fieldVuln: 0.2, slow: 0.2, slowDur: 1 }, p: { shells: 9, spread: 110, gap: 0.18, gasDps: 0.3 } },
+  // 21 泡＋ガトリング（7）ファンシーバブルガン：泡のガトリング
+  bubblegun: { stat: { dmg: 6.5, rate: 4.7, range: 300, speed: 560, splash: 38, stunDur: 0.55, spot: 62, bulletR: 7, pierce: 2, spread: 0.1 }, p: { popMul: 0.8, popStun: 0.8 } },
+  // 22 迫撃砲＋ガトリング（6）クラスター爆弾
+  scattergun: { stat: { dmg: 40, rate: 0.8, range: 400, speed: 260, splash: 56, spot: 130 }, p: { pellets: 8, spread: 70, pelMul: 0.5 } },
+  // 23 泡＋手裏剣（7）ポッピングスター：泡を纏った流れ星
+  bubbleblade: { stat: { dmg: 40, rate: 1.15, range: 300, speed: 380, splash: 75, spot: 100 }, p: { rayLen: 78, rayHalf: 12, rayMul: 0.9 } },
+  // 24 迫撃砲＋凍結（9）スノーグレイブ：氷の嵐
+  icebomb: { stat: { dmg: 6, rate: 0.5, range: 420, speed: 240, splash: 70, slow: 0.6, slowDur: 2.5, spot: 100 }, p: { R: 80, dur: 4, dps: 0.7, slow: 0.7, drift: 12 } },
+};
+
 // 凸の数 → 上乗せの倍率（1＋この値）。カード・武器カード・遺物で共通（state.js の rankMul・relics.js）
 //   0〜3凸：totuStep ずつ（小さく） ／ 4凸〜：totuBig に跳ねて totuBigStep ずつ
 function totuBonus(t) {
