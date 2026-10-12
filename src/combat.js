@@ -810,6 +810,8 @@ const Combat = {
     // 2026-10-07 ユーザー：第31章から、全ての敵に99%のダメージカットのバリア。1発当たるごとに1%ずつ下がる（初見の攻撃はほぼ通らず、当てるほど通る）
     // 2026-10-07 ユーザー：耐性で無効にする上位の敵は「当たり判定を受けない」。バリアも削れず、何も起きない
     if (e.upper && this.immune(e, this.sysOf(opts.by || this._by))) { e.immT = 0.2; return 0; }
+    // 確認室の見本（run.demoGuard）：武器のダメージは入れない（本物のセーブのカード・凸・常駐・アセンションの倍率が乗って、仕掛けを見る前に倒れるため）。見本の台本の呼び出し（opts.demo）と debug だけ通す。本物の戦闘では付かない
+    if (run.demoGuard && !opts.demo && opts.by !== 'debug') return 0;
     if (run.stageIdx >= 30 && !e.seg && amount > 0) {
       if (e.barrier === undefined) e.barrier = BAL.ascBarrier;
       amount *= 1 - e.barrier;

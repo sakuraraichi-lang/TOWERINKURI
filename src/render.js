@@ -2575,23 +2575,36 @@ const Render = {
     ctx.lineCap = 'round';
     ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = bw + 5;
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(lx * 0.5, ly * 0.5); ctx.stroke();
-    ctx.strokeStyle = flash ? '#fff' : (worm ? '#2f9c70' : '#2d333f'); ctx.lineWidth = bw;
+    ctx.strokeStyle = flash ? '#fff' : (worm ? '#243a38' : '#2d333f'); ctx.lineWidth = bw;
     ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(lx * 0.5, ly * 0.5); ctx.stroke();
     const dash = worm && h.dashLeft > 0, wind = worm && h.tele && h.tele.kind === 'jump';
     ctx.rotate(e.ang || 0);
     if (worm) {
+      // 機械の節：面取りした装甲板（鋼の地・緑の縁）・継ぎ目の板割り・リベット・背の光るセンサー
       const pul = wind ? 0.5 + 0.5 * Math.sin(t * 22) : 0;
-      ctx.beginPath(); ctx.ellipse(0, 0, r * 1.12 + 2, r + 2, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fill();
+      const hw = r * 1.12, hh = r, cut = r * 0.34;
+      const plate = (pad) => {
+        const W = hw + pad, H = hh + pad, C = cut + pad * 0.4;
+        ctx.beginPath();
+        ctx.moveTo(-W + C, -H); ctx.lineTo(W - C, -H); ctx.lineTo(W, -H + C); ctx.lineTo(W, H - C);
+        ctx.lineTo(W - C, H); ctx.lineTo(-W + C, H); ctx.lineTo(-W, H - C); ctx.lineTo(-W, -H + C); ctx.closePath();
+      };
+      plate(2); ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fill();
       if (dash) { ctx.save(); ctx.shadowColor = '#ffe27a'; ctx.shadowBlur = 14; }
-      ctx.beginPath(); ctx.ellipse(0, 0, r * 1.12, r, 0, 0, Math.PI * 2);
-      ctx.fillStyle = flash ? '#fff' : (e.k % 2 ? '#3fae7e' : '#58e0a0'); ctx.fill();
-      ctx.strokeStyle = flash ? '#fff' : dash ? '#ffe27a' : wind ? 'rgba(255,226,122,' + (0.4 + 0.6 * pul).toFixed(2) + ')' : '#0b3d2a';
+      plate(0); ctx.fillStyle = flash ? '#fff' : (e.k % 2 ? '#34504d' : '#436661'); ctx.fill();
+      ctx.strokeStyle = flash ? '#fff' : dash ? '#ffe27a' : wind ? 'rgba(255,226,122,' + (0.4 + 0.6 * pul).toFixed(2) + ')' : '#6fe0b0';
       ctx.lineWidth = dash || wind ? 3 : 2; ctx.stroke();
       if (dash) ctx.restore();
-      ctx.strokeStyle = flash ? '#ccc' : 'rgba(11,61,42,0.55)'; ctx.lineWidth = 1.5;          // 節の継ぎ目（体を横切る線）
-      ctx.beginPath(); ctx.moveTo(-r * 0.35, -r * 0.92); ctx.quadraticCurveTo(-r * 0.15, 0, -r * 0.35, r * 0.92); ctx.stroke();
-      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;                         // 背の光
-      ctx.beginPath(); ctx.arc(0, 0, r * 0.62, Math.PI * 1.15, Math.PI * 1.8); ctx.stroke();
+      ctx.strokeStyle = flash ? '#ccc' : 'rgba(8,24,22,0.75)'; ctx.lineWidth = 1.5;            // 板割りの継ぎ目（体を横切る線と、背骨に沿う線）
+      ctx.beginPath(); ctx.moveTo(-hw * 0.38, -hh * 0.95); ctx.lineTo(-hw * 0.38, hh * 0.95);
+      ctx.moveTo(-hw * 0.38, 0); ctx.lineTo(hw * 0.85, 0); ctx.stroke();
+      ctx.fillStyle = flash ? '#bbb' : '#a9c9c0';                                              // リベット（板の四隅）
+      for (const sx of [-1, 1]) for (const sy of [-1, 1]) { ctx.beginPath(); ctx.arc(sx * hw * 0.7, sy * hh * 0.66, Math.max(1.1, r * 0.07), 0, 6.2832); ctx.fill(); }
+      const glow = 0.55 + 0.45 * Math.sin(t * 5 - e.k * 0.7);                                  // 背のセンサー：節ごとにずれて脈打つ
+      ctx.save(); ctx.shadowColor = '#7dffc8'; ctx.shadowBlur = 5 + glow * 5;
+      ctx.fillStyle = flash ? '#fff' : 'rgba(125,255,200,' + (0.55 + 0.45 * glow).toFixed(2) + ')';
+      ctx.fillRect(hw * 0.05, -hh * 0.2, hw * 0.55, hh * 0.4);
+      ctx.restore();
     } else {
       ctx.fillStyle = 'rgba(0,0,0,0.8)'; this.hexPathOn(ctx, 0, 0, r + 3); ctx.fill();
       ctx.fillStyle = flash ? '#ffffff' : '#363c48'; this.hexPathOn(ctx, 0, 0, r); ctx.fill();
@@ -2697,16 +2710,27 @@ const Render = {
         ctx.restore();
       }
       ctx.save(); ctx.rotate(a);
-      disc(0, 0, r + 2, 'rgba(0,0,0,0.75)');
-      disc(0, 0, r, flash ? '#fff' : '#7bf0b8', '#0b3d2a', 2.5);
-      ctx.fillStyle = flash ? '#ddd' : '#2a8a60';        // 頭の背の模様
-      ctx.beginPath(); ctx.arc(-r * 0.2, 0, r * 0.55, Math.PI * 0.55, Math.PI * 1.45, true); ctx.fill();
-      ctx.fillStyle = '#fff';                            // 目（前向きに2つ）
-      disc(r * 0.35, -r * 0.42, r * 0.2, '#fff'); disc(r * 0.35, r * 0.42, r * 0.2, '#fff');
-      disc(r * 0.42, -r * 0.42, r * 0.09, '#103a28'); disc(r * 0.42, r * 0.42, r * 0.09, '#103a28');
-      ctx.fillStyle = '#fff3c8';                         // 牙
-      const open = 0.5 + 0.5 * Math.sin(t * 7);
-      for (const s of [-1, 1]) { ctx.beginPath(); ctx.moveTo(r * 0.85, s * r * 0.12); ctx.lineTo(r * 1.45, s * (r * 0.3 + open * 4)); ctx.lineTo(r * 0.95, s * r * 0.45); ctx.closePath(); ctx.fill(); }
+      // 機械の頭：面取りした装甲板に、前の吸気スリット・光る一つ目のセンサー・開閉する掘削の顎
+      const open = 0.5 + 0.5 * Math.sin(t * 7), hw = r * 1.1, C = r * 0.4;
+      const hp = (pad) => { const W = hw + pad, H = r + pad, K = C + pad * 0.4;
+        ctx.beginPath(); ctx.moveTo(-W + K, -H); ctx.lineTo(W - K * 0.6, -H); ctx.lineTo(W, -H + K); ctx.lineTo(W, H - K); ctx.lineTo(W - K * 0.6, H); ctx.lineTo(-W + K, H); ctx.lineTo(-W, H - K); ctx.lineTo(-W, -H + K); ctx.closePath(); };
+      ctx.fillStyle = flash ? '#fff' : '#1c2b2a'; ctx.strokeStyle = flash ? '#fff' : '#6fe0b0'; ctx.lineWidth = 2.5;     // 顎
+      for (const s of [-1, 1]) {
+        ctx.beginPath(); ctx.moveTo(r * 0.7, s * r * 0.3); ctx.lineTo(r * 1.5, s * (r * 0.5 + open * 4)); ctx.lineTo(r * 1.7, s * (r * 0.25 + open * 2)); ctx.lineTo(r * 1.0, s * r * 0.12); ctx.closePath(); ctx.fill(); ctx.stroke();
+      }
+      hp(2); ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fill();
+      hp(0); ctx.fillStyle = flash ? '#fff' : '#3b5c57'; ctx.fill(); ctx.strokeStyle = flash ? '#fff' : '#6fe0b0'; ctx.lineWidth = 2.5; ctx.stroke();
+      ctx.strokeStyle = flash ? '#ccc' : 'rgba(8,24,22,0.75)'; ctx.lineWidth = 1.5;          // 板割りと吸気スリット
+      ctx.beginPath(); ctx.moveTo(-r * 0.35, -r * 0.95); ctx.lineTo(-r * 0.35, r * 0.95);
+      for (const k of [-1, 0, 1]) { ctx.moveTo(-r * 0.95, k * r * 0.3); ctx.lineTo(-r * 0.55, k * r * 0.3); }
+      ctx.stroke();
+      ctx.fillStyle = flash ? '#bbb' : '#a9c9c0';                                              // リベット
+      for (const sx of [0.15, 0.8]) for (const sy of [-1, 1]) { ctx.beginPath(); ctx.arc(r * sx, sy * r * 0.78, Math.max(1.2, r * 0.07), 0, 6.2832); ctx.fill(); }
+      const beat = 0.5 + 0.5 * Math.sin(t * 6);                                                 // 一つ目のセンサー
+      ctx.save(); ctx.shadowColor = '#7dffc8'; ctx.shadowBlur = 8 + beat * 10;
+      ctx.fillStyle = flash ? '#fff' : '#7dffc8'; ctx.beginPath(); ctx.ellipse(r * 0.45, 0, r * 0.3, r * 0.2, 0, 0, 6.2832); ctx.fill();
+      ctx.restore();
+      ctx.fillStyle = '#0a2a22'; ctx.beginPath(); ctx.ellipse(r * 0.5, 0, r * 0.12, r * 0.2, 0, 0, 6.2832); ctx.fill();
       ctx.restore();
     } else if (bk === 'rootkit') {
       // 棘の冠：脈打つ12本。大きい体の中に、赤い単眼

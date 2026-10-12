@@ -793,7 +793,7 @@ const DebugRoom = {
     let run;
     try { Game.stageUnlocked = () => true; run = Game.startPrep('ch10'); }
     finally { Game.stageUnlocked = orig; perm.currentStage = cur; }
-    this._btRun = run;
+    this._btRun = run; run.demoGuard = true;     // 見本の武器はダメージを入れない（台本だけが HP を動かす）
     Render.fit(); UI.renderTray();
     run.phase = 'build'; run.wave = BAL.wavesPerStage - 1;
     const kindOrig = Combat.bossKindFor;
@@ -843,11 +843,11 @@ const DebugRoom = {
             const far = free.filter(o => o.d > 230), step = Math.max(1, Math.floor(far.length / 3));
             for (let i = 0; i < 3 && i * step < far.length; i++) run.units.push(Game.newUnit('sniper', far[i * step].h.c, far[i * step].h.r));
           }
-          Combat.damage(run, b, b.hp - b.maxHp * 0.74, { by: 'gatling', src: null });
+          Combat.damage(run, b, b.hp - b.maxHp * 0.74, { by: 'gatling', src: null, demo: true });
         }
         if (b.ph >= 1 && !b.tele && !b.dead) {
           b._phEnd = b._phEnd || now;
-          if (now - b._phEnd > 4500) Combat.damage(run, b, b.maxHp * 2, { by: 'debug' });
+          if (now - b._phEnd > 25000) Combat.damage(run, b, b.maxHp * 2, { by: 'debug' });
         }
       } else if (tOut !== null) {
         const el = (now - tOut) / 1000;
@@ -869,7 +869,7 @@ const DebugRoom = {
     let run;
     try { Game.stageUnlocked = () => true; run = Game.startPrep('ch10'); }
     finally { Game.stageUnlocked = orig; perm.currentStage = cur; }
-    this._btRun = run;
+    this._btRun = run; run.demoGuard = true;     // 見本の武器はダメージを入れない（台本だけが HP を動かす）
     Render.fit(); UI.renderTray();
     run.phase = 'build'; run.wave = 1;
     const wcOrig = Combat.waveCount;
@@ -949,13 +949,14 @@ const DebugRoom = {
     let run;
     try { Game.stageUnlocked = () => true; run = Game.startPrep('ch30'); }
     finally { Game.stageUnlocked = orig; perm.currentStage = cur; }
-    this._btRun = run;
+    this._btRun = run; run.demoGuard = true;     // 見本の武器はダメージを入れない（台本だけが HP を動かす）
     Render.fit(); UI.renderTray();
-    run.phase = 'build'; run.wave = act === 'kill' ? BAL.wavesPerStage - 1 : 0;
+    run.phase = 'build'; run.wave = (act === 'kill' || act === 'resist') ? BAL.wavesPerStage - 1 : 0;      // 耐性は HP を71%まで削るので、撃退の線（ウェーブ1〜4）を越えないよう最後のウェーブで出す
     Game.startNextWave();
     UI._bossKills = 0; UI._finalKillSeen = false;
     UI.cutinWave(run.wave);
     const b = run.finalHead;
+    if (b && ['walk', 'bite', 'laser', 'resist'].indexOf(act) >= 0) b.spd *= 0.4;     // 見本のあいだだけ遅く歩かせる（仕掛けを見る約25秒のうちにコアへ着いて負けないように）
     if (!b) { UI.toastMsg('ラスボスが出ませんでした（BAL.finalOn）', '#ff4a66', 'error'); this._btEnd(); return; }
     let t0 = performance.now(), tOut = null, done = false, doneAt = 0, last = t0, armed = false, phEnd = 0;
     this._bt = setInterval(() => {
@@ -982,7 +983,7 @@ const DebugRoom = {
           .filter(o => o.d > 50).sort((p, q) => p.d - q.d);
         const used = new Set(run.units.map(u => u.c + ',' + u.r));
         for (const o of all.filter(o => !used.has(o.h.c + ',' + o.h.r)).slice(0, 8)) run.units.push(Game.newUnit('gatling', o.h.c, o.h.r));
-        const to = (frac) => Combat.damage(run, b, Math.max(0, b.hp - b.maxHp * frac), { by: 'gatling', src: null });
+        const to = (frac) => Combat.damage(run, b, Math.max(0, b.hp - b.maxHp * frac), { by: 'gatling', src: null, demo: true });
         if (act === 'bite') to(0.91);
         else if (act === 'laser') { b.ph = 1; run.finalPh = 1; to(0.85); }
         else if (act === 'resist') { b.ph = 2; run.finalPh = 2; b.rec.gatling = 1; to(0.71); }
@@ -990,7 +991,7 @@ const DebugRoom = {
         else if (act === 'kill') { b.ph = 9; run.finalPh = 9; to(0.3); }
       }
       if (armed && ['bite', 'laser', 'resist'].indexOf(act) >= 0 && !b.dead) {
-        if (b.ph >= (act === 'bite' ? 1 : act === 'laser' ? 2 : 3) && !b.tele) { phEnd = phEnd || now; if (now - phEnd > 4500) { b.dead = true; } }
+        if (b.ph >= (act === 'bite' ? 1 : act === 'laser' ? 2 : 3) && !b.tele) { phEnd = phEnd || now; if (now - phEnd > 25000) { b.dead = true; } }
       }
       if (armed && act === 'kill' && !b.dead && now - tOut > 2500) Combat.damage(run, b, b.maxHp * 2, { by: 'debug' });
       if (act === 'walk' && !b.dead && tOut !== null && now - tOut > 25000) b.dead = true;
