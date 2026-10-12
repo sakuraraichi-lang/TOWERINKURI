@@ -242,21 +242,6 @@ const FusionFX = {
         ctx.fillStyle = '#ff9a3a';
         for (let i = 0; i < 9; i++) { const sp = (i * 13) % 7 - 3, d = (10 + i * 6) * ease; ctx.globalAlpha = (1 - k) * 0.9; ctx.fillRect(f.x + ux * d + uy * sp * 3 - 1.5, f.y + uy * d - ux * sp * 3 - 1.5, 3, 3); }
         break; }
-      case 'vortex': {      // 相反の渦：氷（青）と炎（橙）の2本の腕が逆に巻いて広がる
-        const r = f.r * (0.25 + ease * 0.85);
-        ctx.lineCap = 'round';
-        for (const [col, off, sgn] of [['#7fe6ff', 0, 1], ['#ff7a3a', Math.PI, 1]]) {
-          ctx.globalAlpha = (1 - k) * 0.9; ctx.strokeStyle = col; ctx.lineWidth = 5 * (1 - k) + 1.5;
-          ctx.save(); ctx.shadowColor = col; ctx.shadowBlur = 10;
-          ctx.beginPath();
-          for (let i = 0; i <= 28; i++) {
-            const q = i / 28, a = f.ph + off + sgn * (q * 7 + k * 5), rr = r * q;
-            ctx[i ? 'lineTo' : 'moveTo'](f.x + Math.cos(a) * rr, f.y + Math.sin(a) * rr);
-          }
-          ctx.stroke(); ctx.restore();
-        }
-        ctx.globalAlpha = (1 - k) * 0.12; ctx.fillStyle = '#ffd0e8'; ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, 7); ctx.fill();
-        break; }
       case 'frostfoam': {   // 永久凍土：霜の輪と、広がる小さな泡
         ctx.globalAlpha = (1 - k) * 0.6; ctx.strokeStyle = '#bff0ff'; ctx.lineWidth = 2.4;
         ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.3 + ease * 0.75), 0, 7); ctx.stroke();
@@ -279,28 +264,6 @@ const FusionFX = {
         }
         ctx.globalAlpha = (1 - k) * 0.5; ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.6;
         ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.3 + ease * 0.7), 0, 7); ctx.stroke();
-        break; }
-      case 'magstorm': {    // 磁気嵐：着弾点に渦巻く電撃の嵐（逆向きに回る2重の弧・走る火花・磁力線の輪）
-        const r = f.r * (0.4 + ease * 0.7);
-        ctx.save(); ctx.shadowColor = f.color; ctx.shadowBlur = 12; ctx.lineCap = 'round';
-        for (let j = 0; j < 3; j++) {
-          const dir = j % 2 ? -1 : 1, rr = r * (0.45 + j * 0.28), a0 = f.ph + dir * (k * 9 + j * 2.1);
-          ctx.globalAlpha = (1 - k) * 0.9; ctx.strokeStyle = j === 1 ? '#ffffff' : f.color; ctx.lineWidth = 3 * (1 - k) + 1;
-          ctx.beginPath();
-          for (let i = 0; i <= 14; i++) { const a = a0 + i * 0.22, jit = (i % 2 ? 1 : -1) * 3 * (1 - k); ctx[i ? 'lineTo' : 'moveTo'](f.x + Math.cos(a) * (rr + jit), f.y + Math.sin(a) * (rr + jit)); }
-          ctx.stroke();
-        }
-        ctx.restore();
-        ctx.globalAlpha = (1 - k) * 0.55; ctx.strokeStyle = '#d8c7ff'; ctx.lineWidth = 1.4; ctx.setLineDash([4, 5]);
-        ctx.beginPath(); ctx.arc(f.x, f.y, r * 1.12, 0, 7); ctx.stroke(); ctx.setLineDash([]);
-        break; }
-      case 'strike': {      // 雷雲の落雷
-        ctx.save(); ctx.shadowColor = f.color; ctx.shadowBlur = 12;
-        ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.6 * (1 - k) + 0.8;
-        const y0 = f.fromY;
-        ctx.beginPath(); ctx.moveTo(f.x, y0);
-        for (let i = 1; i <= 6; i++) ctx.lineTo(f.x + (i % 2 ? 1 : -1) * 6 * (i < 6 ? 1 : 0), y0 + (f.y - y0) * i / 6);
-        ctx.stroke(); ctx.restore();
         break; }
       case 'pop':
         ctx.globalAlpha = (1 - k) * 0.85; ctx.strokeStyle = f.color; ctx.lineWidth = 3 * (1 - k) + 1;
@@ -370,25 +333,6 @@ const FusionFX = {
         }
         ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.7 * fade; ctx.beginPath(); ctx.arc(z.x - R * 0.4, z.y - R * 0.45, R * 0.1, 0, 7); ctx.fill();
         ctx.globalAlpha = (0.5 + near * 0.5) * fade; ctx.fillStyle = '#ff7ac8'; ctx.beginPath(); ctx.arc(z.x, z.y, 3 + near * 6, 0, 7); ctx.fill();
-      } else if (z.kind === 'twister') {  // 航海の悪夢：雷を纏った竜巻（上から見た渦）。逆向きに回る弧と、走る稲光
-        const R = z.r;
-        ctx.globalAlpha = 0.2 * fade; ctx.fillStyle = '#4a3a98'; ctx.beginPath(); ctx.arc(z.x, z.y, R * 1.05, 0, 7); ctx.fill();
-        ctx.save(); ctx.shadowColor = '#8a6aff'; ctx.shadowBlur = 8; ctx.lineCap = 'round';
-        for (let j = 0; j < 4; j++) {
-          const a0 = t * (6 - j) * (j % 2 ? -1 : 1) + j * 1.7, rr = R * (0.3 + j * 0.22);
-          ctx.globalAlpha = (0.9 - j * 0.12) * fade; ctx.strokeStyle = j === 0 ? '#ffffff' : '#a890ff'; ctx.lineWidth = 3.2 - j * 0.5;
-          ctx.beginPath(); ctx.arc(z.x, z.y, rr, a0, a0 + 3.4); ctx.stroke();
-        }
-        ctx.restore();
-        ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.5; ctx.globalAlpha = 0.9 * fade;
-        if (Math.sin(t * 31 + z.x) > 0) {
-          ctx.beginPath(); const a = t * 17;
-          ctx.moveTo(z.x + Math.cos(a) * R * 0.2, z.y + Math.sin(a) * R * 0.2);
-          ctx.lineTo(z.x + Math.cos(a + 0.4) * R * 0.6, z.y + Math.sin(a + 0.4) * R * 0.6);
-          ctx.lineTo(z.x + Math.cos(a - 0.2) * R * 0.8, z.y + Math.sin(a - 0.2) * R * 0.8);
-          ctx.lineTo(z.x + Math.cos(a + 0.3) * R * 1.15, z.y + Math.sin(a + 0.3) * R * 1.15);
-          ctx.stroke();
-        }
       } else if (z.kind === 'firewhirl') { // 滅尽嵐：火炎旋風（上から見た炎の渦）。橙と黄の腕が巻き、中心が白く熱い
         const R = z.r;
         ctx.globalCompositeOperation = 'lighter';
@@ -428,25 +372,6 @@ const FusionFX = {
         ctx.fillStyle = '#ffffff';
         for (let i = 0; i < 14; i++) { const a = t * (1.5 + (i % 3) * 0.5) + i * 0.9, d = R * (0.2 + ((i * 53) % 10) / 12); ctx.globalAlpha = 0.85 * fade; ctx.fillRect(z.x + Math.cos(a) * d - 1.2, z.y + Math.sin(a) * d - 1.2, 2.4, 2.4); }
         ctx.globalAlpha = 0.6 * fade; ctx.strokeStyle = '#bff0ff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(z.x, z.y, R, 0, 7); ctx.stroke();
-      } else if (z.kind === 'spikes') {     // 凍結光線：氷の棘山。反射した所から素早く生える
-        const grow = Math.min(1, z.t / 0.18), R = z.r;
-        ctx.globalAlpha = 0.18 * fade; ctx.fillStyle = '#bff0ff'; ctx.beginPath(); ctx.arc(z.x, z.y, R, 0, 7); ctx.fill();
-        for (let i = 0; i < 9; i++) {
-          const a = i * 0.698 + 0.3, d = R * (0.15 + ((i * 41) % 10) / 14), h = (12 + ((i * 29) % 7) * 3) * grow, w = 4.2 + (i % 3);
-          const bx = z.x + Math.cos(a) * d, by = z.y + Math.sin(a) * d;
-          ctx.globalAlpha = 0.95 * fade;
-          ctx.beginPath(); ctx.moveTo(bx - w, by + 3); ctx.lineTo(bx + 1, by - h); ctx.lineTo(bx + w, by + 3); ctx.closePath();
-          ctx.fillStyle = i % 2 ? '#d8f6ff' : '#9fe0ff'; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = '#ffffff'; ctx.stroke();
-        }
-        ctx.globalAlpha = 0.6 * fade; ctx.strokeStyle = '#e6fbff'; ctx.lineWidth = 1.4; ctx.beginPath(); ctx.arc(z.x, z.y, R, 0, 7); ctx.stroke();
-      } else if (z.kind === 'storm') {    // 雷雲：黒紫の雲の塊と、ときどき光る
-        for (let i = 0; i < 5; i++) {
-          const a = t * 0.4 + i * 1.26, d = z.r * 0.4, rr = z.r * (0.42 + 0.06 * Math.sin(t * 1.7 + i));
-          ctx.globalAlpha = 0.34 * fade; ctx.fillStyle = i % 2 ? '#3a2c6a' : '#54449a';
-          ctx.beginPath(); ctx.arc(z.x + Math.cos(a) * d, z.y + Math.sin(a) * d, rr, 0, 7); ctx.fill();
-        }
-        if (Math.sin(t * 23 + z.x) > 0.93) { ctx.globalAlpha = 0.35 * fade; ctx.fillStyle = '#e8dcff'; ctx.beginPath(); ctx.arc(z.x, z.y, z.r * 0.7, 0, 7); ctx.fill(); }
-        ctx.globalAlpha = 0.55 * fade; ctx.strokeStyle = '#8a7ad8'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(z.x, z.y, z.r, 0, 7); ctx.stroke();
       }
       ctx.restore();
     }

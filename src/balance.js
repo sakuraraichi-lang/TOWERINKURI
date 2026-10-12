@@ -1098,27 +1098,27 @@ BAL.fusion = {
   // 7 触手＋泡（9）狂気の海底：大きな泡・集敵・触手の一突きで破裂
   abyssnet: { stat: { dmg: 60, rate: 0.6, range: 300, count: 2, stunDur: 0.5 }, p: { R: 100, dur: 3, dps: 0.6, pull: 160, burstR: 105, burstMul: 3.2 } },
   // 8 触手＋テスラ（7）航海の悪夢：雷を纏った竜巻
-  thunderwhip: { stat: { dmg: 3, rate: 0.4, range: 230, knock: 60, knockDur: 0.3, chain: 3, chainFalloff: 0.85, shockDur: 1.2 }, p: { start: 24, R: 50, dur: 3, speed: 55, dps: 0.5, chainEvery: 0.45, chainMul: 1.6 } },
+  thunderwhip: { stat: { dmg: 3, rate: 0.4, range: 230, knock: 60, knockDur: 0.3, chain: 3, chainFalloff: 0.85, shockDur: 1.2 }, p: { start: 24, R: 66, dur: 3.5, speed: 50, dps: 0.9, tick: 0.07, pull: 70, chainEvery: 0.2, chainMul: 1.6 } },   // 1013 性能：大きく・巻き込み・速い刻み
   // 9 火炎＋毒ガス（7）爆裂放射器：長い炎＋先で爆発＋毒
-  hellmist: { stat: { dmg: 28, rate: 2.2, range: 190, cone: 0.45, burn: 0.5, burnDur: 3, fieldR: 80, fieldDur: 3, fieldVuln: 0.2 }, p: { at: 0.85, blastR: 80, blastMul: 2.2, every: 1, dps: 1, slow: 0.15 } },
+  hellmist: { stat: { dmg: 28, rate: 2.2, range: 190, cone: 0.45, burn: 0.5, burnDur: 3, fieldR: 80, fieldDur: 3, fieldVuln: 0.2 }, p: { from: 0.3, at: 0.9, blasts: 4, gap: 0.06, blastR: 64, blastMul: 1.6, every: 1, dps: 1, slow: 0.15 } },   // 1013 性能：線に沿って4連の爆発
   // 10 火炎＋迫撃砲（8）ヴォルケイノブラスト：正面へ火山弾
   napalm: { stat: { dmg: 34, rate: 0.6, range: 330, burn: 0.6, burnDur: 3.5, splash: 56, speed: 330 }, p: { bombs: 5, fan: 0.22, fanK: 1.5, poolR: 62, poolDur: 3.5, poolDps: 0.5 } },
   // 11 凍結＋火炎（9）相反の渦
-  vortex: { stat: { dmg: 50, rate: 1.2, range: 210, slow: 0.5, slowDur: 2.6, burn: 0.5, burnDur: 3 }, p: {  } },
+  vortex: { stat: { dmg: 50, rate: 1.2, range: 210, slow: 0.5, slowDur: 2.6, burn: 0.5, burnDur: 3 }, p: { dur: 0.85, tick: 0.08, dps: 1.2, burnK: 0.3, shatter: 1.5 } },   // 1013 性能：残る渦の速い刻み・札なしでも砕ける
   // 12 凍結＋泡（10）永久凍土：火力は低く、足止めは絶大
   icefoam: { stat: { dmg: 8, rate: 0.95, range: 320, slow: 0.9, slowDur: 4, stunDur: 3.4 }, p: { n: 40, cages: 14, delay: 2.2, shardR: 52, shardMul: 1.2, shardSlow: 0.6, shardSlowDur: 2 } },
   // 13 レーザー＋凍結（9）凍結光線：反射した所に氷の棘山
-  cryobeam: { stat: { dmg: 36, rate: 1, range: 430, pierce: 20, bulletR: 22, reflect: 2, slow: 0.55, slowDur: 2.2 }, p: { spikeR: 48, spikeDur: 3.2, spikeDps: 2.2, spikeSlow: 0.6 } },
+  cryobeam: { stat: { dmg: 36, rate: 1, range: 430, pierce: 20, bulletR: 22, reflect: 2, slow: 0.55, slowDur: 2.2 }, p: { spikeR: 48, spikeDur: 3.2, spikeDps: 2.2, spikeTick: 0.1, spikeSlow: 0.6, lineDur: 1.2, lineTick: 0.1, lineDps: 1.2 } },   // 1013 性能：霜の線が刻む・棘山の刻みを速く
   // 14 レーザー＋ミサイル（9）スーパーノヴァ：道1本分の太さ・絶え間ない・多段ヒット
-  convergence: { stat: { dmg: 6, rate: 9, range: 440, bulletR: 30, reflect: 2 }, p: { life: 0.12 } },
+  convergence: { stat: { dmg: 7, rate: 14, range: 440, bulletR: 30, reflect: 2 }, p: { life: 0.09 } },   // 1013 性能：1秒に14回当てる
   // 15 ミサイル＋迫撃砲（9）滅尽嵐：着弾に火炎旋風
   carpet: { stat: { dmg: 8, rate: 0.85, range: 400, speed: 420, splash: 60, spot: 100 }, p: { R: 50, dur: 2.5, dps: 1.2, burn: 0.4, drift: 14 } },
   // 16 ミサイル＋テスラ（8）磁気嵐
-  chainstrike: { stat: { dmg: 30, rate: 0.85, range: 360, speed: 430, splash: 90, spot: 128, chain: 6, chainFalloff: 0.9, shockDur: 1.5 }, p: { pillarR: 96, chainMul: 0.65 } },
+  chainstrike: { stat: { dmg: 30, rate: 0.85, range: 360, speed: 430, splash: 90, spot: 128, chain: 6, chainFalloff: 0.9, shockDur: 1.5 }, p: { pillarR: 96, chainMul: 0.65, stormDur: 2.6, tick: 0.12, dps: 0.6, boltEvery: 0.16, bolts: 2, boltMul: 0.9 } },   // 1013 性能：嵐が残って稲妻を次々
   // 17 テスラ＋毒ガス（6）雷雲
-  stormcloud: { stat: { dmg: 11, rate: 0.55, range: 210, chain: 2, chainFalloff: 0.85, shockDur: 1.2, fieldR: 92, fieldDur: 5 }, p: { strikeEvery: 0.42, strikeMul: 2.2, drift: 9, strikeR: 0.9 } },
+  stormcloud: { stat: { dmg: 11, rate: 0.55, range: 210, chain: 2, chainFalloff: 0.85, shockDur: 1.2, fieldR: 92, fieldDur: 5 }, p: { strikeEvery: 0.15, strikeMul: 2.2, drift: 9, strikeR: 0.9, tick: 0.1, rainDps: 0.6 } },   // 1013 性能：落雷を連続・毒の雨が刻む
   // 18 テスラ＋泡（8）プラズマボール
-  resonator: { stat: { dmg: 28, rate: 0.45, range: 230, chain: 3, chainFalloff: 0.85, shockDur: 1.4 }, p: { at: 0.75, R: 72, dur: 4.5, dps: 1.4, zapEvery: 0.3, zaps: 2, reach: 1.5, zapMul: 2 } },
+  resonator: { stat: { dmg: 28, rate: 0.45, range: 230, chain: 1, chainFalloff: 0.85, shockDur: 1.4 }, p: { at: 0.75, R: 72, dur: 4.5, dps: 1.4, zapEvery: 0.16, zaps: 10, reach: 1.1, zapMul: 2 } },   // 1013 性能：球の中の敵全員へ1秒に6回
   // 19 毒ガス＋泡（8）王水：黄金の液体・極めて高い妨害
   acidfoam: { stat: { dmg: 10, rate: 0.6, range: 340, speed: 280, bulletR: 6, fieldR: 140, fieldDur: 6, fieldVuln: 0.65 }, p: { dps: 0.8, slow: 0.8, armorDown: 0.6 } },
   // 20 毒ガス＋迫撃砲（7）破滅の雨：毒の持続を捨てた超高火力の砲撃
