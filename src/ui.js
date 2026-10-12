@@ -554,7 +554,7 @@ const UI = {
     const over = pw > left, gk = cap > 0 ? Util.clamp((used + pw) / cap, 0, 1) : 1;
     const tn = String(used), ts = '/' + cap;
     const sub = pw ? (over ? '足りない（あと ' + left + '）' : '置くと あと ' + (left - pw))
-      : used >= cap ? '上限いっぱい' : used === 0 ? '上限まで置けます' : 'あと ' + left + ' 置ける';
+      : '';   // 2026-10-12 ユーザー：「上限まで置けます」などは要らない（数字と棒で分かる）。文は武器を手に取っているときだけ
     const nEl = q('.hc-n span'), sEl = q('.hc-n small'), tEl = q('.hc-s');
     if (nEl.textContent !== tn) { nEl.textContent = tn; c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); }
     if (sEl.textContent !== ts) sEl.textContent = ts;
@@ -2058,10 +2058,8 @@ const UI = {
         st.gachaPick = r.up; st._gsFx = 'go';       // 交換したら、できた上位パックの台へ
         rerender();
         // **「パック圧縮中　しばらくお待ちください」から画面が引いて、再起動と同じ部屋のテレビへ**（2026-10-12・ユーザー指示）。タップで進める。
-        //   初回は文3つ、2回目からは1つ（何度も交換する人を足止めしない）。終わったら斜めの帯（exchFx）
-        const first = demo || !perm.exchTv;
-        if (!demo && !perm.exchTv) { perm.exchTv = 1; try { Game.save(); } catch (e) {} }
-        Scenes.compress(() => this.exchFx(PACKS[r.up], r), first ? 3 : 1);
+        //   文は毎回すべて出す（2026-10-12 ユーザー「見たい人が見るところなので文章量はどうでもいい、見たくない人はタップ連打で飛ばせる」）。終わったら斜めの帯（exchFx）
+        Scenes.compress(() => this.exchFx(PACKS[r.up], r), 3);
       });
       ex.appendChild(eb);
       gs.appendChild(ex);

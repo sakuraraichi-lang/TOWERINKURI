@@ -2992,3 +2992,5 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
   background:repeating-linear-gradient(90deg,#ff8a1f 0 6px,transparent 6px 8px);animation:rbWait 1.7s linear both;}
 @keyframes rbWait{0%{transform:scaleX(0);}100%{transform:scaleX(1);}}
 .rb-wait.done b{text-shadow:0 0 12px #ff7a18;}
+/* 2026-10-12：コストの下の文は武器を手に取っているときだけ。空のときは行ごと消す */
+.hcost .hc-s:empty{display:none;}
