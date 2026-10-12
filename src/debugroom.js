@@ -280,6 +280,7 @@ const DebugRoom = {
           UI.toastMsg(['新しい武器 ガトリング', 'ウェーブ ' + (i + 1) + ' 突破', '3件 購入　コイン 900', 'コスト不足', '取得: 見本のカード', '開いていません'][i], '#ffc24a', k), i * 260))],
       ]],
       ['合成武器（A＋B＝C・2026-10-06）', me._fusionButtons()],
+      ['合成武器の札（A：その合成武器だけの3択の札24枚／B：合成どうしの連携の札8枚・2026-10-12）', me._fusionCardButtons()],
       ['スキルツリー（ノードを取った瞬間）', [
         ['1つ取る（火力の連なり）', () => me.skill('normal')],
         ['コストの上限を取る（増設完了の帯）', () => me.skill('units')],
@@ -780,6 +781,87 @@ const DebugRoom = {
       Combat.update(run, dt);
     }, 16);
     UI.toastMsg('見本：' + c.name + '（約7秒）', BAL.rarity[c.rarity].color, 'demo');
+  },
+
+  // 合成武器の札の見本（2026-10-12・cards.js の fp_*／fl_*）
+  //   3択の見本（UI.showDraft）と、札ごとの戦闘の見本。戦闘の見本は cardDemo と同じ作り：札を掛けた合成武器を1基（連携の札は2つの合成武器）と動かない的6体を並べ、本物の戦闘（Combat.update）で約8秒撃たせる。セーブには触らない
+  _fusionCardButtons() {
+    const me = this;
+    const A = CARD_IDS.filter(id => CARDS[id].fpick), B = CARD_IDS.filter(id => CARDS[id].flink);
+    const out = [
+      ['3択：合成武器だけの札（エピック3枚）', () => UI.showDraft(A.slice(0, 3))],
+      ['3択：合成武器だけの札（別の3枚）', () => UI.showDraft(A.slice(9, 12))],
+      ['3択：合成どうしの連携の札（レジェンド3枚）', () => UI.showDraft(B.slice(0, 3))],
+      ['3択：連携の札入り（レジェンド・エピック・コモン）', () => UI.showDraft([B[3], A[4], me._cards('common', 1)[0]])],
+      ['片づける', () => me._cdEnd()],
+    ];
+    for (const id of A.concat(B)) {
+      const c = CARDS[id], names = (c.flink || [c.fusion]).map(f => FUSIONS[f].name).join('＋');
+      out.push([(c.flink ? '連携　' : '合成　') + c.name + '（' + names + '）　' + UI.shortDesc(c), () => me.fusionCardDemo(id)]);
+    }
+    return out;
+  },
+  fusionCardDemo(cardId) {
+    const run = Game.run, c = CARDS[cardId];
+    if (!run || !run.stage || !c) return;
+    this._cdEnd();
+    const st = run.stage, hx = (st.vec && st.vec.hexes) || [];
+    let best = null;
+    for (const h of hx) {
+      if (h.y > st.h * 0.5 || h.y < 80) continue;
+      for (const a of Game.FACES) {
+        let len = 0;
+        for (let d = 10; d <= 220; d += 10) {
+          if (!st.walkable(((h.x + Math.cos(a) * d) / TILE) | 0, ((h.y + Math.sin(a) * d) / TILE) | 0)) break;
+          len = d;
+        }
+        const sc = len - Math.abs(h.x - st.w / 2) * 0.05;
+        if (!best || sc > best.sc) best = { sc, h, a, len };
+      }
+    }
+    if (!best) return;
+    const units = [];
+    (c.flink || [c.fusion]).forEach((fid, i) => {
+      let h = best.h;
+      if (i > 0) {   // 2つ目は、的が並ぶ線の近くの六角へ同じ向きで（射界は固定なので、線から外れると的を狙えない）
+        let bd = 1e9;
+        for (const q of hx) {
+          const dx = q.x - best.h.x, dy = q.y - best.h.y, d = Math.hypot(dx, dy);
+          if (d < 20 || d > 150) continue;
+          const sc = Math.abs(-Math.sin(best.a) * dx + Math.cos(best.a) * dy) * 3 + d * 0.2;
+          if (sc < bd) { bd = sc; h = q; }
+        }
+      }
+      const u = Game.newUnit(FUSIONS[fid].a, h.c, h.r, best.a);
+      u.fuse = fid;
+      u.s = Object.assign({}, u.def.base, BAL.fusion[fid].stat);
+      u.s.arc = u.arc;
+      units.push(u);
+    });
+    const keep = {};
+    for (const k of this._CDKEEP) keep[k] = run[k];
+    const orig = run.units; run.units = units;
+    Game.applyCardRun(cardId, run);
+    for (const u of units) Game.applyCardUnit(cardId, run, u);
+    const t = ENEMY_TYPES.grunt, g = Math.max(Combat.gw(run), 1);
+    const enemies = [];
+    const L = Math.max(90, best.len), N = 6;
+    for (let i = 0; i < N; i++) {
+      const dd = 45 + (L - 60) * i / (N - 1);
+      const ex = best.h.x + Math.cos(best.a) * dd + Math.sin(best.a) * (i % 2 ? 7 : -7), ey = best.h.y + Math.sin(best.a) * dd - Math.cos(best.a) * (i % 2 ? 7 : -7);
+      const en = Combat.makeEnemy(run, t, g, ex, ey, 0, 1e12);
+      en.spd = 0; en.lane = null;
+      run.enemies.push(en); enemies.push(en);
+    }
+    for (const u of units) if (u.def.aimPoint) { const m = enemies[(N / 2) | 0]; u.ax = m.x; u.ay = m.y; u.aim = { x: m.x, y: m.y }; }
+    this._cdState = { run, u: units[0], enemies, keep, orig };
+    let last = performance.now(), el = 0;
+    this._cd = setInterval(() => {
+      const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now; el += dt;
+      if (Game.run !== run || el > 8) { this._cdEnd(); return; }
+      Combat.update(run, dt);
+    }, 16);
+    UI.toastMsg('見本：' + c.name + '（約8秒）', BAL.rarity[c.rarity].color, 'demo');
   },
 
   // kind（'worm'|'rootkit'|'jammer'）を渡すと、その個体を1体だけ出し、HP が 75% を割った直後に仕掛けを1回使わせる（見本・記録なし）。

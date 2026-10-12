@@ -6,7 +6,7 @@
 // 版。**ホームの右上に出る。**
 // 「更新されていない気がする」と思ったとき、ここの文字列が合っているかで
 // 端末のキャッシュの問題か、配信の問題かを一目で切り分けられる
-const BUILD = '1012h';
+const BUILD = '1012i';
 
 // パッチノート。**版の数字だけでは「で、何が変わったの」に答えていない**ので、
 // ホーム右上の版をタップしたときに、ここへの入口を出す
@@ -1131,6 +1131,49 @@ BAL.fusion = {
   bubbleblade: { stat: { dmg: 40, rate: 1.15, range: 300, speed: 380, splash: 75, spot: 100 }, p: { rayLen: 78, rayHalf: 12, rayMul: 0.9 } },
   // 24 迫撃砲＋凍結（9）スノーグレイブ：氷の嵐
   icebomb: { stat: { dmg: 6, rate: 0.5, range: 420, speed: 240, splash: 70, slow: 0.6, slowDur: 2.5, spot: 100 }, p: { R: 80, dur: 4, dps: 0.7, slow: 0.7, drift: 12 } },
+};
+
+// ---------------------------------------------------------------
+// 合成武器の札（2026-10-12・src/cards.js の fp_*／fl_*・挙動は src/fusion.js）
+//   A：合成武器だけの3択の札24枚（エピック）。その合成武器を盤に置いているときだけ3択に出る。凸は主な1軸（コメントの「軸」）だけに効く
+//   B：合成武器どうしの連携の札8枚（レジェンド）。2つの合成武器が盤にそろっているときだけ3択に出る
+//   どちらも上位の連携パック（ap:'syn'）から出る（アセンションの章だけ）。数値は仮。ユーザーが見て練り直す前提
+// ---------------------------------------------------------------
+BAL.fusionCards = {
+  // ---- A（軸＝凸で伸びる値）----
+  fp_starassault: { frag: 3, r: 0.7, mul: 0.5, delay: 0.12 },                 // 軸 frag：弾けた破片の数。破片は元の爆発の r 倍の広さ・mul 倍の威力
+  fp_plasmachain: { chain: 2 },                                                // 軸 chain：電撃が跳ぶ数
+  fp_chakram:     { back: 2 },                                                 // 軸 back：帰る刃の増える本数
+  fp_toxblade:    { dpsK: 0.8, dr: 16 },                                       // 軸 tox：毒のダメージの増え（+80%）。雲は必ず出て、半径 +dr
+  fp_voidblade:   { tent: 2, durK: 0.6, every: 0.5, mul: 0.5 },                // 軸 tent：触手の数。裂け目が durK 長く残り、every 秒ごとに触手が mul 倍で突く
+  fp_flameblade:  { fin: 2.5, len: 1.5, half: 26 },                            // 軸 fin：終わりの炎の斬撃の威力（斬撃のダメージの倍数）
+  fp_abyssnet:    { echo: 0.8, r: 1.35, gap: 0.45 },                           // 軸 echo：二度目の破裂の威力（一度目の倍数）
+  fp_thunderwhip: { twin: 1, ang: 0.45, mul: 0.7 },                            // 軸 twin：増える竜巻の数（左右に1つずつ交互）
+  fp_hellmist:    { blasts: 2, step: 0.3, mul: 0.7, gap: 0.1, r: 0.9 },        // 軸 blast：炎の線に沿って増える爆発の数
+  fp_napalm:      { bombs: 4 },                                                // 軸 bomb：火山弾の増える数
+  fp_vortex:      { shatter: 3, r: 38, cool: 1.5 },                            // 軸 shatter：割れるときの威力（渦のダメージの倍数）
+  fp_icefoam:     { chain: 2, reach: 1.8, mul: 0.6, gap: 0.12 },               // 軸 chain：破裂が連鎖する敵の数
+  fp_cryobeam:    { along: 4 },                                                // 軸 spike：光線の道すがらに増える棘山の数
+  fp_convergence: { refl: 2 },                                                 // 軸 refl：反射の増える回数
+  fp_carpet:      { whirls: 2, off: 1.1 },                                     // 軸 whirl：増える旋風の数
+  fp_chainstrike: { bolts: 3, reach: 1.4, n: 2 },                              // 軸 bolt：増える雷の数
+  fp_stormcloud:  { strikes: 2 },                                              // 軸 strike：一度に落ちる雷の増える数
+  fp_resonator:   { zaps: 2 },                                                 // 軸 zap：電撃が当たる敵の増える数
+  fp_acidfoam:    { linger: 2 },                                               // 軸 linger：場を出たあとも脆弱・装甲ダウンが残る秒数
+  fp_toxmortar:   { shells: 4 },                                               // 軸 shell：砲弾の増える数
+  fp_bubblegun:   { kids: 2, r: 0.8, mul: 0.6, stun: 0.7, gap: 0.1 },          // 軸 kid：割れた泡から分かれる小さな泡の数
+  fp_scattergun:  { pellets: 6, finale: 3 },                                   // 軸 pel：子弾の増える数。最後の1発は finale 倍
+  fp_bubbleblade: { rays: 3 },                                                 // 軸 ray：光の刃の増える本数
+  fp_icebomb:     { storms: 1, off: 0.9 },                                     // 軸 storm：増える氷の嵐の数（逆向きに漂う）
+  // ---- B（2つの合成武器がそろっているとき）----
+  fl_mark:   { mark: 0.3, sec: 4, pelR: 34 },                                  // 軸 mark：「被弾の印」を受けた敵のダメージの増え（+30%・sec 秒）
+  fl_rift:   { rift: 0.5, max: 10, reach: 420 },                               // 軸 rift：海底の泡に捕まった敵への触手の威力（異界の剣のダメージの倍数）
+  fl_shatter:{ burst: 1.5, r: 56 },                                            // 軸 burst：凍った泡の中の敵が爆ぜる威力（渦のダメージの倍数）
+  fl_arc:    { arc: 0.8, n: 2, max: 2 },                                       // 軸 arc：互いの場へ跳ぶ電撃の威力（落雷・電撃の倍数）
+  fl_boom:   { boom: 4, r: 0.8 },                                              // 軸 boom：爆ぜる威力（放射器・火山弾のダメージの倍数）
+  fl_bolt:   { bolt: 1, snvK: 7, msK: 0.8, every: 3, max: 4, reach: 130, gapSec: 1.5 }, // 軸 bolt：電撃の威力（snvK＝スーパーノヴァ側・msK＝磁気嵐側の基準の倍数）
+  fl_trail:  { trail: 1, n: 4, r: 40, dur: 2.5, dps: 0.25 },                   // 軸 trail：炎の軌跡の威力（円環刃のダメージの倍数）
+  fl_acid:   { acid: 1, r: 1.2 },                                              // 軸 acid：酸の爆発の威力（破滅の雨のダメージの倍数）
 };
 
 // 凸の数 → 上乗せの倍率（1＋この値）。カード・武器カード・遺物で共通（state.js の rankMul・relics.js）

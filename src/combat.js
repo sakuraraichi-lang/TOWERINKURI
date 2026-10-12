@@ -782,6 +782,7 @@ const Combat = {
     if (e.shock > 0) v += BAL.shockVuln + (run.shockVuln || 0);       // 感電の札（tsl_shock）が重ねた分も乗る
     if (e.chill > 0) v += run.chillVuln + run.st.chillVuln;
     if (e.fvulnT > 0) v += e.fvuln;
+    if (e.fmarkT > 0) v += e.fmark;          // 被弾の印（fl_mark・合成武器の札）
     if (e.nukeT > 0) v += e.nukeV;           // 戦術核の被爆
     if (e.stun > 0 && run.cageVuln) v += run.cageVuln;       // 泡の檻：閉じ込めた敵が受けるダメージ
     return v;
@@ -1843,6 +1844,7 @@ const Combat = {
       if (e.spotT > 0) e.spotT -= dt;
       if (e.tntT > 0) e.tntT -= dt;
       if (e.fvulnT > 0) e.fvulnT -= dt;
+      if (e.fmarkT > 0) e.fmarkT -= dt;
       if (e.nukeT > 0) e.nukeT -= dt;
       if (e.armorT > 0) e.armorT -= dt;
       if (e.slowT > 0) { e.slowT -= dt; if (e.slowT <= 0) e.slow = 0; }

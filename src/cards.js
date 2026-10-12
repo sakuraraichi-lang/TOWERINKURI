@@ -670,6 +670,91 @@ for (const fid of FUSION_IDS) {
   };
 }
 
+// ============ 合成武器の札（2026-10-12・ユーザー決定 2026-10-06・10-12）============
+//   A（fp_*）… **合成武器だけの3択の札**。合成武器1つにつき1枚・24枚・エピック。その合成武器を盤に置いているときだけ、出撃中の3択に出る（draft.js）。
+//              その合成武器の「らしさ」を伸ばす。凸は主な1軸だけ（rankAxis）。C は A として扱うので、A の札もこれとは別に乗る。
+//   B（fl_*）… **合成武器どうしの連携の札**。8枚・レジェンド。2つの合成武器が盤にそろっているときだけ3択に出る。**ユーザーが見て練り直す前提の案**。
+//   どちらも上位の連携パック（ap:'syn'）から出る＝アセンションの章の3択だけ（合成の札と同じ）。持っているカードの中から引く（所持が要る）。
+//   中身は w.flags.fc（A）・w.flags.fl（B）に書き、fusion.js の fire が読む（applyMods が組み直すたびに引いた順に掛け直される）。数値は BAL.fusionCards
+const FCK = BAL.fusionCards;
+const fcOf = (w) => w.flags.fc || (w.flags.fc = {});
+const flOf = (w) => w.flags.fl || (w.flags.fl = {});
+function FP(fid, o) {
+  const f = FUSIONS[fid];
+  CARDS['fp_' + fid] = Object.assign({ id: 'fp_' + fid, kind: 'fusion', fusion: fid, fpick: true, requires: [f.a, f.b], rarity: 'epic', maxStack: 1, ap: 'syn' }, o);
+}
+function FL(id, fids, o) {
+  CARDS[id] = Object.assign({ id, kind: 'fusion', fusion: fids[0], flink: fids, requires: fids.map(x => FUSIONS[x].a), rarity: 'legendary', maxStack: 1, ap: 'syn' }, o);
+}
+const pc = (v) => Math.round(v * 100);
+
+FP('starassault', { rankAxis: 'frag', name: '連鎖星砕', desc: '弾けた破片が' + FCK.fp_starassault.frag + 'つに分かれ、もう一度弾ける',
+  apply(run) { for (const w of run.units) if (w.fuse === 'starassault') fcOf(w).frag = Game.rki(FCK.fp_starassault.frag, 'frag'); } });
+FP('plasmachain', { rankAxis: 'chain', name: '過電流', desc: '電撃が跳ぶ数 +' + FCK.fp_plasmachain.chain,
+  apply(run) { for (const w of run.units) if (w.fuse === 'plasmachain') w.s.chain += Game.rki(FCK.fp_plasmachain.chain, 'chain'); } });
+FP('chakram', { rankAxis: 'back', name: '双輪の帰還', desc: '戻る刃が' + FCK.fp_chakram.back + '本増え、扇に広がって帰る',
+  apply(run) { for (const w of run.units) if (w.fuse === 'chakram') fcOf(w).back = Game.rki(FCK.fp_chakram.back, 'back'); } });
+FP('toxblade', { rankAxis: 'tox', name: '猛毒の尾', desc: '毒の雲が必ず出て、毒ダメージ +' + pc(FCK.fp_toxblade.dpsK) + '%・雲が広がる',
+  apply(run) { for (const w of run.units) if (w.fuse === 'toxblade') { const F = fcOf(w); F.sure = 1; F.dr = FCK.fp_toxblade.dr; F.dpsK = Game.rka(FCK.fp_toxblade.dpsK, 'tox'); } } });
+FP('voidblade', { rankAxis: 'tent', name: '二本の触手', desc: '裂け目が' + pc(FCK.fp_voidblade.durK) + '%長く残り、触手が' + FCK.fp_voidblade.tent + '本ずつ突き刺す',
+  apply(run) { for (const w of run.units) if (w.fuse === 'voidblade') { const F = fcOf(w); F.durK = FCK.fp_voidblade.durK; F.tent = Game.rki(FCK.fp_voidblade.tent, 'tent'); } } });
+FP('flameblade', { rankAxis: 'fin', name: '紅蓮の一閃', desc: '滅多斬りの終わりに、前方へ炎の一閃（ダメージ ×' + FCK.fp_flameblade.fin + '）',
+  apply(run) { for (const w of run.units) if (w.fuse === 'flameblade') fcOf(w).fin = Game.rka(FCK.fp_flameblade.fin, 'fin'); } });
+FP('abyssnet', { rankAxis: 'echo', name: '二度目の潮', desc: '破裂のあと、一回り広くもう一度破裂する（ダメージ ×' + FCK.fp_abyssnet.echo + '）',
+  apply(run) { for (const w of run.units) if (w.fuse === 'abyssnet') fcOf(w).echo = Game.rka(FCK.fp_abyssnet.echo, 'echo'); } });
+FP('thunderwhip', { rankAxis: 'twin', name: '双子の竜巻', desc: '竜巻が左右に' + FCK.fp_thunderwhip.twin + 'つ増える（威力は' + pc(FCK.fp_thunderwhip.mul) + '%）',
+  apply(run) { for (const w of run.units) if (w.fuse === 'thunderwhip') fcOf(w).twin = Game.rki(FCK.fp_thunderwhip.twin, 'twin'); } });
+FP('hellmist', { rankAxis: 'blast', name: '連鎖爆燃', desc: '爆発が炎の線に沿って' + FCK.fp_hellmist.blasts + 'つ増える',
+  apply(run) { for (const w of run.units) if (w.fuse === 'hellmist') fcOf(w).blasts = Game.rki(FCK.fp_hellmist.blasts, 'blast'); } });
+FP('napalm', { rankAxis: 'bomb', name: '噴火の連打', desc: '火山弾 +' + FCK.fp_napalm.bombs + '発',
+  apply(run) { for (const w of run.units) if (w.fuse === 'napalm') fcOf(w).bombs = Game.rki(FCK.fp_napalm.bombs, 'bomb'); } });
+FP('vortex', { rankAxis: 'shatter', name: '熱割れ', desc: '凍って燃えている敵が割れて爆ぜる（ダメージ ×' + FCK.fp_vortex.shatter + '）',
+  apply(run) { for (const w of run.units) if (w.fuse === 'vortex') fcOf(w).shatter = Game.rka(FCK.fp_vortex.shatter, 'shatter'); } });
+FP('icefoam', { rankAxis: 'chain', name: '連鎖凍裂', desc: '破裂が近くの敵' + FCK.fp_icefoam.chain + '体へ連鎖する',
+  apply(run) { for (const w of run.units) if (w.fuse === 'icefoam') fcOf(w).chain = Game.rki(FCK.fp_icefoam.chain, 'chain'); } });
+FP('cryobeam', { rankAxis: 'spike', name: '棘山の道', desc: '光線の道すがらにも棘山 +' + FCK.fp_cryobeam.along,
+  apply(run) { for (const w of run.units) if (w.fuse === 'cryobeam') fcOf(w).along = Game.rki(FCK.fp_cryobeam.along, 'spike'); } });
+FP('convergence', { rankAxis: 'refl', name: '乱反射', desc: '光線の反射 +' + FCK.fp_convergence.refl + '回',
+  apply(run) { for (const w of run.units) if (w.fuse === 'convergence') w.s.reflect = (w.s.reflect || 0) + Game.rki(FCK.fp_convergence.refl, 'refl'); } });
+FP('carpet', { rankAxis: 'whirl', name: '旋風の群れ', desc: '旋風が' + FCK.fp_carpet.whirls + 'つ増える',
+  apply(run) { for (const w of run.units) if (w.fuse === 'carpet') fcOf(w).whirls = Game.rki(FCK.fp_carpet.whirls, 'whirl'); } });
+FP('chainstrike', { rankAxis: 'bolt', name: '落雷の群れ', desc: '着弾点で雷が' + FCK.fp_chainstrike.bolts + '本増える',
+  apply(run) { for (const w of run.units) if (w.fuse === 'chainstrike') fcOf(w).bolts = Game.rki(FCK.fp_chainstrike.bolts, 'bolt'); } });
+FP('stormcloud', { rankAxis: 'strike', name: '積乱雲', desc: '一度に落ちる雷 +' + FCK.fp_stormcloud.strikes,
+  apply(run) { for (const w of run.units) if (w.fuse === 'stormcloud') fcOf(w).strikes = Game.rki(FCK.fp_stormcloud.strikes, 'strike'); } });
+FP('resonator', { rankAxis: 'zap', name: '放電過多', desc: '電撃が当たる敵 +' + FCK.fp_resonator.zaps + '体',
+  apply(run) { for (const w of run.units) if (w.fuse === 'resonator') fcOf(w).zaps = Game.rki(FCK.fp_resonator.zaps, 'zap'); } });
+FP('acidfoam', { rankAxis: 'linger', name: '黄金の残滓', desc: '場を出たあとも、脆弱と装甲ダウンが' + FCK.fp_acidfoam.linger + '秒残る',
+  apply(run) { for (const w of run.units) if (w.fuse === 'acidfoam') fcOf(w).linger = Game.rka(FCK.fp_acidfoam.linger, 'linger'); } });
+FP('toxmortar', { rankAxis: 'shell', name: '雨脚の強まり', desc: '砲弾 +' + FCK.fp_toxmortar.shells + '発',
+  apply(run) { for (const w of run.units) if (w.fuse === 'toxmortar') fcOf(w).shells = Game.rki(FCK.fp_toxmortar.shells, 'shell'); } });
+FP('bubblegun', { rankAxis: 'kid', name: '弾ける泡', desc: '割れた泡が、小さな泡' + FCK.fp_bubblegun.kids + 'つに分かれてもう一度割れる',
+  apply(run) { for (const w of run.units) if (w.fuse === 'bubblegun') fcOf(w).kids = Game.rki(FCK.fp_bubblegun.kids, 'kid'); } });
+FP('scattergun', { rankAxis: 'pel', name: '親子爆弾', desc: '子弾 +' + FCK.fp_scattergun.pellets + '・最後の1発は' + FCK.fp_scattergun.finale + '倍で炸裂',
+  apply(run) { for (const w of run.units) if (w.fuse === 'scattergun') fcOf(w).pel = Game.rki(FCK.fp_scattergun.pellets, 'pel'); } });
+FP('bubbleblade', { rankAxis: 'ray', name: '流星群', desc: '光の刃 +' + FCK.fp_bubbleblade.rays + '本',
+  apply(run) { for (const w of run.units) if (w.fuse === 'bubbleblade') fcOf(w).rays = Game.rki(FCK.fp_bubbleblade.rays, 'ray'); } });
+FP('icebomb', { rankAxis: 'storm', name: '双つの吹雪', desc: '逆向きに漂う氷の嵐が' + FCK.fp_icebomb.storms + 'つ増える',
+  apply(run) { for (const w of run.units) if (w.fuse === 'icebomb') fcOf(w).storms = Game.rki(FCK.fp_icebomb.storms, 'storm'); } });
+
+// ---- B：合成武器どうしの連携（8枚・レジェンド）----
+FL('fl_mark', ['starassault', 'scattergun'], { rankAxis: 'mark', name: '被弾の印', desc: '星・子弾を受けた敵は、' + FCK.fl_mark.sec + '秒 被ダメージ +' + pc(FCK.fl_mark.mark) + '%',
+  apply(run) { for (const w of run.units) if (w.fuse === 'starassault' || w.fuse === 'scattergun') flOf(w).mark = Game.rka(FCK.fl_mark.mark, 'mark'); } });
+FL('fl_rift', ['voidblade', 'abyssnet'], { rankAxis: 'rift', name: '裂け目の触手', desc: '海底の泡に捕まった敵へ、裂け目から触手が伸びる',
+  apply(run) { for (const w of run.units) if (w.fuse === 'voidblade' || w.fuse === 'abyssnet') flOf(w).rift = Game.rka(FCK.fl_rift.rift, 'rift'); } });
+FL('fl_shatter', ['vortex', 'icefoam'], { rankAxis: 'burst', name: '凍泡炸裂', desc: '凍った泡に包まれた敵は、渦に入ると爆ぜる',
+  apply(run) { for (const w of run.units) if (w.fuse === 'vortex' || w.fuse === 'icefoam') flOf(w).burst = Game.rka(FCK.fl_shatter.burst, 'burst'); } });
+FL('fl_arc', ['stormcloud', 'resonator'], { rankAxis: 'arc', name: '雷の往復', desc: '落雷とプラズマボールの電撃が、互いの場へ跳ぶ',
+  apply(run) { for (const w of run.units) if (w.fuse === 'stormcloud' || w.fuse === 'resonator') flOf(w).arc = Game.rka(FCK.fl_arc.arc, 'arc'); } });
+FL('fl_boom', ['hellmist', 'napalm'], { rankAxis: 'boom', name: '燃霧爆燃', desc: '燃える溜まりと毒の雲が重なると、爆ぜる',
+  apply(run) { for (const w of run.units) if (w.fuse === 'hellmist' || w.fuse === 'napalm') flOf(w).boom = Game.rka(FCK.fl_boom.boom, 'boom'); } });
+FL('fl_bolt', ['convergence', 'chainstrike'], { rankAxis: 'bolt', name: '電光の結線', desc: '光線の折れ点で電撃が走り、嵐の着弾点を線で結ぶ',
+  apply(run) { for (const w of run.units) if (w.fuse === 'convergence' || w.fuse === 'chainstrike') flOf(w).bolt = Game.rka(FCK.fl_bolt.bolt, 'bolt'); } });
+FL('fl_trail', ['flameblade', 'chakram'], { rankAxis: 'trail', name: '炎の軌跡', desc: '戻る刃が、炎の軌跡を残す',
+  apply(run) { for (const w of run.units) if (w.fuse === 'flameblade' || w.fuse === 'chakram') flOf(w).trail = Game.rka(FCK.fl_trail.trail, 'trail'); } });
+FL('fl_acid', ['toxmortar', 'acidfoam'], { rankAxis: 'acid', name: '酸の爆発', desc: '王水に落ちた砲弾が、酸の爆発を起こす',
+  apply(run) { for (const w of run.units) if (w.fuse === 'toxmortar' || w.fuse === 'acidfoam') flOf(w).acid = Game.rka(FCK.fl_acid.acid, 'acid'); } });
+
 const CARD_IDS = Object.keys(CARDS);
 
 // **凸の主な軸の自己点検**（2026-09-30 段3b）。凸は札の rankAxis の軸にだけ効く（state.js の rk/rka/rki）。

@@ -13,6 +13,7 @@
 'use strict';
 
 const _fq = [];
+const _F0 = Object.freeze({});      // 札の値が無い合成武器の flags.fc の代わり（Fusion.fc）
 
 const Fusion = {
   cost(fid) { const f = FUSIONS[fid]; return WEAPONS[f.a].cost + WEAPONS[f.b].cost + BAL.fuseExtraCost; },
@@ -88,8 +89,8 @@ const Fusion = {
       if (e.dead || !this.inZone(z, e)) continue;
       if (Combat.inShield(run, e)) continue;
       if (e.upper && Combat.immune(e, sys)) { e.immT = 0.2; continue; }
-      if (z.vuln) { e.fvuln = z.vuln; e.fvulnT = 0.4; }
-      if (z.armorDown) { e.armorDown = (e.armorT > 0) ? Math.max(e.armorDown, z.armorDown) : z.armorDown; e.armorT = 0.6; }
+      if (z.vuln) { e.fvuln = z.vuln; e.fvulnT = z.vulnT || 0.4; }
+      if (z.armorDown) { e.armorDown = (e.armorT > 0) ? Math.max(e.armorDown, z.armorDown) : z.armorDown; e.armorT = z.armorT || 0.6; }
       // 中心へ引き寄せる（狂気の海底）：ボスは動かさない・壁の中へは入れない・止める効果と同じ合計の上限（BAL.ccMaxSec）で打ち止め
       if (z.pull && !e.boss && (e.ccUsed || 0) < BAL.ccMaxSec) {
         const d = Math.hypot(z.x - e.x, z.y - e.y);
@@ -199,6 +200,49 @@ const Fusion = {
 
   fx(run, o) { o.type = 'fx'; Combat.fx(run, o); },
 
+  // ---------- 合成武器の札（cards.js の fp_*／fl_*・数値は BAL.fusionCards） ----------
+  //   札の中身は apply が `w.flags.fc`（A の札）・`w.flags.fl`（B の札）に書く。applyMods が組み直すたびに flags は空に戻り、引いた順に掛け直される
+  fc(w) { return w.flags.fc || _F0; },
+  //   B の札の値。自分に札の値があり、**相手の合成武器が盤にいる**ときだけ返す（無ければ 0）
+  link(w, run, key, partner) {
+    const L = w.flags.fl, v = L && L[key];
+    if (!v) return 0;
+    for (const u of run.units) if (u.fuse === partner && !u.broken) return v;
+    return 0;
+  },
+  //   「被弾の印」：受けるダメージが増える（Combat.vuln が読む）
+  mark(run, x, y, r, v) {
+    const K = BAL.fusionCards.fl_mark;
+    for (const e of this.enemiesIn(x, y, r)) { e.fmark = Math.max(e.fmarkT > 0 ? e.fmark : 0, v); e.fmarkT = K.sec; }
+  },
+  //   折れ線 pts の、全長の t（0〜1）の点
+  along(pts, t) {
+    let tot = 0;
+    for (let i = 1; i < pts.length; i++) tot += Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+    let d = tot * t;
+    for (let i = 1; i < pts.length; i++) {
+      const L = Math.hypot(pts[i].x - pts[i - 1].x, pts[i].y - pts[i - 1].y);
+      if (d <= L || i === pts.length - 1) { const k = L > 0 ? Math.min(1, d / L) : 0; return { x: pts[i - 1].x + (pts[i].x - pts[i - 1].x) * k, y: pts[i - 1].y + (pts[i].y - pts[i - 1].y) * k }; }
+      d -= L;
+    }
+    return pts[0];
+  },
+  //   燃える溜まり（fire）と毒の雲（gas）が重なると爆ぜる（爆裂放射器＋ヴォルケイノブラストの札）。f＝いま出した場。1つの場は1回だけ
+  combust(w, run, f, L) {
+    if (!L || !f) return;
+    const K = BAL.fusionCards.fl_boom;
+    for (const o of run.fields) {
+      if (o === f || o.fcb || f.fcb) continue;
+      if (!((f.kind === 'gas' && o.kind === 'fire') || (f.kind === 'fire' && o.kind === 'gas'))) continue;
+      if (Util.dist(f.x, f.y, o.x, o.y) > f.r + o.r) continue;
+      f.fcb = o.fcb = true;
+      const mx = (f.x + o.x) / 2, my = (f.y + o.y) / 2, R = (f.r + o.r) * K.r;
+      Combat.explode(run, mx, my, R, w.s.dmg * L, { color: '#ffd84a', burn: w.s.dmg * (w.s.burn || 0), burnDur: w.s.burnDur || 2 });
+      this.fx(run, { k: 'pop', x: mx, y: my, r: R, life: 0.4, color: '#ffd84a' });
+      return;
+    }
+  },
+
   // ---------- 合成の操作（盤の上） ----------
   //   合成できる組：A（合成していない）の六角の隣に B（合成していない）がいて、その合成の札を持っている
   //   ok が偽のときは why に理由（ボタンは薄く出し、押すと理由を言う）
@@ -236,12 +280,28 @@ const FUSIONS = {
     id: 'starassault', a: 'gatling', b: 'shuriken', name: 'スターアサルト', short: 'SAS', color: '#ffe066',
     role: '長く広い範囲を制圧', desc: '貫通の限界で弾ける星形弾',
     fire(w, run) {
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_starassault;
+      const mk = Fusion.link(w, run, 'mark', 'scattergun');
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n * 0.7 : 1);
         Combat.spawnBullet(w, run, a, {
           color: '#ffe066', fx: 'star', bulletR: w.s.bulletR,
-          onConsume: (rr, b) => { Combat.explode(rr, b.x, b.y, P.burstR, b.dmg * P.burstMul, { color: '#ffe066' }); Fusion.fx(rr, { k: 'starburst', x: b.x, y: b.y, r: P.burstR, color: '#ffe066', life: 0.4 }); },
+          onConsume: (rr, b) => {
+            Combat.explode(rr, b.x, b.y, P.burstR, b.dmg * P.burstMul, { color: '#ffe066' }); Fusion.fx(rr, { k: 'starburst', x: b.x, y: b.y, r: P.burstR, color: '#ffe066', life: 0.4 });
+            if (mk) Fusion.mark(rr, b.x, b.y, P.burstR, mk);
+            // 連鎖星砕（fp_starassault）：弾けた破片がもう一度弾ける
+            if (F.frag) {
+              const a0 = Math.random() * 6.28;
+              for (let k = 0; k < F.frag; k++) {
+                const px = b.x + Math.cos(a0 + k * 6.2832 / F.frag) * P.burstR * 0.8, py = b.y + Math.sin(a0 + k * 6.2832 / F.frag) * P.burstR * 0.8;
+                Fusion.later(rr, K.delay, () => {
+                  Combat.explode(rr, px, py, P.burstR * K.r, b.dmg * P.burstMul * K.mul, { color: '#ffe066' });
+                  Fusion.fx(rr, { k: 'starburst', x: px, y: py, r: P.burstR * K.r, color: '#ffe066', life: 0.3 });
+                  if (mk) Fusion.mark(rr, px, py, P.burstR * K.r, mk);
+                });
+              }
+            }
+          },
         });
       }
     },
@@ -268,13 +328,26 @@ const FUSIONS = {
     id: 'chakram', a: 'shuriken', b: 'katana', name: '円環刃', short: 'CHK', color: '#e6f0ff',
     role: '自分のまわり', desc: '跳ね回って、帰りも斬る輪',
     fire(w, run) {
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), F = Fusion.fc(w), KT = BAL.fusionCards.fl_trail;
+      const trail = Fusion.link(w, run, 'trail', 'flameblade');
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n : 1);
         const back = (rr, b) => {
           if (b.child) return;
-          const r2 = Fusion.bulletAt(w, rr, b.x, b.y, Util.angle(b.x, b.y, w.x, w.y), { color: '#bcd4ff', fx: 'chakram', pierce: 99, bounce: 0, child: true, dmgMul: P.backMul, bulletR: w.s.bulletR });
-          if (r2) { r2.through = true; r2.range = Util.dist(b.x, b.y, w.x, w.y) + 14; r2.life = 2; }
+          // 双輪の帰還（fp_chakram）：戻る刃が増えて、扇に広がって帰る
+          const rets = 1 + (F.back || 0);
+          for (let k = 0; k < rets; k++) {
+            const off = k === 0 ? 0 : (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.32;
+            const r2 = Fusion.bulletAt(w, rr, b.x, b.y, Util.angle(b.x, b.y, w.x, w.y) + off, { color: '#bcd4ff', fx: 'chakram', pierce: 99, bounce: 0, child: true, dmgMul: P.backMul, bulletR: w.s.bulletR });
+            if (r2) { r2.through = true; r2.range = Util.dist(b.x, b.y, w.x, w.y) + 14; r2.life = 2; }
+          }
+          // 炎の軌跡（fl_trail）：戻る道に燃える溜まりを残す
+          if (trail) {
+            for (let k = 1; k <= KT.n; k++) {
+              const t = k / (KT.n + 1);
+              Combat.spawnField(rr, b.x + (w.x - b.x) * t, b.y + (w.y - b.y) * t, { kind: 'fire', r: KT.r, dur: KT.dur, dps: w.s.dmg * KT.dps * trail, color: '#ff7a3a', src: w });
+            }
+          }
         };
         Combat.spawnBullet(w, run, a, { color: '#e6f0ff', fx: 'chakram', onEnd: back });
       }
@@ -286,12 +359,13 @@ const FUSIONS = {
     id: 'toxblade', a: 'shuriken', b: 'gas', name: '悪魔の流れ星', short: 'DMS', color: '#a8e05a',
     role: '通路の長い区間', desc: '当たるたび毒の雲を残す',
     fire(w, run) {
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), F = Fusion.fc(w);
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n : 1);
         Combat.spawnBullet(w, run, a, {
           color: '#a8e05a', fx: 'kunai',
-          onHit: (rr, b, e) => { if (Math.random() < P.chance) Combat.spawnField(rr, e.x, e.y, { kind: 'gas', r: P.cloudR, dur: P.cloudDur, dps: b.dmg * P.cloudDps, slow: P.slow, vuln: P.vuln, color: '#8fd94a', src: w }); },
+          // 猛毒の尾（fp_toxblade）：雲が必ず出て、毒が強く、雲が広がる
+          onHit: (rr, b, e) => { if (F.sure || Math.random() < P.chance) Combat.spawnField(rr, e.x, e.y, { kind: 'gas', r: P.cloudR + (F.dr || 0), dur: P.cloudDur, dps: b.dmg * P.cloudDps * (1 + (F.dpsK || 0)), slow: P.slow, vuln: P.vuln, color: '#8fd94a', src: w }); },
         });
       }
     },
@@ -302,14 +376,37 @@ const FUSIONS = {
     id: 'voidblade', a: 'katana', b: 'tentacle', name: '異界の剣', short: 'VDS', color: '#d070ff',
     role: '目の前の、横に広く縦に狭い長方形', desc: '前を切り裂き、裂け目から触手が出る',
     fire(w, run) {
-      const P = Fusion.p(w), n = Math.max(1, Math.round(w.n || 1));
+      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_voidblade, n = Math.max(1, Math.round(w.n || 1));
+      const rift = Fusion.link(w, run, 'rift', 'abyssnet'), KR = BAL.fusionCards.fl_rift;
       for (let i = 0; i < n; i++) {
         const tilt = P.tilt * (i % 2 ? -1 : 1) * (1 + Math.floor(i / 2));
         const a = w.angle + tilt;
         const cx = w.x + Math.cos(a) * P.dist, cy = w.y + Math.sin(a) * P.dist;
         const hw = P.len / 2, hh = P.wid / 2;
         for (const e of Fusion.rectEnemies(cx, cy, a, hw, hh)) Combat.damage(run, e, w.s.dmg, { color: '#f4d8ff', crit: w.s.crit, critMul: w.s.critMul, exec: w.s.execThr });
-        Fusion.zone(run, { kind: 'rift', shape: 'rect', x: cx, y: cy, a, hw, hh, dur: P.dur, tick: P.tick, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.6, color: '#c85ab0', dcolor: '#ffb0e8' });
+        const rz = { kind: 'rift', shape: 'rect', x: cx, y: cy, a, hw, hh, dur: P.dur * (1 + (F.durK || 0)), tick: P.tick, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.6, color: '#c85ab0', dcolor: '#ffb0e8' };
+        // 二本の触手（fp_voidblade）：裂け目が長く残り、触手が突き刺す
+        if (F.tent) rz.pulse = { every: K.every, fn: (rr, z) => {
+          const list = Fusion.rectEnemies(z.x, z.y, z.a, z.hw, z.hh);
+          for (let k = 0; k < F.tent && list.length; k++) {
+            const e = list.splice((Math.random() * list.length) | 0, 1)[0];
+            Combat.damage(rr, e, w.s.dmg * K.mul, { color: '#ffb0e8', crit: w.s.crit, critMul: w.s.critMul });
+            Combat.fx(rr, { type: 'tentacle', x1: z.x, y1: z.y, e, color: '#c85ab0', ph: Math.random() * 6.28, life: 0.35 });
+          }
+        } };
+        Fusion.zone(run, rz);
+        // 裂け目の触手（fl_rift）：狂気の海底の泡に捕まった敵へ、裂け目から触手が伸びる
+        if (rift) {
+          let hit = 0;
+          for (const zz of run.fzones || []) {
+            if (zz.kind !== 'abyss' || Util.dist(cx, cy, zz.x, zz.y) > KR.reach) continue;
+            for (const e of Fusion.enemiesIn(zz.x, zz.y, zz.r)) {
+              if (hit++ >= KR.max) break;
+              Combat.damage(run, e, w.s.dmg * rift, { color: '#ffb0e8', crit: w.s.crit, critMul: w.s.critMul });
+              Combat.fx(run, { type: 'tentacle', x1: cx, y1: cy, e, color: '#c85ab0', ph: Math.random() * 6.28, life: 0.4 });
+            }
+          }
+        }
         Fusion.fx(run, { k: 'voidslash', x: cx, y: cy, a, hw, hh, life: 0.4, seed: (w.shots * 7 + i * 3) % 100 });
       }
       Snd.shot(w.id);
@@ -322,13 +419,21 @@ const FUSIONS = {
     id: 'flameblade', a: 'katana', b: 'flame', name: 'フランベルジュ', short: 'FRB', color: '#ff3a2a',
     role: '目の前の扇', desc: '赤く焼き切る3連の滅多斬り',
     fire(w, run) {
-      const P = Fusion.p(w), n = Math.max(1, Math.round(w.n || 1)) * P.slashes;
+      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_flameblade, n = Math.max(1, Math.round(w.n || 1)) * P.slashes;
       for (let i = 0; i < n; i++) {
         const a = w.angle + Util.rand(-w.s.cone, w.s.cone) * P.spreadK;
         Combat.coneDamage(w, run, a, P.subArc, w.s.range, w.s.dmg, {
           color: '#ff6a4a', crit: w.s.crit, critMul: w.s.critMul, exec: w.s.execThr, burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur,
         });
         Fusion.fx(run, { k: 'redslash', x: w.x, y: w.y, a, arc: P.subArc, r: w.s.range, life: 0.18 + i * 0.03 });
+      }
+      // 紅蓮の一閃（fp_flameblade）：滅多斬りの終わりに、前方へ炎の斬撃が走る
+      if (F.fin) {
+        const L = w.s.range * K.len;
+        Combat.lineHit(run, w.x, w.y, w.x + Math.cos(w.angle) * L, w.y + Math.sin(w.angle) * L, K.half, w.s.dmg * F.fin, {
+          color: '#ff2a1a', crit: w.s.crit, critMul: w.s.critMul, burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur,
+        });
+        Fusion.fx(run, { k: 'redslash', x: w.x, y: w.y, a: w.angle, arc: 0.1, r: L, life: 0.32 });
       }
       Snd.shot(w.id);
       Combat.shake(run, 2.4);
@@ -342,7 +447,7 @@ const FUSIONS = {
     fire(w, run) {
       const t = w.target;
       if (!t) return false;      // 狙う敵が居ないときは撃たない（次のフレームでまた試す・combat.js）
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_abyssnet;
       const centers = [t], want = Math.max(1, Math.round(w.s.count));
       if (want > 1) for (const e of Fusion.nearestTo(t.x, t.y, w.s.range, 60, t)) {
         if (centers.length >= want) break;
@@ -356,6 +461,11 @@ const FUSIONS = {
             Combat.explode(rr, z.x, z.y, P.burstR, w.s.dmg * P.burstMul, { color: '#ff9ad0', crit: w.s.crit, critMul: w.s.critMul });
             Fusion.fx(rr, { k: 'abyssburst', x: z.x, y: z.y, r: P.burstR, life: 0.55 });
             Combat.shake(rr, 3);
+            // 二度目の潮（fp_abyssnet）：一回り広く、もう一度破裂する
+            if (F.echo) Fusion.later(rr, K.gap, () => {
+              Combat.explode(rr, z.x, z.y, P.burstR * K.r, w.s.dmg * P.burstMul * F.echo, { color: '#ff9ad0', crit: w.s.crit, critMul: w.s.critMul });
+              Fusion.fx(rr, { k: 'abyssburst', x: z.x, y: z.y, r: P.burstR * K.r, life: 0.55 });
+            });
           },
         });
       }
@@ -368,18 +478,23 @@ const FUSIONS = {
     role: '中距離の扇', desc: '雷の竜巻が、ゆっくり前へ進む',
     fire(w, run) {
       if (!w.target) return false;
-      const P = Fusion.p(w), a = w.angle;
-      const sx = w.x + Math.cos(a) * P.start, sy = w.y + Math.sin(a) * P.start;
-      Fusion.zone(run, {
-        kind: 'twister', x: sx, y: sy, a, r: P.R, dur: P.dur, tick: 0.15, dps: w.s.dmg * P.dps, shock: w.s.shockDur,
-        grabT: w.s.knockDur, grabV: w.s.knock, drift: { x: Math.cos(a) * P.speed, y: Math.sin(a) * P.speed }, color: '#8a6aff', dcolor: '#d8c7ff',
-        pulse: { every: P.chainEvery, fn: (rr, z) => {
-          const list = Fusion.enemiesIn(z.x, z.y, z.r * 1.2);
-          if (!list.length) return;
-          const e = list[(Math.random() * list.length) | 0];
-          Fusion.chainFrom(w, rr, e, w.s.chain, w.s.dmg * P.chainMul, w.s.chainFalloff, { fromX: z.x, fromY: z.y, direct: true, color: '#c9b3ff' });
-        } },
-      });
+      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_thunderwhip;
+      // 双子の竜巻（fp_thunderwhip）：左右に竜巻が増える（増えた分は mul 倍の威力）
+      const twist = (a, mul) => {
+        const sx = w.x + Math.cos(a) * P.start, sy = w.y + Math.sin(a) * P.start;
+        Fusion.zone(run, {
+          kind: 'twister', x: sx, y: sy, a, r: P.R, dur: P.dur, tick: 0.15, dps: w.s.dmg * P.dps * mul, shock: w.s.shockDur,
+          grabT: w.s.knockDur, grabV: w.s.knock, drift: { x: Math.cos(a) * P.speed, y: Math.sin(a) * P.speed }, color: '#8a6aff', dcolor: '#d8c7ff',
+          pulse: { every: P.chainEvery, fn: (rr, z) => {
+            const list = Fusion.enemiesIn(z.x, z.y, z.r * 1.2);
+            if (!list.length) return;
+            const e = list[(Math.random() * list.length) | 0];
+            Fusion.chainFrom(w, rr, e, w.s.chain, w.s.dmg * P.chainMul * mul, w.s.chainFalloff, { fromX: z.x, fromY: z.y, direct: true, color: '#c9b3ff' });
+          } },
+        });
+      };
+      twist(w.angle, 1);
+      for (let k = 0; k < (F.twin || 0); k++) twist(w.angle + (k % 2 ? -1 : 1) * Math.ceil((k + 1) / 2) * K.ang, K.mul);
       Snd.shot(w.id);
       Combat.shake(run, 1.2);
     },
@@ -390,7 +505,8 @@ const FUSIONS = {
     id: 'hellmist', a: 'flame', b: 'gas', name: '爆裂放射器', short: 'EXP', color: '#c8b02a',
     role: '近い範囲', desc: '長く吹く炎の先で、毒の爆発',
     fire(w, run) {
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_hellmist;
+      const boom = Fusion.link(w, run, 'boom', 'napalm');
       Combat.coneDamage(w, run, w.angle, w.s.cone, w.s.range, w.s.dmg, {
         color: '#ffb066', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur, crit: w.s.crit, critMul: w.s.critMul,
         sticky: w.dyn.sticky || 0,
@@ -398,9 +514,18 @@ const FUSIONS = {
       Combat.fx(run, { type: 'cone', x: w.x, y: w.y, a: w.angle, arc: w.s.cone, r: w.s.range, color: '#ff8a3a', life: 0.20, seed: (w.shots * 2654435761) % 1000 });
       const d = w.s.range * P.at, bx = w.x + Math.cos(w.angle) * d, by = w.y + Math.sin(w.angle) * d;
       Combat.explode(run, bx, by, P.blastR, w.s.dmg * P.blastMul, { color: '#d8e04a', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur });
+      // 連鎖爆燃（fp_hellmist）：炎の線に沿って、手前へ爆発が続く
+      for (let k = 1; k <= (F.blasts || 0); k++) {
+        const dk = Math.max(w.s.range * 0.1, d - w.s.range * K.step * k), px = w.x + Math.cos(w.angle) * dk, py = w.y + Math.sin(w.angle) * dk;
+        Fusion.later(run, K.gap * k, () => {
+          Combat.explode(run, px, py, P.blastR * K.r, w.s.dmg * P.blastMul * K.mul, { color: '#d8e04a', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur });
+          Fusion.fx(run, { k: 'pop', x: px, y: py, r: P.blastR * K.r, life: 0.3, color: '#d8e04a' });
+        });
+      }
       if (w.shots % P.every === 0) {
         Combat.spawnField(run, bx, by, { kind: 'gas', r: w.s.fieldR, dur: w.s.fieldDur, dps: w.s.dmg * P.dps, slow: P.slow, vuln: w.s.fieldVuln,
           color: '#8fd94a', src: w, armorDown: w.dyn.armorDown || 0 });
+        if (boom) Fusion.combust(w, run, run.fields[run.fields.length - 1], boom);   // 燃える溜まりと重なれば爆ぜる（fl_boom）
       }
     },
   },
@@ -410,7 +535,7 @@ const FUSIONS = {
     id: 'napalm', a: 'flame', b: 'mortar', name: 'ヴォルケイノブラスト', short: 'VBL', color: '#ff5a1a',
     role: '正面の長い帯', desc: '正面へ火山弾を噴き出す',
     fire(w, run) {
-      const P = Fusion.p(w), n = P.bombs;
+      const P = Fusion.p(w), F = Fusion.fc(w), boom = Fusion.link(w, run, 'boom', 'hellmist'), n = P.bombs + (F.bombs || 0);   // 噴火の連打（fp_napalm）：火山弾が増える
       // 正面の扇（射界を P.fanK 倍に広げた範囲）にいる敵を狙って噴き出す。居なければ撃たない（次のフレームでまた試す）。手前から奥へ散らばるよう、遠さで並べて等間隔に拾う
       const foes = Fusion.coneEnemies(w, w.angle, w.arc * P.fanK, w.s.range);
       if (!foes.length) return false;
@@ -423,6 +548,7 @@ const FUSIONS = {
           onLand: (rr, x, y) => {
             Combat.explode(rr, x, y, w.s.splash, w.s.dmg, { color: '#ff9a4a', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur, crit: w.s.crit, critMul: w.s.critMul });
             Combat.spawnField(rr, x, y, { kind: 'fire', r: P.poolR, dur: P.poolDur, dps: w.s.dmg * w.s.burn * P.poolDps, color: '#ff8a3a', src: w });
+            if (boom) Fusion.combust(w, rr, rr.fields[rr.fields.length - 1], boom);   // 毒の雲と重なれば爆ぜる（fl_boom）
           },
         });
       }
@@ -436,9 +562,28 @@ const FUSIONS = {
     id: 'vortex', a: 'cryo', b: 'flame', name: '相反の渦', short: 'VTX', color: '#ff9ad0',
     role: '凍結の広い範囲のまま', desc: '氷と炎の渦。凍って燃える',
     fire(w, run) {
+      const F = Fusion.fc(w), K = BAL.fusionCards.fp_vortex, KS = BAL.fusionCards.fl_shatter;
+      const sh = Fusion.link(w, run, 'burst', 'icefoam');
       Combat.pulse(w, run, w.s.range, w.s.dmg, {
         color: '#ffd2e8', slow: w.s.slow, slowDur: w.s.slowDur, chill: true, burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur, crit: w.s.crit, critMul: w.s.critMul,
       });
+      // 熱割れ（fp_vortex）：凍って燃えている敵が割れて、大きく爆ぜる（敵ごとに cool 秒に1回・割れたら凍結は解ける）
+      // 凍泡炸裂（fl_shatter）：永久凍土の凍った泡に包まれている敵は、渦に入ると爆ぜる
+      if (F.shatter || sh) {
+        for (const e of Fusion.enemiesIn(w.x, w.y, w.s.range)) {
+          if (e.dead) continue;
+          if (F.shatter && e.chill > 0 && e.burnT > 0 && !(e.fshT > run.time)) {
+            e.fshT = run.time + K.cool; e.chill = 0;
+            Combat.explode(run, e.x, e.y, K.r, w.s.dmg * F.shatter, { color: '#ffffff' });
+            Fusion.fx(run, { k: 'shards', x: e.x, y: e.y, r: K.r, life: 0.4, color: '#ffd2e8' });
+          }
+          if (sh && e.fcage > run.time) {
+            e.fcage = 0;
+            Combat.explode(run, e.x, e.y, KS.r, w.s.dmg * sh, { color: '#bff0ff', chill: true });
+            Fusion.fx(run, { k: 'shards', x: e.x, y: e.y, r: KS.r, life: 0.45, color: '#bff0ff' });
+          }
+        }
+      }
       Fusion.fx(run, { k: 'vortex', x: w.x, y: w.y, r: w.s.range, life: 0.75, ph: Math.random() * 6.28 });
       Combat.shake(run, 1.2);
     },
@@ -449,17 +594,26 @@ const FUSIONS = {
     id: 'icefoam', a: 'cryo', b: 'bubble', name: '永久凍土', short: 'PRM', color: '#9fe6ff',
     role: '広い範囲', desc: '範囲を泡で凍らせ、止める。火力は低い',
     fire(w, run) {
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_icefoam;
+      const caged = Fusion.link(w, run, 'burst', 'vortex');
       Combat.pulse(w, run, w.s.range, w.s.dmg, { color: '#bff0ff', slow: w.s.slow, slowDur: w.s.slowDur, chill: true, crit: w.s.crit, critMul: w.s.critMul });
       Fusion.fx(run, { k: 'frostfoam', x: w.x, y: w.y, r: w.s.range, life: 0.6, ph: Math.random() * 6.28 });
       let shown = 0;
       for (const e of Fusion.nearestTo(w.x, w.y, w.s.range, P.n)) {
         if (Combat.inShield(run, e)) continue;
         Combat.damage(run, e, 0, { stun: w.s.stunDur, slow: w.s.slow, slowDur: w.s.slowDur, chill: true });
+        if (caged) e.fcage = run.time + P.delay;      // 凍った泡の中にいる印（fl_shatter・相反の渦が読む）
         if (shown++ < P.cages) Fusion.fx(run, { k: 'cage', e, x: e.x, y: e.y, r: 15, life: P.delay, color: '#bff0ff', ice: true });
         Fusion.later(run, P.delay, () => {
           if (e.dead) return;
           Combat.explode(run, e.x, e.y, P.shardR, w.s.dmg * P.shardMul, { color: '#bff0ff', slow: P.shardSlow, slowDur: P.shardSlowDur, chill: true });
+          // 連鎖凍裂（fp_icefoam）：破裂が近くの敵へ連鎖する
+          if (F.chain) {
+            Fusion.nearestTo(e.x, e.y, P.shardR * K.reach, F.chain + 1, e).slice(0, F.chain).forEach((o, k) => Fusion.later(run, K.gap * (k + 1), () => {
+              Combat.explode(run, o.x, o.y, P.shardR, w.s.dmg * P.shardMul * K.mul, { color: '#bff0ff', slow: P.shardSlow, slowDur: P.shardSlowDur, chill: true });
+              Fusion.fx(run, { k: 'shards', x: o.x, y: o.y, r: P.shardR, life: 0.4, color: '#bff0ff' });
+            }));
+          }
           if (shown < 40) Fusion.fx(run, { k: 'shards', x: e.x, y: e.y, r: P.shardR, life: 0.45, color: '#bff0ff' });
         });
       }
@@ -471,11 +625,16 @@ const FUSIONS = {
     id: 'cryobeam', a: 'sniper', b: 'cryo', name: '凍結光線', short: 'CRB', color: '#7fe6ff',
     role: '反射する光の線', desc: '反射した所に氷の棘山',
     fire(w, run) {
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), F = Fusion.fc(w);
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + (i === 0 ? 0 : ((i % 2) ? 1 : -1) * Math.ceil(i / 2) * 0.06);
         const res = Combat.laser(w, run, a, { opts: { chill: true, slow: w.s.slow, slowDur: w.s.slowDur }, color: '#7fe6ff' });
         if (!res) continue;
+        // 棘山の道（fp_cryobeam）：光線の道すがらにも棘山が生える
+        for (let k = 1; k <= (F.along || 0); k++) {
+          const p = Fusion.along(res.pts, k / (F.along + 1));
+          Fusion.zone(run, { kind: 'spikes', x: p.x, y: p.y, r: P.spikeR, dur: P.spikeDur, tick: 0.2, dps: w.s.dmg * P.spikeDps, slow: P.spikeSlow, slowDur: 0.8, chill: true, color: '#bff0ff' });
+        }
         for (let k = 1; k < Math.min(res.pts.length, 6); k++) {
           const p = res.pts[k];
           Fusion.zone(run, { kind: 'spikes', x: p.x, y: p.y, r: P.spikeR, dur: P.spikeDur, tick: 0.2, dps: w.s.dmg * P.spikeDps, slow: P.spikeSlow, slowDur: 0.8, chill: true, color: '#bff0ff' });
@@ -490,10 +649,17 @@ const FUSIONS = {
     id: 'convergence', a: 'sniper', b: 'missile', name: 'スーパーノヴァ', short: 'SNV', color: '#fff0b0',
     role: '正面の道1本分', desc: '道1本分の太さのレーザーを撃ち続ける',
     fire(w, run) {
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), KB = BAL.fusionCards.fl_bolt, bolt = Fusion.link(w, run, 'bolt', 'chainstrike');
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + (i === 0 ? 0 : ((i % 2) ? 1 : -1) * Math.ceil(i / 2) * 0.06);
-        Combat.laser(w, run, a, { multi: true, color: '#fff0b0', life: P.life });
+        const res = Combat.laser(w, run, a, { multi: true, color: '#fff0b0', life: P.life });
+        // 電光の結線（fl_bolt）：光線の折れ点から、近くの敵へ電撃が走る（毎 every 発に1回）
+        if (bolt && res && w.shots % KB.every === 0) {
+          for (let k = 1; k < Math.min(res.pts.length, KB.max + 1); k++) {
+            const p = res.pts[k], e = Fusion.nearestTo(p.x, p.y, KB.reach, 1)[0];
+            if (e) Fusion.chainFrom(w, run, e, 2, w.s.dmg * KB.snvK * bolt, 0.85, { fromX: p.x, fromY: p.y, direct: true, color: '#fff0b0' });
+          }
+        }
       }
     },
   },
@@ -503,12 +669,16 @@ const FUSIONS = {
     id: 'carpet', a: 'missile', b: 'mortar', name: '滅尽嵐', short: 'MTS', color: '#ff7a2a',
     role: '遠くの広い円', desc: '爆撃の跡に火炎旋風',
     fire(w, run) {
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_carpet;
       Fusion.bombardWith(w, run, '#ff7a3c', (rr, x, y) => {
         Combat.explode(rr, x, y, w.s.splash, w.s.dmg, { color: '#ff9a4a', crit: w.s.crit, critMul: w.s.critMul });
-        const ang = Math.random() * 6.28;
-        Fusion.zone(rr, { kind: 'firewhirl', x, y, r: P.R, dur: P.dur, tick: 0.2, dps: w.s.dmg * P.dps, burn: w.s.dmg * P.burn, burnDur: 2,
-          drift: { x: Math.cos(ang) * P.drift, y: Math.sin(ang) * P.drift }, color: '#ff7a2a', dcolor: '#ffb066' });
+        // 旋風の群れ（fp_carpet）：着弾点のまわりに旋風が増える
+        const n = 1 + (F.whirls || 0), a0 = Math.random() * 6.28;
+        for (let k = 0; k < n; k++) {
+          const ang = Math.random() * 6.28, wx = k === 0 ? x : x + Math.cos(a0 + k * 6.2832 / (n - 1)) * P.R * K.off, wy = k === 0 ? y : y + Math.sin(a0 + k * 6.2832 / (n - 1)) * P.R * K.off;
+          Fusion.zone(rr, { kind: 'firewhirl', x: wx, y: wy, r: P.R, dur: P.dur, tick: 0.2, dps: w.s.dmg * P.dps, burn: w.s.dmg * P.burn, burnDur: 2,
+            drift: { x: Math.cos(ang) * P.drift, y: Math.sin(ang) * P.drift }, color: '#ff7a2a', dcolor: '#ffb066' });
+        }
         Fusion.fx(rr, { k: 'pop', x, y, r: P.R, life: 0.35, color: '#ffb066' });
       }, { rocket: true });
     },
@@ -519,11 +689,25 @@ const FUSIONS = {
     id: 'chainstrike', a: 'missile', b: 'tesla', name: '磁気嵐', short: 'MGS', color: '#9a7cff',
     role: '遠くの円', desc: '着弾点に電撃の嵐',
     fire(w, run) {
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_chainstrike, KB = BAL.fusionCards.fl_bolt;
+      const bolt = Fusion.link(w, run, 'bolt', 'convergence');
       Fusion.bombardWith(w, run, '#b58bff', (rr, x, y) => {
         Combat.explode(rr, x, y, w.s.splash, w.s.dmg, { color: '#d8c7ff', shock: w.s.shockDur, crit: w.s.crit, critMul: w.s.critMul });
         const first = Fusion.nearestTo(x, y, P.pillarR, 1)[0];
         if (first) Fusion.chainFrom(w, rr, first, w.s.chain, w.s.dmg * P.chainMul, w.s.chainFalloff, { fromX: x, fromY: y, direct: true, color: '#b58bff' });
+        // 落雷の群れ（fp_chainstrike）：着弾点のまわりで雷が増える
+        if (F.bolts) for (const e of Fusion.nearestTo(x, y, P.pillarR * K.reach, F.bolts + 1, first).slice(0, F.bolts)) {
+          Fusion.chainFrom(w, rr, e, Math.min(K.n, w.s.chain), w.s.dmg * P.chainMul, w.s.chainFalloff, { fromX: x, fromY: y, direct: true, color: '#b58bff' });
+        }
+        // 電光の結線（fl_bolt）：直前の着弾点との間を電撃の線が結ぶ
+        if (bolt) {
+          const L = rr.fcLast;
+          if (L && rr.time - L.t < KB.gapSec && Util.dist(L.x, L.y, x, y) > 20) {
+            Combat.lineHit(rr, L.x, L.y, x, y, 16, w.s.dmg * KB.msK * bolt, { color: '#b58bff', shock: w.s.shockDur });
+            Combat.fx(rr, { type: 'bolt', pts: [{ x: L.x, y: L.y }, { x, y }], life: 0.2, color: '#d8c7ff' });
+          }
+          rr.fcLast = { x, y, t: rr.time };
+        }
         Fusion.fx(rr, { k: 'magstorm', x, y, r: P.pillarR, life: 0.6, color: '#b58bff', ph: Math.random() * 6.28 });
       }, { rocket: true });
     },
@@ -536,7 +720,7 @@ const FUSIONS = {
     fire(w, run) {
       const t = w.target;
       if (!t) return false;      // 狙う敵が居ないときは撃たない（次のフレームでまた試す・combat.js）
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), F = Fusion.fc(w), arc = Fusion.link(w, run, 'arc', 'resonator'), KA = BAL.fusionCards.fl_arc;
       const ang = Math.random() * Math.PI * 2;
       Fusion.zone(run, {
         kind: 'storm', x: t.x, y: t.y, r: w.s.fieldR, dur: w.s.fieldDur, tick: 0.3, dps: 0, slow: 0.12, shock: 0.4,
@@ -544,9 +728,21 @@ const FUSIONS = {
         pulse: { every: P.strikeEvery, fn: (rr, z) => {
           const list = Fusion.enemiesIn(z.x, z.y, z.r * P.strikeR);
           if (!list.length) return;
-          const e = list[(Math.random() * list.length) | 0];
-          Fusion.fx(rr, { k: 'strike', x: e.x, y: e.y, fromY: z.y - z.r * 0.5, life: 0.22, color: '#d8c7ff' });
-          Fusion.chainFrom(w, rr, e, w.s.chain, w.s.dmg * P.strikeMul, w.s.chainFalloff, { fromX: e.x, fromY: e.y, direct: true, color: '#d8c7ff' });
+          // 積乱雲（fp_stormcloud）：一度に落ちる雷が増える
+          for (let k = 0; k <= (F.strikes || 0) && list.length; k++) {
+            const e = list.splice((Math.random() * list.length) | 0, 1)[0];
+            Fusion.fx(rr, { k: 'strike', x: e.x, y: e.y, fromY: z.y - z.r * 0.5, life: 0.22, color: '#d8c7ff' });
+            Fusion.chainFrom(w, rr, e, w.s.chain, w.s.dmg * P.strikeMul, w.s.chainFalloff, { fromX: e.x, fromY: e.y, direct: true, color: '#d8c7ff' });
+          }
+          // 雷の往復（fl_arc）：落雷が、プラズマボールのまわりの敵にも跳ぶ
+          if (arc) {
+            let n = 0;
+            for (const bz of rr.fzones || []) {
+              if (bz.kind !== 'plasmaball' || n++ >= KA.max) continue;
+              const b = Fusion.nearestTo(bz.x, bz.y, bz.r * 1.5, 1)[0];
+              if (b) Fusion.chainFrom(w, rr, b, KA.n, w.s.dmg * P.strikeMul * arc, w.s.chainFalloff, { fromX: z.x, fromY: z.y, direct: true, color: '#e6d0ff' });
+            }
+          }
         } },
       });
     },
@@ -559,14 +755,24 @@ const FUSIONS = {
     fire(w, run) {
       const t = w.target;
       if (!t) return false;      // 狙う敵が居ないときは撃たない（次のフレームでまた試す・combat.js）
-      const P = Fusion.p(w), a = w.angle;
+      const P = Fusion.p(w), F = Fusion.fc(w), arc = Fusion.link(w, run, 'arc', 'stormcloud'), KA = BAL.fusionCards.fl_arc, a = w.angle;
       const d = Math.min(w.s.range * P.at, Util.dist(w.x, w.y, t.x, t.y));
       const bx = w.x + Math.cos(a) * d, by = w.y + Math.sin(a) * d;
       Fusion.zone(run, {
         kind: 'plasmaball', x: bx, y: by, r: P.R, dur: P.dur, tick: 0.25, dps: w.s.dmg * P.dps, shock: w.s.shockDur, color: '#c07aff', dcolor: '#e6d0ff',
         pulse: { every: P.zapEvery, fn: (rr, z) => {
-          for (const e of Fusion.nearestTo(z.x, z.y, z.r * P.reach, P.zaps)) {
+          // 放電過多（fp_resonator）：電撃が当たる敵が増える
+          for (const e of Fusion.nearestTo(z.x, z.y, z.r * P.reach, P.zaps + (F.zaps || 0))) {
             Fusion.chainFrom(w, rr, e, w.s.chain, w.s.dmg * P.zapMul, w.s.chainFalloff, { fromX: z.x, fromY: z.y, direct: true, color: '#e6d0ff' });
+          }
+          // 雷の往復（fl_arc）：電撃が、雷雲の中の敵にも跳ぶ
+          if (arc) {
+            let n = 0;
+            for (const sz of rr.fzones || []) {
+              if (sz.kind !== 'storm' || n++ >= KA.max) continue;
+              const e = Fusion.nearestTo(sz.x, sz.y, sz.r, 1)[0];
+              if (e) Fusion.chainFrom(w, rr, e, KA.n, w.s.dmg * P.zapMul * arc, w.s.chainFalloff, { fromX: z.x, fromY: z.y, direct: true, color: '#e6d0ff' });
+            }
           }
         } },
       });
@@ -581,9 +787,10 @@ const FUSIONS = {
     fire(w, run) {
       const t = w.target;
       if (!t) return false;      // 狙う敵が居ないときは撃たない（次のフレームでまた試す・combat.js）
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), F = Fusion.fc(w);
       Fusion.zone(run, {
         kind: 'aquaregia', x: t.x, y: t.y, r: w.s.fieldR, dur: w.s.fieldDur, tick: 0.25, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.8,
+        vulnT: 0.4 + (F.linger || 0), armorT: 0.6 + (F.linger || 0),       // 黄金の残滓（fp_acidfoam）：場を出ても脆弱と装甲ダウンが残る
         vuln: w.s.fieldVuln, armorDown: Math.min(BAL.cardFx.armorDownMax, P.armorDown + (w.dyn.armorDown || 0)), color: '#ffd24a', dcolor: '#fff0a0',
       });
       Fusion.fx(run, { k: 'pop', x: t.x, y: t.y, r: w.s.fieldR, life: 0.4, color: '#ffe38a' });
@@ -597,8 +804,9 @@ const FUSIONS = {
     fire(w, run) {
       const t = w.target;
       if (!t) return false;      // 狙う敵が居ないときは撃たない（次のフレームでまた試す・combat.js）
-      const P = Fusion.p(w);
-      for (let i = 0; i < P.shells; i++) {
+      const P = Fusion.p(w), F = Fusion.fc(w), acid = Fusion.link(w, run, 'acid', 'acidfoam'), KA = BAL.fusionCards.fl_acid;
+      const shells = P.shells + (F.shells || 0);       // 雨脚の強まり（fp_toxmortar）：砲弾が増える
+      for (let i = 0; i < shells; i++) {
         const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * P.spread;
         const tx = t.x + Math.cos(a) * d, ty = t.y + Math.sin(a) * d;
         Fusion.later(run, P.gap * i, () => {
@@ -606,6 +814,11 @@ const FUSIONS = {
             color: '#7fe35a', rocket: true,
             onLand: (rr, x, y) => {
               Combat.explode(rr, x, y, w.s.splash, w.s.dmg, { color: '#b8ff6a', crit: w.s.crit, critMul: w.s.critMul });
+              // 酸の爆発（fl_acid）：王水の黄金の液体に落ちた砲弾は、もう一度爆ぜる
+              if (acid && (rr.fzones || []).some(z => z.kind === 'aquaregia' && Util.dist(z.x, z.y, x, y) <= z.r)) {
+                Combat.explode(rr, x, y, w.s.splash * KA.r, w.s.dmg * acid, { color: '#ffd24a', crit: w.s.crit, critMul: w.s.critMul });
+                Fusion.fx(rr, { k: 'pop', x, y, r: w.s.splash * KA.r, life: 0.35, color: '#ffd24a' });
+              }
               if (i === 0) Combat.spawnField(rr, x, y, { kind: 'gas', r: w.s.fieldR, dur: w.s.fieldDur, dps: w.s.dmg * P.gasDps, slow: w.s.slow, vuln: w.s.fieldVuln, color: '#8fd94a', src: w, armorDown: w.dyn.armorDown || 0 });
             },
           });
@@ -619,7 +832,7 @@ const FUSIONS = {
     id: 'bubblegun', a: 'bubble', b: 'gatling', name: 'ファンシーバブルガン', short: 'FBG', color: '#ff9ad8',
     role: '円の方向へ連射', desc: '泡をガトリングのように連射',
     fire(w, run) {
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_bubblegun;
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n * 0.7 : 1);
         Combat.spawnBullet(w, run, a, {
@@ -627,6 +840,14 @@ const FUSIONS = {
           onConsume: (rr, b) => {
             Combat.explode(rr, b.x, b.y, w.s.splash, b.dmg * P.popMul, { color: '#ff9ad8', stun: w.s.stunDur * P.popStun });
             Fusion.fx(rr, { k: 'pop', x: b.x, y: b.y, r: w.s.splash, life: 0.25, color: '#ff9ad8' });
+            // 弾ける泡（fp_bubblegun）：割れた泡から小さな泡が分かれて、もう一度割れる
+            for (let k = 0; k < (F.kids || 0); k++) {
+              const ka = Math.random() * 6.28, kd = w.s.splash * 1.1, px = b.x + Math.cos(ka) * kd, py = b.y + Math.sin(ka) * kd;
+              Fusion.later(rr, K.gap * (k + 1), () => {
+                Combat.explode(rr, px, py, w.s.splash * K.r, b.dmg * P.popMul * K.mul, { color: '#ff9ad8', stun: w.s.stunDur * P.popStun * K.stun });
+                Fusion.fx(rr, { k: 'pop', x: px, y: py, r: w.s.splash * K.r, life: 0.25, color: '#ff9ad8' });
+              });
+            }
           },
         });
       }
@@ -638,12 +859,18 @@ const FUSIONS = {
     id: 'scattergun', a: 'mortar', b: 'gatling', name: 'クラスター爆弾', short: 'CLB', color: '#e0c070',
     role: '遠くの円', desc: '空中で弾け、小爆発の雨',
     fire(w, run) {
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_scattergun, KM = BAL.fusionCards.fl_mark;
+      const mk = Fusion.link(w, run, 'mark', 'starassault');
       Fusion.bombardWith(w, run, '#e0c070', (rr, x, y) => {
-        for (let i = 0; i < P.pellets; i++) {
+        const total = P.pellets + (F.pel || 0);       // 親子爆弾（fp_scattergun）：子弾が増え、最後の1発は大きく炸裂する
+        for (let i = 0; i < total; i++) {
           const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * P.spread;
           const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
-          Fusion.later(rr, 0.045 * i, () => { Combat.spotImpact(w, rr, px, py, 0, P.pelMul); Fusion.fx(rr, { k: 'pellet', x: px, y: py, life: 0.18, color: '#ffd890' }); });
+          const big = F.pel && i === total - 1 ? K.finale : 1;
+          Fusion.later(rr, 0.045 * i, () => {
+            Combat.spotImpact(w, rr, px, py, 0, P.pelMul * big); Fusion.fx(rr, { k: 'pellet', x: px, y: py, life: 0.18, color: '#ffd890' });
+            if (mk) Fusion.mark(rr, px, py, KM.pelR, mk);       // 被弾の印（fl_mark）
+          });
         }
       });
     },
@@ -654,12 +881,12 @@ const FUSIONS = {
     id: 'bubbleblade', a: 'bubble', b: 'shuriken', name: 'ポッピングスター', short: 'PPS', color: '#ffe38a',
     role: '遠くの円', desc: '泡を纏った流れ星を落とす',
     fire(w, run) {
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), F = Fusion.fc(w);
       Fusion.bombardWith(w, run, '#ffe38a', (rr, x, y) => {
         Combat.spotImpact(w, rr, x, y, 0, 1);
-        const a0 = Math.random() * 6.28;
-        for (let k = 0; k < 5; k++) {
-          const a = a0 + k * Math.PI * 2 / 5;
+        const a0 = Math.random() * 6.28, rays = 5 + (F.rays || 0);       // 流星群（fp_bubbleblade）：光の刃が増える
+        for (let k = 0; k < rays; k++) {
+          const a = a0 + k * Math.PI * 2 / rays;
           Combat.lineHit(rr, x, y, x + Math.cos(a) * P.rayLen, y + Math.sin(a) * P.rayLen, P.rayHalf, w.s.dmg * P.rayMul, { color: '#ffe38a', crit: w.s.crit, critMul: w.s.critMul });
         }
         Fusion.fx(rr, { k: 'popstar', x, y, r: P.rayLen, a: a0, life: 0.45 });
@@ -672,12 +899,18 @@ const FUSIONS = {
     id: 'icebomb', a: 'mortar', b: 'cryo', name: 'スノーグレイブ', short: 'SNG', color: '#8fd0ff',
     role: '遠くの円', desc: '落とした所に氷の嵐',
     fire(w, run) {
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_icebomb;
       Fusion.bombardWith(w, run, '#8fd0ff', (rr, x, y) => {
         Combat.explode(rr, x, y, w.s.splash, w.s.dmg, { color: '#bff0ff', slow: w.s.slow, slowDur: w.s.slowDur, chill: true, crit: w.s.crit, critMul: w.s.critMul });
         const ang = Math.random() * 6.28;
         Fusion.zone(rr, { kind: 'blizzard', x, y, r: P.R, dur: P.dur, tick: 0.2, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.8, chill: true,
           drift: { x: Math.cos(ang) * P.drift, y: Math.sin(ang) * P.drift }, color: '#bff0ff' });
+        // 双つの吹雪（fp_icebomb）：逆向きに漂う氷の嵐が増える
+        for (let k = 0; k < (F.storms || 0); k++) {
+          const sa = ang + Math.PI + k * 1.3, ox = Math.cos(sa) * P.R * K.off, oy = Math.sin(sa) * P.R * K.off;
+          Fusion.zone(rr, { kind: 'blizzard', x: x + ox, y: y + oy, r: P.R, dur: P.dur, tick: 0.2, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.8, chill: true,
+            drift: { x: Math.cos(sa) * P.drift, y: Math.sin(sa) * P.drift }, color: '#bff0ff' });
+        }
         Fusion.fx(rr, { k: 'shards', x, y, r: P.R * 0.8, life: 0.5, color: '#bff0ff' });
       }, { rocket: true });
     },

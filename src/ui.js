@@ -1901,6 +1901,16 @@ const UI = {
       if (!have) row.style.opacity = '0.62';
       el.appendChild(row);
     }
+    // 合成武器だけの札（A・エピック24枚）と、合成武器どうしの連携の札（B・レジェンド8枚）。上位の連携パックから出る
+    const fcards = CARD_IDS.filter(id => CARDS[id].fpick || CARDS[id].flink);
+    const mk = (title, sub, ids) => {
+      el.appendChild(Util.el('div', 'erow eup-h')).innerHTML = '<div class="ebody"><b>' + title + '<u>' + ids.filter(id => Game.own(id) > 0).length + ' / ' + ids.length + '</u></b><p>' + sub + '</p></div>';
+      const grid = Util.el('div', 'cgrid');
+      for (const id of ids) grid.appendChild(CardFX.face(CARDS[id], { count: Game.own(id), dim: Game.own(id) === 0, tap: true }));
+      el.appendChild(grid);
+    };
+    mk('合成武器の札<em>PICK</em>', 'その合成武器を盤に置いているとき、出撃中の3択に出る。合成武器の「らしさ」を伸ばす', fcards.filter(id => CARDS[id].fpick));
+    mk('合成の連携の札<em>LINK</em>', '2つの合成武器が盤にそろっているとき、3択に出る', fcards.filter(id => CARDS[id].flink));
     p.appendChild(el);
   },
 
@@ -2456,6 +2466,7 @@ const UI = {
         this.stackPips({ have: run.cards[id] || 0, limit: Game.stackLimit(id) }) +
         (c.upper ? '<div class="chtype up"><em>// UPPER</em><b>上位札</b><small>' + this.upperNeed(c) + '</small></div>'
           : '<div class="chtype">' + (c.kind === 'weapon' ? '武器を編成に追加'
+            : c.kind === 'fusion' ? (c.flink ? '合成連携' : FUSIONS[c.fusion].name + ' 強化')
             : c.kind === 'synergy' ? 'シナジー'
             : (c.weapon ? WEAPONS[c.weapon].name + ' 強化' : '全体強化')) + '</div>'));
       el.addEventListener('click', () => {
@@ -2494,7 +2505,7 @@ const UI = {
     const fr = face.getBoundingClientRect();
     CardFX.hexShock(this.el.modal, fr.left + fr.width / 2, fr.top + fr.height / 2, color, true);
     const all = Array.from(slots.querySelectorAll('.chslot'));
-    const owners = c.kind === 'synergy' ? (c.requires || []) : (c.weapon ? [c.weapon] : []);
+    const owners = UI.cardOwners(c);
     let tg = all.filter(s => owners.includes(s.dataset.g));
     if (!tg.length) tg = all.filter(s => s.dataset.g === 'gen');
     if (!tg.length) return;
@@ -2534,7 +2545,7 @@ const UI = {
     for (const id of Object.keys(got)) {
       const c = CARDS[id];
       if (!c) continue;
-      const owners = c.kind === 'synergy' ? (c.requires || []) : (c.weapon ? [c.weapon] : []);
+      const owners = UI.cardOwners(c);
       let placed = false;
       for (const w of owners) { const g = groups.find(x => x.id === w); if (g) { g.cards.push(id); placed = true; } }
       if (!placed) other.cards.push(id);
@@ -2581,12 +2592,18 @@ const UI = {
     return d;
   },
 
+  // 3択の札を、どの武器の枠へ吸い込むか（合成武器の札は A の武器。連携の札は2つの合成武器の A）
+  cardOwners(c) {
+    if (c.kind === 'fusion') return c.flink ? c.flink.map(f => FUSIONS[f].a) : [FUSIONS[c.fusion].a];
+    return c.kind === 'synergy' ? (c.requires || []) : (c.weapon ? [c.weapon] : []);
+  },
+
   // カードのアイコン。**どの武器のものかは絵で示し、文からは省く**
   cardIcon(c) {
     if (c.kind === 'perm') return Icons.get('perm');
     if (c.kind === 'key') return Icons.get('key');
-    if (c.kind === 'synergy') {
-      // シナジーは「関わる武器のアイコン2つ」。これだけで条件が分かる
+    if (c.kind === 'synergy' || c.kind === 'fusion') {
+      // シナジー・合成の札は「関わる武器のアイコン2つ」。これだけで条件が分かる
       return (c.requires || []).map(w => (WEAPONS[w] && WEAPONS[w].icon) || '◆').join('');
     }
     if (c.weapon && WEAPONS[c.weapon]) return WEAPONS[c.weapon].icon;
