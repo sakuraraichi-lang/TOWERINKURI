@@ -383,9 +383,9 @@ const FUSIONS = {
   // 5 刀＋触手：切り裂いて空間を割き、裂け目から触手が出る（企画書の例。斬撃と裂け目に少し傾きを持たせて二重に斬って見える）
   voidblade: {
     id: 'voidblade', a: 'katana', b: 'tentacle', name: '異界の剣', short: 'VDS', color: '#d070ff',
-    role: '目の前の、横に広く縦に狭い長方形', desc: '前を切り裂き、裂け目から触手が出る',
+    role: '目の前の、横に広く縦に狭い長方形', desc: '大きく切り裂き、裂け目の触手が何度も突く',
     fire(w, run) {
-      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_voidblade, n = Math.max(1, Math.round(w.n || 1));
+      const P = Fusion.p(w), F = Fusion.fc(w), n = Math.max(1, Math.round(w.n || 1)), stabs = P.stabs + (F.tent || 0);
       const rift = Fusion.link(w, run, 'rift', 'abyssnet'), KR = BAL.fusionCards.fl_rift;
       for (let i = 0; i < n; i++) {
         const tilt = P.tilt * (i % 2 ? -1 : 1) * (1 + Math.floor(i / 2));
@@ -395,13 +395,13 @@ const FUSIONS = {
         for (const e of Fusion.rectEnemies(cx, cy, a, hw, hh)) Combat.damage(run, e, w.s.dmg, { color: '#f4d8ff', crit: w.s.crit, critMul: w.s.critMul, exec: w.s.execThr });
         const seed = (w.shots * 7 + i * 3) % 100;
         const rz = { kind: 'rift', shape: 'rect', x: cx, y: cy, a, hw, hh, dur: P.dur * (1 + (F.durK || 0)), tick: P.tick, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.6, color: '#c85ab0', dcolor: '#ffb0e8', seed };
-        // 二本の触手（fp_voidblade）：裂け目が長く残り、触手が突き刺す
-        if (F.tent) rz.pulse = { every: K.every, fn: (rr, z) => {
+        // 裂け目の触手：stabEvery 秒ごとに、裂け目の中の敵を stabs 本で突き刺す（二本の触手 fp_voidblade で本数が増える）。絵は裂け目の触手（fx-field.js）
+        rz.pulse = { every: P.stabEvery, fn: (rr, z) => {
           const list = Fusion.rectEnemies(z.x, z.y, z.a, z.hw, z.hh);
-          for (let k = 0; k < F.tent && list.length; k++) {
+          for (let k = 0; k < stabs && list.length; k++) {
             const e = list.splice((Math.random() * list.length) | 0, 1)[0];
-            Combat.damage(rr, e, w.s.dmg * K.mul, { color: '#ffb0e8', crit: w.s.crit, critMul: w.s.critMul });
-            Combat.fx(rr, { type: 'tentacle', x1: z.x, y1: z.y, e, color: '#c85ab0', ph: Math.random() * 6.28, life: 0.35 });
+            Combat.damage(rr, e, w.s.dmg * P.stabMul, { color: '#ffb0e8', crit: w.s.crit, critMul: w.s.critMul });
+            Fusion.fx(rr, { k: 'riftstab', x: z.x, y: z.y, ex: e.x, ey: e.y, life: 0.22, seed: k });
           }
         } };
         Fusion.zone(run, rz);
@@ -453,7 +453,7 @@ const FUSIONS = {
   // 7 触手＋泡：狂気の海底。大きな泡を1つ出して閉じ込め、中央へ強く引き寄せ、集めた所を触手の一突きで破裂させる
   abyssnet: {
     id: 'abyssnet', a: 'tentacle', b: 'bubble', name: '狂気の海底', short: 'ABY', color: '#4ab8d8',
-    role: '引き寄せる範囲', desc: '大きな泡に閉じ込め、引き寄せ、触手で破裂',
+    role: '引き寄せる範囲', desc: '泡に集め、触手が何度も突き、破裂',
     fire(w, run) {
       const t = w.target;
       if (!t) return false;      // 狙う敵が居ないときは撃たない（次のフレームでまた試す・combat.js）
@@ -465,8 +465,17 @@ const FUSIONS = {
       }
       for (const c of centers) {
         Fusion.zone(run, {
-          kind: 'abyss', x: c.x, y: c.y, r: P.R, dur: P.dur, tick: 0.2, dps: w.s.dmg * P.dps, stun: w.s.stunDur, pull: P.pull,
+          kind: 'abyss', x: c.x, y: c.y, r: P.R, dur: P.dur, tick: P.tick, dps: w.s.dmg * P.dps, stun: w.s.stunDur, pull: P.pull,
           color: '#4ab8d8', dcolor: '#8ad8ff',
+          // 泡の中の敵を、下から触手が stabs 本ずつ突く（絵は泡の下から伸びる触手・fx-field.js）
+          pulse: { every: P.stabEvery, fn: (rr, z) => {
+            const list = Fusion.enemiesIn(z.x, z.y, z.r);
+            for (let k = 0; k < P.stabs && list.length; k++) {
+              const e = list.splice((Math.random() * list.length) | 0, 1)[0];
+              Combat.damage(rr, e, w.s.dmg * P.stabMul, { color: '#ff9ad0', crit: w.s.crit, critMul: w.s.critMul });
+              Fusion.fx(rr, { k: 'abyssstab', x: z.x, y: z.y, r: z.r, ex: e.x, ey: e.y, life: 0.24, seed: k });
+            }
+          } },
           onEnd: (rr, z) => {
             Combat.explode(rr, z.x, z.y, P.burstR, w.s.dmg * P.burstMul, { color: '#ff9ad0', crit: w.s.crit, critMul: w.s.critMul });
             Fusion.fx(rr, { k: 'abyssburst', x: z.x, y: z.y, r: P.burstR, life: 0.55 });
@@ -555,8 +564,9 @@ const FUSIONS = {
         const e = foes[Math.min(foes.length - 1, Math.floor((i + Math.random()) * foes.length / n))];
         const tx = e.x + Util.rand(-P.fan, P.fan) * 40, ty = e.y + Util.rand(-P.fan, P.fan) * 40;
         Combat.spawnLob(w, run, tx, ty, {
-          color: '#ff5a1a', rocket: true,
+          color: '#ff5a1a', rocket: true, fx: 'magma',       // fx＝絵だけ（fusionfx/fx-field.js）
           onLand: (rr, x, y) => {
+            Fusion.fx(rr, { k: 'magmaland', x, y, r: w.s.splash, life: 0.5, seed: Math.abs((x * 7 + y * 3) | 0) % 97 });
             Combat.explode(rr, x, y, w.s.splash, w.s.dmg, { color: '#ff9a4a', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur, crit: w.s.crit, critMul: w.s.critMul });
             Combat.spawnField(rr, x, y, { kind: 'fire', r: P.poolR, dur: P.poolDur, dps: w.s.dmg * w.s.burn * P.poolDps, color: '#ff8a3a', src: w });
             if (boom) Fusion.combust(w, rr, rr.fields[rr.fields.length - 1], boom);   // 毒の雲と重なれば爆ぜる（fl_boom）
@@ -606,7 +616,7 @@ const FUSIONS = {
   // 12 凍結＋泡：永久凍土。範囲内を泡で包んで凍らせ、破裂させる。火力は低いが、絶大な足止め
   icefoam: {
     id: 'icefoam', a: 'cryo', b: 'bubble', name: '永久凍土', short: 'PRM', color: '#9fe6ff',
-    role: '広い範囲', desc: '範囲を泡で凍らせ、止める。火力は低い',
+    role: '広い範囲', desc: '範囲を泡で凍らせて止め、割れた破片が何度も当たる',
     fire(w, run) {
       const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_icefoam;
       const caged = Fusion.link(w, run, 'burst', 'vortex');
@@ -617,18 +627,23 @@ const FUSIONS = {
         if (Combat.inShield(run, e)) continue;
         Combat.damage(run, e, 0, { stun: w.s.stunDur, slow: w.s.slow, slowDur: w.s.slowDur, chill: true });
         if (caged) e.fcage = run.time + P.delay;      // 凍った泡の中にいる印（fl_shatter・相反の渦が読む）
-        if (shown++ < P.cages) Fusion.fx(run, { k: 'cage', e, x: e.x, y: e.y, r: 15, life: P.delay, color: '#bff0ff', ice: true });
+        if (shown++ < P.cages) Fusion.fx(run, { k: 'frostcage', e, x: e.x, y: e.y, r: 15, life: P.delay, color: '#bff0ff', ice: true });
         Fusion.later(run, P.delay, () => {
           if (e.dead) return;
-          Combat.explode(run, e.x, e.y, P.shardR, w.s.dmg * P.shardMul, { color: '#bff0ff', slow: P.shardSlow, slowDur: P.shardSlowDur, chill: true });
+          // 割れた破片が shardHits 回に分かれて当たる（1回目はその場で・残りは shardGap 秒ずつ遅れて）
+          const ex = e.x, ey = e.y;
+          for (let h = 0; h < P.shardHits; h++) {
+            const hit = () => Combat.explode(run, ex, ey, P.shardR, w.s.dmg * P.shardMul, { color: '#bff0ff', slow: P.shardSlow, slowDur: P.shardSlowDur, chill: true });
+            if (h === 0) hit(); else Fusion.later(run, P.shardGap * h, hit);
+          }
           // 連鎖凍裂（fp_icefoam）：破裂が近くの敵へ連鎖する
           if (F.chain) {
             Fusion.nearestTo(e.x, e.y, P.shardR * K.reach, F.chain + 1, e).slice(0, F.chain).forEach((o, k) => Fusion.later(run, K.gap * (k + 1), () => {
               Combat.explode(run, o.x, o.y, P.shardR, w.s.dmg * P.shardMul * K.mul, { color: '#bff0ff', slow: P.shardSlow, slowDur: P.shardSlowDur, chill: true });
-              Fusion.fx(run, { k: 'shards', x: o.x, y: o.y, r: P.shardR, life: 0.4, color: '#bff0ff' });
+              Fusion.fx(run, { k: 'frostshard', x: o.x, y: o.y, r: P.shardR, life: 0.8, color: '#bff0ff' });
             }));
           }
-          if (shown < 40) Fusion.fx(run, { k: 'shards', x: e.x, y: e.y, r: P.shardR, life: 0.45, color: '#bff0ff' });
+          if (shown < 40) Fusion.fx(run, { k: 'frostshard', x: e.x, y: e.y, r: P.shardR, life: 0.9, color: '#bff0ff' });
         });
       }
     },
@@ -699,11 +714,11 @@ const FUSIONS = {
         const n = 1 + (F.whirls || 0), a0 = Math.random() * 6.28;
         for (let k = 0; k < n; k++) {
           const ang = Math.random() * 6.28, wx = k === 0 ? x : x + Math.cos(a0 + k * 6.2832 / (n - 1)) * P.R * K.off, wy = k === 0 ? y : y + Math.sin(a0 + k * 6.2832 / (n - 1)) * P.R * K.off;
-          Fusion.zone(rr, { kind: 'firewhirl', x: wx, y: wy, r: P.R, dur: P.dur, tick: 0.2, dps: w.s.dmg * P.dps, burn: w.s.dmg * P.burn, burnDur: 2,
+          Fusion.zone(rr, { kind: 'firewhirl', x: wx, y: wy, r: P.R, dur: P.dur, tick: P.tick, dps: w.s.dmg * P.dps, burn: w.s.dmg * P.burn, burnDur: 2,
             drift: { x: Math.cos(ang) * P.drift, y: Math.sin(ang) * P.drift }, color: '#ff7a2a', dcolor: '#ffb066' });
         }
-        Fusion.fx(rr, { k: 'pop', x, y, r: P.R, life: 0.35, color: '#ffb066' });
-      }, { rocket: true });
+        Fusion.fx(rr, { k: 'carpetblast', x, y, r: P.R, life: 0.6, seed: Math.abs((x * 7 + y * 3) | 0) % 97 });
+      }, { rocket: true, fx: 'stormmsl' });
     },
   },
 
@@ -822,18 +837,18 @@ const FUSIONS = {
       if (!t) return false;      // 狙う敵が居ないときは撃たない（次のフレームでまた試す・combat.js）
       const P = Fusion.p(w), F = Fusion.fc(w);
       Fusion.zone(run, {
-        kind: 'aquaregia', x: t.x, y: t.y, r: w.s.fieldR, dur: w.s.fieldDur, tick: 0.25, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.8,
+        kind: 'aquaregia', x: t.x, y: t.y, r: w.s.fieldR, dur: w.s.fieldDur, tick: P.tick, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.8,
         vulnT: 0.4 + (F.linger || 0), armorT: 0.6 + (F.linger || 0),       // 黄金の残滓（fp_acidfoam）：場を出ても脆弱と装甲ダウンが残る
         vuln: w.s.fieldVuln, armorDown: Math.min(BAL.cardFx.armorDownMax, P.armorDown + (w.dyn.armorDown || 0)), color: '#ffd24a', dcolor: '#fff0a0',
       });
-      Fusion.fx(run, { k: 'pop', x: t.x, y: t.y, r: w.s.fieldR, life: 0.4, color: '#ffe38a' });
+      Fusion.fx(run, { k: 'aquasplash', x: t.x, y: t.y, r: w.s.fieldR, life: 0.5 });
     },
   },
 
   // 20 毒ガス＋迫撃砲：破滅の雨。毒ガスの持続を犠牲に、超高火力の砲撃を浴びせる
   toxmortar: {
     id: 'toxmortar', a: 'gas', b: 'mortar', name: '破滅の雨', short: 'DOM', color: '#7fe35a',
-    role: '遠くの円', desc: '超高火力の砲撃。毒は一瞬',
+    role: '遠くの円', desc: '毒の砲弾の雨を絶え間なく。毒は一瞬',
     fire(w, run) {
       const t = w.target;
       if (!t) return false;      // 狙う敵が居ないときは撃たない（次のフレームでまた試す・combat.js）
@@ -844,8 +859,9 @@ const FUSIONS = {
         const tx = t.x + Math.cos(a) * d, ty = t.y + Math.sin(a) * d;
         Fusion.later(run, P.gap * i, () => {
           Combat.spawnLob(w, run, tx, ty, {
-            color: '#7fe35a', rocket: true,
+            color: '#7fe35a', rocket: true, fx: 'doomshell',       // fx＝絵だけ（fusionfx/fx-field.js）
             onLand: (rr, x, y) => {
+              Fusion.fx(rr, { k: 'doomblast', x, y, r: w.s.splash, life: 0.75, seed: Math.abs((x * 7 + y * 3) | 0) % 97 });
               Combat.explode(rr, x, y, w.s.splash, w.s.dmg, { color: '#b8ff6a', crit: w.s.crit, critMul: w.s.critMul });
               // 酸の爆発（fl_acid）：王水の黄金の液体に落ちた砲弾は、もう一度爆ぜる
               if (acid && (rr.fzones || []).some(z => z.kind === 'aquaregia' && Util.dist(z.x, z.y, x, y) <= z.r)) {
@@ -936,16 +952,16 @@ const FUSIONS = {
       Fusion.bombardWith(w, run, '#8fd0ff', (rr, x, y) => {
         Combat.explode(rr, x, y, w.s.splash, w.s.dmg, { color: '#bff0ff', slow: w.s.slow, slowDur: w.s.slowDur, chill: true, crit: w.s.crit, critMul: w.s.critMul });
         const ang = Math.random() * 6.28;
-        Fusion.zone(rr, { kind: 'blizzard', x, y, r: P.R, dur: P.dur, tick: 0.2, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.8, chill: true,
+        Fusion.zone(rr, { kind: 'blizzard', x, y, r: P.R, dur: P.dur, tick: P.tick, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.8, chill: true,
           drift: { x: Math.cos(ang) * P.drift, y: Math.sin(ang) * P.drift }, color: '#bff0ff' });
         // 双つの吹雪（fp_icebomb）：逆向きに漂う氷の嵐が増える
         for (let k = 0; k < (F.storms || 0); k++) {
           const sa = ang + Math.PI + k * 1.3, ox = Math.cos(sa) * P.R * K.off, oy = Math.sin(sa) * P.R * K.off;
-          Fusion.zone(rr, { kind: 'blizzard', x: x + ox, y: y + oy, r: P.R, dur: P.dur, tick: 0.2, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.8, chill: true,
+          Fusion.zone(rr, { kind: 'blizzard', x: x + ox, y: y + oy, r: P.R, dur: P.dur, tick: P.tick, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.8, chill: true,
             drift: { x: Math.cos(sa) * P.drift, y: Math.sin(sa) * P.drift }, color: '#bff0ff' });
         }
-        Fusion.fx(rr, { k: 'shards', x, y, r: P.R * 0.8, life: 0.5, color: '#bff0ff' });
-      }, { rocket: true });
+        Fusion.fx(rr, { k: 'snowburst', x, y, r: P.R * 0.8, life: 0.6, seed: Math.abs((x * 7 + y * 3) | 0) % 97 });
+      }, { rocket: true, fx: 'iceshell' });
     },
   },
 };

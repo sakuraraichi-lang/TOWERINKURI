@@ -206,51 +206,6 @@ const FusionFX = {
         ctx.fillStyle = '#ffb040';
         for (let i = 0; i < 4; i++) { const t = a0 + (a1 - a0) * ((i * 0.31 + 0.2) % 1), d = f.r * (0.75 + k * 0.35 + (i % 2) * 0.08); ctx.globalAlpha = (1 - k) * 0.9; ctx.fillRect(f.x + Math.cos(t) * d - 1.3, f.y + Math.sin(t) * d - 1.3, 2.6, 2.6); }
         break; }
-      case 'cage': {        // 泡の檻（敵を包む）。ice なら氷の面を足す
-        const e = f.e, x = e ? (e.dead ? f.x : e.x) : f.x, y = e ? (e.dead ? f.y : e.y) : f.y;
-        const r = f.r * (1 + 0.06 * Math.sin(k * 30)), fade = k > 0.85 ? (1 - k) / 0.15 : 1;
-        ctx.globalAlpha = 0.28 * fade; ctx.fillStyle = f.color; ctx.beginPath(); ctx.arc(x, y, r, 0, 7); ctx.fill();
-        ctx.globalAlpha = 0.9 * fade; ctx.lineWidth = 1.8; ctx.strokeStyle = f.color; ctx.stroke();
-        ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.8 * fade; ctx.beginPath(); ctx.arc(x - r * 0.35, y - r * 0.4, r * 0.18, 0, 7); ctx.fill();
-        if (f.ice) {
-          ctx.globalAlpha = 0.7 * fade; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1;
-          ctx.beginPath(); for (let i = 0; i < 3; i++) { const a = i * Math.PI / 3 + 0.3; ctx.moveTo(x + Math.cos(a) * r, y + Math.sin(a) * r); ctx.lineTo(x - Math.cos(a) * r, y - Math.sin(a) * r); } ctx.stroke();
-        }
-        break; }
-      case 'abyssburst': {  // 狂気の海底：泡がはじけ、下から触手が一突き。中心へ集まっていた光の筋が外へ弾ける
-        const r = f.r * (0.3 + ease * 0.85);
-        ctx.globalAlpha = (1 - k) * 0.5; ctx.fillStyle = '#4ab8d8'; ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, 7); ctx.fill();
-        ctx.globalAlpha = (1 - k) * 0.95; ctx.strokeStyle = '#d8f4ff'; ctx.lineWidth = 3 * (1 - k) + 1; ctx.beginPath(); ctx.arc(f.x, f.y, r, 0, 7); ctx.stroke();
-        const up = Math.min(1, k * 4), L = f.r * 1.5 * up * (1 - Math.max(0, (k - 0.5) / 0.5));
-        ctx.save(); ctx.lineCap = 'round'; ctx.translate(f.x, f.y);
-        ctx.globalAlpha = (1 - k * 0.6);
-        ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = 11 * (1 - k * 0.5) + 2;
-        ctx.beginPath(); ctx.moveTo(0, f.r * 0.9); ctx.bezierCurveTo(-14, f.r * 0.9 - L * 0.35, 14, f.r * 0.9 - L * 0.7, 0, f.r * 0.9 - L); ctx.stroke();
-        ctx.strokeStyle = '#ff7ac8'; ctx.lineWidth = 8 * (1 - k * 0.5);
-        ctx.beginPath(); ctx.moveTo(0, f.r * 0.9); ctx.bezierCurveTo(-14, f.r * 0.9 - L * 0.35, 14, f.r * 0.9 - L * 0.7, 0, f.r * 0.9 - L); ctx.stroke();
-        ctx.restore();
-        break; }
-      case 'eruption': {    // ヴォルケイノブラスト：砲口から火山弾が噴き上がる（炎の柱と火の粉）
-        const ux = Math.cos(f.a), uy = Math.sin(f.a);
-        ctx.save(); ctx.globalCompositeOperation = 'lighter';
-        for (let j = 0; j < 3; j++) {
-          const L = (36 + j * 16) * (0.6 + ease * 0.5);
-          ctx.globalAlpha = (1 - k) * (0.5 - j * 0.12); ctx.fillStyle = j === 0 ? '#fff0c0' : j === 1 ? '#ffb43c' : '#ff5a1a';
-          ctx.beginPath(); ctx.moveTo(f.x + uy * 7, f.y - ux * 7); ctx.lineTo(f.x + ux * L, f.y + uy * L); ctx.lineTo(f.x - uy * 7, f.y + ux * 7); ctx.closePath(); ctx.fill();
-        }
-        ctx.restore();
-        ctx.fillStyle = '#ff9a3a';
-        for (let i = 0; i < 9; i++) { const sp = (i * 13) % 7 - 3, d = (10 + i * 6) * ease; ctx.globalAlpha = (1 - k) * 0.9; ctx.fillRect(f.x + ux * d + uy * sp * 3 - 1.5, f.y + uy * d - ux * sp * 3 - 1.5, 3, 3); }
-        break; }
-      case 'frostfoam': {   // 永久凍土：霜の輪と、広がる小さな泡
-        ctx.globalAlpha = (1 - k) * 0.6; ctx.strokeStyle = '#bff0ff'; ctx.lineWidth = 2.4;
-        ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.3 + ease * 0.75), 0, 7); ctx.stroke();
-        for (let i = 0; i < 12; i++) {
-          const a = f.ph + i * 0.52, d = f.r * (0.2 + ease * 0.75) * (0.55 + ((i * 37) % 10) / 22), r = 3 + (i % 3) * 1.6;
-          ctx.globalAlpha = (1 - k) * 0.8; ctx.lineWidth = 1.3; ctx.strokeStyle = '#e6fbff';
-          ctx.beginPath(); ctx.arc(f.x + Math.cos(a) * d, f.y + Math.sin(a) * d, r, 0, 7); ctx.stroke();
-        }
-        break; }
       case 'shards': {      // 氷の破片が飛び散る
         ctx.fillStyle = f.color;
         for (let i = 0; i < 12; i++) {
@@ -310,6 +265,7 @@ const FusionFX = {
 
   // ---------- 居座る場（run.fzones） ----------
   zones(ctx, run) {
+    for (const g of this._ground) { ctx.save(); g.fn.call(g.o, ctx, run); ctx.restore(); }   // 地面に描くもの（ふつうの場に重ねる絵・register の ground）
     const zs = run.fzones;
     if (!zs || !zs.length) return;
     const t = run.time;
@@ -319,59 +275,6 @@ const FusionFX = {
       const hz = this._zone[z.kind];                                 // 合成武器ごとのファイルが登録した場
       if (hz) {
         hz.fn.call(hz.o, ctx, z, run);
-      } else if (z.kind === 'abyss') {    // 狂気の海底：大きな泡（深い青緑）。外から中心へ流れ込む渦の筋と、閉じ込められた光
-        const near = Math.max(0, (k - 0.78) / 0.22);          // 破裂の間際：泡が膨らんで赤みを帯びる
-        const R = z.r * (1 + near * 0.12);
-        ctx.globalAlpha = (0.2 + near * 0.18) * fade; ctx.fillStyle = near > 0 ? '#7a4aa8' : '#2a8fb0'; ctx.beginPath(); ctx.arc(z.x, z.y, R, 0, 7); ctx.fill();
-        ctx.globalAlpha = 0.95 * fade; ctx.strokeStyle = '#a8e8ff'; ctx.lineWidth = 2.4; ctx.stroke();
-        ctx.lineCap = 'round'; ctx.strokeStyle = '#d8f8ff'; ctx.lineWidth = 1.6;
-        for (let i = 0; i < 6; i++) {                          // 中心へ巻き込む渦の筋
-          const a0 = t * 2.2 + i * 1.047;
-          ctx.globalAlpha = 0.55 * fade; ctx.beginPath();
-          for (let j = 0; j <= 10; j++) { const q = j / 10, a = a0 + q * 1.6, rr = R * (0.95 - q * 0.8); ctx[j ? 'lineTo' : 'moveTo'](z.x + Math.cos(a) * rr, z.y + Math.sin(a) * rr); }
-          ctx.stroke();
-        }
-        ctx.fillStyle = '#fff'; ctx.globalAlpha = 0.7 * fade; ctx.beginPath(); ctx.arc(z.x - R * 0.4, z.y - R * 0.45, R * 0.1, 0, 7); ctx.fill();
-        ctx.globalAlpha = (0.5 + near * 0.5) * fade; ctx.fillStyle = '#ff7ac8'; ctx.beginPath(); ctx.arc(z.x, z.y, 3 + near * 6, 0, 7); ctx.fill();
-      } else if (z.kind === 'firewhirl') { // 滅尽嵐：火炎旋風（上から見た炎の渦）。橙と黄の腕が巻き、中心が白く熱い
-        const R = z.r;
-        ctx.globalCompositeOperation = 'lighter';
-        ctx.globalAlpha = 0.16 * fade; ctx.fillStyle = '#ff6a1a'; ctx.beginPath(); ctx.arc(z.x, z.y, R * 1.1, 0, 7); ctx.fill();
-        ctx.lineCap = 'round';
-        for (let j = 0; j < 3; j++) {
-          const a0 = t * 7 + j * 2.094;
-          ctx.globalAlpha = 0.8 * fade; ctx.strokeStyle = j === 1 ? '#ffd060' : '#ff7a2a'; ctx.lineWidth = 6 - j;
-          ctx.beginPath();
-          for (let i = 0; i <= 16; i++) { const q = i / 16, a = a0 + q * 4.4, rr = R * q * (1 + 0.08 * Math.sin(t * 9 + i)); ctx[i ? 'lineTo' : 'moveTo'](z.x + Math.cos(a) * rr, z.y + Math.sin(a) * rr); }
-          ctx.stroke();
-        }
-        ctx.globalAlpha = 0.7 * fade; ctx.fillStyle = '#fff0c0'; ctx.beginPath(); ctx.arc(z.x, z.y, R * 0.16, 0, 7); ctx.fill();
-        ctx.globalCompositeOperation = 'source-over';
-      } else if (z.kind === 'aquaregia') {  // 王水：黄金の液体。金の面・ゆっくり広がる波紋・きらめき
-        const R = z.r * (0.9 + 0.1 * Math.min(1, k * 6));
-        const gr = ctx.createRadialGradient(z.x, z.y, R * 0.1, z.x, z.y, R);
-        gr.addColorStop(0, 'rgba(255,236,150,0.55)'); gr.addColorStop(0.7, 'rgba(255,196,60,0.38)'); gr.addColorStop(1, 'rgba(210,140,20,0.22)');
-        ctx.globalAlpha = fade; ctx.fillStyle = gr; ctx.beginPath(); ctx.arc(z.x, z.y, R, 0, 7); ctx.fill();
-        ctx.strokeStyle = '#ffe38a'; ctx.lineWidth = 1.6;
-        for (let i = 0; i < 3; i++) { const q = ((t * 0.5 + i / 3) % 1); ctx.globalAlpha = (1 - q) * 0.6 * fade; ctx.beginPath(); ctx.arc(z.x, z.y, R * (0.2 + q * 0.8), 0, 7); ctx.stroke(); }
-        ctx.globalAlpha = 0.9 * fade; ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(z.x, z.y, R, 0, 7); ctx.stroke();
-        ctx.fillStyle = '#fffbe0';
-        for (let i = 0; i < 6; i++) {
-          const tw = 0.5 + 0.5 * Math.sin(t * 5 + i * 2.3), a = i * 2.4 + 0.5, d = R * (0.2 + ((i * 37) % 10) / 14);
-          ctx.globalAlpha = tw * fade; const s = 1.6 + tw * 1.6; ctx.fillRect(z.x + Math.cos(a) * d - s / 2, z.y + Math.sin(a) * d - s / 2, s, s);
-        }
-      } else if (z.kind === 'blizzard') {   // スノーグレイブ：氷の嵐（白青の渦の筋・流れる雪・氷片）
-        const R = z.r;
-        ctx.globalAlpha = 0.14 * fade; ctx.fillStyle = '#9fe0ff'; ctx.beginPath(); ctx.arc(z.x, z.y, R, 0, 7); ctx.fill();
-        ctx.lineCap = 'round';
-        for (let j = 0; j < 5; j++) {
-          const a0 = t * 4.5 + j * 1.2566;
-          ctx.globalAlpha = 0.7 * fade; ctx.strokeStyle = j % 2 ? '#e6fbff' : '#8fd0ff'; ctx.lineWidth = 3;
-          ctx.beginPath(); for (let i = 0; i <= 10; i++) { const q = i / 10, a = a0 + q * 2.6, rr = R * (0.25 + q * 0.7); ctx[i ? 'lineTo' : 'moveTo'](z.x + Math.cos(a) * rr, z.y + Math.sin(a) * rr); } ctx.stroke();
-        }
-        ctx.fillStyle = '#ffffff';
-        for (let i = 0; i < 14; i++) { const a = t * (1.5 + (i % 3) * 0.5) + i * 0.9, d = R * (0.2 + ((i * 53) % 10) / 12); ctx.globalAlpha = 0.85 * fade; ctx.fillRect(z.x + Math.cos(a) * d - 1.2, z.y + Math.sin(a) * d - 1.2, 2.4, 2.4); }
-        ctx.globalAlpha = 0.6 * fade; ctx.strokeStyle = '#bff0ff'; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.arc(z.x, z.y, R, 0, 7); ctx.stroke();
       }
       ctx.restore();
     }
@@ -392,12 +295,13 @@ const FusionFX = {
   // ---------- 合成武器ごとの絵の登録（レジストリ・2026-10-12 段1） ----------
   //   src/fusionfx/fx-*.js が FusionFX.register(合成の id, 物) で登録する。書き方は各ファイルの冒頭。
   //   形（弾の fx）・演出の k・場の kind は全体で1つの名前。同じ名前を2回登録したら警告を出す（3人が並べて作るとき、ぶつかりに気づけるように）
-  REG: {}, _bul: {}, _lob: {}, _fx: {}, _zone: {}, _over: {},
+  REG: {}, _bul: {}, _lob: {}, _fx: {}, _zone: {}, _over: {}, _ground: [],
   register(fid, o) {
     if (this.REG[fid]) console.warn('FusionFX.register：' + fid + ' を2回登録しました');
     if (typeof FUSIONS !== 'undefined' && !FUSIONS[fid]) console.warn('FusionFX.register：' + fid + ' という合成武器はありません');
     this.REG[fid] = o;
     if (o.turret) this.turretArt[fid] = o.turret;
+    if (o.ground) this._ground.push({ fid, o, fn: o.ground });   // 毎フレーム1回・場より先（敵の下）
     for (const [part, tbl] of [['bullets', this._bul], ['lobs', this._lob], ['fx', this._fx], ['zones', this._zone], ['over', this._over]]) {
       for (const name of Object.keys(o[part] || {})) {
         if (tbl[name]) console.warn('FusionFX.register：' + part + ' の「' + name + '」は ' + tbl[name].fid + ' が登録済み（' + fid + '）');
