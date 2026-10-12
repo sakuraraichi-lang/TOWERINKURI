@@ -104,7 +104,7 @@ const UPACK_IDS = ['u_basic', 'u_arms', 'u_chem', 'u_syn', 'u_relic'];
       weights: { common: 46, rare: 40, epic: 14, legendary: 0 } },
     //   連携：レジェンドの枠は**合成の札**（合成武器の企画書の解禁・上位の連携パックでいちばん出にくい・ユーザー 2026-10-06）。
     //   合成武器の一覧をユーザーが見てから作るので、いまは中身が空（Pack.UPPER_FUSION）＝出ない。重みは「出る枠」を決めてあるだけ
-    { id: 'u_syn',   base: 'syn',   ap: 'syn',   name: '上位の連携パック', color: '#e2b8ff', desc: '系統をそろえるほど効く札。合成の札の枠あり（準備中）',
+    { id: 'u_syn',   base: 'syn',   ap: 'syn',   name: '上位の連携パック', color: '#e2b8ff', desc: '系統をそろえるほど効く札',
       weights: { common: 40, rare: 42, epic: 15, legendary: 3 } },
   ];
   for (const d of defs) {

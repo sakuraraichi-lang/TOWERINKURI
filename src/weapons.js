@@ -367,7 +367,7 @@ const WEAPONS = {
     //   前の触手（掴むだけ・掴む数6）は第25章の単独 12種中10位・カードを全部積んでも ×0.41（measure.md）。
     //   コスト：ユーザー「コストも高め」（§12-1）。武器の設計から決める（答え8「コストで強弱の帳尻を合わせない」）
     id: 'tentacle', sys: 'grab', wallThrough: true, /* 壁を抜ける：腕なので回り込める */ cost: 3, cat: 'support', name: '触手', short: 'TNT', icon: Icons.get('tentacle'), color: '#c85ab0', src: 'pack', arcFix: 0.34,
-    desc: '撃つたびに6種の攻撃のどれかが出る（引き寄せ・突き刺し・薙ぎ払い・触手の壁・タコ墨・一閃）。何が出るかは分からないが、どれも強い。',
+    desc: '撃つたび6種の攻撃のどれか',
     base: baseStats({ dmg: 40, rate: 1.0, range: 230, count: 4, knock: 105, knockDur: 1.3, turn: 9 }),
     fire(w, run) {
       const t = w.target;

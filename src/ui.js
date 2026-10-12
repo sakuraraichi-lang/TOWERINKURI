@@ -81,7 +81,7 @@ const UI = {
       Game.save();
       this.renderTray();
       Snd.ui();
-      if (n) this.toastMsg(n + '基を外しました。置き直せます', '#ff8a1f', 'sys');
+      if (n) this.toastMsg(n + '基 撤去', '#ff8a1f', 'sys');
     });
     if (this.el.btnDmg) this.el.btnDmg.addEventListener('click', () => {
       Snd.resume(); Snd.ui();
@@ -110,7 +110,6 @@ const UI = {
     // トーストは戦闘画面の中にあってホームでは見えないため、バーの下に出す
     if (this.el.build) {
       this.el.build.textContent = 'ver ' + BUILD;
-      this.el.build.title = 'このゲームの版。更新されているかの目印です';
       this.el.build.addEventListener('click', () => {
         Snd.resume(); Snd.ui();
         const n = this.el.buildNote;
@@ -119,8 +118,7 @@ const UI = {
         if (!on) { n.innerHTML = ''; return; }
         // **何が変わったかを、その場から読めるようにする。**
         // 版の数字だけ見せても「で、何が変わったの」に答えていない
-        n.innerHTML = 'ver ' + BUILD + ' ＝ このゲームの版です。' +
-          '「更新されていない気がする」ときに、ここが変わっているかで確かめられます<br>' +
+        n.innerHTML =
           '<a href="' + PATCHNOTES_URL + '" target="_blank" rel="noopener">' +
           'この版で何が変わったか（パッチノート）</a>';
         // **武器ごとの記録を文字で持ち出す。**（ユーザー 2026-09-25「何件か分保存しておけば、あなたがそれを確認して…」）
@@ -238,7 +236,7 @@ const UI = {
     e.homeMini.classList.toggle('locked', !open);
 
     let line;
-    if (!open) line = '<span class="ck">' + Icons.get('lock') + '</span>前のステージを突破すると開きます';
+    if (!open) line = '<span class="ck">' + Icons.get('lock') + '</span>前のステージを突破すると解放';
     else if (rec.perfect) line = '<span class="ck">✓</span>完璧クリア済み　<em>★★</em>';
     else if (rec.cleared) line = '<span class="ck">✓</span>突破済み　<em>W' + rec.bestWave + '</em>';
     // **飛ばして通っただけ。**突破ではないので、初回報酬はまだ残っている
@@ -262,7 +260,7 @@ const UI = {
       e.homeSkip.disabled = !can;
       // **もらえるものは無い。**チェックが付いて次へ行けるだけ、と書いておく
       e.homeSkip.innerHTML = can
-        ? 'スキップ<u>報酬なし・再起動の評価にも入りません</u>'
+        ? 'スキップ<u>報酬なし</u>'
         : '<u>' + Game.skipWhy(st.id) + '</u>';
     }
     // 一括突破。**2章以上まとめて飛ばせるときだけ出す**（1章なら上のスキップと同じ）
@@ -270,7 +268,7 @@ const UI = {
       const run = (open && Game.autoOpen('skipAll')) ? Game.skipRun(st.id) : [];
       e.homeSkipAll.style.display = run.length >= 2 ? '' : 'none';
       if (run.length >= 2) {
-        e.homeSkipAll.innerHTML = 'まとめてスキップ ' + run.length + '章<u>第' + (STAGE_BY_ID[run[run.length - 1]].idx + 1) + '章まで・報酬なし</u>';
+        e.homeSkipAll.innerHTML = 'まとめてスキップ ' + run.length + '章<u>報酬なし</u>';
       }
       // スキップが2つ並ぶと出撃ボタンが潰れるので、出撃を1段上に分ける
       e.homeSkipAll.parentNode.classList.toggle('two', run.length >= 2 && e.homeSkip && e.homeSkip.style.display !== 'none');
@@ -371,21 +369,20 @@ const UI = {
       const on = !!Game.perm[key];
       const el = Util.el('label', 'cfgrow' + (on ? ' on' : ''));
       el.innerHTML = '<span class="box">' + (on ? Icons.get('check') : '') + '</span>' +
-        '<span><b>' + name + '</b><span>' + desc + '</span></span>';
+        '<span><b>' + name + '</b>' + (desc ? '<span>' + desc + '</span>' : '') + '</span>';
       el.addEventListener('click', () => {
         Game.perm[key] = !Game.perm[key];
         Game.save(); Snd.ui(); this.renderCfg();
       });
       return el;
     };
-    b.appendChild(row('autoWave', '次のウェーブへ自動で進む',
-      '切ると、カードを選んだあと配置を直す時間が入ります'));
+    b.appendChild(row('autoWave', '次のウェーブへ自動で進む'));
     {
       // ライフのバー（初期は出す。hideLifeBar で消す）
       const on = !Game.perm.hideLifeBar;
       const el = Util.el('label', 'cfgrow' + (on ? ' on' : ''));
       el.innerHTML = '<span class="box">' + (on ? Icons.get('check') : '') + '</span>' +
-        '<span><b>ライフのバーを出す</b><span>戦闘中、盤の左上にライフの残りをバーと数字で出します（切るとコアの輪だけ）</span></span>';
+        '<span><b>ライフのバーを出す</b></span>';
       el.addEventListener('click', () => { Game.perm.hideLifeBar = !Game.perm.hideLifeBar; Game.save(); Snd.ui(); this.renderCfg(); });
       b.appendChild(el);
     }
@@ -394,7 +391,7 @@ const UI = {
       const on = !Game.perm.hideDmgNum;
       const el = Util.el('label', 'cfgrow' + (on ? ' on' : ''));
       el.innerHTML = '<span class="box">' + (on ? Icons.get('check') : '') + '</span>' +
-        '<span><b>ダメージの数字を出す</b><span>敵に当たったときの数字（切ると盤がすっきりします）</span></span>';
+        '<span><b>ダメージの数字を出す</b></span>';
       el.addEventListener('click', () => { Game.perm.hideDmgNum = !Game.perm.hideDmgNum; Game.save(); Snd.ui(); this.renderCfg(); });
       b.appendChild(el);
     }
@@ -403,20 +400,18 @@ const UI = {
       const on = !Game.perm.hidePlaceToast;
       const el = Util.el('label', 'cfgrow' + (on ? ' on' : ''));
       el.innerHTML = '<span class="box">' + (on ? Icons.get('check') : '') + '</span>' +
-        '<span><b>配置の通知を出す</b><span>武器を選んだとき、右上に「〜 を置く地面をタップ」と出します（置けない理由の警告は、切っても出ます）</span></span>';
+        '<span><b>配置の通知を出す</b></span>';
       el.addEventListener('click', () => { Game.perm.hidePlaceToast = !Game.perm.hidePlaceToast; Game.save(); Snd.ui(); this.renderCfg(); });
       b.appendChild(el);
     }
     // 自動化は開いてから出す（BAL.autoUnlock）
-    if (Game.autoOpen('autoPlace')) b.appendChild(row('autoPlace', '自動設置',
-      'この周でまだ触っていない章に、前の周の配置を置き直します'));
-    if (Game.autoOpen('autoBuy')) b.appendChild(row('autoBuy', '自動購入',
-      '出撃するとき、「まとめて購入」と同じ順で買えるだけ買います'));
-    b.appendChild(row('perf', '処理の重さを表示', 'fps と1フレームの時間'));
+    if (Game.autoOpen('autoPlace')) b.appendChild(row('autoPlace', '自動設置'));
+    if (Game.autoOpen('autoBuy')) b.appendChild(row('autoBuy', '自動購入'));
+    b.appendChild(row('perf', '処理の重さを表示'));
     // 演出の確認室（src/debugroom.js）。セーブは変わらない
     {
       const el = Util.el('label', 'cfgrow cfgroom');
-      el.innerHTML = '<span class="box">▶</span><span><b>演出の確認室</b><span>パック開封・結果画面・カード3択・帯などを、見本でいつでも見られます（セーブは変わりません）</span></span>';
+      el.innerHTML = '<span class="box">▶</span><span><b>演出の確認室</b></span>';
       el.addEventListener('click', () => { Snd.ui(); if (typeof DebugRoom !== 'undefined') DebugRoom.open(); });
       b.appendChild(el);
     }
@@ -447,7 +442,6 @@ const UI = {
     Game.perm.perf = !Game.perm.perf;
     if (!Game.perm.perf && this.el.perf) this.el.perf.textContent = '';
     Game.save();
-    this.toastMsg(Game.perm.perf ? '処理の重さを表示' : '非表示', '#ff8a1f', 'sys');
   },
 
   // ================= HUD =================
@@ -624,8 +618,7 @@ const UI = {
       b.disabled = !build;
       b.addEventListener('click', () => {
         if (full) {
-          this.toastMsg(atMax ? def.name + ' は ' + BAL.sameWeaponMax + '基まで（同じ武器の上限）'
-            : 'コストが足りません（' + def.name + ' はコスト' + def.cost + '・残り ' + (Game.costCap() - Game.costUsed()) + '）', '#ff8080', 'limit');
+          this.toastMsg(atMax ? BAL.sameWeaponMax + '基まで' : 'コスト不足', '#ff8080', 'limit');
           return;
         }
         this.placingType = (this.placingType === wid) ? null : wid;
@@ -635,7 +628,7 @@ const UI = {
           this.tip = { wid: wid, t: def.name + '：' + this.WEAPON_TIP[wid] };
         }
         this.renderTray();
-        if (this.placingType && !Game.perm.hidePlaceToast) this.toastMsg(def.name + ' を置く地面をタップ', def.color, 'place');
+        if (this.placingType && !Game.perm.hidePlaceToast) this.toastMsg('地面をタップ', def.color, 'place');
       });
       t.appendChild(b);
     }
@@ -705,20 +698,20 @@ const UI = {
   },
   // ボスの節目の仕掛けの予告（約1秒前）。「// PHASE n ─ JUMP 跳躍」。小さな斜めの帯・仕掛けごとの色
   cutinPhase(pc) {
-    const N = { jump: ['JUMP', '跳躍', 'まもなく前へ跳ぶ ─ 奥にも火力を'],
+    const N = { jump: ['JUMP', '跳躍', '奥にも火力を'],
                 wall: ['FIREWALL', '防壁', ''],
-                jam: ['JAM', '沈黙', '腕が伸びる ─ いちばん近い4基が止まる'],
-                bite: ['BITE', '噛みつき', '大顎が開く ─ いちばん近い武器が1基壊される（この出撃のあいだ戻らない）'],
-                laser: ['LASER', 'レーザー', 'いちばん近い' + BAL.finalLaserN + '基を狙っている ─ 撃てなくなる'],
+                jam: ['JAM', '沈黙', '近い4基が止まる'],
+                bite: ['BITE', '噛みつき', '近い1基が壊される'],
+                laser: ['LASER', 'レーザー', '近い' + BAL.finalLaserN + '基が止まる'],
                 resist: ['ADAPT', '耐性', ''] }[pc.kind];
     let sub = N[2];
     if (pc.kind === 'resist') {
       const nm = pc.by && WEAPONS[pc.by] ? WEAPONS[pc.by].name : '';
-      sub = nm ? '頭を削っていた ' + nm + ' に慣れる ─ このウェーブのあいだ半分になる' : '慣れる相手がいない';
+      sub = nm ? nm + ' が半分' : '';
     }
     if (pc.kind === 'wall') {
       const nm = pc.by && WEAPONS[pc.by] ? WEAPONS[pc.by].name : '';
-      sub = nm ? nm + ' のダメージが半分になる ─ 別の武器で削れ' : '効く相手がいない';
+      sub = nm ? nm + ' が半分' : '';
     }
     const who = pc.bk && Combat.BOSS_KIND[pc.bk] ? Combat.BOSS_KIND[pc.bk].en + ' ' : '';
     this.cutin(who + 'PHASE ' + pc.no + '<em> ─ ' + N[0] + ' ' + N[1] + '</em>', sub, 'phase');
@@ -861,10 +854,9 @@ const UI = {
     z.classList.toggle('on', show);
     z.innerHTML = '';
     if (show) {
-      z.innerHTML = '<div><b class="zt-mud">減速</b>敵が遅くなる</div><div><b class="zt-slope">加速</b>敵が速くなる</div>';
+      z.innerHTML = '<div><b class="zt-mud">減速</b>遅くなる</div><div><b class="zt-slope">加速</b>速くなる</div>';
       const x = Util.el('button', 'zt-x');
       x.innerHTML = Icons.get('close');
-      x.title = 'この説明を閉じる（⚙ から戻せます）';
       x.addEventListener('click', () => { Game.perm.zoneTipOff = true; Game.save(); Snd.ui(); this._zoneKey = null; this.renderZoneTip(); });
       z.appendChild(x);
     }
@@ -1031,8 +1023,8 @@ const UI = {
     //   オタクくんのテストプレイで、コアの周りに固めて置くと第1章を 12本中0本 しか越えられなかった
     { t: '点線が敵の通り道。その近くの光っている地面に置く', s: 'コアのすぐ横より、道の途中のほうが長く撃てる' },
     { t: 'まわりの六角を押して向きを変え、扇（撃てる範囲）に点線を入れる', s: '扇に入る点線が長いほど、たくさん撃てる。向きは六角の6方向' },
-    { t: '右下の「準備完了」で始まる',    s: '置き直しはウェーブの合間にできる' },
-    { t: 'あとは眺めるだけ',            s: '倒すとコインが増える。負けても持ち帰れる' },
+    { t: '右下の「準備完了」で始まる',    s: '' },
+    { t: 'あとは眺めるだけ',            s: '' },
   ],
 
   // ============ 初めてのときの一言（2026-09-26・ユーザー「少し導線を設置するだけでかなり良くなります」「短い一言でいいです」） ============
@@ -1055,16 +1047,16 @@ const UI = {
     cryo:     'まわりの敵を遅くする。向きは関係なし。火力の強い武器の近くに',
     katana:   '間合いが短く、壁を越えて斬れる。道のすぐ脇に',
     shuriken: '敵から敵へ跳ねる。敵が詰まる場所に',
-    tentacle: '撃つたびに6種の攻撃のどれかが出る。敵がよく通る道の近くに',
+    tentacle: '撃つたび6種の攻撃のどれか。敵がよく通る道の近くに',
     bubble:   '円の中の敵を閉じ込める。置いたあと盤をタップして、円を火力の届く道へ',
     mortar:   '円の中へ重い砲弾。置いたあと盤をタップして、円を離れた道へも',
   },
   // 画面（下のタブ）を初めて開いたときの一言
   TAB_TIP: {
     skill: 'コインで強化を取る。取ると次の節が開く',
-    load:  '出撃に持っていく武器を選ぶ画面',
+    load:  '武器を選ぶ',
     pack:  'パックを開けてカードを集める。カードは再起動しても残る',
-    coll:  '集めたカードの一覧。同じカードを重ねると強くなる',
+    coll:  'カードの一覧',
     pres:  '再起動すると章とコインは戻るが、土台がずっと強くなる',
   },
 
@@ -1137,7 +1129,7 @@ const UI = {
 
     const step = this.TUT[i];
     const html = '<i>' + (i + 1) + ' / ' + this.TUT.length + '</i>' +
-      '<b>' + step.t + '</b><span>' + step.s + '</span>';
+      '<b>' + step.t + '</b>' + (step.s ? '<span>' + step.s + '</span>' : '');
     if (p.innerHTML !== html) p.innerHTML = html;
     p.classList.add('on');
   },
@@ -1195,8 +1187,7 @@ const UI = {
   // ================= ステージ =================
   panelStages(p) {
     const head = Util.el('div', 'phead');
-    head.innerHTML = '<b>ステージ</b><span class="sub">1ステージ＝' + BAL.wavesPerStage +
-      'ウェーブ。全部凌げば突破。<b>1体も通さず凌ぐと「完璧クリア」でカードパック</b></span>';
+    head.innerHTML = '<b>ステージ</b><span class="sub">' + BAL.wavesPerStage + 'ウェーブ・無漏れで<b>完璧クリア</b></span>';
     p.appendChild(head);
 
     for (const s of STAGES) {
@@ -1211,7 +1202,7 @@ const UI = {
         '<div class="sbody">' +
           '<div class="sname">' + (unlocked ? s.name : '？？？') +
             (rec.perfect ? ' <em class="ok">★完璧</em>' : rec.cleared ? ' <em class="ok">突破済</em>' : ' <em>未突破</em>') + '</div>' +
-          '<div class="sdesc">' + (unlocked ? s.desc : '前のステージを突破すると解放') + '</div>' +
+          (unlocked ? '' : '<div class="sdesc">前のステージを突破すると解放</div>') +
           '<div class="sdesc rw">初回報酬: ' + rw +
             (rec.attempts ? '　／　挑戦 ' + rec.attempts + '回・最高 W' + rec.bestWave : '') + '</div>' +
         '</div>';
@@ -1229,7 +1220,6 @@ const UI = {
       }
       p.appendChild(row);
     }
-    if (Game.phase === 'battle') p.appendChild(Util.el('div', 'note', '※ 戦闘中はステージを変えられません'));
     // **ミニマップは1枚ずつ後から描く。**盤を作るのに大きい盤で1枚0.2秒かかるので、
     //   開いている章を全部その場で作ると一覧が数秒固まる
     const todo = Array.from(p.querySelectorAll('.stmini[data-sid]')).filter(el => el.dataset.sid);
@@ -1352,7 +1342,7 @@ const UI = {
 
     // コインとまとめ買い（上に貼り付く）
     p.appendChild(this.treePoints());
-    if (!Game.canBuySkills()) p.appendChild(Util.el('div', 'warn', '戦闘中は購入できません。撤退するか、ステージを終えてから。'));
+    if (!Game.canBuySkills()) p.appendChild(Util.el('div', 'warn', '戦闘中は購入できません'));
 
     // 目的タブ
     const tabs = Util.el('div', 'sk-tabs');
@@ -1642,7 +1632,7 @@ const UI = {
     const battle = Game.phase === 'battle';
     const hero = Util.el('div', 'lo-hero');
     hero.innerHTML =
-      '<div><b>編成</b><span>使う武器の<em>種類</em>を選ぶ。置けるかどうかは<em>コスト</em>の合計で決まる。同じ武器は<em>' + BAL.sameWeaponMax + '基</em>まで</span></div>' +
+      '<div><b>編成</b></div>' +
       '<div class="lo-num"><i>種類</i><b>' + Game.loadoutWeapons().length + '<small>/' + nOpen + '</small></b></div>' +
       '<div class="lo-num"><i>コストの上限</i><b>' + Game.costCap() + '</b></div>';
     p.appendChild(hero);
@@ -1707,7 +1697,7 @@ const UI = {
       return d;
     };
     const syn = Util.el('div', 'lo-synbox');
-    syn.innerHTML = '<div class="csec"><b>連携</b><span>2つの武器がそろうと、3択に出る</span><em>' + on.length + ' 成立</em></div>';
+    syn.innerHTML = '<div class="csec"><b>連携</b><em>' + on.length + ' 成立</em></div>';
     if (!on.length && !near.length) syn.appendChild(Util.el('div', 'lo-none', 'この編成で狙える連携はありません'));
     for (const id of on) syn.appendChild(row(id, 'on'));
     for (const id of near) syn.appendChild(row(id, 'near'));
@@ -1787,7 +1777,7 @@ const UI = {
     const have = IDS.filter(id => Game.own(id) > 0).length;
     const head = Util.el('div', 'phead');
     head.innerHTML = '<b>カードコレクション</b><span class="sub">' + have + ' / ' + total +
-      ' 種類　永久資源。同じカードを重ねるほど凸が上がって強くなる</span>';
+      ' 種類</span>';
     p.appendChild(head);
 
     // **種類ごとのタブ**（1005c・ユーザー「図鑑にタブを実装して、カードや敵の種類毎に分けてください、
@@ -1795,14 +1785,14 @@ const UI = {
     //   前は全部の節を1枚に縦に並べていた（百数十枚＋敵）。タブの見た目はスキルの画面と同じキー（.sk-tab）。
     //   武器強化と連携は、さらに武器ごとのチップで絞る（札が増えても1画面の量が増えない）
     const tabsDef = [
-      { kind: 'weapon',  name: '武器',   sub: '編成に入れて盤に置く' },
-      { kind: 'mod',     name: '強化',   sub: '3択に出る。その武器が編成にあると効く', byWeapon: true },
-      { kind: 'synergy', name: '連携',   sub: '3択に出る。2つの武器がそろうと効く', byWeapon: true },
-      { kind: 'generic', name: '汎用',   sub: '3択に出る。どの編成でも効く' },
-      { kind: 'perm',    name: '常駐',   sub: '持っているだけで常に効く。凸で強くなる' },
+      { kind: 'weapon',  name: '武器',   sub: '盤に置く' },
+      { kind: 'mod',     name: '強化',   sub: '編成にあると効く', byWeapon: true },
+      { kind: 'synergy', name: '連携',   sub: '2つの武器がそろうと効く', byWeapon: true },
+      { kind: 'generic', name: '汎用',   sub: 'どの編成でも効く' },
+      { kind: 'perm',    name: '常駐',   sub: '持つだけで効く' },
       { kind: 'key',     name: '鍵',     sub: '機能を開く' },
-      { kind: 'apex',    name: 'アセンション', sub: '上位パックから出る。アセンションに入ってから。第30章までの3択・ふつうのパックには出ない' },
-      { kind: 'upper',   name: '上位',   sub: '前提の2枚をその出撃で取ると3択に出る。1枚だけ。パックからは出ない' },
+      { kind: 'apex',    name: 'アセンション', sub: '上位パックのみ' },
+      { kind: 'upper',   name: '上位',   sub: '前提2枚で3択に出る' },
       { kind: 'enemy',   name: '敵',     sub: '侵入してくるプログラム。縁の色の切れた輪が耐性の印' },
     ];
     const idsOf = (kind) => kind === 'enemy' ? [] : kind === 'apex' ? (Asc.on(Game.perm) ? CARD_IDS.filter(id => CARDS[id].ap) : [])
@@ -1885,21 +1875,15 @@ const UI = {
     //   ボスは ENEMY_TYPES の1種ではなく Combat.spawnBoss が作る（中身は grunt を硬く・遅く・大きくしたもの）。
     //   画面の名前は「ルートキット」（コアを乗っ取る不正プログラム。世界観の敵の名前と同じ付け方・仮）
     const bossCh = BAL.bossChapters.filter(c => !(BAL.finalOn && c === MAIN_CHAPTERS)).join('・');   // 第30章はラスボス専用（下の行）
-    //   **3体に分けた**（強み1つ・弱点1つ）。出る章は固定：第5章ワーム・第10章ルートキット・第15章ジャマー、第${BAL.bossMixFrom}章から口ごとに混ざる
-    const cond = {
-      worm: '足止め・掴みが効く（合計 ' + BAL.ccMaxSec + ' 秒まで）。数節の体を貫通する弾・光線がまとめて抜く。減速は効かない',
-      rootkit: '弱点は少ない。凍結の減速・足止め・触手の引き寄せが微弱に効く（効き目・持続とも ' + Math.round(BAL.rootCcK * 100) + '%）。ワームほどは止まらない',
-      jammer: '腕が届くのは近い ' + BAL.bossJamMax + ' 基だけ。遠くから撃つ武器・射程の長い武器は止められない。足止め・掴み・減速は効かない',
-    };
+    //   強み1つ・弱点1つだけ（文は Combat.BOSS_KIND）。出る章は固定：第5章ワーム・第10章ルートキット・第15章ジャマー、第${BAL.bossMixFrom}章から口ごとに混ざる
     const ch0 = { worm: 5, rootkit: 10, jammer: 15 };
     for (const k of BAL.bossKinds) {
       const K = Combat.BOSS_KIND[k];
       const boss = Util.el('div', 'erow eboss');
       boss.innerHTML = '<span class="edot">' + this.ringGlyph(null, 12, K.col) + '</span>' +
         '<div class="ebody"><b>' + K.jp + '<em>' + K.en + ' ─ BOSS</em><u>第' + ch0[k] + '章から</u></b>' +
-        '<p>強み：<strong>' + K.strong + '</strong>（HP 75・50・25% を割るたびに1回・使う前に約1秒の予告）。' +
-        (k === 'worm' ? 'レーンに沿って前へ数タイル跳ぶ。' : k === 'rootkit' ? '体が硬い。仕掛けは控えめで、直前にいちばん削った武器の種類からのダメージが数秒半分。' : 'ジャマーから最も近い ' + BAL.bossJamMax + ' 基へ腕を伸ばし、数秒撃てなくする（距離は問わない）。') + '</p>' +
-        '<small>弱点：' + cond[k] + '</small></div>';
+        '<p>強み：<strong>' + K.strong + '</strong></p>' +
+        '<small>弱点：' + K.weak + '</small></div>';
       el.appendChild(boss);
     }
     if (BAL.finalOn) {
@@ -1907,16 +1891,12 @@ const UI = {
       const fb = Util.el('div', 'erow eboss');
       fb.innerHTML = '<span class="edot">' + this.ringGlyph(null, 14, K.col) + '</span>' +
         '<div class="ebody"><b>' + K.jp + '<em>' + K.en + ' ─ FINAL BOSS</em><u>第30章</u></b>' +
-        '<p>すべてを初期化する不正プログラム。大型の長い蛇で、頭と ' + BAL.finalSegs + ' 節の胴がうねる道をゆっくり進む。第30章は雑魚が出ず、ウェーブ1〜4はこの1体を<strong>撃退</strong>（HP が ' +
-        BAL.finalRetreatAt.map(x => Math.round(x * 100) + '%').join('・') + ' まで減ると退く・HP は持ち越し）、ウェーブ5で<strong>倒す</strong>。コアに着いたらその場で負け。</p>' +
-        '<p>強み：<strong>噛みつき</strong>（大顎で近い武器1基を壊す・その出撃のあいだ戻らずコストも戻らない）／<strong>レーザー</strong>（近い ' + BAL.finalLaserN + ' 基を ' + BAL.finalLaserSec +
-        ' 秒撃てなくする）／<strong>耐性</strong>（直近に頭を削った武器の種類のダメージが、そのウェーブのあいだ半分）。節目ごとに使い、使う前に約 ' + BAL.finalTele + ' 秒の予告。</p>' +
-        '<small>弱点：<strong>頭</strong>。胴の節は ' + Math.round(BAL.finalBodyMul * 100) + '% しか通らない。状態異常・減速・足止め・掴み・即死は効かない（固定の DPS チェック）。射程の長い単体の武器で頭を撃て</small></div>';
+        '<p>強み：<strong>' + K.strong + '</strong></p>' +
+        '<small>弱点：' + K.weak + '</small></div>';
       el.appendChild(fb);
     }
     const note = Util.el('div', 'erow eboss');
-    note.innerHTML = '<div class="ebody"><p>節目の章（第' + bossCh + '章、第31章から先は5章ごと）の最後のウェーブに、湧き口ごとに1体。そのウェーブは雑魚が出ない。' +
-      'コアへゆっくり歩き、<strong>着いたらその場で負け</strong>。コアに届く前に削り切る。</p></div>';
+    note.innerHTML = '<div class="ebody"><p>第' + bossCh + '章（以降5章ごと）の最後のウェーブ。<strong>コアに着いたら負け</strong></p></div>';
     el.appendChild(note);
     this.collUpper(el);
     p.appendChild(el);
@@ -2029,11 +2009,6 @@ const UI = {
       const note = Util.el('div', 'gs-note');
       note.innerHTML = '<em>// GUARANTEE</em>' + BAL.rarity[pk.guarantee].name + '以上 1枚確定';
       gs.appendChild(note);
-    }
-    if (pk.upper && pk.ap === 'syn') {
-      const fu = Util.el('div', 'gs-note fusion');
-      fu.innerHTML = '<em>// FUSION</em>合成の札（レジェンド・いちばん出にくい）は準備中です。いまは出ません';
-      gs.appendChild(fu);
     }
 
     // 交換の窓（アセンションだけ）：同じ分野のふつうのパック M 個＋コイン C 枚 → 上位1個。選んでいるのが上位パックなら、その元の分野で出す
@@ -2238,10 +2213,7 @@ const UI = {
     p.appendChild(st);
 
     const note = Util.el('div', 'pz-gain');
-    note.innerHTML = '<h4>しくみ</h4>' +
-      '<p>第31章から先を突破すると経験値が入り、レベルが上がるたびに恒久の火力とパックがもらえます。何も失いません</p>' +
-      '<p>奥の章ほど経験値が大きく増えます。同じ章をもう一度突破しても、少しだけ入ります</p>' +
-      '<p>第31章から先は敵も強くなり、レベル ' + BAL.ascLurePerLv + ' ごとに敵の量（誘引）が1段上がります</p>';
+    note.innerHTML = '<p>第31章から先を突破すると経験値。レベルで火力とパック、敵も増える</p>';
     p.appendChild(note);
   },
 
@@ -2273,7 +2245,7 @@ const UI = {
       ? '<div class="pz-packs">' +
           '<div>' + CardFX.miniPack(PACKS.relic) + '<b>常駐パック</b><em>×' + pv.relic + '</em></div>' +
           '<div>' + CardFX.miniPack(PACKS.basic) + '<b>カードパック</b><em>×' + pv.cards + '</em></div></div>' +
-        '<p>奥まで突破してから再起動するほど多い。カードパックの分野は、突破した章の分野から出る</p>' +
+        '<p>奥まで突破してから再起動するほど多い</p>' +
         // 前回の到達より浅いときは減る（Pack.prestigePreview）。**減っていることを隠さない**
         ((perm.legacyDeep || 0) > cleared
           ? '<p class="pz-warn">前回は第' + perm.legacyDeep + '章まで進んでいます。そこより浅いところで再起動すると、得られるパックが大きく減ります（今は突破 ' + cleared + ' 章）</p>'
@@ -2318,8 +2290,7 @@ const UI = {
     const pv = demo ? { relic: 3, cards: 8 } : Pack.prestigePreview(Game.clearedCount(), Game.perm.prestiges, Game.perm.legacyDeep || 0);
     const body = Util.el('div', 'rs rs-lose');
     body.innerHTML =
-      '<div class="rs-ban"><b>再起動</b><span>本当に再起動しますか？</span></div>' +
-      '<div class="rs-tip">コイン・スキルツリー・章の突破・盤の配置を失います。カード・パック・常駐は残ります</div>' +
+      '<div class="rs-ban"><b>再起動</b><span>再起動しますか？</span></div>' +
       '<div class="rs-rew">' +
         '<div class="rs-pack">' + CardFX.miniPack(PACKS.relic) + '<b>常駐パック</b><em>×' + pv.relic + '</em></div>' +
         '<div class="rs-pack">' + CardFX.miniPack(PACKS.basic) + '<b>カードパック</b><em>×' + pv.cards + '</em></div></div>';
@@ -2395,7 +2366,7 @@ const UI = {
       if (best) body.style.setProperty('--rk', best.color);
     }
     body.appendChild(this.choiceHead('レベルアップ',
-      demo ? '見本　選んでも何も変わりません' : 'ウェーブ ' + run.wave + ' 突破　1枚選ぶ' +
+      demo ? '見本　選んでも何も変わりません' : '1枚選ぶ' +
       (run.pendingPicks > 1 ? '（あと ' + run.pendingPicks + ' 枚）' : ''), '// UPGRADE SELECT'));
     // **なぜ4択・5択なのか／なぜ何枚も取れるのかを出す。**（ユーザー 2026-09-24
     //   「5択、複数回選択出来るのは一体何の効果なのかわからない」）
@@ -2723,7 +2694,7 @@ const UI = {
     const body = Util.el('div', 'rs rs-skip');
     body.innerHTML =
       '<div class="rs-ban"><i class="rs-sweep"></i><em>// BYPASSED</em><b>SKIP</b><span>' + res.stage.name + '　通過（突破ではない）</span></div>' +
-      '<div class="rs-tip">コイン・カード・再起動の評価は増えません。初回突破の報酬は残っているので、あとで自分で突破すれば受け取れます</div>';
+      '<div class="rs-tip">報酬は残ります</div>';
     const go = Util.el('button', 'rs-go');
     go.innerHTML = '<span>次へ</span><b>' + (res.next ? res.next.name : 'ホーム') + '</b>' + Icons.get('play');
     go.addEventListener('click', () => { this.closeModal(); this.renderHome(); });
@@ -2882,7 +2853,7 @@ const UI = {
     }
     // アセンション：第30章を初めて突破した／経験値とレベルアップ（パックは上の「獲得」に入っている）
     if (res.ok && got && got.ascOpened) {
-      body.appendChild(Util.el('div', 'rs-tip', 'アセンションが開きました。第31章から先へ進めます（下の「アセンション」で確認）'));
+      body.appendChild(Util.el('div', 'rs-tip', 'アセンション解放'));
     }
     if (res.ok && got && got.asc) {
       // 経験値のバー（0929v）。最終の状態（レベル・次まで・バーの長さ）を先に組み、_rsAscBar が始まりの状態から伸ばす
@@ -2896,12 +2867,9 @@ const UI = {
     }
 
     // 完璧クリアの案内は1行だけ（取れるもの／取り済み）
-    if (!perfect) {
-      const rec = Game.stageRec(res.stage.id);
+    if (!perfect && !Game.stageRec(res.stage.id).perfect) {
       const pk = PACKS[Pack.forStage(res.stage.id)];
-      body.appendChild(Util.el('div', 'rs-tip', rec.perfect
-        ? 'この周の完璧クリアのパックは受け取り済み'
-        : '1体も通さずに凌ぐと ' + pk.name + ' ×2（再起動ごとに1回）'));
+      body.appendChild(Util.el('div', 'rs-tip', '完璧クリア ' + pk.name + ' ×2'));
     }
     if (res.missions && res.missions.length) {
       const ms = Util.el('div', 'rs-miss');

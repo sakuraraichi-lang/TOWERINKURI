@@ -66,7 +66,7 @@ const CARDS = {
     apply(run) { const w = run.wp('gatling'); if (w) { w.flags.heat = true; w.dyn.heatMax = BAL.heatCap; } } }),
   // 曳光弾（旧・多銃身）：装甲への答え。当たった敵の装甲が一定時間削れる（その武器だけでなく、ほかの武器の1発も通りやすくなる）
   gat_barrels: C({ id: 'gat_barrels', kind: 'mod', weapon: 'gatling', rarity: 'epic', maxStack: 2, rankAxis: 'down',
-    name: '曳光弾', desc: 'ガトリングの弾が当たった敵は、3秒間 装甲のダメージ軽減が 35%小さくなる（重ねると加算）。弾は橙の光の尾を引く',
+    name: '曳光弾', desc: 'ガトリングの弾が当たった敵は、3秒間 装甲のダメージ軽減が 35%小さくなる（重ねると加算）',
     apply(run) { const w = run.wp('gatling'); if (w) w.dyn.tracerDown = Math.min(BAL.cardFx.armorDownMax, (w.dyn.tracerDown || 0) + Game.rka(BAL.cardFx.tracerDown, 'down')); } }),
   // 掃射（旧・暴発装薬）：首振りが速くなり、1体に当たる時間が短い代わりに、広く撫でて群れを抜く
   gat_loose: C({ id: 'gat_loose', kind: 'mod', weapon: 'gatling', rarity: 'epic', maxStack: 1, rankAxis: 'sweep',

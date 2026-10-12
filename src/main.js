@@ -117,13 +117,13 @@ const Main = {
     //   準備フェーズの帯が抜けたあとに出す（重ねると読めない）
     if (Game.checkCapUp()) {
       const run = Game.run;
-      setTimeout(() => { if (UI._screen === 'battle' && Game.run === run && run.capUp && Game.canBuild()) UI.toastMsg('全撤去して置き直せます', '#ffc24a', 'capup'); }, (cutDelay > 0 ? cutDelay : 0) + 1700);
+      setTimeout(() => { if (UI._screen === 'battle' && Game.run === run && run.capUp && Game.canBuild()) UI.toastMsg('コストの上限アップ', '#ffc24a', 'capup'); }, (cutDelay > 0 ? cutDelay : 0) + 1700);
     }
     UI.renderTray();
     this.syncStartButton();
     UI.closeBattleCfg();
-    if (cutDelay > 0) setTimeout(() => { if (UI._screen === 'battle' && Game.phase !== 'battle') UI.cutin('準備フェーズ', '武器を置いて「準備完了」', 'prep'); }, cutDelay);
-    else UI.cutin('準備フェーズ', '武器を置いて「準備完了」', 'prep');
+    if (cutDelay > 0) setTimeout(() => { if (UI._screen === 'battle' && Game.phase !== 'battle') UI.cutin('準備フェーズ', '', 'prep'); }, cutDelay);
+    else UI.cutin('準備フェーズ', '', 'prep');
   },
 
   beginBattle() {
@@ -173,7 +173,7 @@ const Main = {
     Game.save();
     UI.renderHome();
     UI.renderPanel();
-    UI.toastMsg(res.count + '章をまとめて通過（報酬なし）', '#ffb43c', 'skip');
+    UI.toastMsg(res.count + '章 通過', '#ffb43c', 'skip');
   },
 
   finish(ok) {

@@ -119,7 +119,7 @@ const DebugRoom = {
     const run = Game.run;
     if (!this._dirSnap || !run) return;
     run.capUp = true;
-    UI.toastMsg('全撤去して置き直せます', '#ffc24a', 'capup');
+    UI.toastMsg('コストの上限アップ', '#ffc24a', 'capup');
   },
   //   wid … 見本の武器（省くと編成の1つ目＝ふつうはガトリング）。0930：**向きが効かない武器（指定攻撃・凍結）は花が出ない**ので、その見本もここから出す
   dirDemo(where, wid) {
@@ -198,7 +198,7 @@ const DebugRoom = {
         ['3択（エピック・レジェンド入り）', () => UI.showDraft(me._cards('rare', 1).concat(me._cards('epic', 1), me._cards('legendary', 1)))],
         ['3択（上位札・連携の上位札入り）', () => UI.showDraft(['up_gat_mount', 'up_syn_conduct'].concat(me._cards('common', 1)))],
         ['3択（連携の上位札3枚・前提の行が長い）', () => UI.showDraft(['up_syn_resonate', 'up_syn_venomfire', 'up_syn_conduct'])],
-        ['準備フェーズの帯', cut('準備フェーズ', '武器を置いて「準備完了」', 'prep')],
+        ['準備フェーズの帯', cut('準備フェーズ', '', 'prep')],
         ['ウェーブの帯', cut('WAVE 3<em> / ' + W + '</em>', '', 'wave')],
         ['最終ウェーブの帯', cut('WAVE ' + W + '<em> / ' + W + '</em>', '最終ウェーブ', 'last')],
         ['ボスの帯', () => { UI.cutinBoss(W); setTimeout(() => UI.sysWarn('boss'), 2100); }],
@@ -263,18 +263,18 @@ const DebugRoom = {
         ['カード取得（レジェンド）', () => UI.toastMsg('取得: 見本のカード', BAL.rarity.legendary.color, 'card')],
         ['自動購入', () => UI.toastMsg('自動購入 6件　コイン 12.4K', '#ff8a1f', 'auto')],
         ['まとめて購入', () => UI.toastMsg('4件 購入　コイン 8.1K', '#ff8a1f', 'buy')],
-        ['スキップ（一括通過）', () => UI.toastMsg('5章をまとめて通過（報酬なし）', '#ffb43c', 'skip')],
+        ['スキップ（一括通過）', () => UI.toastMsg('5章 通過', '#ffb43c', 'skip')],
         ['ステージ選択', () => UI.toastMsg('第7章 を選択', '#ff8a1f', 'select')],
-        ['置く地面をタップ', () => UI.toastMsg('刀 を置く地面をタップ', '#ff5a3c', 'place')],
+        ['置く地面をタップ', () => UI.toastMsg('地面をタップ', '#ff5a3c', 'place')],
         ['注意（編成なし）', () => UI.toastMsg('武器を1つ以上編成してください', '#ff8080', 'warn')],
         ['ロック（開いていない）', () => UI.toastMsg('第10章を突破すると開きます', '#ff8080', 'lock')],
-        ['コストが足りない', () => UI.toastMsg('コストが足りません（ミサイルはコスト4・残り 2）', '#ff8080', 'limit')],
+        ['コストが足りない', () => UI.toastMsg('コスト不足', '#ff8080', 'limit')],
         ['コストの上限が上がった（全撤去が光る）', () => me.capDemo()],
         ['隣り合う異種で強め合う（線・レートが上がる・同じ種類は数えない）', () => me.adjDemo()],
         ['システム', () => UI.toastMsg('処理の重さを表示', '#ff8a1f', 'sys')],
         ['エラー', () => UI.toastMsg('出せませんでした：見本', '#ff4a66', 'error')],
         ['連続で6個（差し替わる）', () => ['weapon', 'wave', 'buy', 'warn', 'card', 'lock'].forEach((k, i) => setTimeout(() =>
-          UI.toastMsg(['新しい武器 ガトリング', 'ウェーブ ' + (i + 1) + ' 突破', '3件 購入　コイン 900', 'コストが足りません', '取得: 見本のカード', '開いていません'][i], '#ffc24a', k), i * 260))],
+          UI.toastMsg(['新しい武器 ガトリング', 'ウェーブ ' + (i + 1) + ' 突破', '3件 購入　コイン 900', 'コスト不足', '取得: 見本のカード', '開いていません'][i], '#ffc24a', k), i * 260))],
       ]],
       ['スキルツリー（ノードを取った瞬間）', [
         ['1つ取る（火力の連なり）', () => me.skill('normal')],
