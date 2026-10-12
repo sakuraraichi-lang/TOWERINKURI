@@ -7,7 +7,8 @@
 //         長い説明はしない。見せるだけ。そのあとゲーム画面に戻って報酬を受け取る
 //     §19 CRT・走査線は「現実とゲームをつなぐ窓」として、タイトルと再起動の移り変わりでだけ使う
 //     §4  違う年代の物が同じ部屋にある（CRT・ベージュのPC・黒電話・新聞・スマートフォン）
-//     §30 演出でゲームを止めない ── **約3秒・どこを触っても飛ばせる**
+//     §30 演出でゲームを止めない ── **飛ばせる**（2026-10-12：ユーザー「滞在時間が短く、読めない。タップして進めるように」→ 自動で進めず、
+//         タップで次の文へ。右上の「SKIP」で最後まで飛ばす）
 //   ニュースと広告の文はこちらで書いてよい（ユーザー 2026-09-28）。**話しかけてくる人物は出さない**（§26）
 // ---------------------------------------------------------------
 'use strict';
@@ -29,6 +30,22 @@ const Scenes = {
     'ブロードバンド　今なら月額1,980円',
     'あなたの家にも、かしこい相棒を。',
     '求人　夜間監視スタッフ　時給1,400円〜',
+  ],
+
+  // アセンション（パックの圧縮）のときにテレビへ流す文（2026-10-12・こちらで書いた）。再起動の文と同じ世界。AI の側が人の手を超えていく話
+  ASC_NEWS: [
+    '上位の侵入、各地で確認　従来の防壁では検知できず',
+    '「100の断片を1つに圧縮」　新方式の演算基盤が稼働',
+    'AI各社の学習データ、桁が変わる　専門家「もう追えない」',
+    '深夜の大規模障害　原因は「人の手を離れた自動更新」',
+    '圧縮された指示が、人の知らない場所で動き出す',
+    '次世代基盤MAKINA　応答時間は「測定不能」',
+    '監視スタッフ不足　夜間の防衛を外部委託へ',
+  ],
+  ASC_ADS: [
+    '求人　上位オペレーター　経験者優遇・夜勤手当あり',
+    'データ圧縮サービス　容量を気にせず保存。',
+    'あなたの手で守れる、最後のネットワーク。',
   ],
 
   _pick(list, n) {
@@ -154,10 +171,11 @@ const Scenes = {
 
   // 部屋を先に用意しておく（再起動の確認を開いたとき・UI.confirmPrestige）。
   //   画像が使えるときは画像＋文字、使えないときはコードで描く（PC で約12〜100ミリ秒）
-  prepare() {
+  prepare(kind) {
     this.loadRoom();
-    const pick = this._pick(this.NEWS, 3);
-    const ad = this._pick(this.ADS, 2);
+    const asc = kind === 'asc';
+    const pick = this._pick(asc ? this.ASC_NEWS : this.NEWS, 4);   // [1]＝部屋の新聞／ほかの3つ＝テレビに順に流す
+    const ad = this._pick(asc ? this.ASC_ADS : this.ADS, 2);
     let room;
     if (this.roomReady()) {
       room = document.createElement('div');
@@ -173,42 +191,80 @@ const Scenes = {
       room.className = 'rb-room';
       Room.paint(room, { ad: ad[0], paper: pick[1], phone: ad[1], memo: this.MEMO });
     }
-    this._prep = { pick, cv: room };
+    this._prep = { pick, cv: room, kind: asc ? 'asc' : 'reboot' };
   },
 
-  // 再起動の場面。終わったら（または触って飛ばしたら）done を呼ぶ
-  //   前後のつなぎ（0929o）：ゲームの画面がブラウン管のように横一線に潰れて消え（0.3秒）→ ゲームの画面が点いて部屋へ縮む →
-  //   部屋を出るときはまた横一線に潰れて消え（0.3秒）→ 結果の帯が叩きつけられる。動きは CSS（body.rb-off ／ .rbscene の crton・rbOff）
-  reboot(done) {
-    if (!this._prep) this.prepare();
+  // 再起動の場面。終わったら（または SKIP したら）done を呼ぶ
+  reboot(done) { this.tv('reboot', done); },
+  // アセンション後のパックの圧縮（2026-10-12）：「パック圧縮中　しばらくお待ちください」の画面が引いて、再起動と同じ部屋のテレビへ。
+  //   n … 流す文の数（初回は3つ・2回目から1つ。何度も交換する人を足止めしない）
+  compress(done, n) { this.tv('asc', done, n); },
+
+  // 前後のつなぎ（0929o）：ゲームの画面がブラウン管のように横一線に潰れて消え（0.3秒）→ ゲームの画面が点いて部屋へ縮む →
+  //   部屋を出るときはまた横一線に潰れて消え（0.3秒）。動きは CSS（body.rb-off ／ .rbscene の crton・rbOff）
+  // **進め方（2026-10-12・ユーザー「滞在時間が短く、読めない。タップして進めるように」）**：自動では進まない。
+  //   テレビに最初の文が出たら、タップするたびに次の文へ。最後の文のあとのタップで、テレビの中へ入って閉じる。
+  //   右上の「SKIP ▶▶」で最後まで飛ばす。60秒触られなければ閉じる（固まらないための保険）
+  tv(kind, done, nLines) {
+    if (!this._prep || this._prep.kind !== kind) this.prepare(kind);
     const { pick, cv } = this._prep;
     this._prep = null;
+    const asc = kind === 'asc';
+    const lines = [pick[0], pick[2], pick[3]].slice(0, asc && nLines ? nLines : 3);
+    const n = lines.length;
     document.body.classList.add('rb-off');
     try { Snd.noise({ dur: 0.18, vol: 0.08, f: 3200, q: 0.5 }); } catch (e) {}   // 画面が切れる「ブツッ」
     setTimeout(() => {
       document.body.classList.remove('rb-off');
-      const el = Util.el('div', 'rbscene');
+      const el = Util.el('div', 'rbscene' + (asc ? ' asc' : ''));
+      const game = asc
+        ? '<div class="rb-wait"><em>// PACK COMPRESSION</em><b>パック圧縮中</b><span>しばらくお待ちください</span><i class="rb-wbar"><u></u></i></div>'
+        : '<b>エクスメントマキナ</b>';
       el.innerHTML = '<div class="rb-box">' +
-        '<div class="rb-screen"><div class="rb-game"><b>エクスメントマキナ</b></div><div class="rb-news"><b>NEWS</b><span>' + pick[2] + '</span></div><i class="rb-scan"></i></div></div>' +
-        '<div class="rb-skip">タップで飛ばす</div>';
-      // 現実の部屋は写実寄り（src/room.js・ユーザー 2026-09-28「リアル寄りの生成に」・参考画像の暗さと汚れ）
+        '<div class="rb-screen"><div class="rb-game">' + game + '</div><div class="rb-news"><b>NEWS</b><span></span></div><i class="rb-scan"></i></div></div>' +
+        '<button class="rb-skipbtn" type="button">SKIP ▶▶</button>' +
+        '<div class="rb-skip"><i class="rb-next">タップで次へ ▶</i><em class="rb-cnt"></em></div>';
       el.querySelector('.rb-box').prepend(cv);
       document.body.appendChild(el);
-      let ended = false;
+      const tx = el.querySelector('.rb-news span'), cnt = el.querySelector('.rb-cnt'), nxt = el.querySelector('.rb-next');
+      const gameEl = el.querySelector('.rb-game');
+      let phase = 'pre', idx = 0, ended = false, idle = 0;
+      const timers = [];
+      const later = (fn, ms) => timers.push(setTimeout(fn, ms));
       const end = () => {
         if (ended) return; ended = true;
+        clearTimeout(idle); timers.forEach(clearTimeout);
         el.classList.add('out');                       // 横一線に潰れて消える（.3秒）
         setTimeout(() => { el.remove(); done && done(); }, 320);
       };
-      el.addEventListener('pointerdown', end);
-      setTimeout(() => { if (!ended) el.classList.add('pull'); }, 330);        // ゲームの画面が点いてから、テレビの中へ縮む
-      setTimeout(() => { if (!ended) el.classList.add('news'); }, 1150);
-      setTimeout(() => {                                                       // もう一度テレビの中へ入っていく
-        if (ended) return;
-        el.classList.add('dive');
+      const arm = () => { clearTimeout(idle); idle = setTimeout(end, 60000); };
+      const show = (i) => {
+        tx.textContent = lines[i];
+        tx.classList.remove('sw'); void tx.offsetWidth; tx.classList.add('sw');   // 切り替わりに一瞬ぶれる（終わったら元の見た目）
+        cnt.textContent = (i + 1) + ' / ' + n;
+        nxt.textContent = i < n - 1 ? 'タップで次へ ▶' : 'タップで閉じる ▶';
+        if (i > 0) { try { Snd.tone({ type: 'square', f0: 900, f1: 700, dur: 0.05, vol: 0.03 }); } catch (e) {} }
+      };
+      const pull = () => {                             // ゲームの画面がテレビの中へ縮み、文が出る
+        if (phase !== 'pre') return;
+        phase = 'pull'; el.classList.add('pull');
+        later(() => { if (ended) return; phase = 'news'; el.classList.add('news', 'ready'); show(0); }, 820);
+      };
+      const dive = () => {                             // もう一度テレビの中へ入っていく
+        phase = 'dive'; el.classList.add('dive'); el.classList.remove('ready');
+        if (asc) gameEl.innerHTML = '<div class="rb-wait done"><em>// COMPLETE</em><b>圧縮完了</b></div>';
         try { Snd.tone({ type: 'sine', f0: 180, f1: 900, dur: 0.45, vol: 0.05 }); } catch (e) {}
-      }, 2350);
-      setTimeout(end, 2900);
+        later(end, 900);
+      };
+      el.addEventListener('pointerdown', (ev) => {
+        arm();
+        if (ev.target.closest && ev.target.closest('.rb-skipbtn')) { ev.stopPropagation(); end(); return; }
+        if (phase === 'pre') { if (asc) pull(); return; }          // 再起動は自動で縮む。圧縮の待ち画面は、触れば縮む
+        if (phase === 'news') { if (idx < n - 1) show(++idx); else dive(); return; }
+        if (phase === 'dive') end();
+      });
+      arm();
+      later(pull, asc ? 1700 : 330);
     }, 300);
   },
 };

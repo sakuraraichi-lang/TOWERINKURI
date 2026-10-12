@@ -1491,9 +1491,31 @@ body:not(.tabsoff) .hlogo{display:none;}
 #tray .chip.unit u s{text-decoration:none;margin-left:3px;color:var(--txt2);}
 #tray .chip.unit.full{opacity:.6;}   /* コストが足りず、もう置けない（押すと理由の通知が出る） */
 /* コストの表示と全撤去（盤の左上・置ける間だけ・2026-09-30 段1b） */
-.hcost{font-size:11px;font-weight:800;color:var(--txt2);background:rgba(10,12,17,.75);
-  border:1px solid var(--line2);padding:3px 7px;font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none;}
-.hcost.full{color:var(--acc);border-color:var(--acc);}
+/* コストの表示（2026-10-12・ユーザー「小さくあるだけで分かりづらい」→ 大きな数字＋置いたぶんの棒＋一言） */
+.hcost{display:grid;grid-template-columns:auto auto;align-items:end;column-gap:8px;row-gap:2px;min-width:104px;
+  background:rgba(10,12,17,.9);border:1.5px solid var(--acc);border-left-width:4px;padding:3px 8px 4px;
+  font-variant-numeric:tabular-nums;white-space:nowrap;pointer-events:none;
+  box-shadow:0 0 12px rgba(255,138,31,.22);}
+.hcost .hc-l{font:800 10px/1 "Share Tech Mono",ui-monospace,Consolas,monospace;letter-spacing:.22em;color:var(--acc);align-self:center;}
+.hcost .hc-l small{display:none;}
+.hcost .hc-n{justify-self:end;font-size:19px;font-weight:900;line-height:1;color:#fff;letter-spacing:.02em;text-shadow:0 1px 0 #000;}
+.hcost .hc-n small{font-size:12px;font-weight:800;color:var(--txt2);margin-left:1px;}
+.hcost .hc-bar{grid-column:1/3;position:relative;display:block;height:6px;background:#1a1d25;border:1px solid var(--line2);overflow:hidden;}
+.hcost .hc-bar u{position:absolute;left:0;top:0;bottom:0;display:block;text-decoration:none;transition:width .25s ease-out;}
+.hcost .hc-bar .fl{background:linear-gradient(90deg,#ff8a1f,#ffb43c);}
+.hcost .hc-bar .gh{background:repeating-linear-gradient(135deg,rgba(255,200,120,.55) 0 3px,rgba(255,200,120,.15) 3px 6px);}
+.hcost .hc-s{grid-column:1/3;font-size:10px;font-weight:800;color:var(--txt2);letter-spacing:.04em;text-shadow:0 1px 0 #000;}
+.hcost.near{border-color:#ffd21f;box-shadow:0 0 12px rgba(255,210,31,.28);}
+.hcost.near .hc-l,.hcost.near .hc-s{color:#ffd21f;}
+.hcost.near .hc-bar .fl{background:linear-gradient(90deg,#ffb43c,#ffd21f);}
+.hcost.full,.hcost.over{border-color:var(--danger);box-shadow:0 0 12px rgba(255,85,102,.32);}
+.hcost.full .hc-l,.hcost.full .hc-s,.hcost.over .hc-l,.hcost.over .hc-s{color:var(--danger);}
+.hcost.full .hc-bar .fl{background:linear-gradient(90deg,#ff5566,#ff8a6a);}
+.hcost.over .hc-bar .gh{background:repeating-linear-gradient(135deg,rgba(255,85,102,.7) 0 3px,rgba(255,85,102,.2) 3px 6px);}
+.hcost.up .hc-bar{animation:hcUp 1.1s ease-in-out infinite;}
+.hcost.bump .hc-n{animation:hcBump .3s ease-out;}
+@keyframes hcBump{0%{transform:scale(1.35);color:#ffd21f;}100%{transform:scale(1);}}
+@keyframes hcUp{0%,100%{box-shadow:none;}50%{box-shadow:0 0 8px 1px rgba(255,210,31,.9);}}
 .hclear{font-size:11px;font-weight:700;color:var(--txt2);background:rgba(10,12,17,.75);
   border:1px solid var(--line2);padding:3px 8px;cursor:pointer;white-space:nowrap;
   clip-path:polygon(0 0,calc(100% - 6px) 0,100% 6px,100% 100%,6px 100%,0 calc(100% - 6px));}
@@ -1511,7 +1533,7 @@ body:not(.tabsoff) .hlogo{display:none;}
 .hleft{font-size:11px;font-weight:700;color:var(--txt2);text-shadow:0 1px 3px #000,0 0 6px #000;
   font-variant-numeric:tabular-nums;pointer-events:none;}
 .bhud #perf{font-size:10px;color:var(--dim);}
-#dmgpop{left:6px;right:auto;top:36px;}
+#dmgpop{left:6px;right:auto;top:62px;}
 
 /* カットイン：盤の真ん中を斜めの帯が横切る */
 #cutin{position:absolute;inset:0;z-index:30;pointer-events:none;display:none;overflow:hidden;}
@@ -1655,7 +1677,7 @@ body:not(.tabsoff) .hlogo{display:none;}
 .rb-news{position:absolute;inset:0;display:flex;flex-direction:column;justify-content:center;gap:6px;padding:0 8%;opacity:0;transition:opacity .2s;
   background:linear-gradient(180deg,#1b2a4a,#0e1628);}
 .rb-news b{align-self:flex-start;font:800 9px/1 "Share Tech Mono",ui-monospace,Consolas,monospace;letter-spacing:.3em;color:#fff;background:#d8262e;padding:3px 6px;}
-.rb-news span{font-weight:800;font-size:clamp(9px,2.6vw,14px);color:#fff;line-height:1.35;text-shadow:0 1px 0 #000;}
+.rb-news span{font-weight:800;font-size:clamp(10px,3.5cqw,15px);color:#fff;line-height:1.35;text-shadow:0 1px 0 #000;}
 .rbscene.news .rb-game{opacity:0;}
 .rbscene.news .rb-news{opacity:1;}
 .rbscene.dive .rb-news{opacity:0;}
@@ -2944,3 +2966,29 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 .gs-pull.gx-go:disabled{background:#161920;color:var(--dim);box-shadow:none;border-color:#2a2d34;}
 
 .gs-box.long .pfx-name{font-size:12px;letter-spacing:.04em;white-space:nowrap;padding:3px 6px;}
+
+/* ===== 再起動・パック圧縮のテレビ：タップで進める（2026-10-12・ユーザー「滞在時間が短く、読めない」「パック圧縮中の演出でテレビへ」） =====
+   「タップで次へ」「n / N」は部屋の下に出す。SKIP は右上。切り替わりの揺れは終わったら元の見た目（fill-mode を使わない） */
+.rbscene .rb-skip{display:flex;flex-direction:column;align-items:center;gap:4px;opacity:0;transition:opacity .3s;pointer-events:none;}
+.rbscene.ready .rb-skip{opacity:1;}
+.rbscene .rb-skip .rb-next{font-style:normal;font-size:13px;font-weight:800;letter-spacing:.2em;color:#fff;background:rgba(0,0,0,.72);
+  padding:6px 14px;border:1px solid rgba(255,255,255,.4);animation:rbNext 1.1s ease-in-out infinite;}
+.rbscene .rb-skip .rb-cnt{font:800 11px/1 "Share Tech Mono",ui-monospace,Consolas,monospace;font-style:normal;letter-spacing:.3em;color:#ffb43c;background:rgba(0,0,0,.6);padding:3px 8px;}
+@keyframes rbNext{0%,100%{opacity:1;}50%{opacity:.45;}}
+.rb-skipbtn{position:absolute;right:12px;top:calc(12px + env(safe-area-inset-top,0px));z-index:3;
+  font:800 11px/1 "Share Tech Mono",ui-monospace,Consolas,monospace;letter-spacing:.2em;color:#fff;background:rgba(0,0,0,.7);
+  border:1px solid rgba(255,255,255,.45);padding:9px 12px;cursor:pointer;}
+.rbscene.out .rb-skipbtn{opacity:0;}
+.rb-news span.sw{animation:rbSw .24s steps(1);}
+@keyframes rbSw{0%{transform:translateX(-4px);text-shadow:3px 0 rgba(255,60,60,.8),-3px 0 rgba(60,200,255,.8);opacity:.5;}
+  50%{transform:translateX(3px);text-shadow:-2px 0 rgba(255,60,60,.7),2px 0 rgba(60,200,255,.7);opacity:1;}}
+/* パック圧縮中の待ち画面（部屋のテレビが点く前の、画面いっぱいのゲーム画面） */
+.rb-wait{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;width:100%;}
+.rb-wait em{font:800 10px/1 "Share Tech Mono",ui-monospace,Consolas,monospace;font-style:normal;letter-spacing:.3em;color:var(--acc);}
+.rb-wait b{font-size:clamp(12px,6cqw,34px);font-weight:900;letter-spacing:.12em;color:#fff;text-shadow:3px 0 rgba(255,60,60,.7),-3px 0 rgba(60,200,255,.7);}
+.rb-wait span{font-size:clamp(9px,3.4cqw,16px);font-weight:700;color:#ffd8a8;letter-spacing:.1em;}
+.rb-wbar{display:block;width:46%;height:6px;border:1px solid rgba(255,255,255,.4);overflow:hidden;margin-top:4px;}
+.rb-wbar u{display:block;height:100%;width:100%;text-decoration:none;transform-origin:left;
+  background:repeating-linear-gradient(90deg,#ff8a1f 0 6px,transparent 6px 8px);animation:rbWait 1.7s linear both;}
+@keyframes rbWait{0%{transform:scaleX(0);}100%{transform:scaleX(1);}}
+.rb-wait.done b{text-shadow:0 0 12px #ff7a18;}

@@ -530,13 +530,53 @@ const UI = {
     if (c.style.display !== disp) { c.style.display = disp; b.style.display = disp; }
     if (!show) { if (this._clearArm) this.disarmClear(); return; }
     const used = Game.costUsed(), cap = Game.costCap();
-    const t = 'コスト ' + used + '/' + cap;
-    if (c.textContent !== t) c.textContent = t;
-    c.classList.toggle('full', used >= cap);
+    this._costFill(c, used, cap, this.placingType && WEAPONS[this.placingType] ? WEAPONS[this.placingType].cost : 0, !!r.capUp);
     const none = !r.units.length;
     if (b.disabled !== none) b.disabled = none;
     b.classList.toggle('glow', !!r.capUp && !none);
     if (none && this._clearArm) this.disarmClear();
+  },
+
+  // コストの表示の中身を書く（盤の左上と確認室で同じものを使う）。used 使用／cap 上限／pend 手に取った武器のコスト（無ければ0）／capUp 上限が上がった直後
+  _costFill(c, used, cap, pend, capUp) {
+    // **コストの表示を大きく（2026-10-12・ユーザー「左上に小さくあるだけで、初めて触ると分かりづらい」）**：
+    //   「COST 7/12」を大きな数字で、置いたぶんの棒（満ちていく）、その下に「あと n 置ける」。
+    //   手に取った武器があれば、そのコストぶんを棒に薄く足して見せる（入れば橙・超えるなら赤）。
+    //   色：7割まで白橙／7割から黄／上限いっぱいで赤。上限が上がったら棒が光る（全撤去の光と同じ時）
+    if (!c._init) {
+      c.innerHTML = '<span class="hc-l">COST<small>コスト</small></span><b class="hc-n"><span></span><small></small></b>' +
+        '<i class="hc-bar"><u class="gh"></u><u class="fl"></u></i><span class="hc-s"></span>';
+      c._init = 1;
+    }
+    const q = (k) => c.querySelector(k);
+    const left = Math.max(0, cap - used), k = cap > 0 ? Util.clamp(used / cap, 0, 1) : 1;
+    const pw = pend;
+    const over = pw > left, gk = cap > 0 ? Util.clamp((used + pw) / cap, 0, 1) : 1;
+    const tn = String(used), ts = '/' + cap;
+    const sub = pw ? (over ? '足りない（あと ' + left + '）' : '置くと あと ' + (left - pw))
+      : used >= cap ? '上限いっぱい' : used === 0 ? '上限まで置けます' : 'あと ' + left + ' 置ける';
+    const nEl = q('.hc-n span'), sEl = q('.hc-n small'), tEl = q('.hc-s');
+    if (nEl.textContent !== tn) { nEl.textContent = tn; c.classList.remove('bump'); void c.offsetWidth; c.classList.add('bump'); }
+    if (sEl.textContent !== ts) sEl.textContent = ts;
+    if (tEl.textContent !== sub) tEl.textContent = sub;
+    const fw = (k * 100).toFixed(1) + '%', gw = (gk * 100).toFixed(1) + '%';
+    const fl = q('.fl'), gh = q('.gh');
+    if (fl.style.width !== fw) fl.style.width = fw;
+    if (gh.style.width !== gw) gh.style.width = gw;
+    c.classList.toggle('full', used >= cap);
+    c.classList.toggle('near', used < cap && k >= 0.7);
+    c.classList.toggle('over', !!pw && over);
+    c.classList.toggle('up', !!capUp);
+  },
+  // 確認室：コストの表示を、置いた0 → 6割 → 8割 → 手に取った武器が入らない → 上限いっぱい の順に1.2秒ずつ見せる（盤の左上と同じ位置に仮に出す）
+  costDemo() {
+    const old = document.getElementById('costdemo'); if (old) old.remove();
+    const host = Util.el('div', 'bhud'); host.id = 'costdemo'; host.style.cssText = 'position:fixed;left:6px;top:calc(6px + env(safe-area-inset-top,0px));z-index:9500;';
+    const c = Util.el('span', 'hcost'); host.appendChild(c); document.body.appendChild(host);
+    const cap = 16, seq = [[0, 0], [10, 0], [13, 0], [13, 4], [16, 0]];
+    c.innerHTML = '<span class="hc-l">COST<small>コスト</small></span><b class="hc-n"><span></span><small></small></b><i class="hc-bar"><u class="gh"></u><u class="fl"></u></i><span class="hc-s"></span>';
+    seq.forEach((x, n) => setTimeout(() => this._costFill(c, x[0], cap, x[1], false), n * 1200));
+    setTimeout(() => host.remove(), seq.length * 1200 + 800);
   },
 
   // 盤の右上の火力の内訳。開いているあいだだけ、0.5秒ごとに組み直す
@@ -2015,9 +2055,13 @@ const UI = {
         const r = demo ? Asc.exchange(perm, meta, base) : Game.exchange(base);
         if (!r.ok) return;
         Snd.ui();
-        this.exchFx(PACKS[r.up], r);
         st.gachaPick = r.up; st._gsFx = 'go';       // 交換したら、できた上位パックの台へ
         rerender();
+        // **「パック圧縮中　しばらくお待ちください」から画面が引いて、再起動と同じ部屋のテレビへ**（2026-10-12・ユーザー指示）。タップで進める。
+        //   初回は文3つ、2回目からは1つ（何度も交換する人を足止めしない）。終わったら斜めの帯（exchFx）
+        const first = demo || !perm.exchTv;
+        if (!demo && !perm.exchTv) { perm.exchTv = 1; try { Game.save(); } catch (e) {} }
+        Scenes.compress(() => this.exchFx(PACKS[r.up], r), first ? 3 : 1);
       });
       ex.appendChild(eb);
       gs.appendChild(ex);
