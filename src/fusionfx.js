@@ -158,22 +158,6 @@ const FusionFX = {
       ctx.globalAlpha = 0.45; ctx.strokeStyle = b.color; ctx.lineWidth = Math.max(2, b.r * 0.8); ctx.lineCap = 'round';
       ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(b.x - ux * b.r * 3.2, b.y - uy * b.r * 3.2); ctx.stroke();
       ctx.globalAlpha = 1;
-      if (b.fx === 'chakram') {   // 輪の刃（円環刃）：外の輪・内の輪・4本のスポーク。回る
-        const r = Math.max(7, b.r * 1.35), a0 = t * 18;
-        ctx.lineWidth = 2.6; ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, 7); ctx.stroke();
-        ctx.lineWidth = 1.8; ctx.strokeStyle = b.color; ctx.beginPath(); ctx.arc(b.x, b.y, r, 0, 7); ctx.stroke();
-        ctx.beginPath(); ctx.arc(b.x, b.y, r * 0.45, 0, 7); ctx.stroke();
-        ctx.beginPath();
-        for (let i = 0; i < 4; i++) { const a = a0 + i * Math.PI / 2; ctx.moveTo(b.x + Math.cos(a) * r * 0.45, b.y + Math.sin(a) * r * 0.45); ctx.lineTo(b.x + Math.cos(a) * (r + 2.6), b.y + Math.sin(a) * (r + 2.6)); }
-        ctx.stroke();
-      } else if (b.fx === 'kunai') {   // 毒を塗った苦無（毒刃）：ひし形の刃と緑のしずく
-        const r = Math.max(5, b.r * 1.5), a = Math.atan2(uy, ux) + t * 6;
-        ctx.save(); ctx.translate(b.x, b.y); ctx.rotate(a);
-        ctx.beginPath(); ctx.moveTo(r * 1.5, 0); ctx.lineTo(0, -r * 0.6); ctx.lineTo(-r, 0); ctx.lineTo(0, r * 0.6); ctx.closePath();
-        ctx.fillStyle = b.color; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = 'rgba(0,30,0,0.9)'; ctx.stroke();
-        ctx.fillStyle = '#e6ffb0'; ctx.beginPath(); ctx.arc(-r * 0.2, 0, r * 0.22, 0, 7); ctx.fill();
-        ctx.restore();
-      }
     }
     ctx.lineCap = 'butt';
   },
@@ -194,18 +178,6 @@ const FusionFX = {
     if (hf) { ctx.save(); hf.fn.call(hf.o, ctx, f, k, R); ctx.restore(); ctx.globalAlpha = 1; return; }
     const ease = 1 - (1 - k) * (1 - k);
     switch (f.k) {
-      case 'redslash': {    // フランベルジュ：細い赤の斬撃。白い刃先と、飛び散る火の粉
-        const a0 = f.a - f.arc, a1 = f.a + f.arc, head = a0 + (a1 - a0) * Math.min(1, k * 3);
-        ctx.lineCap = 'round';
-        ctx.save(); ctx.shadowColor = '#ff2a1a'; ctx.shadowBlur = 10;
-        ctx.globalAlpha = (1 - k) * 0.95; ctx.strokeStyle = '#ff3a2a'; ctx.lineWidth = 7 * (1 - k) + 1.5;
-        ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.82, a0, head); ctx.stroke();
-        ctx.restore();
-        ctx.globalAlpha = 1 - k; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.82, Math.max(a0, head - 0.5), head); ctx.stroke();
-        ctx.fillStyle = '#ffb040';
-        for (let i = 0; i < 4; i++) { const t = a0 + (a1 - a0) * ((i * 0.31 + 0.2) % 1), d = f.r * (0.75 + k * 0.35 + (i % 2) * 0.08); ctx.globalAlpha = (1 - k) * 0.9; ctx.fillRect(f.x + Math.cos(t) * d - 1.3, f.y + Math.sin(t) * d - 1.3, 2.6, 2.6); }
-        break; }
       case 'shards': {      // 氷の破片が飛び散る
         ctx.fillStyle = f.color;
         for (let i = 0; i < 12; i++) {
@@ -224,43 +196,15 @@ const FusionFX = {
         ctx.globalAlpha = (1 - k) * 0.85; ctx.strokeStyle = f.color; ctx.lineWidth = 3 * (1 - k) + 1;
         ctx.beginPath(); ctx.arc(f.x, f.y, f.r * (0.4 + ease * 0.7), 0, 7); ctx.stroke();
         break;
-      case 'pellet':
-        ctx.globalAlpha = 1 - k; ctx.fillStyle = f.color;
-        ctx.beginPath(); ctx.arc(f.x, f.y, 5 * (1 - k) + 1, 0, 7); ctx.fill();
-        break;
-      case 'popstar': {     // ポッピングスター：星の5つの角が光の刃になって走る
-        ctx.save(); ctx.shadowColor = '#ffe38a'; ctx.shadowBlur = 12; ctx.lineCap = 'round';
-        for (let i = 0; i < 5; i++) {
-          const a = f.a + i * Math.PI * 2 / 5, d0 = f.r * 0.1 * ease, d1 = f.r * (0.2 + 0.8 * ease);
-          ctx.globalAlpha = (1 - k); ctx.strokeStyle = '#ffe38a'; ctx.lineWidth = 7 * (1 - k) + 1.5;
-          ctx.beginPath(); ctx.moveTo(f.x + Math.cos(a) * d0, f.y + Math.sin(a) * d0); ctx.lineTo(f.x + Math.cos(a) * d1, f.y + Math.sin(a) * d1); ctx.stroke();
-          ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
-          ctx.beginPath(); ctx.moveTo(f.x + Math.cos(a) * d0, f.y + Math.sin(a) * d0); ctx.lineTo(f.x + Math.cos(a) * d1, f.y + Math.sin(a) * d1); ctx.stroke();
-        }
-        ctx.restore();
-        ctx.globalAlpha = (1 - k) * 0.8; ctx.strokeStyle = '#b8e6ff'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(f.x, f.y, f.r * 0.35 * (0.4 + ease * 0.7), 0, 7); ctx.stroke();
-        break; }
     }
     ctx.globalAlpha = 1;
   },
 
-  // 落ちてくる弾（Combat.spawnLob の fx）。ポッピングスター：泡を纏った流れ星（光の尾を引く）
+  // 落ちてくる弾（Combat.spawnLob の fx）。形は合成武器ごとのファイル（src/fusionfx/*.js）が lobs で登録する
   lob(ctx, b, by, br, run) {
     const hl = this._lob[b.fx];                                     // 合成武器ごとのファイルが登録した落ちてくる弾
     if (hl) { ctx.save(); hl.fn.call(hl.o, ctx, b, by, br, run); ctx.restore(); return; }
-    const sp = Math.hypot(b.vx, b.vy) || 1, ux = b.vx / sp, uy = b.vy / sp, t = run.time;
-    const r = Math.max(7, br * 1.9);
-    ctx.save();
-    for (let j = 0; j < 4; j++) {                       // 尾
-      ctx.globalAlpha = 0.5 - j * 0.11; ctx.fillStyle = j % 2 ? '#fff3c0' : '#ffe38a';
-      ctx.beginPath(); ctx.arc(b.x - ux * (6 + j * 7), by - uy * (6 + j * 7), r * (0.62 - j * 0.12), 0, 7); ctx.fill();
-    }
-    ctx.globalAlpha = 0.28; ctx.fillStyle = '#b8e6ff'; ctx.beginPath(); ctx.arc(b.x, by, r * 1.25, 0, 7); ctx.fill();    // 泡
-    ctx.globalAlpha = 0.95; ctx.strokeStyle = '#d8f4ff'; ctx.lineWidth = 1.4; ctx.stroke();
-    ctx.globalAlpha = 1; ctx.shadowColor = '#ffe38a'; ctx.shadowBlur = 8;
-    this.star(ctx, b.x, by, r, r * 0.45, t * 9, 5); ctx.fillStyle = '#ffe38a'; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(70,40,0,0.8)'; ctx.stroke();
-    ctx.restore();
+    ctx.fillStyle = b.color; ctx.beginPath(); ctx.arc(b.x, by, Math.max(4, br), 0, 7); ctx.fill();   // 登録の無い形（ふつうは通らない）
   },
 
   // ---------- 居座る場（run.fzones） ----------

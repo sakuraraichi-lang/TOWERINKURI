@@ -319,35 +319,59 @@ const FUSIONS = {
   // 2 ガトリング＋テスラ：弾が当たった敵から近くへ電撃が跳ぶ
   plasmachain: {
     id: 'plasmachain', a: 'gatling', b: 'tesla', name: 'プラズマチェーン', short: 'PLC', color: '#8fb4ff',
-    role: '中距離の群れ', desc: '当たった敵から電撃が2回跳ぶ',
+    role: '中距離の群れ', desc: '弾どうしが電撃の線でつながり、触れた敵を刻む',
+    // 2026-10-13：撃った弾どうし（前後）が電撃の線でつながり、線に触れた敵へ刻む（撃つたびと、その半分の間に）。当たった敵からは電撃が跳ぶ
     fire(w, run) {
       const P = Fusion.p(w);
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n * 0.7 : 1);
         Combat.spawnBullet(w, run, a, {
-          color: '#8fb4ff',
-          onHit: (rr, b, e) => Fusion.chainFrom(w, rr, e, w.s.chain, b.dmg * P.chainMul, w.s.chainFalloff, { fromX: b.x, fromY: b.y, color: '#8fb4ff' }),
+          color: '#8fb4ff', fx: 'plasma',
+          onHit: (rr, b, e) => {
+            Fusion.fx(rr, { k: 'plasmahit', x: b.x, y: b.y, life: 0.4, seed: ((b.x * 7 + b.y * 3) | 0) % 97 });
+            Fusion.chainFrom(w, rr, e, w.s.chain, b.dmg * P.chainMul, w.s.chainFalloff, { fromX: b.x, fromY: b.y, color: '#8fb4ff', fxk: 'plasmabolt' });
+          },
+          onEnd: (rr, b) => { b.gone = true; },
         });
+        const nb = run.bullets[run.bullets.length - 1];
+        if (nb && nb.src === w) { nb.link = w._plPrev && !w._plPrev.gone ? w._plPrev : null; nb.linkMax = P.linkMax; w._plPrev = nb; }
       }
+      const net = () => {
+        for (const b of run.bullets) {
+          const l = b.link;
+          if (b.src !== w || !l || l.gone || Util.dist(b.x, b.y, l.x, l.y) > P.linkMax) continue;
+          Combat.lineHit(run, l.x, l.y, b.x, b.y, P.linkHalf, w.s.dmg * P.linkMul, { color: '#bcd4ff', shock: w.s.shockDur });
+        }
+      };
+      net();
+      Fusion.later(run, 0.5 / Math.max(0.1, w.s.rate), net);
+      Fusion.fx(run, { k: 'plasmamuzzle', x: w.x + Math.cos(w.angle) * 24, y: w.y + Math.sin(w.angle) * 24, a: w.angle, life: 0.1 });
     },
   },
 
   // 3 手裏剣＋刀：跳ね回ったあと持ち主へ戻り、帰り道でもう一度斬る刃
   chakram: {
     id: 'chakram', a: 'shuriken', b: 'katana', name: '円環刃', short: 'CHK', color: '#e6f0ff',
-    role: '自分のまわり', desc: '跳ね回って、帰りも斬る輪',
+    role: '一直線と、いちばん遠い所', desc: '全部貫いて飛び、遠くで回って刻み、帰りも斬る輪',
+    // 2026-10-13：全部貫通して飛ぶ → いちばん遠い所（射程の端・壁）で spin 秒その場で回って刻む → 戻り道でもう一度全部斬る
     fire(w, run) {
       const P = Fusion.p(w), F = Fusion.fc(w), KT = BAL.fusionCards.fl_trail;
       const trail = Fusion.link(w, run, 'trail', 'flameblade');
+      const cut = (rr, b, e) => Fusion.fx(rr, { k: 'chakcut', x: e.x, y: e.y, a: Math.atan2(b.vy, b.vx) + 2.0, life: 0.32, seed: ((e.x * 3 + e.y) | 0) % 97 });
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n : 1);
-        const back = (rr, b) => {
-          if (b.child) return;
+        const back = (rr, b0) => {
+          if (b0.child) return;
+          const b = { x: b0.x, y: b0.y };
+          Fusion.zone(rr, { kind: 'chakspin', x: b.x, y: b.y, r: P.spinR, dur: P.spin, tick: P.spinTick, dps: w.s.dmg * P.spinDps, color: '#e6f0ff', dcolor: '#e6f0ff' });
+          Fusion.later(rr, P.spin, () => ret(rr, b));
+        };
+        const ret = (rr, b) => {
           // 双輪の帰還（fp_chakram）：戻る刃が増えて、扇に広がって帰る
           const rets = 1 + (F.back || 0);
           for (let k = 0; k < rets; k++) {
             const off = k === 0 ? 0 : (k % 2 ? 1 : -1) * Math.ceil(k / 2) * 0.32;
-            const r2 = Fusion.bulletAt(w, rr, b.x, b.y, Util.angle(b.x, b.y, w.x, w.y) + off, { color: '#bcd4ff', fx: 'chakram', pierce: 99, bounce: 0, child: true, dmgMul: P.backMul, bulletR: w.s.bulletR });
+            const r2 = Fusion.bulletAt(w, rr, b.x, b.y, Util.angle(b.x, b.y, w.x, w.y) + off, { color: '#bcd4ff', fx: 'chakram', pierce: 99, bounce: 0, child: true, dmgMul: P.backMul, bulletR: w.s.bulletR, onHit: cut });
             if (r2) { r2.through = true; r2.range = Util.dist(b.x, b.y, w.x, w.y) + 14; r2.life = 2; }
           }
           // 炎の軌跡（fl_trail）：戻る道に燃える溜まりを残す
@@ -358,25 +382,36 @@ const FUSIONS = {
             }
           }
         };
-        Combat.spawnBullet(w, run, a, { color: '#e6f0ff', fx: 'chakram', onEnd: back });
+        Combat.spawnBullet(w, run, a, { color: '#e6f0ff', fx: 'chakram', pierce: 99, bounce: 0, onHit: cut, onEnd: back });
+        const nb = run.bullets[run.bullets.length - 1];
+        if (nb && nb.src === w) nb.range = w.s.range;      // 射程の端（いちばん遠い所）で回る
       }
+      Fusion.fx(run, { k: 'chakthrow', x: w.x + Math.cos(w.angle) * 20, y: w.y + Math.sin(w.angle) * 20, a: w.angle, life: 0.14 });
     },
   },
 
-  // 4 手裏剣＋毒ガス：悪魔の流れ星。跳ねるたびに小さな毒の雲を残す
+  // 4 手裏剣＋毒ガス：悪魔の流れ星。大きく跳ね回り（7回）、通った跡に毒の尾の筋が残って刻む。当たった所に毒の雲（2026-10-13）
   toxblade: {
     id: 'toxblade', a: 'shuriken', b: 'gas', name: '悪魔の流れ星', short: 'DMS', color: '#a8e05a',
-    role: '通路の長い区間', desc: '当たるたび毒の雲を残す',
+    role: '通路の長い区間', desc: '跳ね回り、通った跡に毒の筋を残す',
     fire(w, run) {
       const P = Fusion.p(w), F = Fusion.fc(w);
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n : 1);
         Combat.spawnBullet(w, run, a, {
-          color: '#a8e05a', fx: 'kunai',
-          // 猛毒の尾（fp_toxblade）：雲が必ず出て、毒が強く、雲が広がる
-          onHit: (rr, b, e) => { if (F.sure || Math.random() < P.chance) Combat.spawnField(rr, e.x, e.y, { kind: 'gas', r: P.cloudR + (F.dr || 0), dur: P.cloudDur, dps: b.dmg * P.cloudDps * (1 + (F.dpsK || 0)), slow: P.slow, vuln: P.vuln, color: '#8fd94a', src: w }); },
+          color: '#a8e05a', fx: 'devilstar',
+          onHit: (rr, b, e) => {
+            // 毒の尾の筋：跳ねる前の点から当たった所まで（帯の場・刻む）
+            const L = Util.dist(b.ox, b.oy, b.x, b.y);
+            if (L > 16) Fusion.zone(rr, { kind: 'toxtrail', shape: 'rect', x: (b.ox + b.x) / 2, y: (b.oy + b.y) / 2, a: Math.atan2(b.y - b.oy, b.x - b.ox), hw: L / 2, hh: P.trailW, dur: P.trailDur, tick: 0.25, dps: b.dmg * P.trailDps, color: '#8fd94a', dcolor: '#c8ff6a' });
+            // 猛毒の尾（fp_toxblade）：雲が必ず出て、毒が強く、雲が広がる
+            const cloud = F.sure || Math.random() < P.chance, cr = P.cloudR + (F.dr || 0);
+            if (cloud) Combat.spawnField(rr, e.x, e.y, { kind: 'gas', r: cr, dur: P.cloudDur, dps: b.dmg * P.cloudDps * (1 + (F.dpsK || 0)), slow: P.slow, vuln: P.vuln, color: '#8fd94a', src: w });
+            Fusion.fx(rr, { k: 'toxhit', x: e.x, y: e.y, cr: cloud ? cr : 0, life: cloud ? 0.7 : 0.36, seed: ((e.x * 5 + e.y) | 0) % 97 });
+          },
         });
       }
+      Fusion.fx(run, { k: 'toxmuzzle', x: w.x + Math.cos(w.angle) * 20, y: w.y + Math.sin(w.angle) * 20, a: w.angle, life: 0.12 });
     },
   },
 
@@ -424,26 +459,41 @@ const FUSIONS = {
     },
   },
 
-  // 6 刀＋火炎：フランベルジュ。目の前を赤く焼き切る、高威力の滅多斬り
+  // 6 刀＋火炎：フランベルジュ。目の前を扇に広がる8連の滅多斬り（1本ずつずらして当たる）→ 十字の大斬り＋炎の爆発。十字の跡は燃える線になって刻む（2026-10-13）
   flameblade: {
     id: 'flameblade', a: 'katana', b: 'flame', name: 'フランベルジュ', short: 'FRB', color: '#ff3a2a',
-    role: '目の前の扇', desc: '赤く焼き切る3連の滅多斬り',
+    role: '目の前の扇', desc: '8連の滅多斬りから、十字の大斬りと炎の爆発',
     fire(w, run) {
       const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_flameblade, n = Math.max(1, Math.round(w.n || 1)) * P.slashes;
+      const burn = { burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur }, h = Math.ceil((n - 1) / 2) || 1;
       for (let i = 0; i < n; i++) {
-        const a = w.angle + Util.rand(-w.s.cone, w.s.cone) * P.spreadK;
-        Combat.coneDamage(w, run, a, P.subArc, w.s.range, w.s.dmg, {
-          color: '#ff6a4a', crit: w.s.crit, critMul: w.s.critMul, exec: w.s.execThr, burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur,
+        // 扇に左右交互に広がる（真ん中から外へ）
+        const a = w.angle + (i % 2 ? 1 : -1) * Math.ceil(i / 2) / h * w.s.cone * P.spreadK + Util.rand(-0.06, 0.06);
+        Fusion.later(run, i * P.gap, () => {
+          Combat.coneDamage(w, run, a, P.subArc, w.s.range, w.s.dmg, Object.assign({ color: '#ff6a4a', crit: w.s.crit, critMul: w.s.critMul, exec: w.s.execThr }, burn));
+          Fusion.fx(run, { k: 'flamberge', x: w.x, y: w.y, a, arc: P.subArc, r: w.s.range, life: 0.7, seed: (w.shots * 13 + i * 7) % 97 });
         });
-        Fusion.fx(run, { k: 'redslash', x: w.x, y: w.y, a, arc: P.subArc, r: w.s.range, life: 0.18 + i * 0.03 });
       }
+      // 十字の大斬り＋炎の爆発：滅多斬りの終わりに、前の点で2本が交差する。斬った跡は燃える線（帯の場）
+      Fusion.later(run, n * P.gap + 0.04, () => {
+        const ux = Math.cos(w.angle), uy = Math.sin(w.angle), cx = w.x + ux * w.s.range * 0.55, cy = w.y + uy * w.s.range * 0.55, hl = w.s.range * 0.42;
+        for (const s of [-1, 1]) {
+          const a = w.angle + s * Math.PI / 4, vx = Math.cos(a), vy = Math.sin(a);
+          Combat.lineHit(run, cx - vx * hl, cy - vy * hl, cx + vx * hl, cy + vy * hl, P.crossHalf, w.s.dmg * P.crossMul, Object.assign({ color: '#ff2a1a', crit: w.s.crit, critMul: w.s.critMul }, burn));
+          Fusion.fx(run, { k: 'flamberge', line: true, x: cx - vx * hl, y: cy - vy * hl, s0: 0, a, r: hl * 2, w: P.crossHalf, life: 0.9, seed: (w.shots * 5 + s + 50) % 97 });
+          Fusion.zone(run, { kind: 'flametrail', shape: 'rect', x: cx, y: cy, a, hw: hl, hh: P.crossHalf * 0.6, dur: P.lineDur, tick: 0.25, dps: w.s.dmg * P.lineDps, color: '#ff6a2a', dcolor: '#ffb040', seed: (w.shots * 3 + s + 60) % 97 });
+        }
+        Combat.explode(run, cx, cy, P.boomR, w.s.dmg * P.boomMul, Object.assign({ color: '#ff6a2a' }, burn));
+        Fusion.fx(run, { k: 'flameboom', x: cx, y: cy, r: P.boomR, life: 0.7, seed: w.shots % 97 });
+        Combat.shake(run, 2.4);
+      });
       // 紅蓮の一閃（fp_flameblade）：滅多斬りの終わりに、前方へ炎の斬撃が走る
       if (F.fin) {
         const L = w.s.range * K.len;
         Combat.lineHit(run, w.x, w.y, w.x + Math.cos(w.angle) * L, w.y + Math.sin(w.angle) * L, K.half, w.s.dmg * F.fin, {
           color: '#ff2a1a', crit: w.s.crit, critMul: w.s.critMul, burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur,
         });
-        Fusion.fx(run, { k: 'redslash', x: w.x, y: w.y, a: w.angle, arc: 0.1, r: L, life: 0.32 });
+        Fusion.fx(run, { k: 'flamberge', line: true, x: w.x, y: w.y, a: w.angle, r: L, w: K.half, life: 0.7, seed: w.shots % 97 });
       }
       Snd.shot(w.id);
       Combat.shake(run, 2.4);
@@ -876,59 +926,74 @@ const FUSIONS = {
     },
   },
 
-  // 21 泡＋ガトリング：ファンシーバブルガン。ガトリングのように泡を連射する
+  // 21 泡＋ガトリング：ファンシーバブルガン。泡を連射し、割れると小さな泡 kids 個に分かれて、それぞれまた割れる（2026-10-13）
   bubblegun: {
     id: 'bubblegun', a: 'bubble', b: 'gatling', name: 'ファンシーバブルガン', short: 'FBG', color: '#ff9ad8',
-    role: '円の方向へ連射', desc: '泡をガトリングのように連射',
+    role: '円の方向へ連射', desc: '泡を連射・割れると小さな泡に分かれてまた割れる',
     fire(w, run) {
       const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_bubblegun;
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n * 0.7 : 1);
         Combat.spawnBullet(w, run, a, {
-          bubble: true, color: '#ff9ad8', through: true,
+          bubble: true, color: '#ff9ad8', through: true, fx: 'fancybubble',
           onConsume: (rr, b) => {
             Combat.explode(rr, b.x, b.y, w.s.splash, b.dmg * P.popMul, { color: '#ff9ad8', stun: w.s.stunDur * P.popStun });
-            Fusion.fx(rr, { k: 'pop', x: b.x, y: b.y, r: w.s.splash, life: 0.25, color: '#ff9ad8' });
+            Fusion.fx(rr, { k: 'bubblepop', x: b.x, y: b.y, r: w.s.splash, life: 0.5, seed: ((b.x * 7 + b.y * 3) | 0) % 97 });
+            // 小さな泡に分かれる：割れた所から放射状に飛び、何かに当たるか、kidRange 進んだら割れる
+            const ka0 = Math.random() * 6.28;
+            for (let k = 0; k < P.kids; k++) {
+              const c = Fusion.bulletAt(w, rr, b.x, b.y, ka0 + k * 6.2832 / P.kids, { bubble: true, color: '#ff9ad8', through: true, fx: 'fancybubble', child: true, pierce: 0, dmgMul: P.kidMul,
+                onEnd: (r2, cb) => {
+                  Combat.explode(r2, cb.x, cb.y, w.s.splash * P.kidR, cb.dmg * P.popMul, { color: '#ff9ad8', stun: w.s.stunDur * P.popStun * 0.5 });
+                  Fusion.fx(r2, { k: 'bubblepop', x: cb.x, y: cb.y, r: w.s.splash * P.kidR, life: 0.45, seed: ((cb.x * 5 + cb.y * 3) | 0) % 97 });
+                } });
+              if (c) c.range = P.kidRange;
+            }
             // 弾ける泡（fp_bubblegun）：割れた泡から小さな泡が分かれて、もう一度割れる
             for (let k = 0; k < (F.kids || 0); k++) {
               const ka = Math.random() * 6.28, kd = w.s.splash * 1.1, px = b.x + Math.cos(ka) * kd, py = b.y + Math.sin(ka) * kd;
               Fusion.later(rr, K.gap * (k + 1), () => {
                 Combat.explode(rr, px, py, w.s.splash * K.r, b.dmg * P.popMul * K.mul, { color: '#ff9ad8', stun: w.s.stunDur * P.popStun * K.stun });
-                Fusion.fx(rr, { k: 'pop', x: px, y: py, r: w.s.splash * K.r, life: 0.25, color: '#ff9ad8' });
+                Fusion.fx(rr, { k: 'bubblepop', x: px, y: py, r: w.s.splash * K.r, life: 0.45, seed: ((px * 5 + py) | 0) % 97 });
               });
             }
           },
         });
       }
+      Fusion.fx(run, { k: 'bubblemuzzle', x: w.x + Math.cos(w.angle) * 22, y: w.y + Math.sin(w.angle) * 22, a: w.angle, life: 0.14 });
     },
   },
 
   // 22 迫撃砲＋ガトリング：クラスター爆弾。砲弾が空中で弾け、小さな爆発の雨を降らせる
   scattergun: {
     id: 'scattergun', a: 'mortar', b: 'gatling', name: 'クラスター爆弾', short: 'CLB', color: '#e0c070',
-    role: '遠くの円', desc: '空中で弾け、小爆発の雨',
+    role: '遠くの円', desc: '空中で割れ、子弾の雨が広く降る',
     fire(w, run) {
       const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_scattergun, KM = BAL.fusionCards.fl_mark;
       const mk = Fusion.link(w, run, 'mark', 'starassault');
       Fusion.bombardWith(w, run, '#e0c070', (rr, x, y) => {
         const total = P.pellets + (F.pel || 0);       // 親子爆弾（fp_scattergun）：子弾が増え、最後の1発は大きく炸裂する
+        const pts = [];
         for (let i = 0; i < total; i++) {
           const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * P.spread;
           const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d;
           const big = F.pel && i === total - 1 ? K.finale : 1;
+          pts.push({ x: px, y: py, d: 0.045 * i });
           Fusion.later(rr, 0.045 * i, () => {
-            Combat.spotImpact(w, rr, px, py, 0, P.pelMul * big); Fusion.fx(rr, { k: 'pellet', x: px, y: py, life: 0.18, color: '#ffd890' });
+            Combat.spotImpact(w, rr, px, py, 0, P.pelMul * big); Fusion.fx(rr, { k: 'pellet', x: px, y: py, life: 0.55, big: big > 1, seed: ((px * 7 + py) | 0) % 97 });
             if (mk) Fusion.mark(rr, px, py, KM.pelR, mk);       // 被弾の印（fl_mark）
           });
         }
-      });
+        Fusion.fx(rr, { k: 'clusteropen', x, y, pts, life: Math.max(0.7, 0.045 * total + 0.1), seed: ((x * 3 + y) | 0) % 97 });
+      }, { fx: 'cluster' });
+      Fusion.fx(run, { k: 'clustermuzzle', x: w.x + Math.cos(w.angle) * 22, y: w.y + Math.sin(w.angle) * 22, a: w.angle, life: 0.35 });
     },
   },
 
   // 23 泡＋手裏剣：ポッピングスター。泡を纏った流れ星を、置いた円へ落とす
   bubbleblade: {
     id: 'bubbleblade', a: 'bubble', b: 'shuriken', name: 'ポッピングスター', short: 'PPS', color: '#ffe38a',
-    role: '遠くの円', desc: '泡を纏った流れ星を落とす',
+    role: '遠くの円', desc: '泡を纏った流れ星を落とし、光の刃と泡が次々弾ける',
     fire(w, run) {
       const P = Fusion.p(w), F = Fusion.fc(w);
       Fusion.bombardWith(w, run, '#ffe38a', (rr, x, y) => {
@@ -938,8 +1003,17 @@ const FUSIONS = {
           const a = a0 + k * Math.PI * 2 / rays;
           Combat.lineHit(rr, x, y, x + Math.cos(a) * P.rayLen, y + Math.sin(a) * P.rayLen, P.rayHalf, w.s.dmg * P.rayMul, { color: '#ffe38a', crit: w.s.crit, critMul: w.s.critMul });
         }
-        Fusion.fx(rr, { k: 'popstar', x, y, r: P.rayLen, a: a0, life: 0.45 });
+        Fusion.fx(rr, { k: 'popstar', x, y, r: P.rayLen, a: a0, n: rays, w: P.rayHalf, life: 0.6, seed: ((x * 3 + y) | 0) % 97 });
+        // 泡が次々割れる：着地のまわりで pops 個、popGap 秒ずつ（ひとつずつが範囲の当たり）
+        for (let k = 0; k < P.pops; k++) {
+          const pa = a0 + (k + 0.5) * 6.2832 / P.pops, pd = P.rayLen * (0.35 + 0.3 * (k % 2)), px = x + Math.cos(pa) * pd, py = y + Math.sin(pa) * pd;
+          Fusion.later(rr, 0.12 + k * P.popGap, () => {
+            Combat.explode(rr, px, py, P.popR, w.s.dmg * P.popMul, { color: '#b8e6ff', stun: (w.s.stunDur || 0) * 0.5 });
+            Fusion.fx(rr, { k: 'bubblepop', x: px, y: py, r: P.popR, life: 0.45, seed: (k * 13 + 5) % 97 });
+          });
+        }
       }, { fx: 'meteor' });
+      Fusion.fx(run, { k: 'popmuzzle', x: w.x + Math.cos(w.angle) * 20, y: w.y + Math.sin(w.angle) * 20, a: w.angle, life: 0.14 });
     },
   },
 
