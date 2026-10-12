@@ -204,7 +204,7 @@ const DebugRoom = {
         ['ボスの帯', () => { UI.cutinBoss(W); setTimeout(() => UI.sysWarn('boss'), 2100); }],
         ['BOSS DOWN（あと2体）', () => UI.cutinBossDown(2)],
         ['ボス戦の見本（第10章・2体）', () => me.bossBattle()],
-        ['ボス：ワーム（跳躍・数節の体・予告→前へ跳ぶ）', () => me.bossBattle('worm')],
+        ['ボス：ワーム（鎖の体・予告→高速移動・動いている間は節が大ダメージ）', () => me.bossBattle('worm')],
         ['ボス：ルートキット（大きい・硬い・防壁は控えめ・予告→直前に削った武器が半分）', () => me.bossBattle('rootkit')],
         ['ボス：ジャマー（機械・沈黙・予告→近い4基へ腕が伸びて止まる。遠くの武器は止まらない）', () => me.bossBattle('jammer')],
         ['上位の敵：トロイ（硬くて遅い・倒すとパケットをこぼす）', () => me.upperBattle('trojan')],
@@ -710,7 +710,7 @@ const DebugRoom = {
     UI.cutinWave(run.wave);
     const bosses = run.enemies.filter(e => e.boss);
     if (kind && bosses.length) {
-      run.enemies = run.enemies.filter(e => !e.boss || e === bosses[0]);
+      run.enemies = run.enemies.filter(e => e.boss ? e === bosses[0] : (e.seg ? e.seg === bosses[0] : true));
       bosses.length = 1;
     }
     let t0 = performance.now(), tOut = null, done = false, doneAt = 0, last = t0;

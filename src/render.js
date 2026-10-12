@@ -2485,7 +2485,7 @@ const Render = {
       ctx.closePath(); ctx.stroke();
       if (!T) { ctx.globalAlpha = 0.14; ctx.fill(); }
     } else if (kind === 'jump') {
-      // 跳躍：進む向きへ矢羽（>>>）が並ぶ。向かう先が分かる
+      // 高速移動：進む向きへ矢羽（>>>）が並ぶ。向かう先が分かる
       ctx.rotate(e.ang || 0);
       for (let i = 0; i < 3; i++) {
         const x = e.r + 12 + i * 11;
@@ -2547,16 +2547,51 @@ const Render = {
 
   // ===== ラスボス「フォーマッタ」の絵（頭・節・仕掛けの印）。ドット絵にせず、線と面で描く =====
   //   胴の節：装甲の板（暗い地・オレンジの縁・継ぎ目の光）。うねるように少し揺れる。頭に近いほど大きい。ダメージを受けた瞬間は白
-  finalSeg(ctx, e, run) {
-    const r = e.r, t = run.time || 0, flash = e.hitFlash > 0;
-    const wob = Math.sin(t * 3 + e.k * 0.9) * 2.5;
-    ctx.save(); ctx.translate(0, wob);
-    ctx.fillStyle = 'rgba(0,0,0,0.8)'; this.hexPathOn(ctx, 0, 0, r + 3); ctx.fill();
-    ctx.fillStyle = flash ? '#ffffff' : '#363c48'; this.hexPathOn(ctx, 0, 0, r); ctx.fill();
-    ctx.strokeStyle = flash ? '#ffffff' : '#ff7a1a'; ctx.lineWidth = 2.5; this.hexPathOn(ctx, 0, 0, r); ctx.stroke();
-    ctx.strokeStyle = flash ? '#cccccc' : 'rgba(255,122,26,0.45)'; ctx.lineWidth = 1.5;     // 内側の板の線
-    this.hexPathOn(ctx, 0, 0, r * 0.55); ctx.stroke();
-    ctx.beginPath(); ctx.moveTo(-r * 0.9, 0); ctx.lineTo(-r * 0.55, 0); ctx.moveTo(r * 0.9, 0); ctx.lineTo(r * 0.55, 0); ctx.stroke();
+  chainOff(e, t) {
+    // 節ごとのうねり：進行方向の横へ、波が頭から尾へ遅れて伝わる（尾ほど大きい）。当たりは動かさない（見た目だけ・最大7px）
+    const w = (e.seg && e.seg.bk === 'worm') ? 1.35 : 0.8;
+    const amp = Math.min(7, (e.seg && e.seg.bk === 'worm' ? 1.2 : 0.7) + e.k * w * 0.45);
+    const o = Math.sin(t * 4.2 - e.k * 0.8) * amp, a = (e.ang || 0) + Math.PI / 2;
+    return { x: Math.cos(a) * o, y: Math.sin(a) * o };
+  },
+  //   体の鎖の節（ワーム・ラスボス共通）。前の節（e.lead）との間をつなぐ帯を先に塗り、その上に節の板。
+  //   ワーム＝データの蛇：緑の節に継ぎ目の線・背の光／ラスボス＝装甲の六角板（暗い地・オレンジの縁・継ぎ目の光）。ダメージを受けた瞬間は白
+  chainSeg(ctx, e, run) {
+    const r = e.r, t = run.time || 0, flash = e.hitFlash > 0, h = e.seg, worm = h.bk === 'worm';
+    const o = this.chainOff(e, t), L = e.lead;
+    const lo = L.seg ? this.chainOff(L, t) : { x: 0, y: 0 };
+    const lx = L.x + lo.x - (e.x + o.x), ly = L.y + lo.y - (e.y + o.y);
+    ctx.save(); ctx.translate(o.x, o.y);
+    // つなぎの帯（太さは細いほうの節に合わせる）
+    const bw = Math.min(r, L.r) * 1.25;
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = bw + 5;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(lx * 0.5, ly * 0.5); ctx.stroke();
+    ctx.strokeStyle = flash ? '#fff' : (worm ? '#2f9c70' : '#2d333f'); ctx.lineWidth = bw;
+    ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(lx * 0.5, ly * 0.5); ctx.stroke();
+    const dash = worm && h.dashLeft > 0, wind = worm && h.tele && h.tele.kind === 'jump';
+    ctx.rotate(e.ang || 0);
+    if (worm) {
+      const pul = wind ? 0.5 + 0.5 * Math.sin(t * 22) : 0;
+      ctx.beginPath(); ctx.ellipse(0, 0, r * 1.12 + 2, r + 2, 0, 0, Math.PI * 2); ctx.fillStyle = 'rgba(0,0,0,0.8)'; ctx.fill();
+      if (dash) { ctx.save(); ctx.shadowColor = '#ffe27a'; ctx.shadowBlur = 14; }
+      ctx.beginPath(); ctx.ellipse(0, 0, r * 1.12, r, 0, 0, Math.PI * 2);
+      ctx.fillStyle = flash ? '#fff' : (e.k % 2 ? '#3fae7e' : '#58e0a0'); ctx.fill();
+      ctx.strokeStyle = flash ? '#fff' : dash ? '#ffe27a' : wind ? 'rgba(255,226,122,' + (0.4 + 0.6 * pul).toFixed(2) + ')' : '#0b3d2a';
+      ctx.lineWidth = dash || wind ? 3 : 2; ctx.stroke();
+      if (dash) ctx.restore();
+      ctx.strokeStyle = flash ? '#ccc' : 'rgba(11,61,42,0.55)'; ctx.lineWidth = 1.5;          // 節の継ぎ目（体を横切る線）
+      ctx.beginPath(); ctx.moveTo(-r * 0.35, -r * 0.92); ctx.quadraticCurveTo(-r * 0.15, 0, -r * 0.35, r * 0.92); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;                         // 背の光
+      ctx.beginPath(); ctx.arc(0, 0, r * 0.62, Math.PI * 1.15, Math.PI * 1.8); ctx.stroke();
+    } else {
+      ctx.fillStyle = 'rgba(0,0,0,0.8)'; this.hexPathOn(ctx, 0, 0, r + 3); ctx.fill();
+      ctx.fillStyle = flash ? '#ffffff' : '#363c48'; this.hexPathOn(ctx, 0, 0, r); ctx.fill();
+      ctx.strokeStyle = flash ? '#ffffff' : '#ff7a1a'; ctx.lineWidth = 2.5; this.hexPathOn(ctx, 0, 0, r); ctx.stroke();
+      ctx.strokeStyle = flash ? '#cccccc' : 'rgba(255,122,26,0.45)'; ctx.lineWidth = 1.5;     // 内側の板の線
+      this.hexPathOn(ctx, 0, 0, r * 0.55); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(-r * 0.9, 0); ctx.lineTo(-r * 0.55, 0); ctx.moveTo(r * 0.9, 0); ctx.lineTo(r * 0.55, 0); ctx.stroke();
+    }
     ctx.restore();
   },
   //   頭：大顎。黒い装甲の楔形に、上下に開く2本の大顎・オレンジの単眼。噛みつきの予告では顎がいっぱいに開き、閉じる
@@ -2646,19 +2681,13 @@ const Render = {
     };
     const ngon = (n, rr, rot) => { ctx.beginPath(); for (let i = 0; i < n; i++) { const a = rot + i * Math.PI * 2 / n; ctx[i ? 'lineTo' : 'moveTo'](Math.cos(a) * rr, Math.sin(a) * rr); } ctx.closePath(); };
     if (bk === 'worm') {
-      // 節：頭に近いほど大きい。うねるように少し揺れる
-      const T = e.trail || [];
-      for (let i = T.length - 1; i >= 0; i--) {
-        const rr = r * (0.88 - i * 0.1);
-        const wob = Math.sin(t * 5 + i * 1.3) * 2;
-        ctx.save(); ctx.translate(T[i].x - e.x, T[i].y - e.y + wob);
-        disc(0, 0, rr + 1.5, 'rgba(0,0,0,0.75)');
-        disc(0, 0, rr, flash ? '#fff' : (i % 2 ? '#3fae7e' : '#58e0a0'), '#0b3d2a', 2);
-        ctx.strokeStyle = 'rgba(255,255,255,0.35)'; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.arc(0, 0, rr * 0.62, Math.PI * 1.1, Math.PI * 1.8); ctx.stroke();
+      // 体の節は本物の敵として別に描く（chainSeg）。ここは頭だけ。高速移動中は後ろへ流れる線
+      const a = e.ang || 0;
+      if (e.dashLeft > 0) {
+        ctx.save(); ctx.rotate(a); ctx.strokeStyle = 'rgba(255,226,122,0.7)'; ctx.lineCap = 'round';
+        for (let i = -2; i <= 2; i++) { ctx.lineWidth = 3 - Math.abs(i) * 0.6; ctx.beginPath(); ctx.moveTo(-r * 0.6, i * r * 0.4); ctx.lineTo(-r * (2.2 + 0.4 * (i & 1)), i * r * 0.4); ctx.stroke(); }
         ctx.restore();
       }
-      const a = e.ang || 0;
       ctx.save(); ctx.rotate(a);
       disc(0, 0, r + 2, 'rgba(0,0,0,0.75)');
       disc(0, 0, r, flash ? '#fff' : '#7bf0b8', '#0b3d2a', 2.5);
@@ -2752,7 +2781,7 @@ const Render = {
       // **体は作り置きのドット絵**（enemySprite・ENEMY_PIX）。数百体でも貼るだけ。
       //   向きでは回さない（昔のゲームの敵は正面を向いている）。同じ種類は揃って2コマで足踏みする（2026-09-28）
       const col = e.hitFlash > 0 ? '#ffffff' : e.chill > 0 ? '#7fd8ff' : e.burnT > 0 ? '#ff9a4a' : e.color;
-      if (e.seg) this.finalSeg(ctx, e, run);
+      if (e.seg) this.chainSeg(ctx, e, run);
       else if (e.boss && e.bk === 'final') this.finalHead(ctx, e, run);
       else if (e.boss && e.bk) this.bossBody(ctx, e, run, e.hitFlash > 0 ? '#ffffff' : e.color);
       else if (e.upper) {

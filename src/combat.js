@@ -343,20 +343,55 @@ const Combat = {
       // 足止め・掴みが強く効くのはワーム（弱点）。ルートキットには微弱に効く（BAL.rootCcK 倍・減速・足止め・引き寄せ）。ジャマーは効かない。
       //   どれも BAL.ccMaxSec の上限は守る（効かない個体は使い切った扱い）
       if (bk === 'jammer') e.ccUsed = Infinity;
-      if (bk === 'worm') e.trail = [{ x: p.x, y: p.y }];   // 体の節（頭のあとを追う点・新しい順）
+      e.ang = 0; e.sx = p.x; e.sy = p.y;
       e.coin = e.coin * BAL.bossCoin;
       e.ph = 0;                                  // 次に使う仕掛けの番号（0〜2）。HP が BAL.bossPhaseAt を割るたびに1つ進む
       e.tele = null;                             // 予告中：{ kind, t, by }
       e.wallT = 0; e.wallBy = null;              // 防壁：残り秒・半分になる武器の id
       e.rec = {};                                // 直近にいちばん削った武器を見るための、時間で薄れる合計
+      if (bk === 'worm') this.spawnChain(run, e, BAL.wormBodyN, e.r * BAL.wormBodyR, BAL.wormBodyTaper, base * BAL.bossHp * ((BAL.bossHpBy || {})[run.stageIdx + 1] || 1) * (BAL.bossHpKind[bk] || 1), si);
       run.enemies.push(e);
     }
     run.hasBoss = true;
   },
 
+  // ===== 体の鎖（ワームとラスボスで共通）=====
+  //   節は本物の敵（e.seg が頭を指す）。頭の通った跡ではなく、**前の節に引かれて**動く（Terraria・Noita のワームと同じ形）：
+  //   前の節との間隔が gapTo を超えたぶんだけ引き寄せられる＝曲がり角では体が角を丸く切って滑らかにしなり、頭が止まれば体も止まる。
+  //   間隔は2つの節の半径の和に chainGap を掛けたもの（重ならず離れすぎない）。向きは前の節のほうへ（なめらかに回す）
+  spawnChain(run, head, n, r0, taper, maxHp, si) {
+    const arr = [];
+    for (let k = 0; k < n; k++) {
+      const g = this.makeEnemy(run, ENEMY_TYPES.grunt, this.gw(run), head.x, head.y, si, maxHp);
+      g.seg = head; g.k = k; g.hidden = true; g.out = false; g.noStatus = true; g.noPush = true; g.ccUsed = Infinity;
+      g.spd = 0; g.lane = null; g.tname = 'bossSeg';
+      g.r = r0 * (1 - taper * k / Math.max(1, n - 1));
+      g.color = head.color; g.coin = 0; g.hp = head.hp; g.ang = 0;
+      arr.push(g);
+    }
+    for (let k = 0; k < n; k++) { arr[k].lead = k ? arr[k - 1] : head; arr[k].gapTo = (arr[k].lead.r + arr[k].r) * BAL.chainGap; }
+    for (let k = n - 1; k >= 0; k--) run.enemies.push(arr[k]);      // 尾から先に積む（描く順＝尾が下・頭が最後に上）
+    head.chain = arr;
+    run.segN = (run.segN || 0) + n;
+  },
+  chainStep(e, h, dt) {
+    const L = e.lead;
+    const dx = e.x - L.x, dy = e.y - L.y, d = Math.hypot(dx, dy);
+    if (d > e.gapTo) { const q = e.gapTo / d; e.x = L.x + dx * q; e.y = L.y + dy * q; }
+    if (d > 0.5) {
+      const want = Math.atan2(L.y - e.y, L.x - e.x);
+      let da = want - e.ang; da = Math.atan2(Math.sin(da), Math.cos(da));
+      e.ang += da * (1 - Math.exp(-dt * 16));
+    }
+    if (!e.out && Math.hypot(e.x - h.sx, e.y - h.sy) > 6) { e.out = true; e.hidden = false; }
+    e.hp = h.hp; e.dist = h.dist;
+    if (e.hitFlash > 0) e.hitFlash -= dt;
+    if (e.shieldT > 0) e.shieldT -= dt;
+  },
+
   // ===== ラスボス「フォーマッタ」（第30章専用・BAL.final*） =====
   //   頭1体（e.bk 'final'）＋胴の節 BAL.finalSegs 個。節は盤の上の本物の敵（e.seg が頭を指す）で、どの武器の当たりにも掛かる。
-  //   節に入ったダメージは damage() が頭へ BAL.finalBodyMul 倍で回す＝頭が弱点。節は頭の通った跡（e.trail）に並ぶだけで、自分では動かない。
+  //   節に入ったダメージは damage() が頭へ BAL.finalBodyMul 倍で回す＝頭が弱点。節は前の節に引かれて動く（Combat.spawnChain・chainStep）。
   //   ウェーブごとに1体だけ、口を順に替えて出す。HP はウェーブをまたいで持ち越す（run.finalHp・最大HPに対する割合）
   spawnFinal(run) {
     const st = run.stage;
@@ -378,25 +413,13 @@ const Combat = {
     e.tname = 'boss'; e.boss = true; e.bk = 'final';
     e.noStatus = true; e.noPush = true; e.ccUsed = Infinity;       // 状態異常・足止め・押し合いは効かない
     e.coin = e.coin * BAL.finalCoin;
-    e.gap = BAL.finalGap; e.segN = BAL.finalSegs;
-    e.trail = [{ x: p.x, y: p.y }];
+    e.ang = 0; e.sx = p.x; e.sy = p.y;
     e.ph = run.finalPh;                         // 次に使う仕掛けの番号（HP の割合で進む・ウェーブをまたいで持ち越す）
     e.tele = null; e.rec = {};
     e.beamT = 0; e.beamTg = null;
-    // 胴の節：尾から先に積む（描く順＝尾が下・頭が最後に上）
-    const segs = [];
-    for (let k = BAL.finalSegs - 1; k >= 0; k--) {
-      const g = this.makeEnemy(run, ENEMY_TYPES.grunt, this.gw(run), p.x, p.y, si, maxHp);
-      g.seg = e; g.k = k; g.hidden = true; g.noStatus = true; g.noPush = true; g.ccUsed = Infinity;
-      g.spd = 0; g.lane = null; g.tname = 'bossSeg';
-      g.r = BAL.finalSegR * (1 - 0.35 * k / Math.max(1, BAL.finalSegs - 1));
-      g.color = this.BOSS_KIND.final.col;
-      g.coin = 0;
-      segs.push(g);
-    }
-    for (const g of segs) run.enemies.push(g);
-    run.enemies.push(e);
-    run.segN = segs.length;
+    // 胴の節（鎖）。BAL.finalSegR から尾へ 35% 細くなる
+    this.spawnChain(run, e, BAL.finalSegs, BAL.finalSegR, 0.35, maxHp, si);
+    run.enemies.push(e);                        // 頭を最後（いちばん上・更新は頭が先）に
     run.finalHead = e;
     run.hasBoss = true;
   },
@@ -487,10 +510,10 @@ const Combat = {
   },
 
   // ===== ボス3体と、それぞれの節目の仕掛け（docs/DESIGN-IDEAS-2026-10-05.md §1・1-2・BAL.boss*） =====
-  //   ワーム＝跳躍（弱点：拘束・足止め／貫通が節をまとめて抜く）／ルートキット＝硬い・防壁は控えめ（弱点：拘束が微弱に効くだけ）／
+  //   ワーム＝高速移動（弱点：拘束・足止め／貫通・光線が体の節をまとめて抜く）／ルートキット＝硬い・防壁は控えめ（弱点：拘束が微弱に効くだけ）／
   //   ジャマー＝沈黙（ジャマーから最も近い BAL.bossJamMax 基へ腕を伸ばして止める。弱点：遠くから撃つ武器・射程の長い武器）。HP が 75・50・25% を割るたびに1回（同じ仕掛けを3回）。使う前に約1秒の予告
   BOSS_KIND: {
-    worm:    { jp: 'ワーム',       en: 'WORM',    ph: 'jump', col: '#58e0a0', strong: '跳躍', weak: '拘束・足止めが効く／貫通が節をまとめて抜く' },
+    worm:    { jp: 'ワーム',       en: 'WORM',    ph: 'jump', col: '#58e0a0', strong: '高速移動（動いている間、体の節が大ダメージ）', weak: '拘束・足止めが効く／貫通・光線が体の節をまとめて抜く' },
     rootkit: { jp: 'ルートキット', en: 'ROOTKIT', ph: 'wall', col: '#ff4d6a', strong: '硬い体（防壁は控えめ）', weak: '拘束が微弱に効く（弱点は少ない）' },
     jammer:  { jp: 'ジャマー',     en: 'JAMMER',  ph: 'jam',  col: '#9fb4c8', strong: '沈黙（近い4基を腕で止める）', weak: '遠くから撃つ武器・射程の長い武器' },
     // ラスボス（第30章専用・BAL.bossKinds には入れない）。仕掛けは3つ：噛みつき・レーザー・耐性
@@ -503,17 +526,6 @@ const Combat = {
     const K = BAL.bossKinds;
     const base = Math.floor(ch / 5) - 1;
     return K[((base + (ch >= BAL.bossMixFrom ? mi : 0)) % K.length + K.length) % K.length];
-  },
-  // ワームの体の節：頭が BAL.wormGap 進むごとに点を足し、節の数だけ残す
-  wormFollow(e) {
-    const T = e.trail, gap = e.gap || BAL.wormGap;
-    let l = T[0], d = Util.dist(e.x, e.y, l.x, l.y);
-    while (d >= gap) {
-      const a = Util.angle(l.x, l.y, e.x, e.y);
-      l = { x: l.x + Math.cos(a) * gap, y: l.y + Math.sin(a) * gap };
-      T.unshift(l); d -= gap;
-    }
-    if (T.length > (e.segN || BAL.wormSegs)) T.length = e.segN || BAL.wormSegs;
   },
   bossPhaseUpdate(run, e, dt) {
     // 防壁の対象を決めるための「直近にいちばん削った武器」：時間で薄れる合計（BAL.bossRecTau 秒で 1/e）
@@ -549,23 +561,12 @@ const Combat = {
     e.tele = null;
     const col = this.BOSS_COL[tele.kind];
     if (tele.kind === 'jump') {
-      const st = run.stage;
-      // コアの手前 bossJumpKeep タイルは残す（跳んだ先がそのまま負けにならないように）
-      let left = Math.min(BAL.bossJumpTiles, Math.max(0, e.dist - BAL.bossJumpKeep)) * TILE;
+      // 高速移動：予告のあと、レーンに沿って BAL.bossJumpTiles タイルぶんを BAL.wormDashSpeed で一気に進む（体も鎖で一緒に流れる）。
+      //   進んでいるあいだ（e.dashLeft > 0）は節に当たったダメージが BAL.wormDashMul 倍。コアの手前 bossJumpKeep タイルは残す
+      e.dashLeft = Math.min(BAL.bossJumpTiles, Math.max(0, e.dist - BAL.bossJumpKeep)) * TILE;
       this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 2.2, color: col, life: 0.35 });
-      while (left > 0) {
-        const tc = (e.x / TILE) | 0, tr = (e.y / TILE) | 0;
-        if (!st.walkable(tc, tr)) break;
-        const g = st.flowTo(tc, tr, e.lane);
-        if (!g) break;
-        const a = Util.angle(e.x, e.y, g.x, g.y), s = Math.min(8, left);
-        const nx = e.x + Math.cos(a) * s, ny = e.y + Math.sin(a) * s;
-        if (!st.step(tc, tr, (nx / TILE) | 0, (ny / TILE) | 0)) break;
-        e.x = nx; e.y = ny; left -= s;
-        if (e.trail) this.wormFollow(e);
-      }
       this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 4, color: col, life: 0.5 });
-      this.shake(run, 6, true);
+      this.shake(run, 4, true);
     } else if (tele.kind === 'wall') {
       if (tele.by) { e.wallT = BAL.bossWallSec; e.wallBy = tele.by; }
       this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 4, color: col, life: 0.5 });
@@ -824,7 +825,9 @@ const Combat = {
       const h = e.seg;
       if (h.dead || e.hidden) return 0;
       e.hitFlash = 0.1;
-      return this.damage(run, h, amount * BAL.finalBodyMul, Object.assign({}, opts, { body: true }));
+      //   ワームの節は BAL.wormBodyMul 倍で頭へ通り、高速移動中（h.dashLeft > 0）はさらに BAL.wormDashMul 倍
+      const bm = h.bk === 'worm' ? BAL.wormBodyMul * (h.dashLeft > 0 ? BAL.wormDashMul : 1) : BAL.finalBodyMul;
+      return this.damage(run, h, amount * bm, Object.assign({}, opts, { body: true }));
     }
     // **上位の敵の無効**（アセンション・BAL.ascImmuneMul）。damage() の入口で止めるので、状態異常（燃焼・感電・減速・凍結・閉じ込め・印）も付かない
     //   ゼロデイの弱点以外は半分（ascZdOther）。ランサムウェアの気配の中は ascRansomMul
@@ -845,8 +848,6 @@ const Combat = {
     }
     const src = opts.src || this._src;       // いま撃っている武器の1基（装甲貫通・青い炎が読む）
     let dmg = amount * this.vuln(run, e) * upMul;
-    // ワームの体は数節の連なり：貫通する弾・光線は節をまとめて抜く（当たった節の数ぶんダメージが入る）
-    if (opts.hits > 1 && e.bk === 'worm') dmg *= opts.hits;
     // **耐性**（2026-09-30 段3）。効きにくいだけで、無効にはしない（BAL.resMul）
     const res = e.res;
     if (res) {
@@ -1389,7 +1390,6 @@ const Combat = {
         hit.add(e);
         hits++;
         this.damage(run, e, dmg, {
-          hits: BAL.wormLaserHits,
           crit: s.crit, critMul: s.critMul, exec: s.execThr, shock: s.shockDur,
           slow: s.slow, slowDur: s.slowDur,
           burn: s.burn ? s.dmg * s.burn : 0, burnDur: s.burnDur, color: w.def.color,
@@ -1817,14 +1817,11 @@ const Combat = {
     for (let i = run.enemies.length - 1; i >= 0; i--) {
       const e = run.enemies[i];
       if (e.dead) { run.enemies.splice(i, 1); continue; }
-      // ラスボスの胴の節：頭の通った跡に並ぶだけ（頭が倒れた・退いたら一緒に消える）
+      // 胴の節（ワーム・ラスボス）：前の節に引かれて動くだけ（頭が倒れた・退いたら一緒に消える）
       if (e.seg) {
         const h = e.seg;
         if (h.dead) { e.dead = true; run.enemies.splice(i, 1); run.segN = Math.max(0, (run.segN || 0) - 1); continue; }
-        const T = h.trail, ok = e.k < T.length, q = ok ? T[e.k] : T[T.length - 1];
-        e.hidden = !ok; e.x = q.x; e.y = q.y; e.hp = h.hp; e.dist = h.dist;
-        if (e.hitFlash > 0) e.hitFlash -= dt;
-        if (e.shieldT > 0) e.shieldT -= dt;
+        this.chainStep(e, h, dt);
         continue;
       }
       if (e.shock > 0) e.shock -= dt;
@@ -1930,10 +1927,12 @@ const Combat = {
             else if (z === 2) { zm = BAL.zoneSlope; e.zfx = 1; }
           }
           const slowMul = Math.max(BAL.enemySlowFloor, 1 - e.slow);
-          e.x += Math.cos(a) * e.spd * slowMul * zm * dt;
-          e.y += Math.sin(a) * e.spd * slowMul * zm * dt;
-          e.ang = a;      // 描画で向きを出すため。挙動には使わない
-          if (e.trail) this.wormFollow(e);
+          const spN = e.dashLeft > 0 ? BAL.wormDashSpeed : e.spd;
+          e.x += Math.cos(a) * spN * slowMul * zm * dt;
+          e.y += Math.sin(a) * spN * slowMul * zm * dt;
+          if (e.dashLeft > 0) e.dashLeft = Math.max(0, e.dashLeft - spN * slowMul * zm * dt);
+          if (e.boss) { let da = a - e.ang; da = Math.atan2(Math.sin(da), Math.cos(da)); e.ang += da * (1 - Math.exp(-dt * 10)); }   // ボスの頭は向きをなめらかに回す
+          else e.ang = a;      // 描画で向きを出すため。挙動には使わない
         }
       }
 
@@ -2096,11 +2095,7 @@ const Combat = {
         if (swept) { if (Util.segDist2(px, py, b.x, b.y, e.x, e.y) > reach * reach) continue; }
         else if (Util.dist(b.x, b.y, e.x, e.y) > reach) continue;
 
-        // ワーム：残りの貫通の数だけ節をまとめて抜く（貫通を使い切る）
-        let wormHits = 1;
-        if (e.bk === 'worm' && b.pierce > 0) { wormHits = 1 + Math.min(b.pierce, BAL.wormSegs - 1); b.pierce -= wormHits - 1; }
         this.damage(run, e, b.dmg, {
-          hits: wormHits,
           crit: b.crit, critMul: b.critMul, exec: b.exec, shock: b.shock,
           slow: b.slow, slowDur: b.slowDur, stun: b.stun,
           burn: b.burn, burnDur: b.burnDur, color: b.color,

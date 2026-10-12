@@ -696,9 +696,9 @@ const UI = {
     }
     this.cutin('BOSS<em> WAVE ' + n + ' / ' + BAL.wavesPerStage + '</em>', (nm ? nm + ' ─ ' : 'ボスが来る ─ ') + 'コアに届く前に倒せ', 'boss');
   },
-  // ボスの節目の仕掛けの予告（約1秒前）。「// PHASE n ─ JUMP 跳躍」。小さな斜めの帯・仕掛けごとの色
+  // ボスの節目の仕掛けの予告（約1秒前）。「// PHASE n ─ DASH 高速移動」。小さな斜めの帯・仕掛けごとの色
   cutinPhase(pc) {
-    const N = { jump: ['JUMP', '跳躍', '奥にも火力を'],
+    const N = { jump: ['DASH', '高速移動', '動いている体を撃て'],
                 wall: ['FIREWALL', '防壁', ''],
                 jam: ['JAM', '沈黙', '近い4基が止まる'],
                 bite: ['BITE', '噛みつき', '近い1基が壊される'],
