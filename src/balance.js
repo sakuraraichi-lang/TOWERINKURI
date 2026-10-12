@@ -1088,7 +1088,7 @@ BAL.fusion = {
   // 2 ガトリング＋テスラ（5）プラズマチェーン
   plasmachain: { stat: { dmg: 10, rate: 8, range: 215, speed: 380, pierce: 2, spread: 0.22, chain: 2, chainFalloff: 0.8, shockDur: 0.8 }, p: { chainMul: 0.6, linkMax: 120, linkHalf: 10, linkMul: 0.6 } },   // 2026-10-13：撃った弾どうしが電撃の線でつながり、線に触れた敵へ刻む（linkMax 以内の前後の弾）
   // 3 手裏剣＋刀（6）円環刃
-  chakram: { stat: { dmg: 100, rate: 1.5, range: 340, speed: 560, bulletR: 14, bounce: 0, pierce: 99 }, p: { backMul: 1, spin: 0.6, spinR: 30, spinTick: 0.1, spinDps: 6 } },   // 2026-10-13：全部貫通・いちばん遠い所で spin 秒その場で回って刻む（spinTick ごと・1回 dmg×spinDps×spinTick）→戻り道でも全部斬る
+  chakram: { stat: { dmg: 100, rate: 2.2, range: 340, speed: 560, bulletR: 14, bounce: 0, pierce: 99 }, p: { backMul: 1, spin: 0.9, spinR: 44, spinTick: 0.1, spinDps: 10 } },   // 2026-10-13：全部貫通・いちばん遠い所で spin 秒その場で回って刻む（spinTick ごと・1回 dmg×spinDps×spinTick）→戻り道でも全部斬る
   // 4 手裏剣＋毒ガス（5）悪魔の流れ星
   toxblade: { stat: { dmg: 30, rate: 2, range: 240, speed: 500, bulletR: 5.5, bounce: 7 }, p: { trailW: 11, trailDur: 1.6, trailDps: 0.6, chance: 0.7, cloudR: 46, cloudDur: 3, cloudDps: 0.35, slow: 0.1, vuln: 0.1 } },
   // 5 刀＋触手（8）異界の剣

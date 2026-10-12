@@ -646,7 +646,7 @@ const FX_FLAMEBLADE = {
       ctx.globalAlpha = 0.9 * ba; ctx.strokeStyle = '#ffd27a'; ctx.lineWidth = 1.4; ctx.stroke();
       for (let layer = 0; layer < 2; layer++) {   // 揺れる炎の舌（切り口に沿って・上へ）
         ctx.beginPath();
-        for (let i = 1; i < N; i += 2) {
+        for (let i = 2; i < N; i += 3) {   // 3つおき（8連が重なると塗る面積が大きいので数を抑える）
           const P = pts[i], env = Math.sin(Math.PI * i / N), hh = (10 + 9 * FxKit.h(i, seed)) * (0.75 + 0.25 * Math.sin(T * 19 + i * 1.3)) * env * (layer ? 0.55 : 1);
           FXB.tongue(ctx, P.x, P.y + 1, hh * (0.6 + 0.4 * ba), (layer ? 1.9 : 3.8) * env + 0.6, Math.sin(T * 11 + i) * 2.5);
         }
@@ -654,16 +654,16 @@ const FX_FLAMEBLADE = {
       }
     }
     if (sa > 0) {
-      ctx.globalAlpha = 0.42 * sa; ctx.fillStyle = '#ff2a10'; FxKit.ribbon(ctx, pts, q => wd(q) * 2.4); ctx.fill();
+      ctx.globalAlpha = 0.42 * sa; ctx.fillStyle = '#ff2a10'; FxKit.ribbon(ctx, pts, q => wd(q) * 1.8); ctx.fill();
       ctx.globalAlpha = 0.95 * sa; ctx.fillStyle = '#ff6a2a'; FxKit.ribbon(ctx, pts, wd); ctx.fill();
       ctx.globalAlpha = sa; ctx.fillStyle = '#fff4d0'; FxKit.ribbon(ctx, pts, q => wd(q) * 0.33); ctx.fill();
       const H = pts[N];
       FxKit.flash(ctx, H.x, H.y, 28, T - SW * 0.6, '#ff8a3a', 0.1);
     }
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-    for (const qq of [0.3, 0.7]) {   // 火の粉（斬った所から噴いて、上へ流れる）
+    for (const qq of [0.5]) {   // 火の粉（斬った所から噴いて、上へ流れる）
       const P = pts[Math.round(N * qq)];
-      FxKit.sparks(ctx, { x: P.x, y: P.y, t: T - SW * qq, seed: seed + qq * 10, n: 5, life: 0.55, v: 150, a: up, spread: 2, drag: 3, g: -90, size: 2.8, c0: '#fff2b0', c1: '#ff4a1a' });
+      FxKit.sparks(ctx, { x: P.x, y: P.y, t: T - SW * qq, seed: seed + qq * 10, n: 7, life: 0.55, v: 150, a: up, spread: 2, drag: 3, g: -90, size: 2.8, c0: '#fff2b0', c1: '#ff4a1a' });
     }
   },
   slash(ctx, f, k) {
@@ -1030,7 +1030,7 @@ if (typeof window !== 'undefined' && window.addEventListener) window.addEventLis
   const F = [[60, 0], [95, -14], [130, 12], [165, -10], [200, 8], [240, 0]];
   Object.assign(DebugRoom.SR, {
     plasmachain: { face: -90, foes: F, times: [[0.05, '撃つ'], [0.3, '網'], [0.45, '当たり'], [0.9, '余韻']], look: 120, w: 300 },
-    chakram: { face: -90, foes: [[60, 0], [110, 4], [160, -4], [220, 3], [280, -2], [335, 0]], times: [[0.04, '投げる'], [0.2, '飛ぶ'], [0.85, '回る'], [1.45, '戻る']], look: 165, w: 300 },
+    chakram: { face: -90, foes: [[60, 0], [110, 4], [160, -4], [220, 3], [280, -2], [335, 0]], times: [[0.04, '投げる'], [0.2, '飛ぶ'], [1.0, '回る'], [1.85, '戻る']], look: 165, w: 300 },
     toxblade: { face: -90, foes: F, times: [[0.04, '撃つ'], [0.15, '飛ぶ'], [0.35, '跳ねる'], [0.9, '毒の筋']], look: 120, w: 300 },
     flameblade: { face: -90, foes: F, times: [[0.03, '1本目'], [0.2, '滅多斬り'], [0.36, '十字'], [0.9, '燃える線']], look: 120, w: 300 },
     bubblegun: { face: -90, foes: F, times: [[0.04, '撃つ'], [0.12, '飛ぶ'], [0.2, '割れる'], [0.45, '小さな泡']], look: 120, w: 300 },
