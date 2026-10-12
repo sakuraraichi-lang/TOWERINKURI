@@ -1086,15 +1086,15 @@ BAL.fusion = {
   // 1 ガトリング＋手裏剣（コスト4）スターアサルト
   starassault: { stat: { dmg: 20, rate: 4.5, range: 270, pierce: 4, bulletR: 5.5, speed: 560, spread: 0.05 }, p: { burstR: 64, burstMul: 0.9 } },
   // 2 ガトリング＋テスラ（5）プラズマチェーン
-  plasmachain: { stat: { dmg: 10, rate: 4.2, range: 215, pierce: 1, chain: 2, chainFalloff: 0.8, shockDur: 0.8 }, p: { chainMul: 0.6 } },
+  plasmachain: { stat: { dmg: 10, rate: 8, range: 215, speed: 380, pierce: 2, spread: 0.22, chain: 2, chainFalloff: 0.8, shockDur: 0.8 }, p: { chainMul: 0.6, linkMax: 120, linkHalf: 10, linkMul: 0.6 } },   // 2026-10-13：撃った弾どうしが電撃の線でつながり、線に触れた敵へ刻む（linkMax 以内の前後の弾）
   // 3 手裏剣＋刀（6）円環刃
-  chakram: { stat: { dmg: 100, rate: 1.5, range: 340, speed: 560, bulletR: 14, bounce: 7 }, p: { backMul: 1 } },
+  chakram: { stat: { dmg: 100, rate: 1.5, range: 340, speed: 560, bulletR: 14, bounce: 0, pierce: 99 }, p: { backMul: 1, spin: 0.6, spinR: 30, spinTick: 0.1, spinDps: 6 } },   // 2026-10-13：全部貫通・いちばん遠い所で spin 秒その場で回って刻む（spinTick ごと・1回 dmg×spinDps×spinTick）→戻り道でも全部斬る
   // 4 手裏剣＋毒ガス（5）悪魔の流れ星
-  toxblade: { stat: { dmg: 30, rate: 2, range: 240, speed: 500, bulletR: 5.5, bounce: 3 }, p: { chance: 0.7, cloudR: 46, cloudDur: 3, cloudDps: 0.35, slow: 0.1, vuln: 0.1 } },
+  toxblade: { stat: { dmg: 30, rate: 2, range: 240, speed: 500, bulletR: 5.5, bounce: 7 }, p: { trailW: 11, trailDur: 1.6, trailDps: 0.6, chance: 0.7, cloudR: 46, cloudDur: 3, cloudDps: 0.35, slow: 0.1, vuln: 0.1 } },
   // 5 刀＋触手（8）異界の剣
   voidblade: { stat: { dmg: 120, rate: 1, range: 168, crit: 0.2, critMul: 2.5 }, p: { tilt: 0.1, dist: 92, len: 115, wid: 360, dur: 2.6, tick: 0.35, dps: 0.6, slow: 0.4 } },
-  // 6 刀＋火炎（8）フランベルジュ：3連の高威力の滅多斬り
-  flameblade: { stat: { dmg: 60, rate: 2.2, range: 185, cone: 1.35, crit: 0.15, critMul: 2, burn: 0.6, burnDur: 3 }, p: { slashes: 5, spreadK: 0.8, subArc: 0.5 } },
+  // 6 刀＋火炎（8）フランベルジュ：8連の滅多斬り（扇に広がる・gap 秒ずつずらす）→十字の大斬り＋炎の爆発・斬った跡が燃える線（2026-10-13）
+  flameblade: { stat: { dmg: 60, rate: 2.2, range: 185, cone: 1.35, crit: 0.15, critMul: 2, burn: 0.6, burnDur: 3 }, p: { slashes: 8, spreadK: 0.9, subArc: 0.5, gap: 0.035, crossMul: 2.5, crossHalf: 22, boomR: 64, boomMul: 2, lineDur: 1.5, lineDps: 0.8 } },
   // 7 触手＋泡（9）狂気の海底：大きな泡・集敵・触手の一突きで破裂
   abyssnet: { stat: { dmg: 60, rate: 0.6, range: 300, count: 2, stunDur: 0.5 }, p: { R: 100, dur: 3, dps: 0.6, pull: 160, burstR: 105, burstMul: 3.2 } },
   // 8 触手＋テスラ（7）航海の悪夢：雷を纏った竜巻
@@ -1124,11 +1124,11 @@ BAL.fusion = {
   // 20 毒ガス＋迫撃砲（7）破滅の雨：毒の持続を捨てた超高火力の砲撃
   toxmortar: { stat: { dmg: 140, rate: 0.4, range: 400, speed: 240, splash: 140, fieldR: 90, fieldDur: 1.6, fieldVuln: 0.2, slow: 0.2, slowDur: 1 }, p: { shells: 9, spread: 110, gap: 0.18, gasDps: 0.3 } },
   // 21 泡＋ガトリング（7）ファンシーバブルガン：泡のガトリング
-  bubblegun: { stat: { dmg: 6.5, rate: 4.7, range: 300, speed: 560, splash: 38, stunDur: 0.55, spot: 62, bulletR: 7, pierce: 2, spread: 0.1 }, p: { popMul: 0.8, popStun: 0.8 } },
+  bubblegun: { stat: { dmg: 6.5, rate: 4.7, range: 300, speed: 560, splash: 38, stunDur: 0.55, spot: 62, bulletR: 7, pierce: 2, spread: 0.1 }, p: { popMul: 0.8, popStun: 0.8, kids: 3, kidMul: 0.6, kidR: 0.7, kidRange: 60 } },   // 2026-10-13：割れると小さな泡 kids 個になり、それぞれまた割れる
   // 22 迫撃砲＋ガトリング（6）クラスター爆弾
-  scattergun: { stat: { dmg: 40, rate: 0.8, range: 400, speed: 260, splash: 56, spot: 130 }, p: { pellets: 8, spread: 70, pelMul: 0.5 } },
+  scattergun: { stat: { dmg: 40, rate: 0.8, range: 400, speed: 260, splash: 56, spot: 130 }, p: { pellets: 14, spread: 95, pelMul: 0.5 } },   // 2026-10-13：子弾の雨を広く（8→14・70→95）
   // 23 泡＋手裏剣（7）ポッピングスター：泡を纏った流れ星
-  bubbleblade: { stat: { dmg: 40, rate: 1.15, range: 300, speed: 380, splash: 75, spot: 100 }, p: { rayLen: 78, rayHalf: 12, rayMul: 0.9 } },
+  bubbleblade: { stat: { dmg: 40, rate: 1.15, range: 300, speed: 380, splash: 75, spot: 100 }, p: { rayLen: 78, rayHalf: 12, rayMul: 0.9, pops: 5, popR: 30, popMul: 0.5, popGap: 0.08 } },   // 2026-10-13：着地のあと、まわりで泡が pops 個、次々割れる
   // 24 迫撃砲＋凍結（9）スノーグレイブ：氷の嵐
   icebomb: { stat: { dmg: 6, rate: 0.5, range: 420, speed: 240, splash: 70, slow: 0.6, slowDur: 2.5, spot: 100 }, p: { R: 80, dur: 4, dps: 0.7, slow: 0.7, drift: 12 } },
 };
