@@ -24,7 +24,10 @@
 //   **引き継ぎはしない。** v3 以前のセーブからカードやパックを移すと、
 //   ファームで貯めたぶんがそのまま残る。OLD_KEYS を空にしてある。
 //   古い鍵は読み込み時に消して、あとから復活しないようにする
-const SAVE_KEY = 'inkuriment_save_v4';
+// **テストプレイ用**（2026-10-12 ユーザー「テストプレイ用のURLを作ってください、カードが全解放されたプレイ環境を用意して」）：
+//   URL に ?testplay を付けると、本物のセーブとは別の名前で保存し、新しく始めたときに全部のカードを1枚ずつ持つ
+const TESTPLAY = (() => { try { return new URLSearchParams(location.search).has('testplay'); } catch (e) { return false; } })();
+const SAVE_KEY = TESTPLAY ? 'inkuriment_save_v4_testplay' : 'inkuriment_save_v4';
 const DMG_LOG_MAX = 30;      // 武器ごとの記録を何件残すか（Game.logDamage）
 const OLD_KEYS = [];
 const PURGE_KEYS = ['inkuriment_save_v3', 'inkuriment_save_v2', 'inkuriment_save_v1'];
@@ -140,6 +143,12 @@ const Game = {
     // 古い鍵は消す。**残しておくと、あとで引き継ぎを足したときに復活してしまう**
     try { for (const k of PURGE_KEYS) localStorage.removeItem(k); } catch (e) {}
     this.newSave();
+    if (!d && TESTPLAY) {
+      // テストプレイ用：全部のカードを1枚ずつ持って始める（本物のセーブには触れない）
+      for (const id of CARD_IDS) this.perm.collection[id] = Math.max(1, this.perm.collection[id] || 0);
+      this.save();
+      return;
+    }
     if (!d) {
       // 旧バージョンのセーブが残っていたら、カードとパックだけ引き継ぐ
       for (const k of OLD_KEYS) {
