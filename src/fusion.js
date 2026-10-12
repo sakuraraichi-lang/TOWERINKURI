@@ -549,8 +549,9 @@ const FUSIONS = {
         const e = foes[Math.min(foes.length - 1, Math.floor((i + Math.random()) * foes.length / n))];
         const tx = e.x + Util.rand(-P.fan, P.fan) * 40, ty = e.y + Util.rand(-P.fan, P.fan) * 40;
         Combat.spawnLob(w, run, tx, ty, {
-          color: '#ff5a1a', rocket: true,
+          color: '#ff5a1a', rocket: true, fx: 'magma',       // fx＝絵だけ（fusionfx/fx-field.js）
           onLand: (rr, x, y) => {
+            Fusion.fx(rr, { k: 'magmaland', x, y, r: w.s.splash, life: 0.5, seed: Math.abs((x * 7 + y * 3) | 0) % 97 });
             Combat.explode(rr, x, y, w.s.splash, w.s.dmg, { color: '#ff9a4a', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur, crit: w.s.crit, critMul: w.s.critMul });
             Combat.spawnField(rr, x, y, { kind: 'fire', r: P.poolR, dur: P.poolDur, dps: w.s.dmg * w.s.burn * P.poolDps, color: '#ff8a3a', src: w });
             if (boom) Fusion.combust(w, rr, rr.fields[rr.fields.length - 1], boom);   // 毒の雲と重なれば爆ぜる（fl_boom）
@@ -608,7 +609,7 @@ const FUSIONS = {
         if (Combat.inShield(run, e)) continue;
         Combat.damage(run, e, 0, { stun: w.s.stunDur, slow: w.s.slow, slowDur: w.s.slowDur, chill: true });
         if (caged) e.fcage = run.time + P.delay;      // 凍った泡の中にいる印（fl_shatter・相反の渦が読む）
-        if (shown++ < P.cages) Fusion.fx(run, { k: 'cage', e, x: e.x, y: e.y, r: 15, life: P.delay, color: '#bff0ff', ice: true });
+        if (shown++ < P.cages) Fusion.fx(run, { k: 'frostcage', e, x: e.x, y: e.y, r: 15, life: P.delay, color: '#bff0ff', ice: true });
         Fusion.later(run, P.delay, () => {
           if (e.dead) return;
           Combat.explode(run, e.x, e.y, P.shardR, w.s.dmg * P.shardMul, { color: '#bff0ff', slow: P.shardSlow, slowDur: P.shardSlowDur, chill: true });
@@ -616,10 +617,10 @@ const FUSIONS = {
           if (F.chain) {
             Fusion.nearestTo(e.x, e.y, P.shardR * K.reach, F.chain + 1, e).slice(0, F.chain).forEach((o, k) => Fusion.later(run, K.gap * (k + 1), () => {
               Combat.explode(run, o.x, o.y, P.shardR, w.s.dmg * P.shardMul * K.mul, { color: '#bff0ff', slow: P.shardSlow, slowDur: P.shardSlowDur, chill: true });
-              Fusion.fx(run, { k: 'shards', x: o.x, y: o.y, r: P.shardR, life: 0.4, color: '#bff0ff' });
+              Fusion.fx(run, { k: 'frostshard', x: o.x, y: o.y, r: P.shardR, life: 0.8, color: '#bff0ff' });
             }));
           }
-          if (shown < 40) Fusion.fx(run, { k: 'shards', x: e.x, y: e.y, r: P.shardR, life: 0.45, color: '#bff0ff' });
+          if (shown < 40) Fusion.fx(run, { k: 'frostshard', x: e.x, y: e.y, r: P.shardR, life: 0.9, color: '#bff0ff' });
         });
       }
     },
@@ -684,8 +685,8 @@ const FUSIONS = {
           Fusion.zone(rr, { kind: 'firewhirl', x: wx, y: wy, r: P.R, dur: P.dur, tick: 0.2, dps: w.s.dmg * P.dps, burn: w.s.dmg * P.burn, burnDur: 2,
             drift: { x: Math.cos(ang) * P.drift, y: Math.sin(ang) * P.drift }, color: '#ff7a2a', dcolor: '#ffb066' });
         }
-        Fusion.fx(rr, { k: 'pop', x, y, r: P.R, life: 0.35, color: '#ffb066' });
-      }, { rocket: true });
+        Fusion.fx(rr, { k: 'carpetblast', x, y, r: P.R, life: 0.6, seed: Math.abs((x * 7 + y * 3) | 0) % 97 });
+      }, { rocket: true, fx: 'stormmsl' });
     },
   },
 
@@ -798,7 +799,7 @@ const FUSIONS = {
         vulnT: 0.4 + (F.linger || 0), armorT: 0.6 + (F.linger || 0),       // 黄金の残滓（fp_acidfoam）：場を出ても脆弱と装甲ダウンが残る
         vuln: w.s.fieldVuln, armorDown: Math.min(BAL.cardFx.armorDownMax, P.armorDown + (w.dyn.armorDown || 0)), color: '#ffd24a', dcolor: '#fff0a0',
       });
-      Fusion.fx(run, { k: 'pop', x: t.x, y: t.y, r: w.s.fieldR, life: 0.4, color: '#ffe38a' });
+      Fusion.fx(run, { k: 'aquasplash', x: t.x, y: t.y, r: w.s.fieldR, life: 0.5 });
     },
   },
 
@@ -816,8 +817,9 @@ const FUSIONS = {
         const tx = t.x + Math.cos(a) * d, ty = t.y + Math.sin(a) * d;
         Fusion.later(run, P.gap * i, () => {
           Combat.spawnLob(w, run, tx, ty, {
-            color: '#7fe35a', rocket: true,
+            color: '#7fe35a', rocket: true, fx: 'doomshell',       // fx＝絵だけ（fusionfx/fx-field.js）
             onLand: (rr, x, y) => {
+              Fusion.fx(rr, { k: 'doomblast', x, y, r: w.s.splash, life: 0.75, seed: Math.abs((x * 7 + y * 3) | 0) % 97 });
               Combat.explode(rr, x, y, w.s.splash, w.s.dmg, { color: '#b8ff6a', crit: w.s.crit, critMul: w.s.critMul });
               // 酸の爆発（fl_acid）：王水の黄金の液体に落ちた砲弾は、もう一度爆ぜる
               if (acid && (rr.fzones || []).some(z => z.kind === 'aquaregia' && Util.dist(z.x, z.y, x, y) <= z.r)) {
@@ -916,8 +918,8 @@ const FUSIONS = {
           Fusion.zone(rr, { kind: 'blizzard', x: x + ox, y: y + oy, r: P.R, dur: P.dur, tick: 0.2, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.8, chill: true,
             drift: { x: Math.cos(sa) * P.drift, y: Math.sin(sa) * P.drift }, color: '#bff0ff' });
         }
-        Fusion.fx(rr, { k: 'shards', x, y, r: P.R * 0.8, life: 0.5, color: '#bff0ff' });
-      }, { rocket: true });
+        Fusion.fx(rr, { k: 'snowburst', x, y, r: P.R * 0.8, life: 0.6, seed: Math.abs((x * 7 + y * 3) | 0) % 97 });
+      }, { rocket: true, fx: 'iceshell' });
     },
   },
 };
