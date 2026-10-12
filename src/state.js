@@ -853,6 +853,7 @@ const Game = {
     if (u.broken) return false;          // ラスボスに壊された武器は動かせない（その出撃の間は残骸のまま）
     if (!this.canPlaceAt(c, r, u)) return false;
     const pos = run.stage.hexCenter(c, r);
+    this.dropZones(run, [u]);           // その武器が盤に置いた場（合成武器の球・雲など）は古い場所に残さない（2026-10-12 ユーザー報告）
     u.c = c; u.r = r; u.x = pos.x; u.y = pos.y;
     this.updateAdj(run);
     this.syncPlacements();
@@ -866,9 +867,16 @@ const Game = {
     if (i < 0) return false;
     if (u.broken) return false;          // 壊された武器は片づけられず、コストも戻らない（その出撃の間）
     run.units.splice(i, 1);
+    this.dropZones(run, [u]);
     this.updateAdj(run);
     this.syncPlacements();
     return true;
+  },
+
+  // 武器 us が盤に置いた場（合成武器の run.fzones・作った武器を src に持つ）を消す。準備の時間は場の時計が止まるので、消さないと古い場所に残り続けた
+  dropZones(run, us) {
+    if (!run || !run.fzones || !run.fzones.length) return;
+    run.fzones = run.fzones.filter(z => us.indexOf(z.src) < 0);
   },
 
   // **全撤去。**（2026-09-30 段1b・設計書 §2-10・ユーザー「基数が増えるタイミングで武器の全撤去が出来るようになるといいですね」）
@@ -879,6 +887,7 @@ const Game = {
     const keep = run.units.filter(u => u.broken);      // 壊された武器は外せない
     const n = run.units.length - keep.length;
     if (!n) return 0;
+    this.dropZones(run, run.units.filter(u => !u.broken));
     run.units = keep;
     run.capUp = false;
     this.updateAdj(run);
@@ -901,6 +910,7 @@ const Game = {
     const dc = f.cost - a.def.cost - b.def.cost;
     if (this.costUsed() + dc > this.costCap()) return { ok: false, why: 'コストが足りません（合成は +' + dc + '・残り ' + (this.costCap() - this.costUsed()) + '）' };
     run.units.splice(run.units.indexOf(b), 1);
+    this.dropZones(run, [a, b]);
     a.fuse = fid;
     this.applyMods();          // C の数値（A の基礎に合成の値＋A の札）を組み直す。隣の数え直し（updateAdj）も中で呼ばれる
     this.syncPlacements();
