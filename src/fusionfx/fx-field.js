@@ -111,6 +111,20 @@ const FXF = {
     ctx.globalAlpha = a; ctx.fillStyle = color; ctx.fill(); ctx.globalAlpha = 1;
   },
   _P: [],
+  // 触手の一突き（0.2秒前後）：根元 (x0,y0) から敵 (ex,ey) へ一気に伸びて刺さり、縮む。刺さった所に閃光と飛沫
+  stab(ctx, x0, y0, ex, ey, T, life, seed, col) {
+    const k = T / life, ext = k < 0.35 ? FxKit.ease(k / 0.35) : 1 - FxKit.clamp01((k - 0.55) / 0.45);
+    if (ext > 0.02) {
+      const dx = ex - x0, dy = ey - y0, L = Math.hypot(dx, dy) || 1, nx = -dy / L, ny = dx / L, pts = [], N = 10, bend = (FxKit.h(seed, 3) - 0.5) * L * 0.35;
+      for (let j = 0; j <= N; j++) { const q = j / N * ext; pts.push({ x: x0 + dx * q + nx * Math.sin(q * Math.PI) * bend, y: y0 + dy * q + ny * Math.sin(q * Math.PI) * bend }); }
+      this.tentacle(ctx, pts, 12, Math.min(1, ext * 2));
+    }
+    if (k > 0.3) {
+      const Th = T - life * 0.3;
+      FxKit.flash(ctx, ex, ey, 22, Th, col, 0.08);
+      FxKit.sparks(ctx, { x: ex, y: ey, t: Th, seed: seed + 5, n: 6, life: 0.2, v: 200, drag: 7, size: 2.8, c0: '#ffffff', c1: col });
+    }
+  },
 };
 
 // ===============================================================
@@ -258,7 +272,11 @@ const FX_VOIDBLADE = {
     }
   },
 
-  fx: { voidslash(ctx, f, k) { this.voidSlash(ctx, f, k); } },
+  // 裂け目の触手の一突き：裂け目の中心線の、敵にいちばん近い所から伸びる
+  stab(ctx, f, k) {
+    FXF.stab(ctx, f.x + (f.ex - f.x) * 0.25, f.y + (f.ey - f.y) * 0.25, f.ex, f.ey, k * f.life, f.life, f.seed || 0, '#ff5ad0');
+  },
+  fx: { voidslash(ctx, f, k) { this.voidSlash(ctx, f, k); }, riftstab(ctx, f, k) { this.stab(ctx, f, k); } },
   zones: { rift(ctx, z) { this.riftZone(ctx, z); } },
   over: { rift(ctx, z) { this.riftTentacles(ctx, z); } },
 };
@@ -400,7 +418,12 @@ const FX_ABYSSNET = {
     const ext = 1 - FxKit.ease(T / 0.34);
     if (ext > 0.02) FXF.tentacle(ctx, this.thrustPts(f.x, f.y, R / 1.05, ext, 3 + T, seed), 22, ext);
   },
-  fx: { abyssburst(ctx, f, k) { this.burst(ctx, f, k); } },
+  // 泡の中の触手の一突き：泡の下の縁から、中の敵へ
+  stab(ctx, f, k) {
+    const a = (FxKit.h(f.seed || 0, 9) - 0.5) * 1.2 + Math.PI / 2;
+    FXF.stab(ctx, f.x + Math.cos(a) * f.r * 0.95, f.y + Math.sin(a) * f.r * 0.95, f.ex, f.ey, k * f.life, f.life, f.seed || 0, '#ff8ad8');
+  },
+  fx: { abyssburst(ctx, f, k) { this.burst(ctx, f, k); }, abyssstab(ctx, f, k) { this.stab(ctx, f, k); } },
   zones: { abyss(ctx, z) { this.zone(ctx, z); } },
   over: { abyss(ctx, z) { this.thrust(ctx, z); } },
 };
@@ -691,7 +714,7 @@ FusionFX.register('icefoam', FX_ICEFOAM);
 //   跡に火炎旋風（縦に立ち上がる炎の渦・巻き上がる火の粉・地面の焦げ）が数秒漂う
 // ===============================================================
 const FX_CARPET = {
-  sr: { face: -90, foes: [[110, -30], [135, 20], [150, -8], [165, 34], [185, -26], [205, 6]], times: [[0.14, '降る'], [0.4, '着弾'], [1.0, '旋風'], [2.7, '消える']], look: 120, w: 300 },
+  sr: { face: -90, foes: [[110, -30], [135, 20], [150, -8], [165, 34], [185, -26], [205, 6]], times: [[0.14, '降る'], [0.4, '着弾'], [1.0, '旋風'], [3.7, '消える']], look: 120, w: 300 },
   // 滅尽嵐：迫撃砲の太い筒の上に、3本のミサイルを扇に並べたポッド。橙の帯
   turret(c) {
     c.lineJoin = 'round'; c.lineCap = 'round';
@@ -836,34 +859,26 @@ const FX_ACIDFOAM = {
     for (const [x, y, r] of [[22.5, -2.5, 1.6], [24.5, 2.2, 1.2]]) { c.beginPath(); c.arc(x, y, r, 0, 7); c.fill(); }
   },
   // 金の面（作り置き・水たまりの形で塗るので、色の付いた円の絵ではなく、塗りのグラデーションを半径ごとに1つ）
-  _gr: {},
-  fillGrad(ctx, R) {
-    const key = Math.round(R);
-    let g = this._gr[key];
-    if (g) return g;
-    g = ctx.createRadialGradient(-R * 0.25, -R * 0.3, R * 0.05, 0, 0, R);
-    g.addColorStop(0, 'rgba(255,240,170,0.24)'); g.addColorStop(0.55, 'rgba(255,205,70,0.2)'); g.addColorStop(0.88, 'rgba(225,150,20,0.28)'); g.addColorStop(1, 'rgba(170,100,5,0.38)');
-    return (this._gr[key] = g);
+  // 金の面（作り置き・半径ごとに1枚）：真ん中は薄く、縁に向かって濃い金。端の外に柔らかい光
+  faceSpr(R) {
+    return FXF.radial('fz-aqua-face' + Math.round(R), R * 1.08, [[0, 'rgba(255,240,170,0.22)'], [0.5, 'rgba(255,205,70,0.19)'], [0.8, 'rgba(225,150,20,0.27)'], [0.9, 'rgba(190,115,10,0.36)'], [0.95, 'rgba(255,176,32,0.2)'], [1, 'rgba(255,176,32,0)']]);
   },
   pool(ctx, z) {
     const T = z.t, seed = FXF.seedOf(z), out = FxKit.clamp01((z.dur - T) / 0.6);
     const R = z.r * (0.35 + 0.6 * FxKit.ease(T / 0.55) + 0.05 * FxKit.clamp01((T - 0.55) / 4)) * (0.9 + 0.1 * out), a = out;
     if (a <= 0.01) return;
     ctx.translate(z.x, z.y);
-    // 1. 金の面（薄い・道が透ける）
-    FXF.blob(ctx, 0, 0, R, seed, 0.045, T * 0.5, 40);
-    ctx.globalAlpha = a; ctx.fillStyle = this.fillGrad(ctx, z.r); ctx.fill();
-    // 2. 縁：外の光・金・白い芯
+    // 1. 金の面（薄い・道が透ける）。形で塗ると重い（2026-10-13：盤まるごとの0.58）ので、作り置きの円を貼り、ゆらぐ形は縁で見せる
+    ctx.globalAlpha = a; FXF.put(ctx, this.faceSpr(z.r), 0, 0, R / z.r);
+    // 2. 縁：金・白い芯（外の光は面の絵の端に含める）
+    FXF.blob(ctx, 0, 0, R, seed, 0.045, T * 0.5, 32);
     ctx.lineJoin = 'round';
-    ctx.globalAlpha = 0.25 * a; ctx.strokeStyle = '#ffb020'; ctx.lineWidth = 9; ctx.stroke();
     ctx.globalAlpha = 0.95 * a; ctx.strokeStyle = '#ffd24a'; ctx.lineWidth = 3; ctx.stroke();
     ctx.globalAlpha = 0.9 * a; ctx.strokeStyle = '#fff8d8'; ctx.lineWidth = 1; ctx.stroke();
-    // 3. 波紋（中心から外へ・3本）
-    for (let i = 0; i < 3; i++) {
-      const q = (T * 0.32 + i / 3) % 1;
-      FXF.blob(ctx, 0, 0, R * (0.15 + 0.8 * q), seed + i, 0.03, T * 0.5, 28);
-      ctx.globalAlpha = (1 - q) * 0.45 * a; ctx.strokeStyle = '#fff2b0'; ctx.lineWidth = 1.6; ctx.stroke();
-    }
+    // 3. 波紋（中心から外へ・3本の円を1回で）
+    ctx.beginPath();
+    for (let i = 0; i < 3; i++) { const q = (T * 0.32 + i / 3) % 1, rr = R * (0.15 + 0.8 * q); ctx.moveTo(rr, 0); ctx.arc(0, 0, rr, 0, 7); }
+    ctx.globalAlpha = 0.3 * a; ctx.strokeStyle = '#fff2b0'; ctx.lineWidth = 1.6; ctx.stroke();
     // 4. つや：左上の光の筋と、ゆっくり滑る光
     ctx.lineCap = 'round';
     ctx.globalAlpha = 0.5 * a; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 4.5;
@@ -892,13 +907,13 @@ const FX_ACIDFOAM = {
     FxKit.hexWave(ctx, 0, 0, z.r * 0.9, T / 0.45, '#ffd24a', 4);
   },
   _st: [],
-  // 中の敵から金色の湯気（敵の上に描く）。数は8体まで
+  // 中の敵から金色の湯気（敵の上に描く）。数は4体まで（重さ）
   steam(ctx, z) {
     if (typeof Fusion === 'undefined' || typeof Grid === 'undefined') return;
     const T = z.t, a = FxKit.clamp01((z.dur - T) / 0.6) * FxKit.clamp01((T - 0.2) / 0.3);
     if (a <= 0.01) return;
     const R = z.r * (0.35 + 0.6 * FxKit.ease(T / 0.55)), L = this._st; L.length = 0;
-    for (const e of Fusion.enemiesIn(z.x, z.y, R)) { if (L.length >= 8) break; L.push(e); }
+    for (const e of Fusion.enemiesIn(z.x, z.y, R)) { if (L.length >= 4) break; L.push(e); }
     if (!L.length) return;
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < L.length; i++) {
@@ -968,7 +983,7 @@ const FX_TOXMORTAR = {
     const g = FXF.lobGeo(b), k = g.k, sc = Math.min(1.5, br / (b.r || 1)), ang = FXF.lobDir(b, g), seed = Math.abs(Math.round(b.landX * 0.13 + b.landY * 0.07)) % 97;
     // 緑の尾：光の玉と毒のしずく
     ctx.globalCompositeOperation = 'lighter';
-    for (let j = 1; j <= 5; j++) { const p = FXF.lobAt(b, g, k - j * 0.04); FxKit.glow(ctx, p.x, p.y, 16 * sc * (1 - j * 0.13), '#5ad81a', 0.42 - j * 0.07); }
+    for (let j = 1; j <= 3; j++) { const p = FXF.lobAt(b, g, k - j * 0.06); FxKit.glow(ctx, p.x, p.y, 16 * sc * (1 - j * 0.18), '#5ad81a', 0.42 - j * 0.1); }
     ctx.beginPath();
     for (let j = 0; j < 7; j++) {
       const p = FXF.lobAt(b, g, k - 0.03 - j * 0.04), s = 2.6 - j * 0.25, ox = Math.sin(j * 2.3 + seed + run.time * 6) * 5;
@@ -979,7 +994,7 @@ const FX_TOXMORTAR = {
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     FXF.put(ctx, this.shellSpr(), b.x, by, sc * 0.95, ang);
   },
-  // 着弾：白い芯の閃光・緑の火の玉・緑の衝撃波（2重）・破片・毒の煙のきのこ
+  // 着弾：白い芯の閃光・緑の火の玉・緑の衝撃波・破片・毒の煙のきのこ
   blast(ctx, f, k) {
     const T = k * f.life, R = f.r, seed = f.seed || 0, q = FxKit.ease(T / 0.25);
     ctx.globalCompositeOperation = 'lighter';
@@ -988,7 +1003,6 @@ const FX_TOXMORTAR = {
     ctx.globalCompositeOperation = 'source-over';
     FxKit.flash(ctx, f.x, f.y, R * 0.6, T, '#9aff5a', 0.1);
     FxKit.hexWave(ctx, f.x, f.y, R, T / 0.45, '#8aff4a', 6);
-    FxKit.hexWave(ctx, f.x, f.y, R * 0.5, (T - 0.04) / 0.35, '#e8ffa0', 3);
     // 毒の煙（暗い緑の玉が膨らみ、上へ）
     const sm = FxKit.ease((T - 0.05) / 0.5), sa = 0.42 * (1 - FxKit.clamp01((T - 0.2) / (f.life - 0.2)));
     if (sa > 0.01 && sm > 0) {
@@ -1009,7 +1023,7 @@ FusionFX.register('toxmortar', FX_TOXMORTAR);
 //   そのあと氷の嵐（白と水色の風の渦・回る吹雪の粒・大きな雪の結晶）がゆっくり漂う
 // ===============================================================
 const FX_ICEBOMB = {
-  sr: { face: -90, foes: [[125, -26], [140, 20], [160, -6], [175, 30], [190, -30], [210, 8]], times: [[0.3, '飛ぶ'], [0.68, '着弾'], [1.6, '吹雪'], [4.45, '消える']], look: 140, w: 300 },
+  sr: { face: -90, foes: [[125, -26], [140, 20], [160, -6], [175, 30], [190, -30], [210, 8]], times: [[0.3, '飛ぶ'], [0.68, '着弾'], [1.6, '吹雪'], [5.45, '消える']], look: 140, w: 300 },
   // スノーグレイブ：氷に覆われた迫撃砲。筒の上下に氷の結晶が生え、口は水色に光る。台に雪の印
   turret(c) {
     c.lineJoin = 'round'; c.lineCap = 'round';

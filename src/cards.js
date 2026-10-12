@@ -696,7 +696,7 @@ FP('chakram', { rankAxis: 'back', name: '双輪の帰還', desc: '戻る刃が' 
   apply(run) { for (const w of run.units) if (w.fuse === 'chakram') fcOf(w).back = Game.rki(FCK.fp_chakram.back, 'back'); } });
 FP('toxblade', { rankAxis: 'tox', name: '猛毒の尾', desc: '毒の雲が必ず出て、毒ダメージ +' + pc(FCK.fp_toxblade.dpsK) + '%・雲が広がる',
   apply(run) { for (const w of run.units) if (w.fuse === 'toxblade') { const F = fcOf(w); F.sure = 1; F.dr = FCK.fp_toxblade.dr; F.dpsK = Game.rka(FCK.fp_toxblade.dpsK, 'tox'); } } });
-FP('voidblade', { rankAxis: 'tent', name: '二本の触手', desc: '裂け目が' + pc(FCK.fp_voidblade.durK) + '%長く残り、触手が' + FCK.fp_voidblade.tent + '本ずつ突き刺す',
+FP('voidblade', { rankAxis: 'tent', name: '二本の触手', desc: '裂け目が' + pc(FCK.fp_voidblade.durK) + '%長く残り、突き刺す触手が' + FCK.fp_voidblade.tent + '本増える',
   apply(run) { for (const w of run.units) if (w.fuse === 'voidblade') { const F = fcOf(w); F.durK = FCK.fp_voidblade.durK; F.tent = Game.rki(FCK.fp_voidblade.tent, 'tent'); } } });
 FP('flameblade', { rankAxis: 'fin', name: '紅蓮の一閃', desc: '滅多斬りの終わりに、前方へ炎の一閃（ダメージ ×' + FCK.fp_flameblade.fin + '）',
   apply(run) { for (const w of run.units) if (w.fuse === 'flameblade') fcOf(w).fin = Game.rka(FCK.fp_flameblade.fin, 'fin'); } });
