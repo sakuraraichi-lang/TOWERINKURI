@@ -3011,3 +3011,57 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 /* 2026-10-12：コストの下の文は武器を手に取っているときだけ。空のときは行ごと消す */
 .hcost .hc-s:empty{display:none;}
 body.sr-on #tut{display:none !important;}
+
+/* ===== 改造ラン（MOD・2026-10-13・src/modrun.js） =====
+   3択はカードの3択（.draft .chcard .cf）の骨格をそのまま使う。絵は系統の色の六角と字（.mdsvg）、枠はレア度の色（--rc） */
+.modbtn{border-color:#c26bff !important;color:#e2b8ff !important;}
+.modbtn u{color:#c26bff !important;}
+.mdf .mdart{background:radial-gradient(circle at 50% 46%,color-mix(in srgb,var(--ac) 30%,transparent),transparent 70%),#0a0d14;}
+.mdf .cf-icon{display:flex;align-items:center;justify-content:center;width:100%;height:100%;}
+.mdf .mdsvg{width:74%;max-height:92%;filter:drop-shadow(0 0 8px color-mix(in srgb,var(--ac) 80%,transparent));}
+.mdf .cf-kind{color:var(--ac);}
+.mdf .md-tag{color:var(--rc);border-color:var(--rc);}
+.mdf .cf-text{font-size:10.5px;line-height:1.35;}
+.mdpip{display:inline-flex;gap:3px;margin-right:6px;vertical-align:middle;}
+.mdpip i{width:7px;height:8px;clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);background:color-mix(in srgb,var(--pc) 22%,#1a1f2a);}
+.mdpip i.on{background:var(--pc);box-shadow:0 0 6px var(--pc);}
+.mdpip i.nx{background:color-mix(in srgb,var(--pc) 55%,#1a1f2a);animation:mdPip 1s ease-in-out infinite alternate;}
+@keyframes mdPip{to{background:var(--pc);}}
+.mdtop{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:2px 2px 8px;}
+.mdstrip{display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin:4px 14px;}
+.mdtop .mdstrip{margin:0;}
+.mdmini{width:24px;height:26px;display:grid;place-items:center;font-weight:900;font-size:13px;color:#fff;
+  clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);background:color-mix(in srgb,var(--pc) 45%,#0b0e15);
+  text-shadow:0 0 6px var(--pc);}
+.mdevo{font:700 10px/1 var(--font-num);letter-spacing:.08em;padding:4px 6px;color:#0b0e15;background:var(--pc);
+  clip-path:polygon(6px 0,100% 0,calc(100% - 6px) 100%,0 100%);}
+.mdnone{font-size:11px;color:var(--dim);}
+.mdlives{font:600 11px/1 var(--font-num);color:var(--dim);letter-spacing:.06em;white-space:nowrap;}
+.mdlives b{color:#ff8a9a;font-size:14px;}
+.chrow.md5{grid-template-columns:repeat(5,1fr);gap:5px;}
+.chrow.md5 .chcard{min-height:180px;}
+.chrow.md5 .cf-name{font-size:10px;}
+.chrow.md5 .cf-text{font-size:9px;}
+.mdact{margin-top:8px;}
+.mdact .rs-sub:disabled{opacity:.4;}
+.mdcond{margin:4px 14px;padding:8px 12px;display:flex;flex-wrap:wrap;align-items:center;gap:4px 10px;
+  border-left:3px solid #ff8a1f;background:linear-gradient(90deg,rgba(255,138,31,.14),transparent);}
+.mdcond b{font-size:14px;color:#ffb46a;}
+.mdcond span{font-size:12px;}
+.mdcond em{font-style:normal;display:flex;gap:4px;font-size:14px;}
+.mdgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:6px;margin:8px 0;max-height:56vh;overflow:auto;}
+.mdgrid .cf{min-height:150px;}
+.mrbadge{position:absolute;top:44px;right:8px;z-index:30;display:flex;align-items:center;gap:3px;padding:4px 7px;border:1px solid rgba(194,107,255,.6);
+  background:rgba(10,12,20,.82);color:#e2b8ff;font:inherit;cursor:pointer;clip-path:polygon(6px 0,100% 0,100% calc(100% - 6px),calc(100% - 6px) 100%,0 100%,0 6px);}
+.mrbadge em{font:700 10px/1 var(--font-num);letter-spacing:.1em;font-style:normal;margin-right:3px;}
+.mrbadge i{font-style:normal;font-weight:900;font-size:11px;width:17px;height:18px;display:grid;place-items:center;color:#fff;
+  clip-path:polygon(25% 0,75% 0,100% 50%,75% 100%,25% 100%,0 50%);background:color-mix(in srgb,var(--pc) 50%,#0b0e15);}
+/* 進化・連携の帯：倒したときの金の帯の骨格に、系統の色（--evc） */
+#cutin.evo{--ck:var(--evc,#ffc24a);}
+#cutin .ci-evo .ci-band{border-color:var(--ck);box-shadow:0 0 36px color-mix(in srgb,var(--ck) 60%,transparent);
+  background:linear-gradient(90deg,transparent,rgba(10,10,18,.94) 16%,rgba(10,10,18,.94) 84%,transparent);
+  animation:ciBandBoss 1.45s cubic-bezier(.2,.8,.2,1) forwards;}
+#cutin .ci-evo b{text-shadow:0 0 16px color-mix(in srgb,var(--ck) 90%,transparent);animation:ciSplit .9s ease-out backwards;}
+#cutin .ci-evo .ci-kick{color:var(--ck);}
+#cutin.evo::before{background:radial-gradient(circle at 50% 44%,color-mix(in srgb,var(--ck) 50%,transparent),transparent 62%);}
+.mdf .mdcost{text-decoration:none;color:#ff8a9a;}
