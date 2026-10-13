@@ -1,4 +1,4 @@
-// 合成武器の札（A：fp_* 24枚・B：fl_* 8枚）の確認（2026-10-12）。
+// 合成武器の札（A：fp_* 24枚・B：fl_* 11枚）の確認（2026-10-12）。
 //   node tools/simnode.js --file tools/measure/fusion-cards.js
 //   1. 3択に出る条件：その合成武器を盤に置いているときだけ／札を持っているときだけ／置いていない合成武器の札は出ない／連携の札は2つそろったときだけ
 //   2. 札を取ったときに、1基ずつ値が乗る（組み直し applyMods のあとも残る）。凸（所持枚数）で主な軸が伸びる
@@ -11,7 +11,7 @@ function ok(c, m) { if (!c) bad.push(m); }
 const A_IDS = FUSION_IDS.map(f => 'fp_' + f);
 const B_IDS = CARD_IDS.filter(id => CARDS[id].flink);
 ok(A_IDS.every(id => CARDS[id] && CARDS[id].rarity === 'epic' && CARDS[id].fpick), 'A の札が24枚そろっていない／エピックでない');
-ok(B_IDS.length === 8 && B_IDS.every(id => CARDS[id].rarity === 'legendary'), 'B の札が8枚そろっていない／レジェンドでない ' + B_IDS.length);
+ok(B_IDS.length === 11 && B_IDS.every(id => CARDS[id].rarity === 'legendary'), 'B の札が11枚そろっていない／レジェンドでない ' + B_IDS.length);
 out.rules.counts = { A: A_IDS.length, B: B_IDS.length };
 
 // ---------- 1・2 3択の条件と、札が乗ること ----------
@@ -117,7 +117,7 @@ const Cn = {};
 const inc = (k, n) => { Cn[k] = (Cn[k] || 0) + (n === undefined ? 1 : n); };
 function wrap(obj, name, f) { const o = obj[name]; obj[name] = function (...a) { const r = o.apply(this, a); f(a, r); return r; }; }
 wrap(Combat, 'explode', (a) => { inc('explode'); inc('explode:' + (a[5] && a[5].color)); inc('explodeR:' + Math.round(a[3])); });
-wrap(Combat, 'lineHit', (a) => { inc('lineHit'); inc('lineHit:' + (a[6] && a[6].color)); });
+wrap(Combat, 'lineHit', (a) => { inc('lineHit'); inc('lineHit:' + (a[6] && a[6].color)); if (a[5] === BAL.fusion.plasmachain.p.linkHalf * BAL.fusionCards.fl_spark.thick) inc('hotLine'); });   // hotLine：稲妻を受けて太くなった線の当たり
 wrap(Combat, 'spawnLob', () => inc('lob'));
 wrap(Combat, 'spawnField', (a) => inc('field:' + (a[3] && a[3].kind)));
 wrap(Combat, 'spotImpact', () => inc('spot'));
@@ -127,6 +127,13 @@ wrap(Combat, 'fx', (a) => { if (a[1] && a[1].type === 'tentacle') inc('tentacleF
 wrap(Fusion, 'zone', (a) => inc('zone:' + a[1].kind));
 wrap(Fusion, 'chainFrom', (a) => { inc('chain'); inc('chain:' + (a[6] && a[6].color)); inc('chainN', a[3]); });
 wrap(Fusion, 'bulletAt', () => inc('bulletAt'));
+// 連携の札3枚（星と泡・白い乱反射・火花の泡）：効果が実際に起きた回数
+wrap(Fusion, 'starBubbles', () => inc('sbBub'));
+wrap(Fusion, 'starsFromBubble', (a, r) => { if (r) inc('sbStar'); });
+wrap(Fusion, 'prismReflect', (a, r) => inc('prismRefl', r || 0));
+wrap(Fusion, 'prismStorm', (a, r) => inc('prismStorm', r || 0));
+wrap(Fusion, 'sparkPop', (a) => { if (a[2]) inc('sparkTouch'); });
+wrap(Fusion, 'sparkJump', (a, r) => { if (r) inc('sparkJump'); });
 
 function geom(run) {
   const st = run.stage, hx = (st.vec && st.vec.hexes) || [];
@@ -270,20 +277,25 @@ const MB = {
   fl_bolt: { fids: ['convergence', 'chainstrike'], m: C => (C['chain:#fff0b0'] || 0) + (C['lineHit:#b58bff'] || 0) },
   fl_trail: { fids: ['flameblade', 'chakram'], m: C => C['field:fire'] || 0 },
   fl_acid: { fids: ['toxmortar', 'acidfoam'], m: C => C['explode:#ffd24a'] || 0 },
+  fl_starbub: { fids: ['starassault', 'bubblegun'], m: C => (C.sbBub || 0) + (C.sbStar || 0) },
+  fl_prism: { fids: ['cryobeam', 'icebomb'], m: C => (C.prismRefl || 0) + (C.prismStorm || 0) },
+  fl_spark: { fids: ['bubbleblade', 'plasmachain'], m: C => (C.sparkTouch || 0) + (C.sparkJump || 0) },
 };
+const NEWB = { fl_starbub: ['sbBub', 'sbStar'], fl_prism: ['prismRefl', 'prismStorm'], fl_spark: ['sparkTouch', 'sparkJump', 'hotLine'] };
 for (const id of B_IDS) {
   const { fids, m } = MB[id];
-  let off = 0, on = 0, onHalf = 0, offHalf = 0;
+  let off = 0, on = 0, onHalf = 0, offHalf = 0; const det = {};
   for (let k = 0; k < REPS; k++) {
     seedRng(200 + k); off += m(trial(fids, [], SECS));
-    seedRng(200 + k); on += m(trial(fids, [id], SECS));
+    seedRng(200 + k); const tr = trial(fids, [id], SECS); on += m(tr);
+    for (const key of NEWB[id] || []) det[key] = (det[key] || 0) + (tr[key] || 0);
     // 片方だけのとき（相手が居ない）は効かない
     seedRng(200 + k); onHalf += m(trial([fids[0]], [id], SECS));
     seedRng(200 + k); offHalf += m(trial([fids[0]], [], SECS));
   }
   ok(on > off && on > 0, id + ' 挙動が起きていない（札なし ' + off + ' / 札あり ' + on + '）');
   ok(onHalf <= offHalf * 1.1 + 1, id + ' 相手が居ないのに効いている（札なし ' + offHalf + ' / 片方だけ ' + onHalf + '）');
-  out.behavior[id] = { off, on, offHalf, onHalf };
+  out.behavior[id] = { off, on, offHalf, onHalf, detail: det };
 }
 
 out.bad = bad;

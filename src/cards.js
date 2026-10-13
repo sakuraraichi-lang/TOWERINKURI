@@ -673,7 +673,7 @@ for (const fid of FUSION_IDS) {
 // ============ 合成武器の札（2026-10-12・ユーザー決定 2026-10-06・10-12）============
 //   A（fp_*）… **合成武器だけの3択の札**。合成武器1つにつき1枚・24枚・エピック。その合成武器を盤に置いているときだけ、出撃中の3択に出る（draft.js）。
 //              その合成武器の「らしさ」を伸ばす。凸は主な1軸だけ（rankAxis）。C は A として扱うので、A の札もこれとは別に乗る。
-//   B（fl_*）… **合成武器どうしの連携の札**。8枚・レジェンド。2つの合成武器が盤にそろっているときだけ3択に出る。**ユーザーが見て練り直す前提の案**。
+//   B（fl_*）… **合成武器どうしの連携の札**。11枚・レジェンド。2つの合成武器が盤にそろっているときだけ3択に出る。**ユーザーが見て練り直す前提の案**。
 //   どちらも上位の連携パック（ap:'syn'）から出る＝アセンションの章の3択だけ（合成の札と同じ）。持っているカードの中から引く（所持が要る）。
 //   中身は w.flags.fc（A）・w.flags.fl（B）に書き、fusion.js の fire が読む（applyMods が組み直すたびに引いた順に掛け直される）。数値は BAL.fusionCards
 const FCK = BAL.fusionCards;
@@ -737,7 +737,7 @@ FP('bubbleblade', { rankAxis: 'ray', name: '流星群', desc: '光の刃 +' + FC
 FP('icebomb', { rankAxis: 'storm', name: '双つの吹雪', desc: '逆向きに漂う氷の嵐が' + FCK.fp_icebomb.storms + 'つ増える',
   apply(run) { for (const w of run.units) if (w.fuse === 'icebomb') fcOf(w).storms = Game.rki(FCK.fp_icebomb.storms, 'storm'); } });
 
-// ---- B：合成武器どうしの連携（8枚・レジェンド）----
+// ---- B：合成武器どうしの連携（11枚・レジェンド）----
 FL('fl_mark', ['starassault', 'scattergun'], { rankAxis: 'mark', name: '被弾の印', desc: '星・子弾を受けた敵は、' + FCK.fl_mark.sec + '秒 被ダメージ +' + pc(FCK.fl_mark.mark) + '%',
   apply(run) { for (const w of run.units) if (w.fuse === 'starassault' || w.fuse === 'scattergun') flOf(w).mark = Game.rka(FCK.fl_mark.mark, 'mark'); } });
 FL('fl_rift', ['voidblade', 'abyssnet'], { rankAxis: 'rift', name: '裂け目の触手', desc: '海底の泡に捕まった敵へ、裂け目から触手が伸びる',
@@ -754,6 +754,13 @@ FL('fl_trail', ['flameblade', 'chakram'], { rankAxis: 'trail', name: '炎の軌�
   apply(run) { for (const w of run.units) if (w.fuse === 'flameblade' || w.fuse === 'chakram') flOf(w).trail = Game.rka(FCK.fl_trail.trail, 'trail'); } });
 FL('fl_acid', ['toxmortar', 'acidfoam'], { rankAxis: 'acid', name: '酸の爆発', desc: '王水に落ちた砲弾が、酸の爆発を起こす',
   apply(run) { for (const w of run.units) if (w.fuse === 'toxmortar' || w.fuse === 'acidfoam') flOf(w).acid = Game.rka(FCK.fl_acid.acid, 'acid'); } });
+// 2026-10-13 追加の3枚：互いの技が相手の技を呼ぶ（双方向）
+FL('fl_starbub', ['starassault', 'bubblegun'], { rankAxis: 'sb', name: '星と泡', desc: '星が弾けると泡が' + FCK.fl_starbub.bubbles + 'つ飛んで割れる。泡が割れると星が' + FCK.fl_starbub.stars + 'つ飛んで弾ける（星は' + FCK.fl_starbub.starGap + '秒に1回まで）',
+  apply(run) { for (const w of run.units) if (w.fuse === 'starassault' || w.fuse === 'bubblegun') flOf(w).sb = Game.rka(FCK.fl_starbub.sb, 'sb'); } });
+FL('fl_prism', ['cryobeam', 'icebomb'], { rankAxis: 'prism', name: '白い乱反射', desc: '光線が氷の嵐を通ると、嵐の中で' + FCK.fl_prism.rays + '本に分かれて' + FCK.fl_prism.bounces + '回ずつ乱反射し、敵を次々に貫く。光線が当たった敵の足もとに小さな氷の嵐（1発' + FCK.fl_prism.mini + 'つまで）',
+  apply(run) { for (const w of run.units) if (w.fuse === 'cryobeam' || w.fuse === 'icebomb') flOf(w).prism = Game.rka(FCK.fl_prism.prism, 'prism'); } });
+FL('fl_spark', ['bubbleblade', 'plasmachain'], { rankAxis: 'spark', name: '火花の泡', desc: '流れ星の着弾に泡が' + FCK.fl_spark.stay + 'つ漂い、電撃の線に触れると割れて光の刃が走る。泡が割れると近くの電撃の線へ稲妻が跳び、その線が' + FCK.fl_spark.sec + '秒 太く強くなる（威力 ×' + FCK.fl_spark.strong + '）',
+  apply(run) { for (const w of run.units) if (w.fuse === 'bubbleblade' || w.fuse === 'plasmachain') flOf(w).spark = Game.rka(FCK.fl_spark.spark, 'spark'); } });
 
 const CARD_IDS = Object.keys(CARDS);
 
