@@ -92,6 +92,9 @@ const Asc = {
     const c = BAL.ascAxis[key];
     return Math.min(c.max, 1 + c.per * this.axisN(perm, key));
   },
+  // 妨害の軸：ジャマー兵・クラッシャー（sab が jam / crush）の重みの倍率と、縮小版のボスの追加数
+  jamWMul(perm, t) { return (t && (t.sab === 'jam' || t.sab === 'crush')) ? this.axisMul(perm, 'jam') : 1; },
+  jamMiniAdd(perm) { const c = BAL.ascAxis.jam; return Math.min(c.miniMax, c.miniPer * this.axisN(perm, 'jam')); },
   upperShare(perm, stageIdx) {
     if (!BAL.ascUpperOn || !this.on(perm) || stageIdx < MAIN_CHAPTERS) return 0;
     return Math.min(BAL.ascUpperShareMax, Math.max(0, BAL.ascUpperShare0 + BAL.ascUpperSharePerLv * this.lv(perm)));
@@ -99,7 +102,7 @@ const Asc = {
   // いま出る上位の種類（アセンションのレベルで増える）
   upperList(perm) {
     const lv = this.lv(perm), out = [];
-    for (const k in UPPER_TYPES) { const c = BAL.ascUpper[k]; if (c && lv >= c.lv) out.push({ t: UPPER_TYPES[k], w: c.weight }); }
+    for (const k in UPPER_TYPES) { const c = BAL.ascUpper[k]; if (c && lv >= c.lv) out.push({ t: UPPER_TYPES[k], w: c.weight * this.jamWMul(perm, UPPER_TYPES[k]) }); }
     return out;
   },
   upperK(perm) {
