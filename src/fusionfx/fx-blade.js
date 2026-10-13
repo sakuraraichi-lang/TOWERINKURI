@@ -715,7 +715,9 @@ const FX_FLAMEBLADE = {
     FxKit.hexWave(ctx, f.x, f.y, r * 1.05, T / 0.36, '#ff8a3a', 4.5);
     FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed, n: 12, life: 0.6, v: r * 4.5, drag: 4, g: -60, size: 3.2, c0: '#fff2b0', c1: '#ff4a1a' });
   },
-  fx: { flamberge(ctx, f, k) { this.slash(ctx, f, k); }, flameboom(ctx, f, k) { this.boom(ctx, f, k); } },
+  // 紅蓮の炎の放射（噴きっぱなし・2026-10-13）：火炎放射器と同じ舌の重ね方で、色を赤熱の刃に寄せる（白熱の芯→紅→深い赤）
+  stream(ctx, f, k) { FxKit.flameStream(ctx, f, k, { hot: '255,236,170', mid: '255,90,40', edge: '210,20,30', glow: '#ff2a1a', ember: '#ff4a1a' }); },
+  fx: { flamberge(ctx, f, k) { this.slash(ctx, f, k); }, flameboom(ctx, f, k) { this.boom(ctx, f, k); }, fbstream(ctx, f, k) { this.stream(ctx, f, k); } },
   zones: { flametrail(ctx, z, run) { this.burnLine(ctx, z, run); } },
 };
 FusionFX.register('flameblade', FX_FLAMEBLADE);
@@ -1032,7 +1034,7 @@ if (typeof window !== 'undefined' && window.addEventListener) window.addEventLis
     plasmachain: { face: -90, foes: F, times: [[0.05, '撃つ'], [0.3, '網'], [0.45, '当たり'], [0.9, '余韻']], look: 120, w: 300 },
     chakram: { face: -90, foes: [[60, 0], [110, 4], [160, -4], [220, 3], [280, -2], [335, 0]], times: [[0.04, '投げる'], [0.2, '飛ぶ'], [1.0, '回る'], [1.85, '戻る']], look: 165, w: 300 },
     toxblade: { face: -90, foes: F, times: [[0.04, '撃つ'], [0.15, '飛ぶ'], [0.35, '跳ねる'], [0.9, '毒の筋']], look: 120, w: 300 },
-    flameblade: { face: -90, foes: F, times: [[0.03, '1本目'], [0.2, '滅多斬り'], [0.36, '十字'], [0.9, '燃える線']], look: 120, w: 300 },
+    flameblade: { face: -90, foes: F, stream: true, times: [[0.03, '1本目'], [0.2, '滅多斬り'], [0.36, '十字'], [0.9, '燃える線']], look: 120, w: 300 },
     bubblegun: { face: -90, foes: F, times: [[0.04, '撃つ'], [0.12, '飛ぶ'], [0.2, '割れる'], [0.45, '小さな泡']], look: 120, w: 300 },
     bubbleblade: { face: -90, foes: F, times: [[0.05, '撃つ'], [0.25, '落ちる'], [0.5, '光の刃'], [0.9, '泡が割れる']], look: 120, w: 300 },
     scattergun: { face: -90, foes: F, times: [[0.05, '撃つ'], [0.35, '飛ぶ'], [0.75, '割れる'], [1.1, '子弾の雨']], look: 120, w: 300 },

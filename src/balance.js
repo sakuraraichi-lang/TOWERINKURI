@@ -1093,16 +1093,17 @@ BAL.fusion = {
   toxblade: { stat: { dmg: 30, rate: 2, range: 240, speed: 500, bulletR: 5.5, bounce: 7 }, p: { trailW: 11, trailDur: 1.6, trailDps: 0.6, chance: 0.7, cloudR: 46, cloudDur: 3, cloudDps: 0.35, slow: 0.1, vuln: 0.1 } },
   // 5 刀＋触手（8）異界の剣
   voidblade: { stat: { dmg: 220, rate: 1, range: 168, crit: 0.2, critMul: 2.5 }, p: { tilt: 0.1, dist: 92, len: 115, wid: 360, dur: 2.6, tick: 0.15, dps: 0.6, slow: 0.4, stabs: 3, stabEvery: 0.25, stabMul: 0.5 } },   // 2026-10-13 性能：大斬撃のあと、裂け目で触手が何度も突く
-  // 6 刀＋火炎（8）フランベルジュ：8連の滅多斬り（扇に広がる・gap 秒ずつずらす）→十字の大斬り＋炎の爆発・斬った跡が燃える線（2026-10-13）
-  flameblade: { stat: { dmg: 60, rate: 2.2, range: 185, cone: 1.35, crit: 0.15, critMul: 2, burn: 0.6, burnDur: 3 }, p: { slashes: 8, spreadK: 0.9, subArc: 0.5, gap: 0.035, crossMul: 2.5, crossHalf: 22, boomR: 64, boomMul: 2, lineDur: 1.5, lineDps: 0.8 } },
+  // 6 刀＋火炎（8）フランベルジュ：紅蓮の炎を噴きっぱなし（rate 回/秒・扇 flameArc・長さ range×flameK・1回 dmg×flameMul）＋ every 発ごとに
+  //   8連の滅多斬り（扇に広がる・gap 秒ずつずらす）→十字の大斬り＋炎の爆発・斬った跡が燃える線（2026-10-13・炎の噴きっぱなしは同日の2回目）
+  flameblade: { stat: { dmg: 60, rate: 12, range: 185, cone: 1.35, crit: 0.15, critMul: 2, burn: 0.6, burnDur: 3 }, p: { flameK: 0.9, flameArc: 0.5, flameMul: 0.15, every: 5.5, slashes: 8, spreadK: 0.9, subArc: 0.5, gap: 0.035, crossMul: 2.5, crossHalf: 22, boomR: 64, boomMul: 2, lineDur: 1.5, lineDps: 0.8 } },
   // 7 触手＋泡（9）狂気の海底：大きな泡・集敵・触手の一突きで破裂
   abyssnet: { stat: { dmg: 60, rate: 0.6, range: 300, count: 2, stunDur: 0.5 }, p: { R: 100, dur: 3, tick: 0.1, dps: 0.8, pull: 160, burstR: 105, burstMul: 3.2, stabs: 3, stabEvery: 0.3, stabMul: 0.7 } },   // 2026-10-13 性能：集めて触手が何度も突く
   // 8 触手＋テスラ（7）航海の悪夢：雷を纏った竜巻
-  thunderwhip: { stat: { dmg: 3, rate: 0.4, range: 230, knock: 60, knockDur: 0.3, chain: 3, chainFalloff: 0.85, shockDur: 1.2 }, p: { start: 24, R: 66, dur: 3.5, speed: 50, dps: 0.9, tick: 0.07, pull: 70, chainEvery: 0.2, chainMul: 1.6 } },   // 1013 性能：大きく・巻き込み・速い刻み
+  thunderwhip: { stat: { dmg: 3, rate: 0.4, range: 230, knock: 60, knockDur: 0.3, chain: 3, chainFalloff: 0.85, shockDur: 1.2 }, p: { start: 24, R: 66, dur: 3.5, speed: 50, dps: 1.3, tick: 0.07, pull: 70, chainEvery: 0.15, chainMul: 1.6 } },   // 1013 性能：大きく・巻き込み・速い刻み（同日の2回目：立ち上がる竜巻の絵に合わせて dps 0.9→1.3・稲妻 0.2→0.15秒ごと）
   // 9 火炎＋毒ガス（7）爆裂放射器：長い炎＋先で爆発＋毒
   hellmist: { stat: { dmg: 28, rate: 2.2, range: 190, cone: 0.45, burn: 0.5, burnDur: 3, fieldR: 80, fieldDur: 3, fieldVuln: 0.2 }, p: { from: 0.3, at: 0.9, blasts: 4, gap: 0.06, blastR: 64, blastMul: 1.6, every: 1, dps: 1, slow: 0.15 } },   // 1013 性能：線に沿って4連の爆発
-  // 10 火炎＋迫撃砲（8）ヴォルケイノブラスト：正面へ火山弾
-  napalm: { stat: { dmg: 34, rate: 0.6, range: 330, burn: 0.6, burnDur: 3.5, splash: 56, speed: 330 }, p: { bombs: 7, fan: 0.22, fanK: 1.5, poolR: 62, poolDur: 4, poolDps: 1.0 } },   // 2026-10-13 性能：火山弾の連射と溶岩の溜まり
+  // 10 火炎＋迫撃砲（8）ヴォルケイノブラスト：溶岩の炎を噴きっぱなし（rate 回/秒・扇 flameArc・長さ flameR・1回 dmg×flameMul）＋ every 発ごとに正面へ火山弾
+  napalm: { stat: { dmg: 34, rate: 12, range: 330, burn: 0.6, burnDur: 3.5, splash: 56, speed: 330 }, p: { flameR: 170, flameArc: 0.45, flameMul: 0.3, every: 20, bombs: 7, fan: 0.22, fanK: 1.5, poolR: 62, poolDur: 4, poolDps: 1.0 } },   // 2026-10-13 性能：火山弾の連射と溶岩の溜まり
   // 11 凍結＋火炎（9）相反の渦
   vortex: { stat: { dmg: 50, rate: 1.2, range: 210, slow: 0.5, slowDur: 2.6, burn: 0.5, burnDur: 3 }, p: { dur: 0.85, tick: 0.08, dps: 1.2, burnK: 0.3, shatter: 1.5 } },   // 1013 性能：残る渦の速い刻み・札なしでも砕ける
   // 12 凍結＋泡（10）永久凍土：火力は低く、足止めは絶大
@@ -1112,7 +1113,7 @@ BAL.fusion = {
   // 14 レーザー＋ミサイル（9）スーパーノヴァ：道1本分の太さ・絶え間ない・多段ヒット
   convergence: { stat: { dmg: 7, rate: 14, range: 440, bulletR: 30, reflect: 2 }, p: { life: 0.09 } },   // 1013 性能：1秒に14回当てる
   // 15 ミサイル＋迫撃砲（9）滅尽嵐：着弾に火炎旋風
-  carpet: { stat: { dmg: 14, rate: 0.85, range: 400, speed: 420, splash: 60, spot: 100 }, p: { R: 60, dur: 3.5, tick: 0.1, dps: 2, burn: 0.4, drift: 14 } },   // 2026-10-13 性能：火炎旋風が刻み続ける
+  carpet: { stat: { dmg: 14, rate: 0.85, range: 400, speed: 420, splash: 60, spot: 100 }, p: { R: 60, dur: 3.5, tick: 0.1, dps: 2, burn: 0.4, drift: 14, pull: 40 } },   // 2026-10-13 性能：火炎旋風が刻み続ける・中へ吸い込む（pull）
   // 16 ミサイル＋テスラ（8）磁気嵐
   chainstrike: { stat: { dmg: 30, rate: 0.85, range: 360, speed: 430, splash: 90, spot: 128, chain: 6, chainFalloff: 0.9, shockDur: 1.5 }, p: { pillarR: 96, chainMul: 0.65, stormDur: 2.6, tick: 0.12, dps: 0.6, boltEvery: 0.16, bolts: 2, boltMul: 0.9 } },   // 1013 性能：嵐が残って稲妻を次々
   // 17 テスラ＋毒ガス（6）雷雲

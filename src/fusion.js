@@ -459,12 +459,23 @@ const FUSIONS = {
     },
   },
 
-  // 6 刀＋火炎：フランベルジュ。目の前を扇に広がる8連の滅多斬り（1本ずつずらして当たる）→ 十字の大斬り＋炎の爆発。十字の跡は燃える線になって刻む（2026-10-13）
+  // 6 刀＋火炎：フランベルジュ。火炎放射器のように紅蓮の炎を噴きっぱなしにし（毎回、正面の扇を焼く）、P.every 秒ぶんの発射ごとに
+  //   扇に広がる8連の滅多斬り（1本ずつずらして当たる）→ 十字の大斬り＋炎の爆発。十字の跡は燃える線になって刻む（2026-10-13）
   flameblade: {
     id: 'flameblade', a: 'katana', b: 'flame', name: 'フランベルジュ', short: 'FRB', color: '#ff3a2a',
-    role: '目の前の扇', desc: '8連の滅多斬りから、十字の大斬りと炎の爆発',
+    role: '目の前の扇', desc: '紅蓮の炎を吹き続け、8連の滅多斬りから十字の大斬りと炎の爆発',
     fire(w, run) {
-      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_flameblade, n = Math.max(1, Math.round(w.n || 1)) * P.slashes;
+      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_flameblade;
+      // 刀の間合い（扇 cone・射程 range）に敵が居ないときは噴かない（次のフレームでまた試す）。w.target は首振りの線の上の敵なので使わない（線から外れるたびに炎が途切れる）
+      if (!Fusion.coneEnemies(w, w.angle, w.s.cone, w.s.range).length) return false;
+      // 炎の放射（噴きっぱなし）：火炎放射器と同じく、撃つたびに正面の扇を焼く（当たるたびにバリアが下がる＝ヒット数を稼ぐ）
+      const fr = w.s.range * P.flameK;
+      Combat.coneDamage(w, run, w.angle, P.flameArc, fr, w.s.dmg * P.flameMul, { color: '#ff6a4a', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur, crit: w.s.crit, critMul: w.s.critMul });
+      Fusion.fx(run, { k: 'fbstream', x: w.x, y: w.y, a: w.angle, arc: P.flameArc, r: fr, life: 0.22, seed: (w.shots * 2654435761) % 1000 });
+      // 滅多斬り：レートに合わせて P.every 発ごと（時刻で数える。レートの札で速くなる）
+      if (w.fbT !== undefined && run.time >= w.fbT && run.time - w.fbT < P.every / w.s.rate) return;
+      w.fbT = run.time;
+      const n = Math.max(1, Math.round(w.n || 1)) * P.slashes;
       const burn = { burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur }, h = Math.ceil((n - 1) / 2) || 1;
       for (let i = 0; i < n; i++) {
         // 扇に左右交互に広がる（真ん中から外へ）
@@ -603,12 +614,22 @@ const FUSIONS = {
   // 10 火炎＋迫撃砲：ヴォルケイノブラスト。正面へ火山弾を噴き出し、落ちた所から燃え広がる
   napalm: {
     id: 'napalm', a: 'flame', b: 'mortar', name: 'ヴォルケイノブラスト', short: 'VBL', color: '#ff5a1a',
-    role: '正面の長い帯', desc: '正面へ火山弾を噴き出す',
+    role: '正面の長い帯', desc: '溶岩の炎を吹き続け、火山弾を噴き上げて溶岩の溜まりを残す',
     fire(w, run) {
       const P = Fusion.p(w), F = Fusion.fc(w), boom = Fusion.link(w, run, 'boom', 'hellmist'), n = P.bombs + (F.bombs || 0);   // 噴火の連打（fp_napalm）：火山弾が増える
+      // 炎の放射（噴きっぱなし・2026-10-13）：火炎放射器と同じく、撃つたびに正面の扇を焼く。炎の届く長さの中で、射界（P.fanK 倍）に敵が居るあいだ噴き続ける
+      let did = false;
+      if (Fusion.coneEnemies(w, w.angle, w.arc * P.fanK, P.flameR).length) {
+        Combat.coneDamage(w, run, w.angle, P.flameArc, P.flameR, w.s.dmg * P.flameMul, { color: '#ffb066', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur, crit: w.s.crit, critMul: w.s.critMul });
+        Fusion.fx(run, { k: 'vbstream', x: w.x, y: w.y, a: w.angle, arc: P.flameArc, r: P.flameR, life: 0.22, seed: (w.shots * 2654435761) % 1000 });
+        did = true;
+      }
+      // 火山弾：レートに合わせて P.every 発ごと（時刻で数える。レートの札で速くなる）
+      if (w.vbT !== undefined && run.time >= w.vbT && run.time - w.vbT < P.every / w.s.rate) return did ? undefined : false;
       // 正面の扇（射界を P.fanK 倍に広げた範囲）にいる敵を狙って噴き出す。居なければ撃たない（次のフレームでまた試す）。手前から奥へ散らばるよう、遠さで並べて等間隔に拾う
       const foes = Fusion.coneEnemies(w, w.angle, w.arc * P.fanK, w.s.range);
-      if (!foes.length) return false;
+      if (!foes.length) return did ? undefined : false;
+      w.vbT = run.time;
       foes.sort((p, q) => Util.dist(w.x, w.y, p.x, p.y) - Util.dist(w.x, w.y, q.x, q.y));
       for (let i = 0; i < n; i++) {
         const e = foes[Math.min(foes.length - 1, Math.floor((i + Math.random()) * foes.length / n))];
@@ -764,7 +785,7 @@ const FUSIONS = {
         const n = 1 + (F.whirls || 0), a0 = Math.random() * 6.28;
         for (let k = 0; k < n; k++) {
           const ang = Math.random() * 6.28, wx = k === 0 ? x : x + Math.cos(a0 + k * 6.2832 / (n - 1)) * P.R * K.off, wy = k === 0 ? y : y + Math.sin(a0 + k * 6.2832 / (n - 1)) * P.R * K.off;
-          Fusion.zone(rr, { kind: 'firewhirl', x: wx, y: wy, r: P.R, dur: P.dur, tick: P.tick, dps: w.s.dmg * P.dps, burn: w.s.dmg * P.burn, burnDur: 2,
+          Fusion.zone(rr, { kind: 'firewhirl', x: wx, y: wy, r: P.R, dur: P.dur, tick: P.tick, dps: w.s.dmg * P.dps, burn: w.s.dmg * P.burn, burnDur: 2, pull: P.pull,   // 中へ吸い込む（炎の舌が中へ巻く絵）
             drift: { x: Math.cos(ang) * P.drift, y: Math.sin(ang) * P.drift }, color: '#ff7a2a', dcolor: '#ffb066' });
         }
         Fusion.fx(rr, { k: 'carpetblast', x, y, r: P.R, life: 0.6, seed: Math.abs((x * 7 + y * 3) | 0) % 97 });
