@@ -97,16 +97,18 @@ const Asc = {
   jamMiniAdd(perm) { const c = BAL.ascAxis.jam; return Math.min(c.miniMax, c.miniPer * this.axisN(perm, 'jam')); },
   upperShare(perm, stageIdx) {
     if (!BAL.ascUpperOn || !this.on(perm) || stageIdx < MAIN_CHAPTERS) return 0;
-    return Math.min(BAL.ascUpperShareMax, Math.max(0, BAL.ascUpperShare0 + BAL.ascUpperSharePerLv * this.lv(perm)));
+    let s = Math.min(BAL.ascUpperShareMax, Math.max(0, BAL.ascUpperShare0 + BAL.ascUpperSharePerLv * this.lv(perm)));
+    if (this.themeKey(stageIdx) === 'elite') s = 1 - (1 - s) * BAL.ascTheme.elite.left;   // 精鋭章：雑魚を減らして上位が中心
+    return s;
   },
   // いま出る上位の種類（アセンションのレベルで増える）
-  upperList(perm) {
+  upperList(perm, stageIdx) {
     const lv = this.lv(perm), out = [];
-    for (const k in UPPER_TYPES) { const c = BAL.ascUpper[k]; if (c && lv >= c.lv) out.push({ t: UPPER_TYPES[k], w: c.weight * this.jamWMul(perm, UPPER_TYPES[k]) }); }
+    for (const k in UPPER_TYPES) { const c = BAL.ascUpper[k]; if (c && lv >= c.lv) out.push({ t: UPPER_TYPES[k], w: c.weight * this.jamWMul(perm, UPPER_TYPES[k]) * this.themeW(stageIdx, UPPER_TYPES[k]) }); }
     return out;
   },
-  upperK(perm) {
-    const L = this.upperList(perm);
+  upperK(perm, stageIdx) {
+    const L = this.upperList(perm, stageIdx);
     let sw = 0, sk = 0;
     for (const o of L) { sw += o.w; sk += o.w * o.t.k; }
     return sw > 0 ? sk / sw : 1;
@@ -114,14 +116,79 @@ const Asc = {
   upperQ(perm, stageIdx) {
     const s = this.upperShare(perm, stageIdx);
     if (!(s > 0)) return 0;
-    const a = s / this.upperK(perm);
+    const a = s / this.upperK(perm, stageIdx);
     return a / ((1 - s) + a);
   },
   // 1ウェーブの数に掛ける倍率（置き換えたぶん減る）
   upperCountMul(perm, stageIdx) {
     const s = this.upperShare(perm, stageIdx);
-    return s > 0 ? (1 - s) + s / this.upperK(perm) : 1;
+    return s > 0 ? (1 - s) + s / this.upperK(perm, stageIdx) : 1;
   },
+  // ---- 章の特色（2026-10-13・BAL.ascTheme）：第31章から先、ボスの章（5章ごと）以外 ----
+  //   24章を1組に、特色5種を per 章ずつ＋特色なし。組ごとに種（BAL.mapSeed）で並べ替え、同じ特色は隣り合わせない。全員同じ
+  THEMES: {
+    elite:  { jp: '精鋭章',   en: 'ELITE',     col: '#ffd24a', line: '雑魚は少ない ─ 上位の敵が中心' },
+    legacy: { jp: '旧ボス章', en: 'LEGACY',    col: '#ff8a3d', line: 'かつてのボスの縮小版が多く混ざる' },
+    jam:    { jp: '妨害章',   en: 'JAMMING',   col: '#d36bff', line: 'ジャマー兵・クラッシャーが多い' },
+    resist: { jp: '耐性章',   en: 'IMMUNE',    col: '#6fe3ff', line: '' },   // 系統ごとの一言は themeLine
+    wide:   { jp: '広域章',   en: 'WIDE AREA', col: '#4ee0ff', line: '盤が広い ─ 流れが太い' },
+  },
+  THEME_KEYS: ['elite', 'legacy', 'jam', 'resist', 'wide'],
+  RESIST_SYS: ['phys', 'elem', 'field'],   // 無効の上位の敵がいる系統（ゴースト・ファラデー・サンドボックス）。光学・掴みに無効の敵はいない
+  _thDeck: {}, _thMemo: {},
+  _themeDeck(b) {
+    if (this._thDeck[b]) return this._thDeck[b];
+    const T = BAL.ascTheme, BLOCK = 24, items = [];
+    for (const k of this.THEME_KEYS) for (let i = 0; i < T.per; i++) items.push(k);
+    while (items.length < BLOCK) items.push(null);
+    const rnd = MapGen.rng(((BAL.mapSeed || 1) * 7919 + b * 104729 + 31) >>> 0);
+    let deck = items, ok = false;
+    for (let t = 0; t < 400 && !ok; t++) {
+      deck = items.slice();
+      for (let i = deck.length - 1; i > 0; i--) { const j = (rnd() * (i + 1)) | 0; [deck[i], deck[j]] = [deck[j], deck[i]]; }
+      ok = deck.every((x, i) => !x || x !== deck[i - 1]);
+    }
+    return (this._thDeck[b] = deck);
+  },
+  // 章 ch（1から数える）の特色。無ければ null。{ key, sys }（sys は耐性章だけ）
+  themeOf(ch) {
+    if (!(ch > MAIN_CHAPTERS) || ch % 5 === 0) return null;
+    if (ch in this._thMemo) return this._thMemo[ch];
+    const x = ch - MAIN_CHAPTERS - 1, k = x - Math.floor(x / 5), b = Math.floor(k / 24), pos = k % 24, deck = this._themeDeck(b);
+    const key = deck[pos];
+    let out = null;
+    if (key) {
+      out = { key };
+      if (key === 'resist') {
+        let r = b * BAL.ascTheme.per;
+        for (let i = 0; i < pos; i++) if (deck[i] === 'resist') r++;
+        const rr = MapGen.rng(((BAL.mapSeed || 1) * 31 + 977) >>> 0), o = this.RESIST_SYS.slice();
+        for (let i = o.length - 1; i > 0; i--) { const j = (rr() * (i + 1)) | 0; [o[i], o[j]] = [o[j], o[i]]; }
+        out.sys = o[r % o.length];
+      }
+    }
+    return (this._thMemo[ch] = out);
+  },
+  themeKey(stageIdx) { const t = stageIdx === undefined ? null : this.themeOf(stageIdx + 1); return t ? t.key : null; },
+  // 表示用の短い一行
+  themeLine(th) {
+    if (!th) return '';
+    if (th.key === 'resist') return SYS_INFO[th.sys].jp + 'に無効な敵が多い';
+    return this.THEMES[th.key].line;
+  },
+  // 上位の敵 t の出やすさの、章の特色による倍（妨害章：妨害の敵／耐性章：その系統に無効の敵）
+  themeW(stageIdx, t) {
+    const th = stageIdx === undefined ? null : this.themeOf(stageIdx + 1);
+    if (!th || !t) return 1;
+    if (th.key === 'jam' && t.sab) return BAL.ascTheme.jam.w;
+    if (th.key === 'resist' && t.imm && t.imm.indexOf(th.sys) >= 0) return BAL.ascTheme.resist.w;
+    return 1;
+  },
+  // 旧ボス章：縮小版のボスの追加体数
+  themeMiniAdd(stageIdx) { return this.themeKey(stageIdx) === 'legacy' ? BAL.ascTheme.legacy.add : 0; },
+  // 広域章：敵の数の倍
+  themeFlow(stageIdx) { return this.themeKey(stageIdx) === 'wide' ? BAL.ascTheme.wide.flow : 1; },
+
   // ゼロデイの弱点の系統（章ごとに固定・乱数にしない）
   weakOf(stageIdx) { return SYS_ORDER[(stageIdx * 5 + 2) % SYS_ORDER.length]; },
 
