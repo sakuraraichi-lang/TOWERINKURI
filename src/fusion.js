@@ -102,7 +102,7 @@ const Fusion = {
         const d = Math.hypot(z.x - e.x, z.y - e.y);
         if (d > 5) {
           const k = Math.min(d, z.pull * step * Combat.ccK(e)) / d, nx = e.x + (z.x - e.x) * k, ny = e.y + (z.y - e.y) * k;
-          if (run.stage.walkable((nx / TILE) | 0, (ny / TILE) | 0)) { e.x = nx; e.y = ny; }
+          if (run.stage.walkable((nx / TILE) | 0, (ny / TILE) | 0) && !Combat.inShield(run, { x: nx, y: ny })) { e.x = nx; e.y = ny; }   // 湧き口のバリアの中へは引き込まない（バリアの中は何も効かない・掴みの引き戻しと同じ決まり）
         }
       }
       // 細かく掴む（航海の悪夢）：触手の掴みと同じ決まり（上位の敵の無効・重量・合計の上限）で、掴む時間は短く何度も掛け直す
@@ -178,7 +178,7 @@ const Fusion = {
       d *= falloff;
       cur = best;
       if (best.upper && Combat.immune(best, 'elem')) break;
-      if (best.res && best.res.elec) break;
+      // 耐電では止まらない（合成武器は A と B の両方がテスラのときだけ耐電にかかる＝かからない・Combat.hitsRes）
     }
     if (pts.length > 1) {
       if (o.fxk) this.fx(run, { k: o.fxk, pts, life: 0.2, color: o.color || '#c9b3ff', r0: o.r0 || 0, seed: ((run.time * 1000) | 0) % 997 });   // 合成武器の絵（fusionfx.js）
@@ -883,8 +883,8 @@ const FUSIONS = {
           const hv = ((e.res && e.res.heavy) ? BAL.resMul : 1) * Combat.ccK(e) * dt;
           const ux = dx / d, uy = dy / d, ix = -ux * Math.min(P.pull * hv, d - 4), iy = -uy * Math.min(P.pull * hv, d - 4);
           const nx = e.x - uy * P.swirl * hv + ix, ny = e.y + ux * P.swirl * hv + iy;
-          if (run.stage.walkable((nx / TILE) | 0, (ny / TILE) | 0)) { e.x = nx; e.y = ny; }
-          else if (run.stage.walkable(((e.x + ix) / TILE) | 0, ((e.y + iy) / TILE) | 0)) { e.x += ix; e.y += iy; }
+          if (run.stage.walkable((nx / TILE) | 0, (ny / TILE) | 0) && !Combat.inShield(run, { x: nx, y: ny })) { e.x = nx; e.y = ny; }
+          else if (run.stage.walkable(((e.x + ix) / TILE) | 0, ((e.y + iy) / TILE) | 0) && !Combat.inShield(run, { x: e.x + ix, y: e.y + iy })) { e.x += ix; e.y += iy; }
         }
       }
       // 中心の目：氷と炎がぶつかって蒸気が爆ぜる（熱衝撃）
@@ -1080,7 +1080,7 @@ const FUSIONS = {
           const list = Fusion.enemiesIn(z.x, z.y, z.r * P.strikeR);
           if (!list.length) return;
           // 積乱雲（fp_stormcloud）：一度に落ちる雷が増える
-          for (let k = 0; k <= (F.strikes || 0) && list.length; k++) {
+          for (let k = 0; k < P.strikes + (F.strikes || 0) && list.length; k++) {
             const e = list.splice((Math.random() * list.length) | 0, 1)[0];
             Fusion.fx(rr, { k: 'strike', x: e.x, y: e.y, fromX: z.x, fromY: z.y - z.r * 0.45, life: 0.32, color: '#d8c7ff', seed: Math.abs((e.x * 3 + e.y) | 0) % 97 });   // 0.32秒は絵の長さ
             Fusion.chainFrom(w, rr, e, w.s.chain, w.s.dmg * P.strikeMul, w.s.chainFalloff, { fromX: e.x, fromY: e.y, direct: true, color: '#d8c7ff', fxk: 'stormzap' });
@@ -1110,7 +1110,7 @@ const FUSIONS = {
       const d = Math.min(w.s.range * P.at, Util.dist(w.x, w.y, t.x, t.y));
       const bx = w.x + Math.cos(a) * d, by = w.y + Math.sin(a) * d;
       Fusion.zone(run, {
-        kind: 'plasmaball', x: bx, y: by, r: P.R, dur: P.dur, tick: 0.25, dps: w.s.dmg * P.dps, shock: w.s.shockDur, color: '#c07aff', dcolor: '#e6d0ff',
+        kind: 'plasmaball', x: bx, y: by, r: P.R, dur: P.dur, tick: P.tick, dps: w.s.dmg * P.dps, shock: w.s.shockDur, color: '#c07aff', dcolor: '#e6d0ff',
         pulse: { every: P.zapEvery, fn: (rr, z) => {
           // 放電過多（fp_resonator）：電撃が当たる敵が増える
           for (const e of Fusion.nearestTo(z.x, z.y, z.r * P.reach, P.zaps + (F.zaps || 0))) {
@@ -1200,6 +1200,16 @@ const FUSIONS = {
                 onEnd: (r2, cb) => {
                   Combat.explode(r2, cb.x, cb.y, w.s.splash * P.kidR, cb.dmg * P.popMul, { color: '#ff9ad8', stun: w.s.stunDur * P.popStun * 0.5 });
                   Fusion.fx(r2, { k: 'bubblepop', x: cb.x, y: cb.y, r: w.s.splash * P.kidR, life: 0.45, seed: ((cb.x * 5 + cb.y * 3) | 0) % 97 });
+                  // 孫の泡：小さな泡が割れた所からも、もっと小さな泡が散ってもう一度割れる（ヒット数を稼ぐ・割れ方は小さな泡と同じ）
+                  const ga0 = Math.random() * 6.28;
+                  for (let g = 0; g < (P.grand || 0); g++) {
+                    const gc = Fusion.bulletAt(w, r2, cb.x, cb.y, ga0 + g * 6.2832 / P.grand, { bubble: true, color: '#ff9ad8', through: true, fx: 'fancybubble', child: true, pierce: 0, dmgMul: P.kidMul * P.grandMul,
+                      onEnd: (r3, gb) => {
+                        Combat.explode(r3, gb.x, gb.y, w.s.splash * P.grandR, gb.dmg * P.popMul, { color: '#ff9ad8', stun: w.s.stunDur * P.popStun * 0.3 });
+                        Fusion.fx(r3, { k: 'bubblepop', x: gb.x, y: gb.y, r: w.s.splash * P.grandR, life: 0.4, seed: ((gb.x * 3 + gb.y * 5) | 0) % 97 });
+                      } });
+                    if (gc) gc.range = P.grandRange;
+                  }
                 } });
               if (c) c.range = P.kidRange;
             }

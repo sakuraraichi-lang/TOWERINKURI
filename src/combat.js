@@ -697,6 +697,19 @@ const Combat = {
     }
     const d = by && WEAPONS[by]; return d ? d.sys || null : null;
   },
+  // その攻撃を出した武器の種類（id）の一覧。普通の武器は [by]、合成武器（src＝その1基）は [A, B]（2026-10-13 ユーザー：単一の耐性に引っかからない）
+  partsOf(by, src) {
+    if (src && src.fuse && src.id === by) {
+      const c = this._fparts || (this._fparts = {});
+      return c[src.fuse] || (c[src.fuse] = [FUSIONS[src.fuse].a, FUSIONS[src.fuse].b]);
+    }
+    return [by];
+  },
+  // id で決まる耐性・防壁（耐火・耐電・耐寒・ボスの防壁・ラスボスの耐性）が、この攻撃にかかるか。**合成武器は A と B の両方が当てはまるときだけ**（pred＝種類 id が当てはまるか）
+  hitsRes(by, src, pred) {
+    for (const k of this.partsOf(by, src)) if (!pred(k)) return false;
+    return true;
+  },
   // 敵 e が系統 sys から来たものを受けつけないか（ダメージも状態異常も）。上位の敵だけが無効を持つ
   //   sys が配列（合成武器）のときは、**全部の系統が無効のときだけ**受けつけない（片方でも通る系統があれば当たる）
   immune(e, sys) {
@@ -873,8 +886,8 @@ const Combat = {
     if (res) {
       // 青い炎（flm_inferno）：炎の直撃も、その炎が付けた燃焼も、耐火で半分にならない
       const blue = opts.blue || (by0 === 'flame' && src && src.flags && src.flags.blue);
-      if (res.fire && (by0 === 'flame' || opts.burnTick) && !blue) dmg *= BAL.resMul;
-      if (res.elec && (by0 === 'tesla' || opts.shockTick)) dmg *= BAL.resMul;
+      if (res.fire && (opts.burnTick || this.hitsRes(by0, src, k => k === 'flame')) && !blue) dmg *= BAL.resMul;
+      if (res.elec && (opts.shockTick || this.hitsRes(by0, src, k => k === 'tesla'))) dmg *= BAL.resMul;
     }
     // **装甲は1発のダメージを割合で減らす**（e.armor＝減らす割合・BAL.armorCut）。
     //   減らす割合の上限は BAL.armorCutMax（完全無敵にすると詰む）
@@ -896,11 +909,11 @@ const Combat = {
     if (e.boss && e.rec) {
       if (e.bk === 'final') {
         // ラスボスの耐性：直近に頭を削った武器の種類（そのウェーブの終わりまで・頭にも胴にも効く）。直近の削りには頭に当たった分だけ数える
-        if (run.finalRes && run.finalRes[by]) dmg *= BAL.finalResMul;
-        if (!opts.body) e.rec[by] = (e.rec[by] || 0) + dmg;
+        if (run.finalRes && this.hitsRes(by, src, k => run.finalRes[k])) dmg *= BAL.finalResMul;   // 合成武器は A と B の両方が耐性に入っているときだけ
+        if (!opts.body) for (const k of this.partsOf(by, src)) e.rec[k] = (e.rec[k] || 0) + dmg;   // 直近の削りは、合成武器なら A と B の両方に数える
       } else {
-        if (e.wallT > 0 && by === e.wallBy) dmg *= BAL.bossWallMul;
-        e.rec[by] = (e.rec[by] || 0) + dmg;
+        if (e.wallT > 0 && this.hitsRes(by, src, k => k === e.wallBy)) dmg *= BAL.bossWallMul;   // 合成武器は A と B の両方が防壁の種類のときだけ
+        for (const k of this.partsOf(by, src)) e.rec[k] = (e.rec[k] || 0) + dmg;
       }
     }
     const hp0 = e.hp;
@@ -935,7 +948,7 @@ const Combat = {
     }
     if (sl > 0) {
       // 耐寒（2026-09-30 段3）：凍らない・冷気の減速は強さも時間も半分（凍結装置・霜結の遺物・凍らせる札）
-      const coldRes = res && res.cold && (ch || by === 'cryo');
+      const coldRes = res && res.cold && (ch || this.hitsRes(by, src, k => k === 'cryo'));
       const cm = coldRes ? BAL.resMul : 1;
       // ボスは遅くならない（凍った印・被ダメージの増えは乗る）。遅くできると制限時間が伸びて DPS チェックでなくなる。例外はルートキットの微弱な効き
       //   ルートキットだけ微弱に遅くなる（強さも時間も BAL.rootCcK 倍）
@@ -1297,7 +1310,7 @@ const Combat = {
       this.damage(run, cur, d, { shock: w.s.shockDur, color: '#d8c7ff', crit: w.s.crit, critMul: w.s.critMul });
       d *= w.s.chainFalloff;
       if (cur.upper && this.immune(cur, 'elem')) break;   // ファラデーなど：電気は殻の中へ入らず、連鎖はそこで止まる
-      if (cur.res && cur.res.elec) break;   // 耐電（2026-09-30 段3）：連鎖はそこで止まる
+      if (cur.res && cur.res.elec && !w.fuse) break;   // 耐電（2026-09-30 段3）：連鎖はそこで止まる（合成武器は A と B の両方がテスラのときだけ耐電にかかる＝止まらない）
       const near = Grid.query(cur.x, cur.y, 150, _q);
       let best = null, bd = 1e9;
       for (const e of near) {
