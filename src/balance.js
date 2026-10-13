@@ -1100,14 +1100,17 @@ BAL.fusion = {
   abyssnet: { stat: { dmg: 60, rate: 0.6, range: 300, count: 2, stunDur: 0.5 }, p: { R: 100, dur: 3, tick: 0.1, dps: 0.8, pull: 160, burstR: 105, burstMul: 3.2, stabs: 3, stabEvery: 0.3, stabMul: 0.7 } },   // 2026-10-13 性能：集めて触手が何度も突く
   // 8 触手＋テスラ（7）航海の悪夢：雷を纏った竜巻
   thunderwhip: { stat: { dmg: 3, rate: 0.4, range: 230, knock: 60, knockDur: 0.3, chain: 3, chainFalloff: 0.85, shockDur: 1.2 }, p: { start: 24, R: 66, dur: 3.5, speed: 50, dps: 1.3, tick: 0.07, pull: 70, chainEvery: 0.15, chainMul: 1.6 } },   // 1013 性能：大きく・巻き込み・速い刻み（同日の2回目：立ち上がる竜巻の絵に合わせて dps 0.9→1.3・稲妻 0.2→0.15秒ごと）
-  // 9 火炎＋毒ガス（7）爆裂放射器：長い炎＋先で爆発＋毒
-  hellmist: { stat: { dmg: 28, rate: 2.2, range: 190, cone: 0.45, burn: 0.5, burnDur: 3, fieldR: 80, fieldDur: 3, fieldVuln: 0.2 }, p: { from: 0.3, at: 0.9, blasts: 4, gap: 0.06, blastR: 64, blastMul: 1.6, every: 1, dps: 1, slow: 0.15 } },   // 1013 性能：線に沿って4連の爆発
+  // 9 火炎＋毒ガス（7）爆裂放射器：火炎放射器と同じく炎を吹き続ける（毎秒 rate 回・扇の中の全員に当たる）。炎が敵に掛かっているあいだ、
+  //    blastEvery 秒ごとに炎の線に沿って blasts 連の爆発（gap 秒ずつ）・gasEvery 秒ごとに炎の先へ毒の雲（2026-10-13 fx2）
+  hellmist: { stat: { dmg: 14, rate: 12, range: 190, cone: 0.45, burn: 1, burnDur: 3, fieldR: 80, fieldDur: 3, fieldVuln: 0.2 }, p: { flameLife: 0.24, blastEvery: 0.35, from: 0.3, at: 0.9, blasts: 4, gap: 0.06, blastR: 64, blastMul: 3.6, gasEvery: 1, dps: 2, slow: 0.15 } },
   // 10 火炎＋迫撃砲（8）ヴォルケイノブラスト：溶岩の炎を噴きっぱなし（rate 回/秒・扇 flameArc・長さ flameR・1回 dmg×flameMul）＋ every 発ごとに正面へ火山弾
   napalm: { stat: { dmg: 34, rate: 12, range: 330, burn: 0.6, burnDur: 3.5, splash: 56, speed: 330 }, p: { flameR: 170, flameArc: 0.45, flameMul: 0.3, every: 20, bombs: 7, fan: 0.22, fanK: 1.5, poolR: 62, poolDur: 4, poolDps: 1.0 } },   // 2026-10-13 性能：火山弾の連射と溶岩の溜まり
-  // 11 凍結＋火炎（9）相反の渦
-  vortex: { stat: { dmg: 50, rate: 1.2, range: 210, slow: 0.5, slowDur: 2.6, burn: 0.5, burnDur: 3 }, p: { dur: 0.85, tick: 0.08, dps: 1.2, burnK: 0.3, shatter: 1.5 } },   // 1013 性能：残る渦の速い刻み・札なしでも砕ける
-  // 12 凍結＋泡（10）永久凍土：火力は低く、足止めは絶大
-  icefoam: { stat: { dmg: 14, rate: 0.95, range: 320, slow: 0.9, slowDur: 4, stunDur: 3.4 }, p: { n: 40, cages: 14, delay: 2.2, shardR: 52, shardMul: 1.2, shardSlow: 0.6, shardSlowDur: 2, shardHits: 3, shardGap: 0.07 } },   // 2026-10-13 性能：破片が何度も当たる
+  // 11 凍結＋火炎（9）相反の渦：氷の放射と炎の放射が背中合わせに吹き続けながら回る（毎秒 spin ラジアン・扇の半角 arc・毎秒 rate 回ずつ当たる）。
+  //    氷で凍った敵に炎が掛かると熱衝撃で砕ける（dmg×shatter・半径 shR・敵ごとに cool 秒に1回）（2026-10-13 fx2）
+  vortex: { stat: { dmg: 14, rate: 12, range: 210, slow: 0.5, slowDur: 2.6, burn: 1.6, burnDur: 3 }, p: { spin: 4, arc: 0.6, jetLife: 0.26, shatter: 2.5, shR: 44, cool: 0.45 } },
+  // 12 凍結＋泡（10）永久凍土：砲台を包む大きな泡（半径＝射程）が膨らんで凍り、中の近い n 体を止める → delay 秒で氷のドームが砕け、
+  //    破片が中の敵1体ごとに shardHits 回刺さる（半径 shardR）→ 足元が凍土として残る（groundDur 秒・groundTick ごとに刻む）。範囲に敵が居ないときは撃たない（2026-10-13 fx2）
+  icefoam: { stat: { dmg: 14, rate: 0.7, range: 210, slow: 0.9, slowDur: 3, stunDur: 1.2 }, p: { n: 40, cages: 14, delay: 1, travel: 0.12, shardR: 40, shardMul: 1.2, shardSlow: 0.6, shardSlowDur: 2, shardHits: 3, shardGap: 0.07, groundDur: 2.2, groundTick: 0.25, groundDps: 0.8 } },
   // 13 レーザー＋凍結（9）凍結光線：反射した所に氷の棘山
   cryobeam: { stat: { dmg: 36, rate: 1, range: 430, pierce: 20, bulletR: 22, reflect: 2, slow: 0.55, slowDur: 2.2 }, p: { spikeR: 48, spikeDur: 3.2, spikeDps: 2.2, spikeTick: 0.1, spikeSlow: 0.6, lineDur: 1.2, lineTick: 0.1, lineDps: 1.2 } },   // 1013 性能：霜の線が刻む・棘山の刻みを速く
   // 14 レーザー＋ミサイル（9）スーパーノヴァ：道1本分の太さ・絶え間ない・多段ヒット
@@ -1152,7 +1155,7 @@ BAL.fusionCards = {
   fp_thunderwhip: { twin: 1, ang: 0.45, mul: 0.7 },                            // 軸 twin：増える竜巻の数（左右に1つずつ交互）
   fp_hellmist:    { blasts: 2, step: 0.3, mul: 0.7, gap: 0.1, r: 0.9 },        // 軸 blast：炎の線に沿って増える爆発の数
   fp_napalm:      { bombs: 4 },                                                // 軸 bomb：火山弾の増える数
-  fp_vortex:      { shatter: 3, r: 38, cool: 1.5 },                            // 軸 shatter：割れるときの威力（渦のダメージの倍数）
+  fp_vortex:      { shatter: 5 },                                              // 軸 shatter：熱衝撃で砕けるときの威力に足す（渦のダメージの倍数・大きさと間隔は BAL.fusion.vortex.p）
   fp_icefoam:     { chain: 2, reach: 1.8, mul: 0.6, gap: 0.12 },               // 軸 chain：破裂が連鎖する敵の数
   fp_cryobeam:    { along: 4 },                                                // 軸 spike：光線の道すがらに増える棘山の数
   fp_convergence: { refl: 2 },                                                 // 軸 refl：反射の増える回数
@@ -1169,7 +1172,7 @@ BAL.fusionCards = {
   // ---- B（2つの合成武器がそろっているとき）----
   fl_mark:   { mark: 0.3, sec: 4, pelR: 34 },                                  // 軸 mark：「被弾の印」を受けた敵のダメージの増え（+30%・sec 秒）
   fl_rift:   { rift: 0.5, max: 10, reach: 420 },                               // 軸 rift：海底の泡に捕まった敵への触手の威力（異界の剣のダメージの倍数）
-  fl_shatter:{ burst: 1.5, r: 56 },                                            // 軸 burst：凍った泡の中の敵が爆ぜる威力（渦のダメージの倍数）
+  fl_shatter:{ burst: 4, r: 56 },                                          // 軸 burst：凍った泡の中の敵が爆ぜる威力（渦のダメージの倍数）
   fl_arc:    { arc: 0.8, n: 2, max: 2 },                                       // 軸 arc：互いの場へ跳ぶ電撃の威力（落雷・電撃の倍数）
   fl_boom:   { boom: 4, r: 0.8 },                                              // 軸 boom：爆ぜる威力（放射器・火山弾のダメージの倍数）
   fl_bolt:   { bolt: 1, snvK: 7, msK: 0.8, every: 3, max: 4, reach: 130, gapSec: 1.5 }, // 軸 bolt：電撃の威力（snvK＝スーパーノヴァ側・msK＝磁気嵐側の基準の倍数）

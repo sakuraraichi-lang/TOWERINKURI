@@ -5,7 +5,7 @@
 //     voidblade    異界の剣（済・手本）
 //     abyssnet     狂気の海底（済・段2）
 //     napalm       ヴォルケイノブラスト（済・段2）
-//     icefoam      永久凍土（済・段2）
+//     icefoam      永久凍土（fx2）：砲台を包む泡のドームが凍って砕け、破片が中の敵に刺さる・足元に凍土
 //     carpet       滅尽嵐（済・段2）
 //     acidfoam     王水（済・段2）
 //     toxmortar    破滅の雨（済・段2）
@@ -581,11 +581,11 @@ const FX_NAPALM = {
 FusionFX.register('napalm', FX_NAPALM);
 
 // ===============================================================
-// 永久凍土（凍結＋泡）：撃つと、霜の泡の波が範囲を走る。近い敵は泡に包まれ、泡が白い氷の殻（六角の面）に凍る。
-//   殻にひびが入り、割れるとき氷の破片が飛んで白い霧が残る
+// 永久凍土（凍結＋泡）（2026-10-13 fx2 で作り直し・前は敵1体ずつに小さな泡の殻）：砲台を包む大きな泡（半径＝射程）が膨らみ、縁から凍って白い氷のドームになる。
+//   中の敵は氷の結晶に閉じ込められる → ドームにひび → 砕けて、縁の破片が中の敵へ飛び込んで刺さる → 足元に凍土が残る
 // ===============================================================
 const FX_ICEFOAM = {
-  sr: { face: -90, foes: [[70, -20], [95, 28], [125, -36], [150, 14], [185, -10], [210, 34]], times: [[0.1, '霜の波'], [0.7, '凍る'], [2.05, 'ひび'], [2.36, '割れる']], look: 130, w: 300 },
+  sr: { face: -90, foes: [[60, -40], [95, 50], [125, -70], [150, 20], [185, -25], [30, 110]], times: [[0.12, '膨らむ'], [0.5, '凍る'], [0.95, '砕ける'], [1.6, '凍土']], look: 40, w: 470 },
   // 永久凍土：雪の結晶の台座の前に、凍った泡の房（白い氷の殻）。口は六角の氷
   turret(c) {
     c.lineJoin = 'round'; c.lineCap = 'round';
@@ -609,112 +609,190 @@ const FX_ICEFOAM = {
     // 口（白く光る）
     c.fillStyle = '#ffffff'; c.beginPath(); c.arc(18, 0, 1.8, 0, 7); c.fill();
   },
-  // 泡の殻（作り置き）：bub＝凍る前の透明な泡／ice＝白い氷の殻（六角の面）／crack1〜3＝ひび
-  cageSpr(part) {
-    const R = 17;
-    return FxKit.sprite('fz-icecage-' + part, 22, FxKit.res(), c => {
-      c.lineJoin = 'round'; c.lineCap = 'round';
-      if (part === 'bub') {
-        c.beginPath(); c.arc(0, 0, R, 0, 7);
-        const g = c.createRadialGradient(0, 0, R * 0.6, 0, 0, R); g.addColorStop(0, 'rgba(140,220,255,0.05)'); g.addColorStop(1, 'rgba(140,220,255,0.35)');
-        c.fillStyle = g; c.fill();
-        c.lineWidth = 2.2; c.strokeStyle = '#9fe6ff'; c.stroke();
-        c.lineWidth = 2.4; c.strokeStyle = 'rgba(255,255,255,0.85)'; c.beginPath(); c.arc(0, 0, R * 0.75, Math.PI * 1.1, Math.PI * 1.45); c.stroke();
-        c.fillStyle = '#fff'; c.beginPath(); c.arc(-R * 0.45, -R * 0.55, 1.6, 0, 7); c.fill();
-      } else if (part === 'ice') {
-        // 六角の面：外の六角・中心から角への稜線。中は薄く（敵が透ける）
-        c.beginPath(); FxKit.hexAdd(c, 0, 0, R + 1, Math.PI / 6);
-        const g = c.createRadialGradient(-R * 0.3, -R * 0.35, 1, 0, 0, R + 1); g.addColorStop(0, 'rgba(255,255,255,0.32)'); g.addColorStop(0.6, 'rgba(200,236,255,0.2)'); g.addColorStop(1, 'rgba(150,215,250,0.42)');
-        c.fillStyle = g; c.fill();
-        c.lineWidth = 5; c.strokeStyle = 'rgba(160,225,255,0.35)'; c.stroke();
-        c.lineWidth = 2.2; c.strokeStyle = '#e6f8ff'; c.stroke();
-        c.beginPath();
-        for (let j = 0; j < 6; j++) { const a = j * Math.PI / 3 + Math.PI / 6; c.moveTo(0, 0); c.lineTo(Math.cos(a) * (R + 1), Math.sin(a) * (R + 1)); }
-        c.lineWidth = 0.9; c.strokeStyle = 'rgba(255,255,255,0.55)'; c.stroke();
-        // 面の明暗（右下の面を少し暗く・左上の面を明るく）
-        c.beginPath(); c.moveTo(0, 0);
-        for (const j of [0, 1]) { const a = j * Math.PI / 3 + Math.PI / 6; c.lineTo(Math.cos(a) * (R + 1), Math.sin(a) * (R + 1)); }
-        c.closePath(); c.fillStyle = 'rgba(60,130,190,0.16)'; c.fill();
-        c.beginPath(); c.moveTo(0, 0);
-        for (const j of [3, 4]) { const a = j * Math.PI / 3 + Math.PI / 6; c.lineTo(Math.cos(a) * (R + 1), Math.sin(a) * (R + 1)); }
-        c.closePath(); c.fillStyle = 'rgba(255,255,255,0.22)'; c.fill();
-        // 霜の結晶（縁に小さな枝）
-        c.beginPath();
-        for (let j = 0; j < 6; j++) {
-          const a = j * Math.PI / 3, x = Math.cos(a) * R * 0.88, y = Math.sin(a) * R * 0.88;
-          c.moveTo(x, y); c.lineTo(x - Math.cos(a) * 4, y - Math.sin(a) * 4);
-          c.moveTo(x - Math.cos(a) * 2, y - Math.sin(a) * 2); c.lineTo(x - Math.cos(a - 0.7) * 4.2, y - Math.sin(a - 0.7) * 4.2);
-          c.moveTo(x - Math.cos(a) * 2, y - Math.sin(a) * 2); c.lineTo(x - Math.cos(a + 0.7) * 4.2, y - Math.sin(a + 0.7) * 4.2);
-        }
-        c.lineWidth = 1; c.strokeStyle = '#ffffff'; c.stroke();
-      } else {
-        // ひび：段が進むほど本数と長さが増える
-        const n = part === 'crack1' ? 2 : part === 'crack2' ? 4 : 6, L = part === 'crack1' ? 0.55 : part === 'crack2' ? 0.8 : 1;
-        c.beginPath();
-        for (let i = 0; i < n; i++) {
-          const a = i * 2.39 + 0.5;
-          let x = Math.cos(a) * 3, y = Math.sin(a) * 3;
-          c.moveTo(x, y);
-          for (let j = 1; j <= 3; j++) { const b = a + (FxKit.h(i * 3 + j, 11) - 0.5) * 0.9, d = 3 + (R - 3) * L * j / 3; x = Math.cos(b) * d; y = Math.sin(b) * d; c.lineTo(x, y); }
-        }
-        c.lineWidth = 2.6; c.strokeStyle = 'rgba(20,60,100,0.65)'; c.stroke();
-        c.lineWidth = 1.1; c.strokeStyle = '#ffffff'; c.stroke();
-      }
+  // 縁に並ぶ氷の板（作り置きの六角・半径16）。毎フレーム六角の線を引くと重い（半径210の縁に26枚で 1.4ms）ので絵を貼る。ice＝ドームの縁／ground＝凍土の縁
+  plateSpr(kind) {
+    return FxKit.sprite('fz-pf-plate-' + kind, 18, FxKit.res(), c => {
+      c.beginPath(); FxKit.hexAdd(c, 0, 0, 16, Math.PI / 6);
+      if (kind === 'ice') { c.fillStyle = 'rgba(223,246,255,0.55)'; c.fill(); c.lineWidth = 1.4; c.strokeStyle = '#ffffff'; c.stroke(); }
+      else { c.fillStyle = 'rgba(143,220,255,0.16)'; c.fill(); c.lineWidth = 1.3; c.strokeStyle = 'rgba(191,240,255,0.75)'; c.stroke(); }
     });
   },
-  // 撃つ瞬間：霜の泡の波が範囲いっぱいへ走る（六角の霜の線・泡の粒）。範囲が広いので、線だけで見せて盤を塗らない
-  wave(ctx, f, k) {
-    const T = k * f.life, q = FxKit.ease(T / 0.5), rr = f.r * (0.08 + 0.92 * q), a = 1 - FxKit.clamp01((T - 0.1) / 0.45);
-    FxKit.flash(ctx, f.x, f.y, 44, T, '#9fe6ff', 0.1);
-    FxKit.hexWave(ctx, f.x, f.y, 60, T / 0.3, '#bff0ff', 4);
-    if (a <= 0.01) return;
-    ctx.lineJoin = 'round';
-    ctx.beginPath(); FxKit.hexAdd(ctx, f.x, f.y, rr, Math.PI / 6);
-    ctx.globalAlpha = 0.16 * a; ctx.strokeStyle = '#9fe6ff'; ctx.lineWidth = 16; ctx.stroke();
-    ctx.globalAlpha = 0.75 * a; ctx.strokeStyle = '#d8f6ff'; ctx.lineWidth = 2.6; ctx.stroke();
-    // 波に乗る泡の粒（輪）と霜の結晶（十字）
-    ctx.beginPath();
-    for (let i = 0; i < 24; i++) {
-      const an = i / 24 * Math.PI * 2 + FxKit.h(i, 5) * 0.2, d = rr * (0.92 + 0.12 * FxKit.h(i + 9, 5)), s = 2.5 + 3 * FxKit.h(i + 17, 5);
-      const x = f.x + Math.cos(an) * d, y = f.y + Math.sin(an) * d;
-      ctx.moveTo(x + s, y); ctx.arc(x, y, s, 0, 7);
-    }
-    ctx.globalAlpha = 0.85 * a; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.3; ctx.stroke();
-    ctx.globalAlpha = 1;
+  // 敵を閉じ込める氷の結晶の塊（作り置き）：六角柱が5本、敵から外へ突き出す。中は透ける
+  coatSpr() {
+    return FxKit.sprite('fz-pf-coat', 30, FxKit.res(), c => {
+      c.lineJoin = 'round';
+      const prism = (a, L, W) => {
+        const ux = Math.cos(a), uy = Math.sin(a), nx = -uy, ny = ux, b = 4;
+        c.beginPath();
+        c.moveTo(ux * b + nx * W, uy * b + ny * W); c.lineTo(ux * (L - W) + nx * W, uy * (L - W) + ny * W); c.lineTo(ux * L, uy * L);
+        c.lineTo(ux * (L - W) - nx * W, uy * (L - W) - ny * W); c.lineTo(ux * b - nx * W, uy * b - ny * W); c.closePath();
+        c.lineWidth = 2.4; c.strokeStyle = 'rgba(10,40,80,0.75)'; c.stroke();
+        const g = c.createLinearGradient(nx * W, ny * W, -nx * W, -ny * W); g.addColorStop(0, 'rgba(255,255,255,0.9)'); g.addColorStop(0.5, 'rgba(190,236,255,0.7)'); g.addColorStop(1, 'rgba(110,190,240,0.75)');
+        c.fillStyle = g; c.fill();
+        c.lineWidth = 1; c.strokeStyle = '#ffffff'; c.stroke();
+        c.beginPath(); c.moveTo(ux * b, uy * b); c.lineTo(ux * L, uy * L); c.lineWidth = 0.8; c.strokeStyle = 'rgba(255,255,255,0.8)'; c.stroke();
+      };
+      for (const [a, L, W] of [[-2.6, 22, 4.4], [-0.5, 24, 4.6], [2.2, 20, 4], [0.9, 18, 3.8], [-1.55, 28, 5.2]]) prism(a, L, W);
+      c.beginPath(); FxKit.hexAdd(c, 0, 0, 12, Math.PI / 6);
+      c.lineWidth = 2.4; c.strokeStyle = 'rgba(10,40,80,0.75)'; c.stroke();
+      const g = c.createRadialGradient(-4, -4, 1, 0, 0, 12); g.addColorStop(0, 'rgba(255,255,255,0.55)'); g.addColorStop(1, 'rgba(150,215,250,0.38)');
+      c.fillStyle = g; c.fill(); c.lineWidth = 1.2; c.strokeStyle = '#e6f8ff'; c.stroke();
+    });
   },
-  // 泡の殻（敵に付いて動く・敵の上に描く）：膨らむ泡 → 白い氷の殻に凍る → ひび → 震える
-  cage(ctx, f, k) {
-    const e = f.e, T = k * f.life, L = f.life;
-    let x = e ? (e.dead ? f.x : e.x) : f.x, y = e ? (e.dead ? f.y : e.y) : f.y;
-    if (L - T < 0.25) x += Math.sin(T * 90) * 1.4;                                      // 割れる直前に震える
-    const inf = T < 0.14 ? 0.4 + 0.6 * FxKit.ease(T / 0.14) : 1, frz = FxKit.ease((T - 0.12) / 0.4), out = FxKit.clamp01((L - T) / 0.05);
-    const sc = (f.r / 15) * inf;
-    if (frz < 1) { ctx.globalAlpha = (1 - frz) * out; FXF.put(ctx, this.cageSpr('bub'), x, y, sc); }
-    if (frz > 0) { ctx.globalAlpha = frz * out; FXF.put(ctx, this.cageSpr('ice'), x, y, sc); }
-    const cr = T > L - 0.2 ? 'crack3' : T > L - 0.45 ? 'crack2' : T > L - 0.85 ? 'crack1' : null;
-    if (cr) { ctx.globalAlpha = out; FXF.put(ctx, this.cageSpr(cr), x, y, sc); }
-    if (frz > 0 && frz < 1) {                                                            // 凍る瞬間のきらめき
+  // 大きな泡のドーム（砲台が中心・半径＝射程）：膨らむ（0.2秒）→ 縁から凍って白い氷のドームに（六角の板・内へ伸びる霜の棘）→ ひび → 震える → 砕ける（縁の破片が内へ倒れて落ちる・白い霧）
+  dome(ctx, f, k) {
+    const T = k * f.life, H = f.hold, R = f.r, x = f.x, y = f.y, seed = f.seed || 0;
+    const N = Math.max(10, Math.round(R * 2 * Math.PI / 50));            // 縁の板と棘の数（細かくすると線の描画が重い：半径210で 44→26）
+    ctx.lineCap = 'butt'; ctx.lineJoin = 'miter'; ctx.miterLimit = 3;     // 丸い継ぎ目は重い
+    if (T < H) {
+      const rr = R * (0.12 + 0.88 * FxKit.ease(T / 0.2)), fz = FxKit.clamp01((T - 0.15) / 0.3), cr = FxKit.clamp01((T - 0.45) / Math.max(0.1, H - 0.45));
+      const cx = x + (H - T < 0.18 ? Math.sin(T * 95) * 1.8 : 0);
+      // 中は塗らない（半径210を塗ると重い・中の敵が読めなくなる）。縁の内側に太く薄い帯を2本重ねて、ドームの厚みに見せる
+      ctx.beginPath(); ctx.arc(cx, y, Math.max(4, rr - 22), 0, 7);
+      ctx.globalAlpha = 0.1 + 0.08 * fz; ctx.strokeStyle = fz < 0.5 ? '#8fdcff' : '#dff6ff'; ctx.lineWidth = 34; ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, y, Math.max(4, rr - 50), 0, 7);
+      ctx.globalAlpha = 0.05 + 0.04 * fz; ctx.lineWidth = 30; ctx.stroke();
+      // 縁：外の光・本体（泡の水色 → 氷の白）・白い芯
+      ctx.beginPath(); ctx.arc(cx, y, rr, 0, 7);
+      ctx.globalAlpha = 0.18; ctx.strokeStyle = '#9fe6ff'; ctx.lineWidth = 20 + 6 * fz; ctx.stroke();
+      if (fz < 1) { ctx.globalAlpha = 0.9 * (1 - fz); ctx.strokeStyle = '#8fdcff'; ctx.lineWidth = 7; ctx.stroke(); }
+      if (fz > 0) { ctx.globalAlpha = 0.95 * fz; ctx.strokeStyle = '#e6f8ff'; ctx.lineWidth = 11; ctx.stroke(); }
+      ctx.globalAlpha = 0.9; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.2; ctx.stroke();
+      // 泡のつや（左上の太い白い弧・凍ると薄く）
+      ctx.globalAlpha = 0.7 * (1 - 0.6 * fz); ctx.lineWidth = 8;
+      ctx.beginPath(); ctx.arc(cx, y, rr * 0.88, Math.PI * 1.1, Math.PI * 1.4); ctx.stroke();
+      ctx.beginPath(); ctx.arc(cx, y, rr * 0.88, Math.PI * 1.47, Math.PI * 1.53); ctx.stroke();
+      if (fz > 0) {
+        // 縁に並ぶ氷の板（六角）：場所ごとに凍る時刻がずれる
+        const PL = this.plateSpr('ice');
+        ctx.globalAlpha = 1;
+        for (let i = 0; i < N; i++) {
+          if (FxKit.h(i, seed) * 0.7 + 0.3 * (i / N) > fz) continue;
+          const a = i / N * Math.PI * 2, d = rr - 6, s = 12 + 5 * FxKit.h(i + 7, seed);
+          FXF.put(ctx, PL, cx + Math.cos(a) * d, y + Math.sin(a) * d, s / 16);
+        }
+        // 内へ伸びる霜の棘
+        ctx.beginPath();
+        for (let i = 0; i < N; i++) {
+          const a = (i + 0.5) / N * Math.PI * 2, L = (16 + 26 * FxKit.h(i + 3, seed)) * fz, d = rr - 14, ux = Math.cos(a), uy = Math.sin(a), w = 7;
+          ctx.moveTo(cx + ux * d - uy * w, y + uy * d + ux * w); ctx.lineTo(cx + ux * (d - L), y + uy * (d - L)); ctx.lineTo(cx + ux * d + uy * w, y + uy * d - ux * w);
+        }
+        ctx.globalAlpha = 0.75 * fz; ctx.fillStyle = '#eefaff'; ctx.fill();
+      }
+      // ひび（縁から中へ・ぎざぎざ）
+      if (cr > 0) {
+        ctx.beginPath();
+        for (let i = 0; i < 6; i++) {
+          const a = FxKit.h(i, seed + 11) * 6.28, L = rr * (0.22 + 0.4 * FxKit.h(i + 5, seed)) * cr;
+          const J = FxKit.jag(cx + Math.cos(a) * rr, y + Math.sin(a) * rr, cx + Math.cos(a) * (rr - L), y + Math.sin(a) * (rr - L), 3, 10, seed + i);
+          for (let j = 0; j < J.length; j++) ctx[j ? 'lineTo' : 'moveTo'](J[j].x, J[j].y);
+        }
+        ctx.globalAlpha = 0.95; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.6; ctx.stroke();
+      }
+      // 膨らむ瞬間の閃光と六角の衝撃波・凍る瞬間の白い光
+      FxKit.flash(ctx, x, y, 56, T, '#bff0ff', 0.1);
+      FxKit.hexWave(ctx, x, y, R * 0.45, T / 0.3, '#bff0ff', 5);
+      if (fz > 0 && fz < 1) { ctx.globalCompositeOperation = 'lighter'; FxKit.glow(ctx, cx, y, rr * 0.7, '#dff6ff', 0.3 * Math.sin(Math.PI * fz)); ctx.globalCompositeOperation = 'source-over'; }
+    } else {
+      const t = T - H, q = FxKit.clamp01(t / (f.life - H));
+      FxKit.flash(ctx, x, y, R * 0.45, t, '#dff6ff', 0.1);
+      FxKit.hexWave(ctx, x, y, R * 1.05, t / 0.4, '#bff0ff', 7);
+      // 縁の破片（大きな三角）：内へ倒れ込みながら落ちて消える
+      ctx.beginPath();
+      for (let i = 0; i < N; i++) {
+        const a = (i + FxKit.h(i, seed) * 0.6) / N * Math.PI * 2, d = R * (1 - 0.28 * FxKit.ease(q) * (0.5 + FxKit.h(i + 3, seed)));
+        const px = x + Math.cos(a) * d, py = y + Math.sin(a) * d + 70 * q * q, s = (15 + 12 * FxKit.h(i + 9, seed)) * (1 - 0.35 * q), ro = a + q * (FxKit.h(i + 13, seed) - 0.5) * 9;
+        ctx.moveTo(px + Math.cos(ro) * s, py + Math.sin(ro) * s); ctx.lineTo(px + Math.cos(ro + 2.3) * s * 0.6, py + Math.sin(ro + 2.3) * s * 0.6); ctx.lineTo(px + Math.cos(ro + 4) * s * 0.85, py + Math.sin(ro + 4) * s * 0.85); ctx.closePath();
+      }
+      ctx.globalAlpha = 0.9 * (1 - q); ctx.fillStyle = '#e6f8ff'; ctx.fill();
+      ctx.globalAlpha = 0.9 * (1 - q); ctx.strokeStyle = '#6ab8e8'; ctx.lineWidth = 1.6; ctx.stroke();
+      // 白い霧（縁の内側に残る）
       ctx.globalCompositeOperation = 'lighter';
-      FxKit.glow(ctx, x, y, 22 * sc, '#dff6ff', (1 - frz) * 0.8);
+      for (let i = 0; i < 6; i++) { const a = i / 6 * Math.PI * 2 + seed, d = R * 0.6; FxKit.glow(ctx, x + Math.cos(a) * d, y + Math.sin(a) * d - q * 12, R * (0.24 + 0.14 * q), '#dff6ff', 0.32 * (1 - q)); }
       ctx.globalCompositeOperation = 'source-over';
     }
     ctx.globalAlpha = 1;
   },
-  // 割れる：閃光・六角の衝撃波・氷の破片（白く、加算にしない）・白い霧が残る
-  shatter(ctx, f, k) {
-    const T = k * f.life, R = f.r, seed = Math.abs(Math.round(f.x * 0.13 + f.y * 0.07)) % 97;
-    // 白い霧（ふわっと広がって残る）
-    const m = FxKit.ease(T / 0.5), ma = 0.5 * (1 - FxKit.clamp01((T - 0.15) / (f.life - 0.15)));
+  // 閉じ込められた敵：氷の結晶の塊が、少し行き過ぎて生える → 光るきらめき → 割れる直前に震える。敵に付いて動く（敵の上に描く）
+  coat(ctx, f, k) {
+    const e = f.e, T = k * f.life, L = f.life;
+    let x = e ? (e.dead ? f.x : e.x) : f.x;
+    const y = e ? (e.dead ? f.y : e.y) : f.y;
+    const q = FxKit.clamp01((T - 0.12) / 0.16);
+    if (q <= 0) return;
+    if (L - T < 0.2) x += Math.sin(T * 90) * 1.5;
+    const g = q - 1, sc = (1 + 2.7 * g * g * g + 1.7 * g * g) * (f.r / 15);
+    ctx.globalAlpha = Math.min(1, (L - T) / 0.04);
+    FXF.put(ctx, this.coatSpr(), x, y, sc);
     ctx.globalCompositeOperation = 'lighter';
-    FxKit.glow(ctx, f.x, f.y - 4 * m, R * (0.45 + 0.6 * m), '#cfefff', ma);
-    FxKit.glow(ctx, f.x + R * 0.3 * m, f.y + R * 0.1, R * (0.3 + 0.35 * m), '#e6f8ff', ma * 0.7);
-    ctx.globalCompositeOperation = 'source-over';
-    FxKit.flash(ctx, f.x, f.y, R * 0.9, T, '#bff0ff', 0.08);
-    FxKit.hexWave(ctx, f.x, f.y, R * 1.05, T / 0.32, '#bff0ff', 4);
-    FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed, n: 10, life: 0.45, v: 230, drag: 5, size: 4.2, shape: 'shard', even: true, add: false, c0: '#ffffff', c1: '#8fd8ff' });
-    FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed: seed + 4, n: 6, life: 0.3, v: 300, drag: 6, size: 2.6, c0: '#ffffff', c1: '#bff0ff' });
+    if (q < 1) FxKit.glow(ctx, x, y, 30 * sc, '#dff6ff', 0.7 * (1 - q));
+    const ph = (T * 1.3 + (f.seed || 0) * 0.37) % 1;
+    FxKit.glow(ctx, x - 8 * sc + 16 * sc * ph, y - 12 * sc, 7, '#ffffff', 0.8 * Math.sin(Math.PI * ph));
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
   },
-  fx: { frostfoam(ctx, f, k) { this.wave(ctx, f, k); }, frostcage(ctx, f, k) { this.cage(ctx, f, k); }, frostshard(ctx, f, k) { this.shatter(ctx, f, k); } },
+  // 砕けた破片が刺さる：ドームの縁から大きな氷の破片が n 本、敵へ飛び込む（travel 秒）→ 刺さるたび閃光・六角の衝撃波・小さな破片
+  shard(ctx, f, k) {
+    const T = k * f.life, e = f.e, tx = e && !e.dead ? e.x : f.x, ty = e && !e.dead ? e.y : f.y, seed = f.seed || 0;
+    for (let h = 0; h < f.n; h++) {
+      const t0 = h * f.gap, q = (T - t0) / f.travel;
+      if (q < 0) continue;
+      if (q < 1) {
+        const a = f.a + (h - (f.n - 1) / 2) * 0.32, sx = f.cx + Math.cos(a) * f.R, sy = f.cy + Math.sin(a) * f.R;
+        const m = q * q, px = sx + (tx - sx) * m, py = sy + (ty - sy) * m, dx = tx - sx, dy = ty - sy, dl = Math.hypot(dx, dy) || 1, ux = dx / dl, uy = dy / dl;
+        // 尾（3層）
+        const bx = px - ux * Math.min(46, dl * m), by = py - uy * Math.min(46, dl * m);
+        ctx.beginPath(); ctx.moveTo(bx, by); ctx.lineTo(px, py);
+        ctx.globalAlpha = 0.3; ctx.strokeStyle = '#7fd0ff'; ctx.lineWidth = 12; ctx.stroke();
+        ctx.globalAlpha = 0.9; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
+        // 破片（細長い菱形・白い芯）
+        const L = 15, W = 6;
+        ctx.beginPath(); ctx.moveTo(px + ux * L, py + uy * L); ctx.lineTo(px - uy * W, py + ux * W); ctx.lineTo(px - ux * L * 0.8, py - uy * L * 0.8); ctx.lineTo(px + uy * W, py - ux * W); ctx.closePath();
+        ctx.globalAlpha = 1; ctx.lineWidth = 2; ctx.strokeStyle = '#2a6aa0'; ctx.stroke(); ctx.fillStyle = '#bfeaff'; ctx.fill();
+        ctx.beginPath(); ctx.moveTo(px + ux * L * 0.8, py + uy * L * 0.8); ctx.lineTo(px - ux * L * 0.5, py - uy * L * 0.5); ctx.lineWidth = 2; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+      } else {
+        const t = T - t0 - f.travel;
+        FxKit.flash(ctx, tx, ty, f.r * 0.9, t, '#bff0ff', 0.08);
+        if (h === 0) FxKit.hexWave(ctx, tx, ty, f.r * 1.05, t / 0.3, '#bff0ff', 4);   // 六角の衝撃波は1本目だけ（重さ）
+        FxKit.sparks(ctx, { x: tx, y: ty, t, seed: seed + h * 5, n: 6, life: 0.4, v: 220, drag: 5, size: 4, shape: 'shard', even: true, add: false, c0: '#ffffff', c1: '#8fd8ff' });
+      }
+    }
+    ctx.globalAlpha = 1;
+  },
+  // 連鎖凍裂（fp_icefoam）の破裂：閃光・六角の衝撃波・破片
+  burst(ctx, f, k) {
+    const T = k * f.life;
+    FxKit.flash(ctx, f.x, f.y, f.r * 0.9, T, '#bff0ff', 0.08);
+    FxKit.hexWave(ctx, f.x, f.y, f.r * 1.05, T / 0.32, '#bff0ff', 4);
+    FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed: (f.seed || 0) + 21, n: 8, life: 0.45, v: 230, drag: 5, size: 4.2, shape: 'shard', even: true, add: false, c0: '#ffffff', c1: '#8fd8ff' });
+  },
+  // 凍土（居座る場・敵の下）：凍った地面・縁に霜の六角の板・中へ伸びる霜の筋・きらめき
+  ground(ctx, z) {
+    const a = Math.min(1, z.t / 0.25) * Math.min(1, (z.dur - z.t) / 0.5), R = z.r, seed = z.seed || 0, x = z.x, y = z.y;
+    if (a <= 0.01) return;
+    ctx.beginPath(); ctx.arc(x, y, R - 18, 0, 7);
+    ctx.globalAlpha = 0.12 * a; ctx.strokeStyle = '#8fdcff'; ctx.lineWidth = 36; ctx.stroke();
+    const N = Math.max(10, Math.round(R * 2 * Math.PI / 46));
+    ctx.lineJoin = 'miter'; ctx.miterLimit = 3;
+    const PL = this.plateSpr('ground');
+    ctx.globalAlpha = a;
+    for (let i = 0; i < N; i++) { const an = i / N * Math.PI * 2, d = R - 8 - 8 * FxKit.h(i, seed), s = 9 + 4 * FxKit.h(i + 7, seed); FXF.put(ctx, PL, x + Math.cos(an) * d, y + Math.sin(an) * d, s / 16); }
+    // 凍った地面のひび（縁から中へ・ぎざぎざ。矢印に見えないよう枝は付けない）
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const an = (i + FxKit.h(i, seed + 3)) / 10 * Math.PI * 2, d0 = R * 0.9, d1 = R * (0.45 + 0.25 * FxKit.h(i + 2, seed));
+      const J = FxKit.jag(x + Math.cos(an) * d0, y + Math.sin(an) * d0, x + Math.cos(an) * d1, y + Math.sin(an) * d1, 4, 7, seed + i * 3);
+      for (let j = 0; j < J.length; j++) ctx[j ? 'lineTo' : 'moveTo'](J[j].x, J[j].y);
+    }
+    ctx.globalAlpha = 0.45 * a; ctx.strokeStyle = '#bff0ff'; ctx.lineWidth = 1.4; ctx.stroke();
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i < 7; i++) {
+      const ph = (z.t * 1.4 + FxKit.h(i, seed)) % 1, an = FxKit.h(i + 20, seed) * 6.28, d = R * (0.2 + 0.75 * FxKit.h(i + 30, seed));
+      FxKit.glow(ctx, x + Math.cos(an) * d, y + Math.sin(an) * d, 5 + 5 * Math.sin(Math.PI * ph), '#ffffff', 0.7 * a * Math.sin(Math.PI * ph));
+    }
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  },
+  fx: { pfdome(ctx, f, k) { this.dome(ctx, f, k); }, pfcoat(ctx, f, k) { this.coat(ctx, f, k); }, pfshard(ctx, f, k) { this.shard(ctx, f, k); }, pfburst(ctx, f, k) { this.burst(ctx, f, k); } },
+  zones: { permafrost(ctx, z) { this.ground(ctx, z); } },
 };
 FusionFX.register('icefoam', FX_ICEFOAM);
 
