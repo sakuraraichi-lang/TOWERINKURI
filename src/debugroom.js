@@ -923,6 +923,7 @@ const DebugRoom = {
   _CDKEEP: ['chillVuln', 'cageVuln', 'apen', 'backdraft', 'tntBurn', 'tntMark', 'coinMul', 'livesMax', 'lives', 'livesCard', 'resonanceStep', 'resonanceMax', 'dealt', 'kills', 'coinsEarned'],
   _cdEnd() {
     clearInterval(this._cd);
+    this._flViewEnd();           // 連携の札の見本の視点・隠したメニューを戻す（_flView）
     const d = this._cdState; this._cdState = null;
     if (!d) return;
     const run = d.run;
@@ -1092,13 +1093,48 @@ const DebugRoom = {
     if (!d) return;
     const run = d.run;
     this._cdState = d;
+    this._flView(cardId, d);
     let last = performance.now(), el = 0;
     this._cd = setInterval(() => {
       const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now; el += dt;
       if (Game.run !== run || el > 8) { this._cdEnd(); return; }
       Combat.update(run, dt);
+      run.nums.length = 0; run.shake = 0;   // ダメージの数字は出さない（的の HP が 1e12 なので「966M」のような数字が絵を覆う）・揺らさない
     }, 16);
-    UI.toastMsg('見本：' + c.name + '（約8秒）', BAL.rarity[c.rarity].color, 'demo');
+  },
+  // 札の見本のあいだの見せ方（見本の部屋 showroom と同じ扱い・2026-10-13）：確認室のメニューを隠す・2基と的が収まるよう視点を寄せて大きく映す・チュートリアルの札を隠す（sr-on）・下に名前と「閉じる」の帯。
+  //   終わり（_cdEnd）で全部元に戻す
+  _flView(cardId, d) {
+    this._flViewEnd();
+    const pts = d.units.map(u => ({ x: u.x, y: u.y })).concat(d.enemies.map(e => ({ x: e.x, y: e.y })));
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (const p of pts) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+    const pad = 95;     // 氷の嵐・泡・光の刃が2基と的の外へ広がる分
+    const s = Math.min(2.4, Render.cssW / (x1 - x0 + 2 * pad), Render.cssH * 0.55 / (y1 - y0 + 2 * pad));
+    this._flZ = true;
+    Render.zoom = { x: (x0 + x1) / 2, y: (y0 + y1) / 2, s, cy: 0.42 };
+    Render.fit();
+    if (this.el) this.el.style.display = 'none';
+    document.body.classList.add('sr-on');
+    const c = CARDS[cardId], ids = CARD_IDS.filter(id => CARDS[id].flink), i = ids.indexOf(cardId);
+    const bar = Util.el('div', 'srbar');
+    bar.id = 'srbar';
+    bar.innerHTML = '<div class="sr-top"><button class="dbg-key sr-prev">◀ 前</button><div class="sr-name"><b style="color:' + BAL.rarity[c.rarity].color + '">' + c.name + '</b><span>' +
+      c.flink.map(f => FUSIONS[f].name).join('＋') + '　' + (i + 1) + ' / ' + ids.length + '</span></div><button class="dbg-key sr-next">次 ▶</button><button class="dbg-key sr-x">閉じる</button></div>';
+    const on = (sel, fn) => bar.querySelector(sel).addEventListener('click', () => { try { fn(); } catch (e) { console.error('札の見本', e); } });
+    on('.sr-prev', () => this.fusionCardDemo(ids[((i - 1) % ids.length + ids.length) % ids.length]));
+    on('.sr-next', () => this.fusionCardDemo(ids[(i + 1) % ids.length]));
+    on('.sr-x', () => this._cdEnd());
+    document.body.appendChild(bar);
+    this._flBar = bar;
+  },
+  _flViewEnd() {
+    if (!this._flZ) return;
+    this._flZ = false;
+    Render.zoom = null; Render.fit();
+    if (this._flBar) { this._flBar.remove(); this._flBar = null; }
+    if (this.el) this.el.style.display = '';
+    document.body.classList.remove('sr-on');
   },
 
   // kind（'worm'|'rootkit'|'jammer'）を渡すと、その個体を1体だけ出し、HP が 75% を割った直後に仕掛けを1回使わせる（見本・記録なし）。
