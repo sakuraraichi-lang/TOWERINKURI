@@ -375,7 +375,7 @@ async function reachDistAsync(seeds, opts) {
       //   収入の無い第30章（雑魚が出ない＝負けてもコイン0）に上限12・5基で入り、永久に詰んでいた
       //   （1006l の通しで12本中4本）。プレイヤーも「上限が育つまで手前の章を回して稼ぐ」ので、それに合わせる。
       //   上限が最大（costBase + 14×costPerNode）になったら、前回の到達までは飛ばす。opts.capSkip=false で前の歩き方
-      const capMax = BAL.costBase + 14 * BAL.costPerNode;
+      const capMax = BAL.costBase + 14 * BAL.costPerNode + Asc.lv(Game.perm) * BAL.ascCostPerLv;
       if (opts.useSkip !== false && Game.canSkip(stg.id) && (opts.capSkip === false || Game.costCap() >= capMax)) {
         Game.skipStage(stg.id);
         cleared++; tryLog.push(0); resLog.push('S'); lastName = stg.name;
@@ -1084,7 +1084,7 @@ function runStageInner(stageId, loadout, buys, opts) {
     if (Skill.buy(Game.meta, Game.perm, ids[0])) { spent += c; bought++; }
   }
   autoPlace(run0);
-  const placedRec = { cap: Game.costCap(), used: Game.costUsed(), n: run0.units.length, maxCap: BAL.costBase + 14 * BAL.costPerNode };
+  const placedRec = { cap: Game.costCap(), used: Game.costUsed(), n: run0.units.length, maxCap: BAL.costBase + 14 * BAL.costPerNode + Asc.lv(Game.perm) * BAL.ascCostPerLv };
   Game.applyMods();
   Game.beginBattle();
 

@@ -708,7 +708,8 @@ const Game = {
   //     いまは全体のコストで持つので、その心配は同じく無い）
   costCap() {
     // 取り切りの連なりに割ったので、合計は gkey で取る（skilltree.js の chain）
-    return BAL.costBase + Skill.gsum(this.meta, 'units');
+    //   アセンション（第31章から）はレベルごとに +BAL.ascCostPerLv（レベル0＝第30章までは変わらない）
+    return BAL.costBase + Skill.gsum(this.meta, 'units') + Asc.lv(this.perm) * BAL.ascCostPerLv;
   },
 
   costOf(weaponId) { const d = WEAPONS[weaponId]; return d ? d.cost : 0; },

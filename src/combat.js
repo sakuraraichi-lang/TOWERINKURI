@@ -478,8 +478,11 @@ const Combat = {
     return by;
   },
   // 壊れていない武器のうち、頭に近い順
+  // 合成武器は、ジャマーの沈黙・ラスボスの破壊や沈黙に完全耐性（ユーザー 2026-10-13）。
+  //   武器を止める・壊す敵は、狙いの選び方と効果の適用の両方でここを通す。
+  cannotJam(u) { return !!(u && u.fuse); },
   nearUnits(run, e) {
-    return run.units.filter(w => !w.broken).map(w => ({ w, d: Util.dist(e.x, e.y, w.x, w.y) })).sort((p, q) => p.d - q.d).map(o => o.w);
+    return run.units.filter(w => !w.broken && !this.cannotJam(w)).map(w => ({ w, d: Util.dist(e.x, e.y, w.x, w.y) })).sort((p, q) => p.d - q.d).map(o => o.w);
   },
   biteTargets(run, e) { return this.nearUnits(run, e).slice(0, 1); },
   laserTargets(run, e) { return this.nearUnits(run, e).slice(0, BAL.finalLaserN); },
@@ -490,6 +493,7 @@ const Combat = {
       // 噛みつき：予告の間に狙った武器を、その出撃の間なくす（盤には残骸が残り、置き直せず、コストも戻らない）
       const tg = this.biteTargets(run, e);
       for (const w of tg) {
+        if (this.cannotJam(w)) continue;
         w.broken = true; w.jamT = 0; w.target = null;
         run.broken = (run.broken || 0) + 1;
         this.fx(run, { type: 'boom', x: w.x, y: w.y, r: 46, color: col, life: 0.45 });
@@ -498,7 +502,7 @@ const Combat = {
       this.shake(run, 8, true);
     } else if (tele.kind === 'laser') {
       const tg = this.laserTargets(run, e);
-      for (const w of tg) { w.jamT = BAL.finalLaserSec; this.fx(run, { type: 'ring', x: w.x, y: w.y, r: 34, color: col, life: 0.4 }); }
+      for (const w of tg) { if (this.cannotJam(w)) continue; w.jamT = BAL.finalLaserSec; this.fx(run, { type: 'ring', x: w.x, y: w.y, r: 34, color: col, life: 0.4 }); }
       e.beamTg = tg; e.beamT = 0.6;
       this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 3, color: col, life: 0.6 });
       this.shake(run, 5, true);
@@ -554,7 +558,7 @@ const Combat = {
   },
   // ジャマーの腕の行き先：ジャマーから最も近い BAL.bossJamMax 基（距離は問わない・盤の上の全部の武器から近い順）
   jamTargets(run, e) {
-    return run.units.map(w => ({ w, d: Util.dist(e.x, e.y, w.x, w.y) })).sort((p, q) => p.d - q.d)
+    return run.units.filter(w => !this.cannotJam(w)).map(w => ({ w, d: Util.dist(e.x, e.y, w.x, w.y) })).sort((p, q) => p.d - q.d)
       .slice(0, BAL.bossJamMax).map(o => o.w);
   },
   bossPhaseDo(run, e, tele) {
@@ -574,6 +578,7 @@ const Combat = {
       // 沈黙：ジャマーから最も近い BAL.bossJamMax 基へ腕を伸ばして止める（距離は問わない）。近くに置いた武器から止まる＝遠くから撃つ武器が強い
       const tg = this.jamTargets(run, e);
       for (const w of tg) {
+        if (this.cannotJam(w)) continue;      // 予告のあとに合成した武器も止まらない
         w.jamT = BAL.bossJamSec; this.fx(run, { type: 'ring', x: w.x, y: w.y, r: 34, color: col, life: 0.4 });
       }
       e.jamArms = tg; e.jamArmT = BAL.bossJamSec;       // 止めている間は腕がつながったまま（render.js の bossPhaseMark）
