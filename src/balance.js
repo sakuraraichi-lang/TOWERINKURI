@@ -1136,7 +1136,7 @@ BAL.fusion = {
 // ---------------------------------------------------------------
 // 合成武器の札（2026-10-12・src/cards.js の fp_*／fl_*・挙動は src/fusion.js）
 //   A：合成武器だけの3択の札24枚（エピック）。その合成武器を盤に置いているときだけ3択に出る。凸は主な1軸（コメントの「軸」）だけに効く
-//   B：合成武器どうしの連携の札8枚（レジェンド）。2つの合成武器が盤にそろっているときだけ3択に出る
+//   B：合成武器どうしの連携の札11枚（レジェンド）。2つの合成武器が盤にそろっているときだけ3択に出る
 //   どちらも上位の連携パック（ap:'syn'）から出る（アセンションの章だけ）。数値は仮。ユーザーが見て練り直す前提
 // ---------------------------------------------------------------
 BAL.fusionCards = {
@@ -1174,6 +1174,10 @@ BAL.fusionCards = {
   fl_bolt:   { bolt: 1, snvK: 7, msK: 0.8, every: 3, max: 4, reach: 130, gapSec: 1.5 }, // 軸 bolt：電撃の威力（snvK＝スーパーノヴァ側・msK＝磁気嵐側の基準の倍数）
   fl_trail:  { trail: 1, n: 4, r: 40, dur: 2.5, dps: 0.25 },                   // 軸 trail：炎の軌跡の威力（円環刃のダメージの倍数）
   fl_acid:   { acid: 1, r: 1.2 },                                              // 軸 acid：酸の爆発の威力（破滅の雨のダメージの倍数）
+  // 2026-10-13 追加の3枚（どちらも相手を呼ぶ双方向）。軸の値は1が基準で、凸で伸びるのは威力の倍率
+  fl_starbub:{ sb: 1, bubbles: 3, bubMul: 0.8, bubR: 36, bubRange: 70, bubStun: 0.6, stars: 2, starMul: 2.5, starR: 46, starRange: 110, starGap: 0.4 }, // 軸 sb：泡・星の威力の倍率。星の爆発から泡 bubbles 個（スターアサルトの威力の bubMul 倍）／泡の破裂から星 stars 個（ファンシーバブルガンの威力の starMul 倍・starGap 秒に1回まで）
+  fl_prism:  { prism: 1, rays: 3, bounces: 2, half: 9, gap: 0.07, maxStorms: 3, dmgK: 0.45, mini: 3, miniR: 0.5, miniDur: 2.5, miniDps: 0.4, spacing: 70 }, // 軸 prism：乱反射の光と小さな嵐の威力の倍率。光1本は凍結光線のダメージの dmgK 倍（rays 本が bounces+1 回ずつ）。小さな嵐は半径が氷の嵐の miniR 倍・miniDur 秒・毎秒 miniDps 倍
+  fl_spark:  { spark: 1, stay: 3, max: 12, life: 3, bubR: 15, touchMul: 0.4, touch: 16, popRK: 1.3, rays: 4, lenMul: 1.7, blade: 1, reach: 120, boltMul: 0.4, sec: 3, thick: 2, strong: 1.6 }, // 軸 spark：光の刃と稲妻の威力の倍率。泡は着弾ごとに stay 個・同時に max 個まで・life 秒漂う。線は sec 秒 thick 倍の太さ・strong 倍の威力
 };
 
 // 凸の数 → 上乗せの倍率（1＋この値）。カード・武器カード・遺物で共通（state.js の rankMul・relics.js）

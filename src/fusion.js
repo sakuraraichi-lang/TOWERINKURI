@@ -251,6 +251,158 @@ const Fusion = {
     }
   },
 
+  // ---------- 星と泡（fl_starbub・スターアサルト＋ファンシーバブルガン） ----------
+  //   星が弾けた点から泡が放射状に飛び、割れる（スターアサルト側）。泡が割れた点から星が飛び、弾ける（ファンシーバブルガン側）。
+  //   出てきた泡・星は、出た先でさらに泡・星を呼ばない（連鎖しない）
+  starBubbles(run, w, x, y, v) {
+    const K = BAL.fusionCards.fl_starbub;
+    const a0 = Math.random() * 6.28;
+    for (let k = 0; k < K.bubbles; k++) {
+      const c = this.bulletAt(w, run, x, y, a0 + k * 6.2832 / K.bubbles, { bubble: true, color: '#ff9ad8', through: true, fx: 'fancybubble', child: true, pierce: 0, splash: 0, bulletR: 8, dmgMul: K.bubMul * v,
+        onEnd: (r2, cb) => {
+          if (cb.popped) return; cb.popped = true;
+          Combat.explode(r2, cb.x, cb.y, K.bubR, cb.dmg, { color: '#ff9ad8', stun: K.bubStun });
+          Fusion.fx(r2, { k: 'bubblepop', x: cb.x, y: cb.y, r: K.bubR, life: 0.45, seed: Math.abs((cb.x * 5 + cb.y * 3) | 0) % 97 });
+        } });
+      if (c) c.range = K.bubRange;
+    }
+  },
+  starsFromBubble(run, w, x, y, v) {
+    const K = BAL.fusionCards.fl_starbub;
+    if (run.time - (w._sbT === undefined ? -9 : w._sbT) < K.starGap) return 0;
+    w._sbT = run.time;
+    const a0 = Math.random() * 6.28;
+    for (let k = 0; k < K.stars; k++) {
+      const c = this.bulletAt(w, run, x, y, a0 + k * 6.2832 / K.stars, { color: '#ffe066', through: true, fx: 'star', child: true, pierce: 0, splash: 0, bulletR: 14, speedMul: 0.7, dmgMul: K.starMul * v,
+        onEnd: (r2, cb) => {
+          if (cb.popped) return; cb.popped = true;
+          Combat.explode(r2, cb.x, cb.y, K.starR, cb.dmg, { color: '#ffe066' });
+          Fusion.fx(r2, { k: 'starburst', x: cb.x, y: cb.y, r: K.starR, color: '#ffe066', life: 0.6, rot: (cb.x * 0.07) % 6.28, seed: Math.abs((cb.x * 7 + cb.y * 3) | 0) % 97 });
+        } });
+      if (c) c.range = K.starRange;
+    }
+    return 1;
+  },
+
+  // ---------- 白い乱反射（fl_prism・凍結光線＋スノーグレイブ） ----------
+  //   円 (cx,cy,R) の中の点 (px,py) から向き a へ進んだとき、円のふちに当たる点と、そこで反射した向き
+  circleBounce(cx, cy, R, px, py, a) {
+    const dx = Math.cos(a), dy = Math.sin(a), ox = px - cx, oy = py - cy;
+    const b = ox * dx + oy * dy, c = ox * ox + oy * oy - R * R;
+    const t = -b + Math.sqrt(Math.max(0, b * b - c));
+    const qx = px + dx * t, qy = py + dy * t, nx = (qx - cx) / R, ny = (qy - cy) / R, dn = dx * nx + dy * ny;
+    return { x: qx, y: qy, a: Math.atan2(dy - 2 * dn * ny, dx - 2 * dn * nx) };
+  },
+  //   光線 res.pts が氷の嵐（blizzard・光線が起こした小さな嵐は除く）を通ったら、通った所から嵐の中で乱反射する光を rays 本、bounces 回
+  prismReflect(run, w, res, v) {
+    const K = BAL.fusionCards.fl_prism, zs = run.fzones;
+    if (!zs || !res || !res.pts) return 0;
+    let used = 0;
+    for (const z of zs) {
+      if (used >= K.maxStorms) break;
+      if (z.kind !== 'blizzard' || z.mini) continue;
+      let bd = 1e18, bx = 0, by = 0, ba = 0;
+      for (let i = 1; i < res.pts.length; i++) {
+        const p = res.pts[i - 1], q = res.pts[i], dx = q.x - p.x, dy = q.y - p.y, l2 = dx * dx + dy * dy;
+        if (l2 < 1) continue;
+        const t = Math.max(0, Math.min(1, ((z.x - p.x) * dx + (z.y - p.y) * dy) / l2)), sx = p.x + dx * t, sy = p.y + dy * t, d2 = Util.dist2(sx, sy, z.x, z.y);
+        if (d2 < bd) { bd = d2; bx = sx; by = sy; ba = Math.atan2(dy, dx); }
+      }
+      if (bd > z.r * z.r) continue;
+      used++;
+      const dd = Math.sqrt(bd), pull = dd > z.r * 0.8 ? (z.r * 0.8) / dd : 1;
+      const sx = z.x + (bx - z.x) * pull, sy = z.y + (by - z.y) * pull;       // ふちすれすれなら少し内側から
+      const dmg = w.s.dmg * K.dmgK * v;
+      for (let k = 0; k < K.rays; k++) {
+        let px = sx, py = sy, a = ba + (k - (K.rays - 1) / 2) * 2.1 + Util.rand(-0.35, 0.35);
+        for (let n = 0; n <= K.bounces; n++) {
+          const o = this.circleBounce(z.x, z.y, z.r, px, py, a), p0 = { x: px, y: py }, p1 = { x: o.x, y: o.y };
+          this.later(run, (k * (K.bounces + 1) + n) * K.gap, () => {
+            Combat.lineHit(run, p0.x, p0.y, p1.x, p1.y, K.half, dmg, { color: '#bff0ff', chill: true, slow: w.s.slow, slowDur: w.s.slowDur });
+            Fusion.fx(run, { k: 'cryoray', pts: [p0, p1], w: K.half, life: 0.3, seed: (k * 7 + n * 3) % 97 });
+          });
+          px = o.x - (o.x - z.x) / z.r * 2; py = o.y - (o.y - z.y) / z.r * 2; a = o.a;
+        }
+      }
+    }
+    return used;
+  },
+  //   光線が当たった敵の足もとに小さな氷の嵐（すでに嵐の中の敵・近すぎる敵は飛ばす・1発に mini 個まで）
+  prismStorm(run, w, hits, v) {
+    const K = BAL.fusionCards.fl_prism, PI = BAL.fusion.icebomb.p, zs = run.fzones || [], got = [];
+    if (!hits) return 0;
+    for (const e of hits) {
+      if (got.length >= K.mini) break;
+      if (e.dead || zs.some(z => z.kind === 'blizzard' && Util.dist(z.x, z.y, e.x, e.y) <= z.r)) continue;
+      if (got.some(g => Util.dist(g.x, g.y, e.x, e.y) < K.spacing)) continue;
+      got.push({ x: e.x, y: e.y });
+      const R = PI.R * K.miniR;
+      this.zone(run, { kind: 'blizzard', mini: true, x: e.x, y: e.y, r: R, dur: K.miniDur, tick: PI.tick, dps: w.s.dmg * K.miniDps * v, slow: PI.slow, slowDur: 0.8, chill: true, color: '#bff0ff' });
+      this.fx(run, { k: 'snowburst', x: e.x, y: e.y, r: R * 0.8, life: 0.5, seed: Math.abs((e.x * 7 + e.y * 3) | 0) % 97 });
+    }
+    return got.length;
+  },
+
+  // ---------- 火花の泡（fl_spark・ポッピングスター＋プラズマチェーン） ----------
+  //   ポッピングスターの着弾に、泡が漂う（上限あり）。電撃の線に触れると割れて光の刃が走る。割れた泡は近くの電撃の線へ稲妻を跳ばし、その線を太く強くする
+  sparkBubbles(run, w, x, y, v) {
+    const K = BAL.fusionCards.fl_spark, P = this.p(w);
+    let have = 0;
+    for (const b of run.bullets) if (b.sparkBub && !b.popped) have++;
+    for (let k = 0; k < K.stay && have < K.max; k++) {
+      const a = Math.random() * 6.28, d = P.rayLen * (0.3 + 0.5 * Math.random());
+      const c = this.bulletAt(w, run, x + Math.cos(a) * d, y + Math.sin(a) * d, 0, { bubble: true, color: '#b8e6ff', through: true, fx: 'fancybubble', pierce: 0, splash: 0, bulletR: K.bubR, speedMul: 0, dmgMul: K.touchMul, life: K.life,
+        onEnd: (r2, cb) => Fusion.sparkPop(r2, cb, false, 0) });
+      if (c) { c.sparkBub = true; c.sparkW = w; c.sparkV = v; have++; }
+    }
+  },
+  //   漂う泡 cb を割る。viaLine … 電撃の線に触れて割れた（光の刃が走る）／ ang … 線の向き
+  sparkPop(run, cb, viaLine, ang) {
+    if (cb.popped) return;
+    cb.popped = true; cb.life = 0;
+    const w = cb.sparkW, v = cb.sparkV || 1, K = BAL.fusionCards.fl_spark, P = this.p(w);
+    this.as(w.id, w, () => {
+      Combat.explode(run, cb.x, cb.y, P.popR * K.popRK, w.s.dmg * P.popMul, { color: '#b8e6ff', stun: (w.s.stunDur || 0) * 0.5 });
+      this.fx(run, { k: 'bubblepop', x: cb.x, y: cb.y, r: P.popR * K.popRK, life: 0.45, seed: Math.abs((cb.x * 5 + cb.y * 3) | 0) % 97 });
+      if (viaLine) {
+        const len = P.rayLen * K.lenMul;
+        for (let k = 0; k < K.rays; k++) {
+          const a = ang + k * 6.2832 / K.rays;
+          Combat.lineHit(run, cb.x, cb.y, cb.x + Math.cos(a) * len, cb.y + Math.sin(a) * len, P.rayHalf, w.s.dmg * P.rayMul * K.blade * v, { color: '#ffe38a', crit: w.s.crit, critMul: w.s.critMul });
+        }
+        this.fx(run, { k: 'popstar', x: cb.x, y: cb.y, r: len, a: ang, n: K.rays, w: P.rayHalf, life: 0.6, seed: Math.abs((cb.x * 3 + cb.y) | 0) % 97 });
+      }
+      this.sparkJump(run, w, cb.x, cb.y, v);
+    });
+  },
+  //   (x,y) の泡が割れた：近くの電撃の線（プラズマチェーンの弾どうしの線）へ稲妻が跳び、その線が sec 秒 太く強くなる。跳べたら1
+  sparkJump(run, w, x, y, v) {
+    const K = BAL.fusionCards.fl_spark;
+    let best = null, bd = K.reach * K.reach, qx = 0, qy = 0;
+    for (const b of run.bullets) {
+      const l = b.link;
+      if (b.fx !== 'plasma' || !l || l.gone || !b.src || b.src.fuse !== 'plasmachain') continue;
+      if (Util.dist(b.x, b.y, l.x, l.y) > (b.linkMax || 120)) continue;
+      const dx = l.x - b.x, dy = l.y - b.y, l2 = dx * dx + dy * dy || 1, t = Math.max(0, Math.min(1, ((x - b.x) * dx + (y - b.y) * dy) / l2));
+      const sx = b.x + dx * t, sy = b.y + dy * t, d2 = Util.dist2(sx, sy, x, y);
+      if (d2 < bd) { bd = d2; best = b; qx = sx; qy = sy; }
+    }
+    if (!best) return 0;
+    best.sparkT = best.link.sparkT = run.time + K.sec;
+    Combat.lineHit(run, x, y, qx, qy, 10, w.s.dmg * K.boltMul * v, { color: '#8fb4ff', shock: 0.8 });
+    this.fx(run, { k: 'plasmabolt', pts: [{ x, y }, { x: qx, y: qy }], life: 0.25, color: '#8fb4ff', seed: Math.abs((x * 7 + y * 3) | 0) % 97 });
+    return 1;
+  },
+  //   プラズマチェーンの線 b→l に、漂う泡が触れていたら割る
+  sparkTouch(run, b, l) {
+    const K = BAL.fusionCards.fl_spark;
+    for (const cb of run.bullets) {
+      if (!cb.sparkBub || cb.popped) continue;
+      if (Util.segDist2(b.x, b.y, l.x, l.y, cb.x, cb.y) > (cb.r + K.touch) * (cb.r + K.touch)) continue;
+      this.sparkPop(run, cb, true, Math.atan2(l.y - b.y, l.x - b.x));
+    }
+  },
+
   // ---------- 合成の操作（盤の上） ----------
   //   合成できる組：A（合成していない）の六角の隣に B（合成していない）がいて、その合成の札を持っている
   //   ok が偽のときは why に理由（ボタンは薄く出し、押すと理由を言う）
@@ -289,7 +441,7 @@ const FUSIONS = {
     role: '長く広い範囲を制圧', desc: '貫通の限界で弾ける星形弾',
     fire(w, run) {
       const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_starassault;
-      const mk = Fusion.link(w, run, 'mark', 'scattergun');
+      const mk = Fusion.link(w, run, 'mark', 'scattergun'), sb = Fusion.link(w, run, 'sb', 'bubblegun');
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n * 0.7 : 1);
         Combat.spawnBullet(w, run, a, {
@@ -297,6 +449,7 @@ const FUSIONS = {
           onConsume: (rr, b) => {
             Combat.explode(rr, b.x, b.y, P.burstR, b.dmg * P.burstMul, { color: '#ffe066' }); Fusion.fx(rr, { k: 'starburst', x: b.x, y: b.y, r: P.burstR, color: '#ffe066', life: 0.9, rot: (b.x * 0.07) % 6.28, seed: Math.abs((b.x * 7 + b.y * 3) | 0) % 97 });
             if (mk) Fusion.mark(rr, b.x, b.y, P.burstR, mk);
+            if (sb) Fusion.starBubbles(rr, w, b.x, b.y, sb);       // 星と泡（fl_starbub）：弾けた星から泡が飛ぶ
             // 連鎖星砕（fp_starassault）：弾けた破片がもう一度弾ける
             if (F.frag) {
               const a0 = Math.random() * 6.28;
@@ -322,7 +475,7 @@ const FUSIONS = {
     role: '中距離の群れ', desc: '弾どうしが電撃の線でつながり、触れた敵を刻む',
     // 2026-10-13：撃った弾どうし（前後）が電撃の線でつながり、線に触れた敵へ刻む（撃つたびと、その半分の間に）。当たった敵からは電撃が跳ぶ
     fire(w, run) {
-      const P = Fusion.p(w);
+      const P = Fusion.p(w), spark = Fusion.link(w, run, 'spark', 'bubbleblade'), KS = BAL.fusionCards.fl_spark;
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n * 0.7 : 1);
         Combat.spawnBullet(w, run, a, {
@@ -340,7 +493,10 @@ const FUSIONS = {
         for (const b of run.bullets) {
           const l = b.link;
           if (b.src !== w || !l || l.gone || Util.dist(b.x, b.y, l.x, l.y) > P.linkMax) continue;
-          Combat.lineHit(run, l.x, l.y, b.x, b.y, P.linkHalf, w.s.dmg * P.linkMul, { color: '#bcd4ff', shock: w.s.shockDur });
+          // 火花の泡（fl_spark）：稲妻を受けた線は sparkT まで太く強い／漂う泡に触れたら割る
+          const hot = b.sparkT > run.time;
+          Combat.lineHit(run, l.x, l.y, b.x, b.y, P.linkHalf * (hot ? KS.thick : 1), w.s.dmg * P.linkMul * (hot ? KS.strong : 1), { color: '#bcd4ff', shock: w.s.shockDur });
+          if (spark) Fusion.sparkTouch(run, b, l);
         }
       };
       net();
@@ -704,12 +860,14 @@ const FUSIONS = {
     id: 'cryobeam', a: 'sniper', b: 'cryo', name: '凍結光線', short: 'CRB', color: '#7fe6ff',
     role: '反射する光の線', desc: '通った線に霜が残り、反射した所に氷の棘山',
     fire(w, run) {
-      const P = Fusion.p(w), F = Fusion.fc(w);
+      const P = Fusion.p(w), F = Fusion.fc(w), prism = Fusion.link(w, run, 'prism', 'icebomb');
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + (i === 0 ? 0 : ((i % 2) ? 1 : -1) * Math.ceil(i / 2) * 0.06);
-        const res = Combat.laser(w, run, a, { opts: { chill: true, slow: w.s.slow, slowDur: w.s.slowDur }, color: '#7fe6ff', life: 0.45 });
+        const hitL = prism ? [] : null;
+        const res = Combat.laser(w, run, a, { opts: { chill: true, slow: w.s.slow, slowDur: w.s.slowDur }, color: '#7fe6ff', life: 0.45, hits: hitL });
         if (!res) continue;
         Fusion.reskin(run, 'laser', 'cryoray', { seed: (w.shots * 7 + i) % 97 });   // 絵だけ（0.45秒も絵の長さ）
+        if (prism) { Fusion.prismReflect(run, w, res, prism); Fusion.prismStorm(run, w, hitL, prism); }   // 白い乱反射（fl_prism）：氷の嵐の中で乱反射／当たった敵の足もとに小さな嵐
         // 通った線の上に霜が残り、刻み続ける（区間ごとに長方形の場）
         for (let k = 1; k < res.pts.length; k++) {
           const p = res.pts[k - 1], q = res.pts[k], L = Math.hypot(q.x - p.x, q.y - p.y);
@@ -931,7 +1089,7 @@ const FUSIONS = {
     id: 'bubblegun', a: 'bubble', b: 'gatling', name: 'ファンシーバブルガン', short: 'FBG', color: '#ff9ad8',
     role: '円の方向へ連射', desc: '泡を連射・割れると小さな泡に分かれてまた割れる',
     fire(w, run) {
-      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_bubblegun;
+      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_bubblegun, sb = Fusion.link(w, run, 'sb', 'starassault');
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n * 0.7 : 1);
         Combat.spawnBullet(w, run, a, {
@@ -939,6 +1097,7 @@ const FUSIONS = {
           onConsume: (rr, b) => {
             Combat.explode(rr, b.x, b.y, w.s.splash, b.dmg * P.popMul, { color: '#ff9ad8', stun: w.s.stunDur * P.popStun });
             Fusion.fx(rr, { k: 'bubblepop', x: b.x, y: b.y, r: w.s.splash, life: 0.5, seed: ((b.x * 7 + b.y * 3) | 0) % 97 });
+            if (sb) Fusion.starsFromBubble(rr, w, b.x, b.y, sb);   // 星と泡（fl_starbub）：割れた泡から星が飛ぶ
             // 小さな泡に分かれる：割れた所から放射状に飛び、何かに当たるか、kidRange 進んだら割れる
             const ka0 = Math.random() * 6.28;
             for (let k = 0; k < P.kids; k++) {
@@ -995,9 +1154,10 @@ const FUSIONS = {
     id: 'bubbleblade', a: 'bubble', b: 'shuriken', name: 'ポッピングスター', short: 'PPS', color: '#ffe38a',
     role: '遠くの円', desc: '泡を纏った流れ星を落とし、光の刃と泡が次々弾ける',
     fire(w, run) {
-      const P = Fusion.p(w), F = Fusion.fc(w);
+      const P = Fusion.p(w), F = Fusion.fc(w), spark = Fusion.link(w, run, 'spark', 'plasmachain');
       Fusion.bombardWith(w, run, '#ffe38a', (rr, x, y) => {
         Combat.spotImpact(w, rr, x, y, 0, 1);
+        if (spark) Fusion.sparkBubbles(rr, w, x, y, spark);       // 火花の泡（fl_spark）：着弾に漂う泡
         const a0 = Math.random() * 6.28, rays = 5 + (F.rays || 0);       // 流星群（fp_bubbleblade）：光の刃が増える
         for (let k = 0; k < rays; k++) {
           const a = a0 + k * Math.PI * 2 / rays;
@@ -1010,6 +1170,7 @@ const FUSIONS = {
           Fusion.later(rr, 0.12 + k * P.popGap, () => {
             Combat.explode(rr, px, py, P.popR, w.s.dmg * P.popMul, { color: '#b8e6ff', stun: (w.s.stunDur || 0) * 0.5 });
             Fusion.fx(rr, { k: 'bubblepop', x: px, y: py, r: P.popR, life: 0.45, seed: (k * 13 + 5) % 97 });
+            if (spark) Fusion.sparkJump(rr, w, px, py, spark);       // 火花の泡（fl_spark）：近くの電撃の線へ稲妻
           });
         }
       }, { fx: 'meteor' });

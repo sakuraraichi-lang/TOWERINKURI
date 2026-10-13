@@ -279,7 +279,7 @@ const FX_PLASMACHAIN = {
     if (l && !l.gone && Math.hypot(l.x - b.x, l.y - b.y) <= (b.linkMax || 120)) {
       const fr2 = Math.floor(t * 40), Lk = Math.hypot(l.x - b.x, l.y - b.y);
       const J = FxKit.jag(b.x, b.y, l.x, l.y, Math.max(3, Math.round(Lk / 14)), Math.min(10, Lk * 0.15), fr2 * 7 + s);
-      FxKit.beam(ctx, c => FxKit.poly(c, J), 6, '#8fb4ff', 0.9, '#4a72ff');
+      FxKit.beam(ctx, c => FxKit.poly(c, J), b.sparkT > t ? 12 : 6, '#8fb4ff', 0.9, '#4a72ff');   // 火花の泡（fl_spark）：稲妻を受けた線は太い
     }
     ctx.globalCompositeOperation = 'lighter';
     FxKit.glow(ctx, b.x, b.y, R * 2.8, '#5f8cff', 0.75);
