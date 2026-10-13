@@ -5,7 +5,7 @@
 //     resonator    プラズマボール（済・手本）
 //     thunderwhip  航海の悪夢（段2・1013 作り直し）：立ち上がる雷の竜巻（FxKit.tornado・雷雲の傘・胴を走る稲妻・足元の土煙・掴んだ敵に絡む触手）
 //     hellmist     爆裂放射器（fx2）：火炎放射器と同じく吹き続ける炎（橙から毒の緑へ）・炎の線に沿って連鎖する火球・毒の煙
-//     vortex       相反の渦（fx2）：氷と炎の放射が背中合わせに吹き続けながら回る・凍った敵に炎が掛かると熱衝撃で砕ける
+//     vortex       相反の渦（fx3）：射程いっぱいの地面の渦（氷と炎の太い腕・内へ流れる破片と火の粉・中心の目で蒸気が爆ぜる）・凍った敵が炎の腕に入ると熱衝撃で砕ける
 //     cryobeam     凍結光線（段2）：青白い太い光線と霜の結晶・反射した所に透き通った氷の棘山
 //     convergence  スーパーノヴァ（段2）：道1本分の太さの光の奔流（流れる模様と粒）・反射の角の閃光・多段ヒットの光
 //     chainstrike  磁気嵐（段2）：帯電したミサイル・着弾点に渦巻く嵐と磁力線の輪・稲妻
@@ -448,7 +448,7 @@ FusionFX.register('hellmist', FX_HELLMIST);
 //   氷で凍った敵に炎が掛かると熱衝撃（白い蒸気・氷の破片・火の粉・六角の衝撃波）
 // ---------------------------------------------------------------
 const FX_VORTEX = {
-  // 砲台：氷と炎の巴（半分ずつの丸）を回る台に載せる。外の輪に噴き口が6つ（放射はどの向きにも出る）
+  // 砲台：氷と炎の巴（半分ずつの丸）を回る台に載せる。外の輪に噴き口が6つ（ここから地面へ渦が広がる）
   turret(c) {
     c.lineJoin = 'round'; c.lineCap = 'round';
     for (let i = 0; i < 6; i++) {                                    // 噴き口（氷と炎が交互）
@@ -465,29 +465,92 @@ const FX_VORTEX = {
     c.fillStyle = '#e6fbff'; c.beginPath(); c.arc(0, 5.25, 1.8, 0, 7); c.fill();
     c.lineWidth = 1.2; c.strokeStyle = 'rgba(255,255,255,0.75)'; c.beginPath(); c.arc(0, 0, 8.4, Math.PI * 1.05, Math.PI * 1.45); c.stroke();
   },
-  // 作り置きの塊：氷（白→水色→青の冷気）・炎（白→黄→橙→赤）・凍った炎（先の色：淡い桃）
-  spr(kind) {
-    const S = { ice: [[0, 'rgba(250,255,255,1)'], [0.2, 'rgba(200,244,255,0.95)'], [0.5, 'rgba(110,200,255,0.6)'], [0.78, 'rgba(50,120,230,0.25)'], [1, 'rgba(20,50,140,0)']],
-      icefar: [[0, 'rgba(235,250,255,0.9)'], [0.35, 'rgba(160,225,255,0.55)'], [0.7, 'rgba(90,160,240,0.22)'], [1, 'rgba(40,80,180,0)']],
-      fire: [[0, 'rgba(255,252,230,1)'], [0.18, 'rgba(255,226,130,0.95)'], [0.45, 'rgba(255,140,40,0.75)'], [0.72, 'rgba(220,60,20,0.38)'], [1, 'rgba(120,20,10,0)']],
-      firefar: [[0, 'rgba(255,200,120,0.85)'], [0.4, 'rgba(255,110,40,0.5)'], [0.75, 'rgba(200,40,40,0.2)'], [1, 'rgba(90,10,20,0)']] }[kind];
-    return FxKit.sprite('fz-vx-' + kind, 32, FxKit.res(), c => {
-      const g = c.createRadialGradient(0, 0, 0, 0, 0, 32);
-      for (const [p, col] of S) g.addColorStop(p, col);
-      c.fillStyle = g; c.beginPath(); c.arc(0, 0, 32, 0, 7); c.fill();
-    });
+  // 腕の中心線（q0〜q1 を n 等分）。形の式は fusion.js の FUSIONS.vortex.arm（当たりと同じ）
+  armPts(V, P, x, y, R, base, k, q0, q1, n) {
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const q = q0 + (q1 - q0) * i / n, t = V.arm(P, base, k, q), d = q * R;
+      pts.push({ x: x + Math.cos(t) * d, y: y + Math.sin(t) * d, q });
+    }
+    return pts;
   },
-  // 放射の1枚。f.ice＝1 で氷・0 で炎。回る向きの逆へ先が反る（渦の腕）
-  jet(ctx, f, k) {
-    const ice = !!f.ice, T = k * f.life;
-    FXE.stream(ctx, f, k, ice
-      ? { pal: 'ice', nT: 3, puff: this.spr('ice'), puffFar: this.spr('icefar'), nP: 4, alpha: 0.44, glow: '#7fe6ff' }
-      : { pal: 'fire', nT: 3, puff: this.spr('fire'), puffFar: this.spr('firefar'), nP: 4, alpha: 0.4, glow: '#ff8a2a' });
-    const mx = f.x + Math.cos(f.a) * 18, my = f.y + Math.sin(f.a) * 18, seed = f.seed || 0;
-    if (ice) FxKit.sparks(ctx, { x: mx, y: my, t: T, seed: seed + 3, n: 3, life: 0.3, v: f.r * 2.4, drag: 2.5, a: f.a, spread: f.arc * 1.5, size: 3.6, shape: 'shard', add: false, c0: '#ffffff', c1: '#9fe6ff' });
-    else FxKit.sparks(ctx, { x: mx, y: my, t: T, seed: seed + 3, n: 3, life: 0.3, v: f.r * 2.6, drag: 2.5, a: f.a, spread: f.arc * 1.5, size: 2.8, c0: '#fff0b0', c1: '#ff6a2a' });
-    // 真ん中：氷と炎がぶつかる白い光（1枚ぶんは薄く・重なって明るい）
-    if (ice) { ctx.globalCompositeOperation = 'lighter'; FxKit.glow(ctx, f.x, f.y, 34, '#ffd0e8', 0.22 * (1 - k)); FxKit.glow(ctx, f.x, f.y, 14, '#ffffff', 0.3 * (1 - k)); ctx.globalCompositeOperation = 'source-over'; }
+  // 毎フレーム1回・敵の下：盤の上の相反の渦すべて。撃ち始め（w.vxS）から腕が伸び、撃たなくなる（w.vxOn から空く）と消える
+  ground(ctx, run) {
+    if (typeof FUSIONS === 'undefined' || !run || !run.units) return;
+    const V = FUSIONS.vortex, T = run.time;
+    for (const w of run.units) {
+      if (w.fuse !== 'vortex' || w.vxOn === undefined || T < w.vxS) continue;
+      const idle = T - w.vxOn;
+      if (idle > 0.6) continue;
+      const up = FxKit.ease((T - w.vxS) / 0.45), a = Math.min(up, FxKit.clamp01(1 - (idle - 0.15) / 0.45));
+      if (a > 0.01) { ctx.save(); this.swirl(ctx, w, V, Fusion.p(w), V.base(w, run), T, a, up); ctx.restore(); }
+    }
+  },
+  swirl(ctx, w, V, P, base, T, a, up) {
+    const x = w.x, y = w.y, R = w.s.range, q0 = 0.06, q1 = q0 + (1 - q0) * up, seed = Math.abs((x * 7 + y * 3) | 0) % 97;
+    // 1. 縁の細い輪（範囲が読める）。射程いっぱいの円は塗らない（大きな面の塗りが重い）
+    ctx.globalAlpha = 0.3 * a; ctx.strokeStyle = '#ff9ad0'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.arc(x, y, R, 0, 7); ctx.stroke();
+    // 2. 流れの筋：腕より速く回る細い渦の線（氷の色と炎の色を交互）。渦の流れを見せる
+    ctx.lineCap = 'round'; ctx.lineWidth = 2;
+    for (const [col, k0] of [['#9fe6ff', 0], ['#ffb070', 1]]) {
+      ctx.beginPath();
+      for (let j = 0; j < 3; j++) {
+        const off = k0 * Math.PI + j * Math.PI * 2 / 3 + T * P.spin * 0.9 + FxKit.h(j, seed) * 0.6;
+        const qa = 0.2 + 0.25 * FxKit.h(j + 5, seed), qb = Math.min(1, qa + 0.5);
+        for (let i = 0; i <= 10; i++) {
+          const q = qa + (qb - qa) * i / 10, t = V.arm(P, base + off, 0, q), d = q * R * up;
+          i ? ctx.lineTo(x + Math.cos(t) * d, y + Math.sin(t) * d) : ctx.moveTo(x + Math.cos(t) * d, y + Math.sin(t) * d);
+        }
+      }
+      ctx.globalAlpha = 0.22 * a; ctx.strokeStyle = col; ctx.stroke();
+    }
+    // 3. 腕2本：光（加算・太い根元の半分だけ。面が大きいと重い）→ 本体 → 明るい内側 → 白い芯。根元が太く、先が細る
+    const ARM = [{ glow: '#3a9cff', body: '#5cc8ff', mid: '#c8f2ff', core: '#ffffff' }, { glow: '#ff4a1a', body: '#ff7a2a', mid: '#ffd27a', core: '#fff6d8' }];
+    for (let k = 0; k < 2; k++) {
+      const C = ARM[k], pts = this.armPts(V, P, x, y, R, base, k, q0, q1, 22), n = pts.length - 1;
+      const wd = (s) => (i => { const q = pts[Math.round(i * n)].q, u = i; return V.armW(P, q) * s * Math.min(1, (1 - u) * 5 + 0.08) * Math.min(1, u * 6 + 0.35); });
+      ctx.globalCompositeOperation = 'lighter';
+      FxKit.ribbon(ctx, pts.slice(0, (n >> 1) + 1), (wf => i => wf(i * 0.5) * Math.min(1, (1 - i) * 2.5))(wd(1.5))); ctx.globalAlpha = 0.2 * a; ctx.fillStyle = C.glow; ctx.fill();
+      ctx.globalCompositeOperation = 'source-over';
+      FxKit.ribbon(ctx, pts, wd(1)); ctx.globalAlpha = 0.5 * a; ctx.fillStyle = C.body; ctx.fill();
+      FxKit.ribbon(ctx, pts, wd(0.5)); ctx.globalAlpha = 0.6 * a; ctx.fillStyle = C.mid; ctx.fill();
+      FxKit.ribbon(ctx, pts, i => Math.max(3, V.armW(P, pts[Math.round(i * n)].q) * 0.12) * Math.min(1, (1 - i) * 5)); ctx.globalAlpha = 0.85 * a; ctx.fillStyle = C.core; ctx.fill();
+    }
+    // 4. 腕に沿って内側へ流れる粒：氷の破片（白と水色）・火の粉（加算）
+    for (let k = 0; k < 2; k++) {
+      ctx.beginPath();
+      for (let i = 0; i < 12; i++) {
+        const u = (FxKit.h(i, seed + k * 31) + T * 0.42) % 1, q = q0 + (q1 - q0) * (1 - u);
+        const t = V.arm(P, base, k, q) + (FxKit.h(i + 40, seed + k) - 0.5) * V.armW(P, q) * 0.9 / Math.max(20, q * R);
+        const d = q * R, px = x + Math.cos(t) * d, py = y + Math.sin(t) * d, s = (k ? 2.6 : 4.2) * (0.6 + 0.6 * Math.min(1, u * 4, (1 - u) * 4));
+        if (k) { ctx.moveTo(px + s, py); ctx.arc(px, py, s, 0, 7); }
+        else { const r = t + T * 6 + i; ctx.moveTo(px + Math.cos(r) * s * 1.5, py + Math.sin(r) * s * 1.5); ctx.lineTo(px + Math.cos(r + 2.3) * s, py + Math.sin(r + 2.3) * s); ctx.lineTo(px + Math.cos(r - 2.3) * s, py + Math.sin(r - 2.3) * s); ctx.closePath(); }
+      }
+      if (k) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.9 * a; ctx.fillStyle = '#ffc060'; ctx.fill(); ctx.globalCompositeOperation = 'source-over'; }
+      else { ctx.globalAlpha = 0.9 * a; ctx.fillStyle = '#e6fbff'; ctx.fill(); ctx.lineWidth = 1; ctx.strokeStyle = '#4ab0ff'; ctx.stroke(); }
+    }
+    // 5. 中心の目：氷と炎がぶつかる白い光（ゆっくり脈打つ）
+    const pu = 0.85 + 0.15 * Math.sin(T * 5);
+    ctx.globalCompositeOperation = 'lighter';
+    FxKit.glow(ctx, x, y, P.eyeR * 1.1 * pu, '#ffb0d8', 0.35 * a);
+    FxKit.glow(ctx, x, y, P.eyeR * 0.5, '#ffffff', 0.55 * a);
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+  },
+  // 中心の目の蒸気の爆発（熱衝撃）：白い閃光・桃の六角の衝撃波・白い蒸気が渦に沿って外へ広がる・氷の破片と火の粉
+  eye(ctx, f, k) {
+    const T = k * f.life, R = f.r, seed = f.seed || 0;
+    FxKit.flash(ctx, f.x, f.y, R * 1.3, T, '#ffd2e8', 0.1);
+    FxKit.hexWave(ctx, f.x, f.y, R * 1.35, T / 0.4, '#ffb0d8', 5);
+    ctx.globalCompositeOperation = 'lighter';
+    for (let j = 0; j < 8; j++) {
+      const q = FxKit.clamp01(T / (f.life * 0.9)), aa = j * Math.PI / 4 + q * 1.2 + FxKit.h(j, seed) * 0.4, d = R * (0.2 + 0.9 * FxKit.ease(q));
+      FxKit.glow(ctx, f.x + Math.cos(aa) * d, f.y + Math.sin(aa) * d, R * (0.35 + 0.35 * q), '#ffffff', 0.5 * (1 - q));
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed, n: 8, life: 0.45, v: R * 5, drag: 5, size: 4.4, shape: 'shard', even: true, add: false, c0: '#ffffff', c1: '#8fd8ff' });
+    FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed: seed + 5, n: 6, life: 0.4, v: R * 5.5, drag: 4, size: 2.8, c0: '#fff0b0', c1: '#ff6a2a' });
+    ctx.globalAlpha = 1;
   },
   // 熱衝撃：凍った敵に炎が掛かって砕ける。白い閃光・六角の衝撃波（桃）・氷の破片（白と水色・加算しない）・火の粉・白い蒸気が昇る
   shock(ctx, f, k) {
@@ -505,7 +568,7 @@ const FX_VORTEX = {
     }
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
   },
-  fx: { vtxjet(ctx, f, k) { this.jet(ctx, f, k); }, vtxshock(ctx, f, k) { this.shock(ctx, f, k); } },
+  fx: { vtxeye(ctx, f, k) { this.eye(ctx, f, k); }, vtxshock(ctx, f, k) { this.shock(ctx, f, k); } },
 };
 FusionFX.register('vortex', FX_VORTEX);
 
@@ -953,7 +1016,7 @@ FusionFX.register('stormcloud', FX_STORMCLOUD);
 const SR_ELEM = {
   thunderwhip: { face: -90, foes: [[60, 0], [95, -14], [130, 12], [165, -10], [200, 8], [240, 0]], times: [[0.12, '立ち上がる'], [0.6, '進む'], [1.5, '絡む'], [3.3, '消える']], look: 150, w: 320 },
   hellmist: { hold: true, face: -90, foes: [[60, 0], [95, -14], [130, 12], [160, -10], [185, 8], [175, -20]], times: [[0.05, '噴く'], [0.2, '爆発'], [0.35, '吹き続ける'], [1.3, '毒の雲']], look: 115, w: 300 },
-  vortex: { hold: true, face: -90, foes: [[60, 0], [110, -30], [150, 40], [-70, 20], [-120, -40], [40, 120], [-30, -150], [20, -100]], times: [[0.1, '噴く'], [0.45, '回る'], [0.85, '熱衝撃'], [1.6, '回り続ける']], look: 0, w: 480 },
+  vortex: { hold: true, face: -90, foes: [[60, 0], [110, -30], [150, 40], [-70, 20], [-120, -40], [40, 120], [-30, -150], [20, -100]], times: [[0.2, '渦が立つ'], [0.75, '蒸気の爆発'], [1.5, '巻き込む'], [2.6, '熱衝撃']], look: 0, w: 480 },
   cryobeam: { face: -90, foes: [[70, 0], [110, -8], [150, 8], [190, -6], [230, 6], [270, 0]], times: [[0.03, '撃つ'], [0.12, '光線'], [0.4, '棘山'], [3.0, '砕ける']], look: 150, w: 360 },
   convergence: { face: -90, foes: [[60, 0], [95, -10], [130, 10], [165, -8], [200, 6], [240, 0]], times: [[0.02, '撃つ'], [0.04, '奔流'], [0.06, '多段'], [0.085, '消える']], look: 130, w: 320 },
   chainstrike: { face: -90, foes: [[120, 0], [150, -30], [170, 26], [195, -12], [215, 30], [235, 0]], times: [[0.2, '飛ぶ'], [0.45, '着弾'], [0.7, '嵐'], [1.15, '余韻']], look: 130, w: 320 },

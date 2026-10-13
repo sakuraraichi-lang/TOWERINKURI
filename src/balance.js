@@ -1105,9 +1105,11 @@ BAL.fusion = {
   hellmist: { stat: { dmg: 14, rate: 12, range: 190, cone: 0.45, burn: 1, burnDur: 3, fieldR: 80, fieldDur: 3, fieldVuln: 0.2 }, p: { flameLife: 0.24, blastEvery: 0.35, from: 0.3, at: 0.9, blasts: 4, gap: 0.06, blastR: 64, blastMul: 3.6, gasEvery: 1, dps: 2, slow: 0.15 } },
   // 10 火炎＋迫撃砲（8）ヴォルケイノブラスト：溶岩の炎を噴きっぱなし（rate 回/秒・扇 flameArc・長さ flameR・1回 dmg×flameMul）＋ every 発ごとに正面へ火山弾
   napalm: { stat: { dmg: 34, rate: 12, range: 330, burn: 0.6, burnDur: 3.5, splash: 56, speed: 330 }, p: { flameR: 170, flameArc: 0.45, flameMul: 0.3, every: 20, bombs: 7, fan: 0.22, fanK: 1.5, poolR: 62, poolDur: 4, poolDps: 1.0 } },   // 2026-10-13 性能：火山弾の連射と溶岩の溜まり
-  // 11 凍結＋火炎（9）相反の渦：氷の放射と炎の放射が背中合わせに吹き続けながら回る（毎秒 spin ラジアン・扇の半角 arc・毎秒 rate 回ずつ当たる）。
-  //    氷で凍った敵に炎が掛かると熱衝撃で砕ける（dmg×shatter・半径 shR・敵ごとに cool 秒に1回）（2026-10-13 fx2）
-  vortex: { stat: { dmg: 14, rate: 12, range: 210, slow: 0.5, slowDur: 2.6, burn: 1.6, burnDur: 3 }, p: { spin: 4, arc: 0.6, jetLife: 0.26, shatter: 2.5, shR: 44, cool: 0.45 } },
+  // 11 凍結＋火炎（9）相反の渦：砲台を中心に、射程いっぱいの地面の渦（2026-10-13 fx3・ユーザー「壊れたスプリンクラーみたい」→ 渦に）。
+  //    氷と炎の太い腕が2本（根元の幅 wRoot・先 wTip・外ほど twist ラジアン遅れて巻く）、毎秒 spin ラジアンで回る。腕の中の敵に毎秒 rate 回ずつ当たる。
+  //    渦の中の敵は回る向きへ swirl・中心へ pull（px/秒）で流される。中心の目（半径 eyeR）で eyeEvery 秒ごとに蒸気の爆発（dmg×eyeMul）。
+  //    氷の腕で凍った敵が炎の腕に入ると熱衝撃で砕ける（dmg×shatter・半径 shR・敵ごとに cool 秒に1回）
+  vortex: { stat: { dmg: 14, rate: 12, range: 210, slow: 0.5, slowDur: 2.6, burn: 1.6, burnDur: 3 }, p: { spin: 1.3, twist: 4.4, wRoot: 70, wTip: 18, swirl: 30, pull: 20, eyeR: 60, eyeFirst: 0.5, eyeEvery: 0.8, eyeMul: 3, shatter: 2.5, shR: 44, cool: 0.45 } },
   // 12 凍結＋泡（10）永久凍土：砲台を包む大きな泡（半径＝射程）が膨らんで凍り、中の近い n 体を止める → delay 秒で氷のドームが砕け、
   //    破片が中の敵1体ごとに shardHits 回刺さる（半径 shardR）→ 足元が凍土として残る（groundDur 秒・groundTick ごとに刻む）。範囲に敵が居ないときは撃たない（2026-10-13 fx2）
   icefoam: { stat: { dmg: 14, rate: 0.7, range: 210, slow: 0.9, slowDur: 3, stunDur: 1.2 }, p: { n: 40, cages: 14, delay: 1, travel: 0.12, shardR: 40, shardMul: 1.2, shardSlow: 0.6, shardSlowDur: 2, shardHits: 3, shardGap: 0.07, groundDur: 2.2, groundTick: 0.25, groundDps: 0.8 } },
