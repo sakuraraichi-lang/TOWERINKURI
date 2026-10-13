@@ -6,10 +6,10 @@
 //     abyssnet     狂気の海底（済・段2）
 //     napalm       ヴォルケイノブラスト（済・段2）
 //     icefoam      永久凍土（fx2）：砲台を包む泡のドームが凍って砕け、破片が中の敵に刺さる・足元に凍土
-//     carpet       滅尽嵐（済・段2）
+//     carpet       滅尽嵐（済・段2・fx4 で旋風を大きく。絵の太さは半径に比例）
 //     acidfoam     王水（済・段2）
 //     toxmortar    破滅の雨（済・段2）
-//     icebomb      スノーグレイブ（済・段2）
+//     icebomb      スノーグレイブ（fx4）：画面を覆う巨大な吹雪（白く煙る視界・渦を巻く雪の帯・回る氷片）・嵐の中の敵へ刺さる氷片
 //
 //   書き方：合成武器ごとに1つの物を作り、FusionFX.register(合成の id, 物) で登録する。物に書けるもの（どれも省ける）：
 //     turret(c)                 砲台の絵（作り置き。+x が砲身の向き・およそ ±20。FusionFX.turretSprite が 1.2 倍して描く）
@@ -801,7 +801,7 @@ FusionFX.register('icefoam', FX_ICEFOAM);
 //   跡に火炎旋風（縦に立ち上がる炎の渦・巻き上がる火の粉・地面の焦げ）が数秒漂う
 // ===============================================================
 const FX_CARPET = {
-  sr: { face: -90, foes: [[110, -30], [135, 20], [150, -8], [165, 34], [185, -26], [205, 6]], times: [[0.14, '降る'], [0.4, '着弾'], [1.0, '旋風'], [3.7, '消える']], look: 120, w: 300 },
+  sr: { face: -90, foes: [[100, -50], [130, 40], [150, -10], [170, 60], [195, -45], [220, 15]], times: [[0.14, '降る'], [0.4, '着弾'], [1.0, '旋風'], [4.7, '消える']], look: 220, w: 480 },
   // 滅尽嵐：迫撃砲の太い筒の上に、3本のミサイルを扇に並べたポッド。橙の帯
   turret(c) {
     c.lineJoin = 'round'; c.lineCap = 'round';
@@ -883,8 +883,8 @@ const FX_CARPET = {
       const a0 = FxKit.h(i, seed) * 6.28 - T * 6, r0 = R * (0.98 - 0.1 * FxKit.h(i + 5, seed));
       for (let j = 0; j <= 6; j++) { const q = j / 6, an = a0 + q * 1.1, rr = r0 * (1 - q * 0.3); ctx[j ? 'lineTo' : 'moveTo'](x + Math.cos(an) * rr, y + Math.sin(an) * rr); }
     }
-    ctx.globalAlpha = 0.3 * a; ctx.strokeStyle = '#ff5a1a'; ctx.lineWidth = 7; ctx.stroke();
-    ctx.globalAlpha = 0.75 * a; ctx.strokeStyle = '#ffb040'; ctx.lineWidth = 2.4; ctx.stroke();
+    ctx.globalAlpha = 0.3 * a; ctx.strokeStyle = '#ff5a1a'; ctx.lineWidth = R * 0.11; ctx.stroke();      // 太さは半径に比例（fx4：1013g の絵のまま大きく）
+    ctx.globalAlpha = 0.75 * a; ctx.strokeStyle = '#ffb040'; ctx.lineWidth = R * 0.04; ctx.stroke();
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
     FxKit.hexWave(ctx, x, y, R * 1.2, T / 0.4, '#ff8a3a', 4);
   },
@@ -894,7 +894,7 @@ const FX_CARPET = {
     if (a <= 0.01) return;
     const grow = FxKit.ease(T / 0.35);
     const sp = FxKit.tornado(ctx, { x: z.x, y: z.y, H: R * 2.5 * (0.3 + 0.7 * grow), wb: R * 0.24, wt: R * (0.4 + 0.45 * grow), T, seed, a: a * 0.95, sway: R * 0.3, spin: 8,
-      body: ['rgba(255,200,90,1)', 'rgba(200,40,8,1)'], bodyA: 0.5, add: true, back: '#7a1a04', glow: '#ff4a0a', streak: '#ffb040', core: '#fff4c8', sw: 4, debris: '#ffd070', nd: 16, ds: 3.2 });
+      body: ['rgba(255,200,90,1)', 'rgba(200,40,8,1)'], bodyA: 0.5, add: true, back: '#7a1a04', glow: '#ff4a0a', streak: '#ffb040', core: '#fff4c8', sw: R * 0.066, debris: '#ffd070', nd: 22, ds: R * 0.053 });   // 筋と破片も半径に比例（fx4）
     if (!sp) return;
     const N = sp.length - 1, top = sp[N];
     // 白い熱の芯（足元から胴の半ばまで）
@@ -903,7 +903,7 @@ const FX_CARPET = {
     // 胴の縁の炎の舌（両側でちらつく）
     ctx.beginPath();
     for (let i = 2; i < N; i += 2) {
-      const p = sp[i], s = i % 4 ? 1 : -1, hh = Math.min(16, p.w * 0.45) * (0.7 + 0.3 * Math.sin(T * 17 + i * 2.3)), bx = p.x + s * p.w * 0.95;
+      const p = sp[i], s = i % 4 ? 1 : -1, hh = Math.min(R * 0.27, p.w * 0.45) * (0.7 + 0.3 * Math.sin(T * 17 + i * 2.3)), bx = p.x + s * p.w * 0.95;
       ctx.moveTo(bx, p.y + 4); ctx.quadraticCurveTo(bx + s * hh * 0.6, p.y - hh * 0.3, bx + s * hh * 0.3 + Math.sin(T * 11 + i) * 3, p.y - hh); ctx.quadraticCurveTo(bx - s * 2, p.y - hh * 0.4, bx - s * 4, p.y + 2); ctx.closePath();
     }
     ctx.globalAlpha = 0.75 * a; ctx.fillStyle = '#ff7a1a'; ctx.fill();
@@ -919,8 +919,8 @@ const FX_CARPET = {
     ctx.globalCompositeOperation = 'lighter';
     ctx.beginPath();
     for (let i = 0; i < 10; i++) {
-      const p = (T * 0.9 + FxKit.h(i, seed)) % 1, side = FxKit.h(i + 3, seed) < 0.5 ? -1 : 1, s = 3 * (1 - p * 0.6);
-      const px = top.x + side * (top.w * 0.6 + p * R * 0.9) , py = top.y + 10 - p * 30 + p * p * 70;
+      const p = (T * 0.9 + FxKit.h(i, seed)) % 1, side = FxKit.h(i + 3, seed) < 0.5 ? -1 : 1, s = R * 0.05 * (1 - p * 0.6);
+      const px = top.x + side * (top.w * 0.6 + p * R * 0.9) , py = top.y + R * (0.17 - p * 0.5 + p * p * 1.17);
       ctx.rect(px - s / 2, py - s / 2, s, s);
     }
     ctx.globalAlpha = 0.95 * a; ctx.fillStyle = '#ffc060'; ctx.fill();
@@ -1129,10 +1129,12 @@ FusionFX.register('toxmortar', FX_TOXMORTAR);
 
 // ===============================================================
 // スノーグレイブ（迫撃砲＋凍結）：白い霜の尾を引く氷の塊の砲弾。落ちた所に氷の破片と六角の衝撃波、
-//   そのあと氷の嵐（白と水色の風の渦・回る吹雪の粒・大きな雪の結晶）がゆっくり漂う
+//   そのあと巨大な吹雪（2026-10-13 fx4・ユーザー「巨大な嵐エフェクトに変更、今より巨大な嵐に」）：
+//   敵の下＝白く煙る視界・渦を巻く雪の帯（太い腕4本）・縁で渦巻く雪の壁／敵の上＝風に流れる吹雪の筋・回る氷片・大きな雪の結晶。
+//   嵐の中の敵へ氷片が刺さる（iceshard・当たりは fusion.js）。重なった嵐は濃さを割る（盤を白く塗りつぶさない）
 // ===============================================================
 const FX_ICEBOMB = {
-  sr: { face: -90, foes: [[125, -26], [140, 20], [160, -6], [175, 30], [190, -30], [210, 8]], times: [[0.3, '飛ぶ'], [0.68, '着弾'], [1.6, '吹雪'], [5.45, '消える']], look: 140, w: 300 },
+  sr: { face: -90, foes: [[80, -100], [130, 80], [160, -40], [190, 0], [230, 110], [280, -70]], times: [[0.3, '飛ぶ'], [0.68, '着弾'], [1.6, '吹雪'], [6.95, '消える']], look: 190, w: 460 },
   // スノーグレイブ：氷に覆われた迫撃砲。筒の上下に氷の結晶が生え、口は水色に光る。台に雪の印
   turret(c) {
     c.lineJoin = 'round'; c.lineCap = 'round';
@@ -1195,47 +1197,120 @@ const FX_ICEBOMB = {
     FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed, n: 12, life: 0.5, v: 280, drag: 5, size: 4.4, shape: 'shard', even: true, add: false, c0: '#ffffff', c1: '#8fd0ff' });
     FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed: seed + 7, n: 12, life: 0.55, v: 200, drag: 3.5, size: 2.6, c0: '#ffffff', c1: '#dff6ff' });
   },
-  // 氷の嵐：地面の霜・回る風の帯（5本の渦）・吹雪の粒（流れる線）・大きな雪の結晶・縁のもや
-  storm(ctx, z) {
-    const T = z.t, R = z.r, seed = FXF.seedOf(z), ap = FxKit.ease(T / 0.3), out = FxKit.clamp01((z.dur - T) / 0.5), a = ap * out;
+  // 巨大な吹雪（2026-10-13 fx4）。1013g までは半径80の小さな渦（細い風の線5本と粒22個）だった。
+  //   当たる範囲そのものの大きさで、出た瞬間から全部の大きさ（小さく描いてから広げない）。濃さだけ 0.35秒で上がり、最後の 0.6秒で消える
+  sa(z) { const T = z.t; return FxKit.ease(T / 0.35) * FxKit.clamp01((z.dur - T) / 0.6); },
+  //   重なり：中心が半径の内に入っている嵐（光線が起こした小さな嵐は除く）の数で濃さを割る。何個重なっても白く塗りつぶさない
+  dim(z, run) {
+    const zs = run && run.fzones;
+    if (!zs || z.mini) return 1;
+    let n = 0;
+    for (const o of zs) if (o.kind === 'blizzard' && !o.mini && Math.abs(o.x - z.x) < z.r && Math.abs(o.y - z.y) < z.r) n++;
+    return n > 1 ? 1 / Math.sqrt(n) : 1;
+  },
+  _arm: [],
+  // 敵の下：白く煙る視界・渦を巻く雪の帯（太い腕4本）・縁で渦巻く雪の壁・中心の目・出たときの六角の衝撃波
+  storm(ctx, z, run) {
+    const a = this.sa(z);
     if (a <= 0.01) return;
-    const x = z.x, y = z.y, Rr = R * (0.6 + 0.4 * ap);
-    ctx.globalAlpha = a; FXF.put(ctx, FXF.radial('fz-bliz-frost' + R, R * 1.12, [[0, 'rgba(220,245,255,0.22)'], [0.7, 'rgba(170,225,255,0.16)'], [0.92, 'rgba(200,240,255,0.22)'], [1, 'rgba(200,240,255,0)']]), x, y, Rr / R);
-    // 風の帯（渦）
-    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-    ctx.beginPath();
-    for (let i = 0; i < 5; i++) {
-      const a0 = T * 3 + i * Math.PI * 2 / 5 + seed;
-      for (let j = 0; j <= 12; j++) { const q = j / 12, an = a0 + q * 2.5, rr = Rr * (0.22 + 0.76 * q); j ? ctx.lineTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr) : ctx.moveTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr); }
-    }
-    ctx.globalAlpha = 0.16 * a; ctx.strokeStyle = '#9fe0ff'; ctx.lineWidth = 10; ctx.stroke();
-    ctx.globalAlpha = 0.6 * a; ctx.strokeStyle = '#e6fbff'; ctx.lineWidth = 2.6; ctx.stroke();
-    // 吹雪の粒（回りながら流れる短い線）
-    ctx.beginPath();
-    for (let i = 0; i < 22; i++) {
-      const w = 1.6 + 1.6 * FxKit.h(i, seed), an = FxKit.h(i + 30, seed) * 6.28 + T * w, rr = Rr * (0.12 + 0.88 * FxKit.h(i + 60, seed));
-      ctx.moveTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr); ctx.arc(x, y, rr, an, an + 0.18 + 0.12 * w);
-    }
-    ctx.globalAlpha = 0.85 * a; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.2; ctx.stroke();
-    // 大きな雪の結晶（4つ・回る）
-    ctx.beginPath();
+    const T = z.t, R = z.r, seed = FXF.seedOf(z), x = z.x, y = z.y, A = a * this.dim(z, run);
+    // 白く煙る視界（範囲そのものの大きさ・縁が少し濃い＝雪の壁）
+    ctx.globalAlpha = A;
+    FXF.put(ctx, FXF.radial('fz-bliz-haze' + R, R * 1.06, [[0, 'rgba(240,250,255,0.46)'], [0.45, 'rgba(224,244,255,0.32)'], [0.8, 'rgba(205,236,255,0.24)'], [0.93, 'rgba(228,246,255,0.32)'], [1, 'rgba(228,246,255,0)']]), x, y, 1);
+    // 渦を巻く雪の帯：太い腕4本（中心から外へ巻きながら太り、先で細る）。外の白い帯＋中の明るい筋。腕は回り続ける
+    const P = this._arm, spin = T * 1.15 + seed;
     for (let i = 0; i < 4; i++) {
-      const an = i * 1.57 + T * 1.3 + seed, rr = Rr * (0.4 + 0.35 * FxKit.h(i, seed)), cx = x + Math.cos(an) * rr, cy = y + Math.sin(an) * rr, s = 5.5, r0 = T * 2 + i;
-      for (let j = 0; j < 3; j++) { const b = r0 + j * Math.PI / 3; ctx.moveTo(cx + Math.cos(b) * s, cy + Math.sin(b) * s); ctx.lineTo(cx - Math.cos(b) * s, cy - Math.sin(b) * s); }
+      P.length = 0;
+      const a0 = spin + i * Math.PI / 2;
+      for (let j = 0; j <= 14; j++) { const q = j / 14, an = a0 - q * 2.7, rr = R * (0.08 + 0.9 * q); P.push({ x: x + Math.cos(an) * rr, y: y + Math.sin(an) * rr }); }
+      FxKit.ribbon(ctx, P, q => R * (0.04 + 0.34 * Math.pow(Math.sin(Math.PI * Math.min(1, q * 1.12)), 0.8)));
+      ctx.globalAlpha = 0.22 * A; ctx.fillStyle = '#e6f6ff'; ctx.fill();
+      FxKit.ribbon(ctx, P, q => R * (0.015 + 0.12 * Math.sin(Math.PI * Math.min(1, q * 1.08))));
+      ctx.globalAlpha = 0.34 * A; ctx.fillStyle = '#ffffff'; ctx.fill();
     }
-    ctx.globalAlpha = 0.95 * a; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.6; ctx.stroke();
-    // 中心の白い光と、縁のもや
+    // 縁で渦巻く雪の壁（ぼけた白い塊が、腕より速く縁を回る）
+    const cv = FxKit.glowCv('#eef9ff'), nw = Math.round(8 + R * 0.05);
+    ctx.globalAlpha = 0.55 * A;
+    for (let i = 0; i < nw; i++) {
+      const an = i / nw * 6.2832 + T * 1.7 + FxKit.h(i, seed) * 0.4, rr = R * (0.86 + 0.1 * FxKit.h(i + 7, seed)), s = R * (0.13 + 0.07 * FxKit.h(i + 13, seed));
+      ctx.drawImage(cv, x + Math.cos(an) * rr - s, y + Math.sin(an) * rr - s, s * 2, s * 2);
+    }
+    // 縁の線（ここまでが当たる範囲）と、中心の目の白い光
+    ctx.beginPath(); ctx.arc(x, y, R, 0, 7);
+    ctx.globalAlpha = 0.5 * A; ctx.strokeStyle = '#bfefff'; ctx.lineWidth = 1.8; ctx.stroke();
     ctx.globalCompositeOperation = 'lighter';
-    FxKit.glow(ctx, x, y, Rr * 0.45, '#dff6ff', 0.35 * a);
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.beginPath(); ctx.arc(x, y, Rr, 0, 7);
-    ctx.globalAlpha = 0.14 * a; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 12; ctx.stroke();
-    ctx.globalAlpha = 0.5 * a; ctx.strokeStyle = '#bfefff'; ctx.lineWidth = 1.6; ctx.stroke();
+    FxKit.glow(ctx, x, y, R * 0.32, '#dff6ff', 0.45 * A);
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    FxKit.hexWave(ctx, x, y, R * 1.05, T / 0.5, '#bfefff', z.mini ? 3 : 6);
+  },
+  // 敵の上：風に流れる吹雪の筋・舞う雪・回りながら転がる氷片・大きな雪の結晶（濃さは重なりの割り方を弱めにする：筋は細いので埋まらない）
+  stormOver(ctx, z, run) {
+    const a = this.sa(z);
+    if (a <= 0.01) return;
+    const T = z.t, R = z.r, seed = FXF.seedOf(z), x = z.x, y = z.y, A = a * Math.sqrt(this.dim(z, run));
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    // 吹雪の筋（渦と同じ向きに回る短い弧・内ほど速い）
+    const n = Math.round(14 + R * 0.2);
+    ctx.beginPath();
+    for (let i = 0; i < n; i++) {
+      const f = 0.14 + 0.84 * FxKit.h(i + 60, seed), w = (1.2 + 1.4 * FxKit.h(i, seed)) / (0.5 + f), an = FxKit.h(i + 30, seed) * 6.28 + T * w, rr = R * f;
+      ctx.moveTo(x + Math.cos(an) * rr, y + Math.sin(an) * rr); ctx.arc(x, y, rr, an, an + 0.16 + 0.1 * w);
+    }
+    ctx.globalAlpha = 0.7 * A; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.3 + R * 0.007; ctx.stroke();
+    // 舞う雪（小さな点）
+    const m = Math.round(10 + R * 0.14);
+    ctx.beginPath();
+    for (let i = 0; i < m; i++) {
+      const an = FxKit.h(i + 90, seed) * 6.28 + T * (1.8 + 2 * FxKit.h(i + 120, seed)), rr = R * (0.08 + 0.92 * FxKit.h(i + 150, seed)), s = 1.4 + R * 0.01 * FxKit.h(i + 170, seed);
+      ctx.rect(x + Math.cos(an) * rr - s / 2, y + Math.sin(an) * rr - s / 2, s, s);
+    }
+    ctx.globalAlpha = 0.9 * A; ctx.fillStyle = '#ffffff'; ctx.fill();
+    // 氷片（細長い菱形が風に乗って回り、転がる）
+    const ns = Math.round(4 + R * 0.05);
+    ctx.beginPath();
+    for (let i = 0; i < ns; i++) {
+      const an = FxKit.h(i + 200, seed) * 6.28 + T * (1.3 + FxKit.h(i + 210, seed)), rr = R * (0.25 + 0.68 * FxKit.h(i + 220, seed));
+      const cx = x + Math.cos(an) * rr, cy = y + Math.sin(an) * rr, s = R * (0.028 + 0.024 * FxKit.h(i + 230, seed)), r0 = an + 1.57 + Math.sin(T * 4 + i) * 0.7;
+      const ux = Math.cos(r0), uy = Math.sin(r0);
+      ctx.moveTo(cx + ux * s * 1.9, cy + uy * s * 1.9); ctx.lineTo(cx - uy * s * 0.5, cy + ux * s * 0.5); ctx.lineTo(cx - ux * s * 1.3, cy - uy * s * 1.3); ctx.lineTo(cx + uy * s * 0.5, cy - ux * s * 0.5); ctx.closePath();
+    }
+    ctx.globalAlpha = 0.95 * A; ctx.fillStyle = '#dff6ff'; ctx.fill();
+    ctx.globalAlpha = 0.8 * A; ctx.strokeStyle = '#4a90c8'; ctx.lineWidth = 1; ctx.stroke();
+    // 大きな雪の結晶（回る）
+    const nc = R > 80 ? 6 : 3, cs = Math.max(4, R * 0.045);
+    ctx.beginPath();
+    for (let i = 0; i < nc; i++) {
+      const an = i * 6.2832 / nc + T * 1.1 + seed, rr = R * (0.35 + 0.45 * FxKit.h(i, seed)), cx = x + Math.cos(an) * rr, cy = y + Math.sin(an) * rr, r0 = T * 2 + i;
+      for (let j = 0; j < 3; j++) { const b = r0 + j * Math.PI / 3; ctx.moveTo(cx + Math.cos(b) * cs, cy + Math.sin(b) * cs); ctx.lineTo(cx - Math.cos(b) * cs, cy - Math.sin(b) * cs); }
+    }
+    ctx.globalAlpha = 0.95 * A; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 1.4 + R * 0.004; ctx.stroke();
+    ctx.globalAlpha = 1;
+  },
+  // 氷片が刺さる（嵐の中の敵へ・当たりは fusion.js の icebomb）：風上から弧を描いて飛び込み（0.12秒）、刺さった所で閃光と氷の破片
+  shard(ctx, f, k) {
+    const T = k * f.life, fly = 0.12, seed = f.seed || 0;
+    const ex = f.ex, ey = f.ey, ea = Math.atan2(ey - f.y, ex - f.x), tx = Math.cos(ea + 1.5708), ty = Math.sin(ea + 1.5708), ox = Math.cos(ea), oy = Math.sin(ea);
+    const sx = ex - tx * 70 + ox * 18, sy = ey - ty * 70 + oy * 18, cx = ex - tx * 28 + ox * 16, cy = ey - ty * 28 + oy * 16;
+    const at = q => { const u = 1 - q; return { x: u * u * sx + 2 * u * q * cx + q * q * ex, y: u * u * sy + 2 * u * q * cy + q * q * ey }; };
+    if (T < fly + 0.04) {
+      const q = Math.min(1, T / fly), p = at(q), b = at(Math.max(0, q - 0.35)), dx = p.x - b.x, dy = p.y - b.y, L = Math.hypot(dx, dy) || 1, ux = dx / L, uy = dy / L;
+      ctx.globalCompositeOperation = 'lighter';
+      FxKit.beam(ctx, c => { c.beginPath(); c.moveTo(b.x, b.y); c.lineTo(p.x, p.y); }, 3, '#bfefff', 0.6, '#8fd0ff');
+      ctx.globalCompositeOperation = 'source-over';
+      ctx.beginPath(); ctx.moveTo(p.x + ux * 9, p.y + uy * 9); ctx.lineTo(p.x - uy * 3, p.y + ux * 3); ctx.lineTo(p.x - ux * 7, p.y - uy * 7); ctx.lineTo(p.x + uy * 3, p.y - ux * 3); ctx.closePath();
+      ctx.globalAlpha = 1; ctx.fillStyle = '#f0fbff'; ctx.fill(); ctx.lineWidth = 1.2; ctx.strokeStyle = '#2a6aa0'; ctx.stroke();
+    }
+    if (T >= fly) {
+      const Th = T - fly;
+      FxKit.flash(ctx, ex, ey, 20, Th, '#bfefff', 0.08);
+      FxKit.sparks(ctx, { x: ex, y: ey, t: Th, seed: seed + 3, n: 6, life: 0.18, v: 190, drag: 7, size: 3, shape: 'shard', add: false, c0: '#ffffff', c1: '#8fd0ff' });
+    }
     ctx.globalAlpha = 1;
   },
   lobs: { iceshell(ctx, b, by, br, run) { this.lob(ctx, b, by, br, run); } },
-  fx: { snowburst(ctx, f, k) { this.burst(ctx, f, k); } },
-  zones: { blizzard(ctx, z) { this.storm(ctx, z); } },
+  fx: { snowburst(ctx, f, k) { this.burst(ctx, f, k); }, iceshard(ctx, f, k) { this.shard(ctx, f, k); } },
+  zones: { blizzard(ctx, z, run) { this.storm(ctx, z, run); } },
+  over: { blizzard(ctx, z, run) { this.stormOver(ctx, z, run); } },
 };
 FusionFX.register('icebomb', FX_ICEBOMB);
 

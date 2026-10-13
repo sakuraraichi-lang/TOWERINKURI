@@ -1273,24 +1273,33 @@ const FUSIONS = {
     },
   },
 
-  // 24 迫撃砲＋凍結：スノーグレイブ。落とした所に氷の嵐
+  // 24 迫撃砲＋凍結：スノーグレイブ。落とした所に巨大な吹雪（2026-10-13 fx4：ユーザー「巨大な嵐エフェクトに変更、今より巨大な嵐に、性能も見た目準拠に強化」）
+  //   嵐の中の全員に P.tick 秒ごとに当たり（凍えて遅くなる）、P.shardEvery 秒ごとに嵐の中の敵 P.shards 体へ、風に乗った氷片が刺さる（絵は fx-field.js の iceshard）
   icebomb: {
     id: 'icebomb', a: 'mortar', b: 'cryo', name: 'スノーグレイブ', short: 'SNG', color: '#8fd0ff',
-    role: '遠くの円', desc: '落とした所に氷の嵐',
+    role: '遠くの広い円', desc: '落とした所に巨大な吹雪が吹き荒れ、中の敵を凍えさせ、氷片が次々刺さる',
     fire(w, run) {
       const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_icebomb;
+      const shard = { every: P.shardEvery, fn: (rr, z) => {
+        const list = Fusion.enemiesIn(z.x, z.y, z.r);
+        for (let k = 0; k < P.shards && list.length; k++) {
+          const e = list.splice((Math.random() * list.length) | 0, 1)[0];
+          Combat.damage(rr, e, w.s.dmg * P.shardMul, { color: '#e6fbff', slow: P.slow, slowDur: 0.8, chill: true, crit: w.s.crit, critMul: w.s.critMul });
+          Fusion.fx(rr, { k: 'iceshard', x: z.x, y: z.y, ex: e.x, ey: e.y, life: 0.3, seed: (k * 13 + ((rr.time * 60) | 0)) % 97 });
+        }
+      } };
       Fusion.bombardWith(w, run, '#8fd0ff', (rr, x, y) => {
         Combat.explode(rr, x, y, w.s.splash, w.s.dmg, { color: '#bff0ff', slow: w.s.slow, slowDur: w.s.slowDur, chill: true, crit: w.s.crit, critMul: w.s.critMul });
         const ang = Math.random() * 6.28;
-        Fusion.zone(rr, { kind: 'blizzard', x, y, r: P.R, dur: P.dur, tick: P.tick, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.8, chill: true,
+        Fusion.zone(rr, { kind: 'blizzard', x, y, r: P.R, dur: P.dur, tick: P.tick, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.8, chill: true, pulse: shard,
           drift: { x: Math.cos(ang) * P.drift, y: Math.sin(ang) * P.drift }, color: '#bff0ff' });
         // 双つの吹雪（fp_icebomb）：逆向きに漂う氷の嵐が増える
         for (let k = 0; k < (F.storms || 0); k++) {
           const sa = ang + Math.PI + k * 1.3, ox = Math.cos(sa) * P.R * K.off, oy = Math.sin(sa) * P.R * K.off;
-          Fusion.zone(rr, { kind: 'blizzard', x: x + ox, y: y + oy, r: P.R, dur: P.dur, tick: P.tick, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.8, chill: true,
+          Fusion.zone(rr, { kind: 'blizzard', x: x + ox, y: y + oy, r: P.R, dur: P.dur, tick: P.tick, dps: w.s.dmg * P.dps, slow: P.slow, slowDur: 0.8, chill: true, pulse: shard,
             drift: { x: Math.cos(sa) * P.drift, y: Math.sin(sa) * P.drift }, color: '#bff0ff' });
         }
-        Fusion.fx(rr, { k: 'snowburst', x, y, r: P.R * 0.8, life: 0.6, seed: Math.abs((x * 7 + y * 3) | 0) % 97 });
+        Fusion.fx(rr, { k: 'snowburst', x, y, r: w.s.splash, life: 0.6, seed: Math.abs((x * 7 + y * 3) | 0) % 97 });
       }, { rocket: true, fx: 'iceshell' });
     },
   },

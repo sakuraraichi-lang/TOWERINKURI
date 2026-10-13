@@ -288,7 +288,7 @@ const FX_THUNDERWHIP = {
     ctx.beginPath(); ctx.arc(z.x, z.y, R * 0.92, 0, 7); ctx.fill();
     ctx.beginPath();
     for (let i = 0; i < 14; i++) {
-      const an = FxKit.h(i, seed) * 6.28 - T * (5 + 2 * FxKit.h(i + 7, seed)), rr = R * (0.3 + 0.62 * FxKit.h(i + 20, seed)), s = 7 + 7 * FxKit.h(i + 40, seed);
+      const an = FxKit.h(i, seed) * 6.28 - T * (5 + 2 * FxKit.h(i + 7, seed)), rr = R * (0.3 + 0.62 * FxKit.h(i + 20, seed)), s = R * (0.1 + 0.1 * FxKit.h(i + 40, seed));   // 塊の大きさは半径に比例（fx4 で竜巻を大きくしたとき、形がそのまま大きくなる）
       const x = z.x + Math.cos(an) * rr, y = z.y + Math.sin(an) * rr;
       ctx.moveTo(x + s, y); ctx.arc(x, y, s, 0, 7);
     }
@@ -310,7 +310,7 @@ const FX_THUNDERWHIP = {
     if (fa <= 0.01) return;
     const grow = FxKit.ease(T / 0.35), seed = z.sd === undefined ? (z.sd = Math.abs((z.x * 7 + z.y * 3) | 0) % 97) : z.sd;
     const sp = FxKit.tornado(ctx, { x: z.x, y: z.y, H: R * 2.5 * (0.25 + 0.75 * grow), wb: R * 0.2, wt: R * (0.4 + 0.55 * grow), T, seed, a: fa, sway: R * 0.34, spin: 7,
-      body: ['rgba(150,136,220,1)', 'rgba(70,60,140,1)'], bodyA: 0.62, rim: '#b8a8ff', mid: '#7a6ae8', back: '#3a2a80', glow: '#6a4aff', streak: '#d8ceff', core: '#ffffff', sw: 3.6, debris: '#e6dcff', nd: 18 });
+      body: ['rgba(150,136,220,1)', 'rgba(70,60,140,1)'], bodyA: 0.62, rim: '#b8a8ff', mid: '#7a6ae8', back: '#3a2a80', glow: '#6a4aff', streak: '#d8ceff', core: '#ffffff', sw: R * 0.055, debris: '#e6dcff', nd: 24, ds: R * 0.046 });   // 筋と破片も半径に比例（1013g の絵のまま大きく・fx4）
     if (!sp) return;
     const N = sp.length - 1, top = sp[N], fr = Math.floor(T * 16);
     // 胴の中を走る稲妻：上の傘から足元へ、背骨に沿ってぎざぎざ（ちらつく・2本まで）
@@ -319,7 +319,7 @@ const FX_THUNDERWHIP = {
       if (FxKit.h(fr + j * 31, seed) < 0.3) continue;
       J.length = 0;
       for (let i = N; i >= 0; i -= 2) { const p = sp[i], o = i === 0 ? 0 : (FxKit.h(i + fr * 3 + j * 11, seed) - 0.5) * p.w * 1.2; J.push({ x: p.x + o, y: p.y }); }
-      FxKit.beam(ctx, c => FxKit.poly(c, J), 4.5, '#e6dcff', 0.95 * fa, '#8a6aff');
+      FxKit.beam(ctx, c => FxKit.poly(c, J), R * 0.068, '#e6dcff', 0.95 * fa, '#8a6aff');
     }
     // 雷雲の傘：上にぼけた暗い雲の塊（上の幅より一回り広い・ゆっくり渦巻く）・中が光る
     const cv = FxKit.glowCv('#3a3270');
@@ -1014,7 +1014,7 @@ FusionFX.register('stormcloud', FX_STORMCLOUD);
 //   face 武器の向き（度）・foes 的の位置 [前へ, 横へ]・times 4つの時刻・look 映す中心（前へ）・w 画面の横幅に映す盤の幅
 // ---------------------------------------------------------------
 const SR_ELEM = {
-  thunderwhip: { face: -90, foes: [[60, 0], [95, -14], [130, 12], [165, -10], [200, 8], [240, 0]], times: [[0.12, '立ち上がる'], [0.6, '進む'], [1.5, '絡む'], [3.3, '消える']], look: 150, w: 320 },
+  thunderwhip: { face: -90, foes: [[80, 0], [115, -50], [140, 40], [180, -20], [220, 55], [260, -10]], times: [[0.12, '立ち上がる'], [0.6, '進む'], [1.5, '絡む'], [4.3, '消える']], look: 230, w: 480 },
   hellmist: { hold: true, face: -90, foes: [[60, 0], [95, -14], [130, 12], [160, -10], [185, 8], [175, -20]], times: [[0.05, '噴く'], [0.2, '爆発'], [0.35, '吹き続ける'], [1.3, '毒の雲']], look: 115, w: 300 },
   vortex: { hold: true, face: -90, foes: [[60, 0], [110, -30], [150, 40], [-70, 20], [-120, -40], [40, 120], [-30, -150], [20, -100]], times: [[0.2, '渦が立つ'], [0.75, '蒸気の爆発'], [1.5, '巻き込む'], [2.6, '熱衝撃']], look: 0, w: 480 },
   cryobeam: { face: -90, foes: [[70, 0], [110, -8], [150, 8], [190, -6], [230, 6], [270, 0]], times: [[0.03, '撃つ'], [0.12, '光線'], [0.4, '棘山'], [3.0, '砕ける']], look: 150, w: 360 },
