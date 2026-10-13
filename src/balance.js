@@ -874,15 +874,15 @@ const BAL = {
   //   割合 s ＝ ascUpperShare0 ＋ ascUpperSharePerLv × アセンションのレベル（ascUpperShareMax で頭打ち）。値は測って決める（暫定）
   //   **アセンション21から先の難しさの軸（2026-10-13）**：レベルが1つ上がるごとに、order の順で軸を1つずつ上げる（21→hp・22→spd・23→count・24→upHp・25→hp…）。
   //   各軸は 1＋per×回数 で、max で頭打ち（1つの軸だけが無限に伸びない）。upHp は上位の敵だけのHP倍率。
-  //   jam＝妨害の敵（ジャマー兵・クラッシャー）の席。別ブランチで足す。order に入れていないので、いまは何も上がらない
+  //   jam＝妨害の軸（5つ目・25→jam）：ジャマー兵・クラッシャーの出やすさと、縮小版のボスの数
   ascAxis: {
     from: 21,
-    order: ['hp', 'spd', 'count', 'upHp'],
+    order: ['hp', 'spd', 'count', 'upHp', 'jam'],
     hp:    { per: 3, max: 40 },       // 敵のHPの倍率（ascHpMul に掛かる）
     spd:   { per: 0.3, max: 4 },     // 敵の速さの倍率（enemySpdCap の外側に掛かる）
     count: { per: 1.5, max: 12 },     // 1ウェーブの敵の数の倍率
     upHp:  { per: 3, max: 40 },        // 上位の敵だけのHPの倍率（hp の軸に重なる。割合は Lv10 で上限に届いていて動かせないので、HPで上げる）
-    jam:   { per: 0, max: 1 },          // 席だけ（別ブランチ）
+    jam:   { per: 1, max: 6, miniPer: 1, miniMax: 3 },   // 妨害：ジャマー兵・クラッシャーの重み ×(1＋per×回数)・上限 max。縮小版のボスの数は +miniPer×回数（上限 miniMax・ascMiniMax の外側に足す）
   },
   ascUpperOn: true,
   ascUpperShare0: 0.5,   // 2026-10-06 ユーザー：1系統だけの編成は詰んでよい（混成が通ることだけ守る）。第31〜40章・各4本：混成は全部1〜3回で通る・物理だけ／属性だけは第31〜35章で詰む
