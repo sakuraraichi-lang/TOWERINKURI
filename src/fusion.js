@@ -29,6 +29,12 @@ const Fusion = {
     try { fn(); } finally { Combat._by = b0; Combat._src = s0; }
   },
   later(run, sec, fn) { (run.later || (run.later = [])).push({ t: sec, fn, by: Combat._by, src: Combat._src }); },
+  //   撃つ回数とは別の間隔（吹き続ける武器の爆発・雲）。sec 秒に1回だけ真を返す。w[key] に次の時刻を持つ（run.time が戻ったら＝出撃が変わったら、すぐ真）
+  due(w, key, run, sec) {
+    const t = w[key];
+    if (t === undefined || run.time >= t || t > run.time + sec) { w[key] = run.time + sec; return true; }
+    return false;
+  },
 
   // 場。o: { kind, shape:'circle'|'rect'|'arc', x, y, a, r, hw, hh, arc, dur, tick, dps, slow, slowDur, chill, stun, shock, burn, burnDur,
   //          vuln, armorDown, drift:{x,y}, pulse:{every, fn(run,z)}, color, w }
@@ -569,30 +575,34 @@ const FUSIONS = {
     },
   },
 
-  // 9 火炎＋毒ガス：爆裂放射器。炎の扇が長く伸び、先で毒を含んだ爆発が起きる
+  // 9 火炎＋毒ガス：爆裂放射器。火炎放射器と同じく炎を吹き続け（毎秒 rate 回・扇の中の全員に当たる）、炎が敵に掛かっているあいだ、
+  //   炎の線に沿って爆発が連鎖し、炎の先に毒の雲が残る（2026-10-13 fx2：ユーザー「元の火炎放射器のように出しっぱでいい」）
   hellmist: {
     id: 'hellmist', a: 'flame', b: 'gas', name: '爆裂放射器', short: 'EXP', color: '#c8b02a',
-    role: '近い範囲', desc: '炎の線に沿って爆発が続き、毒が残る',
+    role: '近い範囲', desc: '毒の炎を吹き続け、炎の線に沿って爆発が続き、毒が残る',
     fire(w, run) {
       const P = Fusion.p(w), F = Fusion.fc(w);
       const boom = Fusion.link(w, run, 'boom', 'napalm');
-      Combat.coneDamage(w, run, w.angle, w.s.cone, w.s.range, w.s.dmg, {
+      const hits = Combat.coneDamage(w, run, w.angle, w.s.cone, w.s.range, w.s.dmg, {
         color: '#ffb066', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur, crit: w.s.crit, critMul: w.s.critMul,
         sticky: w.dyn.sticky || 0,
       });
-      Fusion.fx(run, { k: 'hellcone', x: w.x, y: w.y, a: w.angle, arc: w.s.cone, r: w.s.range, life: 0.34, seed: (w.shots * 37) % 1000 });   // 絵だけ（fusionfx/fx-elem.js）
-      const d = w.s.range * P.at, bx = w.x + Math.cos(w.angle) * d, by = w.y + Math.sin(w.angle) * d;
+      Fusion.fx(run, { k: 'hellcone', x: w.x, y: w.y, a: w.angle, arc: w.s.cone, r: w.s.range, life: P.flameLife, seed: (w.shots * 37) % 1000 });   // 絵だけ（fusionfx/fx-elem.js）。毎秒 rate 枚が重なって、途切れない炎になる
+      if (!hits) return;                       // 爆発と毒は、炎が敵に掛かっているときだけ（何も無い所で爆ぜない）
       // 炎の線に沿って、手前から奥へ爆発が次々起きる（P.blasts 個・連鎖爆燃 fp_hellmist で増える）。爆発ひとつずつが範囲の当たり
-      const nB = P.blasts + (F.blasts || 0);
-      for (let k = 0; k < nB; k++) {
-        const dk = w.s.range * (P.from + (P.at - P.from) * (nB > 1 ? k / (nB - 1) : 1)), px = w.x + Math.cos(w.angle) * dk, py = w.y + Math.sin(w.angle) * dk;
-        const blow = () => {
-          Combat.explode(run, px, py, P.blastR, w.s.dmg * P.blastMul, { color: '#d8e04a', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur });
-          Fusion.reskin(run, 'boom', 'hellblast', { life: k === nB - 1 ? 1.1 : 0.8, seed: (k * 29 + w.shots) % 97 });
-        };
-        if (k === 0) blow(); else Fusion.later(run, P.gap * k, blow);
+      if (Fusion.due(w, 'fxBT', run, P.blastEvery)) {
+        const nB = P.blasts + (F.blasts || 0), a = w.angle, sh = w.shots;
+        for (let k = 0; k < nB; k++) {
+          const dk = w.s.range * (P.from + (P.at - P.from) * (nB > 1 ? k / (nB - 1) : 1)), px = w.x + Math.cos(a) * dk, py = w.y + Math.sin(a) * dk;
+          const blow = () => {
+            Combat.explode(run, px, py, P.blastR, w.s.dmg * P.blastMul, { color: '#d8e04a', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur });
+            Fusion.reskin(run, 'boom', 'hellblast', { life: k === nB - 1 ? 1.0 : 0.45, big: k === nB - 1, seed: (k * 29 + sh) % 97 });
+          };
+          if (k === 0) blow(); else Fusion.later(run, P.gap * k, blow);
+        }
       }
-      if (w.shots % P.every === 0) {
+      if (Fusion.due(w, 'fxGT', run, P.gasEvery)) {
+        const d = w.s.range * P.at, bx = w.x + Math.cos(w.angle) * d, by = w.y + Math.sin(w.angle) * d;
         Combat.spawnField(run, bx, by, { kind: 'gas', r: w.s.fieldR, dur: w.s.fieldDur, dps: w.s.dmg * P.dps, slow: P.slow, vuln: w.s.fieldVuln,
           color: '#8fd94a', src: w, armorDown: w.dyn.armorDown || 0 });
         if (boom) Fusion.combust(w, run, run.fields[run.fields.length - 1], boom);   // 燃える溜まりと重なれば爆ぜる（fl_boom）
@@ -628,59 +638,69 @@ const FUSIONS = {
     },
   },
 
-  // 11 凍結＋火炎：氷と炎が渦巻く（企画書の例）
+  // 11 凍結＋火炎：相反の渦。氷の放射と炎の放射が背中合わせに吹き続けながら回る（2026-10-13 fx2：ユーザー「根本から表現方法を変えて」「火炎放射器が元のものは出しっぱで」）
+  //   回る向きは run.time で決める（撃つ回数で回すと、フレームの刻みで速さが変わる）。氷が掛けた凍結に炎が掛かると熱衝撃で砕ける
   vortex: {
     id: 'vortex', a: 'cryo', b: 'flame', name: '相反の渦', short: 'VTX', color: '#ff9ad0',
-    role: '凍結の広い範囲のまま', desc: '氷と炎の渦が刻み続ける。凍って燃えた敵は砕ける',
+    role: '凍結の広い範囲のまま', desc: '氷と炎を背中合わせに吹きながら回る。凍った敵に炎が掛かると砕ける',
     fire(w, run) {
-      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_vortex, KS = BAL.fusionCards.fl_shatter, shK = P.shatter + (F.shatter || 0);
+      const P = Fusion.p(w), F = Fusion.fc(w), KS = BAL.fusionCards.fl_shatter, shK = P.shatter + (F.shatter || 0);
       const sh = Fusion.link(w, run, 'burst', 'icefoam');
-      // 渦が残り、範囲いっぱいを速い刻みで当て続ける（ヒット数）
-      Fusion.zone(run, { kind: 'vortexz', x: w.x, y: w.y, r: w.s.range, dur: P.dur, tick: P.tick, dps: w.s.dmg * P.dps, slow: w.s.slow, slowDur: w.s.slowDur, chill: true,
-        burn: w.s.dmg * w.s.burn * P.burnK, burnDur: w.s.burnDur, color: '#ff9ad0', dcolor: '#ffd2e8' });
-      Combat.pulse(w, run, w.s.range, w.s.dmg, {
-        color: '#ffd2e8', slow: w.s.slow, slowDur: w.s.slowDur, chill: true, burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur, crit: w.s.crit, critMul: w.s.critMul,
-      });
-      // 熱割れ（fp_vortex）：凍って燃えている敵が割れて、大きく爆ぜる（敵ごとに cool 秒に1回・割れたら凍結は解ける）
-      // 凍泡炸裂（fl_shatter）：永久凍土の凍った泡に包まれている敵は、渦に入ると爆ぜる
-      if (shK || sh) {
-        for (const e of Fusion.enemiesIn(w.x, w.y, w.s.range)) {
-          if (e.dead) continue;
-          if (shK && e.chill > 0 && e.burnT > 0 && !(e.fshT > run.time)) {
-            e.fshT = run.time + K.cool; e.chill = 0;
-            Combat.explode(run, e.x, e.y, K.r, w.s.dmg * shK, { color: '#ffffff' });
-            Fusion.fx(run, { k: 'shards', x: e.x, y: e.y, r: K.r, life: 0.4, color: '#ffd2e8' });
-          }
-          if (sh && e.fcage > run.time) {
-            e.fcage = 0;
-            Combat.explode(run, e.x, e.y, KS.r, w.s.dmg * sh, { color: '#bff0ff', chill: true });
-            Fusion.fx(run, { k: 'shards', x: e.x, y: e.y, r: KS.r, life: 0.45, color: '#bff0ff' });
-          }
+      if (w.fxA0 === undefined) w.fxA0 = Math.random() * Math.PI * 2;
+      const ai = w.fxA0 + run.time * P.spin, af = ai + Math.PI, R = w.s.range;
+      // 炎の側：先に熱衝撃を見る（氷の側が前に通って凍らせた敵）。砕けたら凍結は解ける（次に氷が通ればまた凍る）
+      for (const e of Fusion.coneEnemies(w, af, P.arc, R)) {
+        if (e.dead) continue;
+        if (e.chill > 0 && !(e.fshT > run.time)) {
+          e.fshT = run.time + P.cool; e.chill = 0;
+          Combat.explode(run, e.x, e.y, P.shR, w.s.dmg * shK, { color: '#ffffff' });
+          Fusion.fx(run, { k: 'vtxshock', x: e.x, y: e.y, r: P.shR, life: 0.6, seed: (e.id || 0) % 97 });
+        }
+        // 凍泡炸裂（fl_shatter）：永久凍土の凍った泡に包まれている敵は、渦に入ると爆ぜる
+        if (sh && e.fcage > run.time) {
+          e.fcage = 0;
+          Combat.explode(run, e.x, e.y, KS.r, w.s.dmg * sh, { color: '#bff0ff', chill: true });
+          Fusion.fx(run, { k: 'vtxshock', x: e.x, y: e.y, r: KS.r, life: 0.6, seed: 7 });
         }
       }
-      Fusion.fx(run, { k: 'vortex', x: w.x, y: w.y, r: w.s.range, life: P.dur, ph: Math.random() * 6.28 });
-      Combat.shake(run, 1.2);
+      Combat.coneDamage(w, run, af, P.arc, R, w.s.dmg, { color: '#ffb066', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur, crit: w.s.crit, critMul: w.s.critMul });
+      Combat.coneDamage(w, run, ai, P.arc, R, w.s.dmg, { color: '#bff0ff', slow: w.s.slow, slowDur: w.s.slowDur, chill: true, crit: w.s.crit, critMul: w.s.critMul });
+      // 絵（fusionfx/fx-elem.js）：氷と炎の2枚。毎秒 rate 枚ずつ、回りながら重なって、途切れない放射の帯になる
+      const seed = (w.shots * 37) % 1000;
+      Fusion.fx(run, { k: 'vtxjet', x: w.x, y: w.y, a: ai, arc: P.arc, r: R, life: P.jetLife, seed, ice: 1 });
+      Fusion.fx(run, { k: 'vtxjet', x: w.x, y: w.y, a: af, arc: P.arc, r: R, life: P.jetLife, seed: seed + 500, ice: 0 });
     },
   },
 
-  // 12 凍結＋泡：永久凍土。範囲内を泡で包んで凍らせ、破裂させる。火力は低いが、絶大な足止め
+  // 12 凍結＋泡：永久凍土。砲台を包む大きな泡（半径＝射程）が膨らんで凍りつき、中の敵を止める → 氷のドームが砕け、破片が中の敵へ刺さる → 足元が凍土として残る
+  //   （2026-10-13 fx2：ユーザー「根本から表現方法を変えて」。前は敵1体ずつに小さな泡の殻）。範囲に敵が居ないときは撃たない（何も無い所でドームを出さない）
   icefoam: {
     id: 'icefoam', a: 'cryo', b: 'bubble', name: '永久凍土', short: 'PRM', color: '#9fe6ff',
-    role: '広い範囲', desc: '範囲を泡で凍らせて止め、割れた破片が何度も当たる',
+    role: '広い範囲', desc: '大きな泡で範囲を包んで凍らせ、砕けた氷が中の敵に何度も刺さる。足元は凍土になる',
     fire(w, run) {
-      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_icefoam;
+      const P = Fusion.p(w), F = Fusion.fc(w), K = BAL.fusionCards.fp_icefoam, R = w.s.range;
+      const foes = Fusion.nearestTo(w.x, w.y, R, P.n);
+      if (!foes.length) return false;
       const caged = Fusion.link(w, run, 'burst', 'vortex');
-      Combat.pulse(w, run, w.s.range, w.s.dmg, { color: '#bff0ff', slow: w.s.slow, slowDur: w.s.slowDur, chill: true, crit: w.s.crit, critMul: w.s.critMul });
-      Fusion.fx(run, { k: 'frostfoam', x: w.x, y: w.y, r: w.s.range, life: 0.6, ph: Math.random() * 6.28 });
+      Snd.shot(w.id);
+      const seed = (w.shots * 13) % 97;
+      Fusion.fx(run, { k: 'pfdome', x: w.x, y: w.y, r: R, life: P.delay + 0.5, hold: P.delay, seed });
       let shown = 0;
-      for (const e of Fusion.nearestTo(w.x, w.y, w.s.range, P.n)) {
+      for (const e of foes) {
         if (Combat.inShield(run, e)) continue;
-        Combat.damage(run, e, 0, { stun: w.s.stunDur, slow: w.s.slow, slowDur: w.s.slowDur, chill: true });
+        Combat.damage(run, e, w.s.dmg, { color: '#bff0ff', stun: w.s.stunDur, slow: w.s.slow, slowDur: w.s.slowDur, chill: true, crit: w.s.crit, critMul: w.s.critMul });
         if (caged) e.fcage = run.time + P.delay;      // 凍った泡の中にいる印（fl_shatter・相反の渦が読む）
-        if (shown++ < P.cages) Fusion.fx(run, { k: 'frostcage', e, x: e.x, y: e.y, r: 15, life: P.delay, color: '#bff0ff', ice: true });
+        const vis = shown++ < P.cages;
+        if (vis) Fusion.fx(run, { k: 'pfcoat', e, x: e.x, y: e.y, r: 15, life: P.delay, seed: shown });
+        // 砕ける少し前に、破片がドームの縁から飛び出す（絵）。刺さる時刻が当たりの時刻と同じになるよう travel 秒前に出す
+        if (vis) Fusion.later(run, P.delay - P.travel, () => {
+          if (e.dead) return;
+          const a = Math.atan2(e.y - w.y, e.x - w.x);
+          Fusion.fx(run, { k: 'pfshard', e, x: e.x, y: e.y, cx: w.x, cy: w.y, R, a, n: P.shardHits, gap: P.shardGap, travel: P.travel, r: P.shardR, life: P.travel + P.shardGap * P.shardHits + 0.5, seed: shown * 7 });
+        });
         Fusion.later(run, P.delay, () => {
           if (e.dead) return;
-          // 割れた破片が shardHits 回に分かれて当たる（1回目はその場で・残りは shardGap 秒ずつ遅れて）
+          // 砕けた破片が shardHits 回に分かれて刺さる（1回目はその場で・残りは shardGap 秒ずつ遅れて）。周りの敵にも当たる
           const ex = e.x, ey = e.y;
           for (let h = 0; h < P.shardHits; h++) {
             const hit = () => Combat.explode(run, ex, ey, P.shardR, w.s.dmg * P.shardMul, { color: '#bff0ff', slow: P.shardSlow, slowDur: P.shardSlowDur, chill: true });
@@ -688,14 +708,20 @@ const FUSIONS = {
           }
           // 連鎖凍裂（fp_icefoam）：破裂が近くの敵へ連鎖する
           if (F.chain) {
-            Fusion.nearestTo(e.x, e.y, P.shardR * K.reach, F.chain + 1, e).slice(0, F.chain).forEach((o, k) => Fusion.later(run, K.gap * (k + 1), () => {
+            Fusion.nearestTo(ex, ey, P.shardR * K.reach, F.chain + 1, e).slice(0, F.chain).forEach((o, k) => Fusion.later(run, K.gap * (k + 1), () => {
               Combat.explode(run, o.x, o.y, P.shardR, w.s.dmg * P.shardMul * K.mul, { color: '#bff0ff', slow: P.shardSlow, slowDur: P.shardSlowDur, chill: true });
-              Fusion.fx(run, { k: 'frostshard', x: o.x, y: o.y, r: P.shardR, life: 0.8, color: '#bff0ff' });
+              Fusion.fx(run, { k: 'pfburst', x: o.x, y: o.y, r: P.shardR, life: 0.6, seed: k + 3 });
             }));
           }
-          if (shown < 40) Fusion.fx(run, { k: 'frostshard', x: e.x, y: e.y, r: P.shardR, life: 0.9, color: '#bff0ff' });
         });
       }
+      // ドームが砕けたら、足元が凍土になる（1基に1枚・新しいものに置き換える）。中の敵へ刻み続け、凍らせて遅くする
+      Fusion.later(run, P.delay, () => {
+        const zs = run.fzones;
+        if (zs) for (let i = zs.length - 1; i >= 0; i--) if (zs[i].kind === 'permafrost' && zs[i].src === w) zs.splice(i, 1);
+        Fusion.zone(run, { kind: 'permafrost', x: w.x, y: w.y, r: R, dur: P.groundDur, tick: P.groundTick, dps: w.s.dmg * P.groundDps,
+          slow: w.s.slow, slowDur: 1, chill: true, color: '#bff0ff', seed });
+      });
     },
   },
 

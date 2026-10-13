@@ -116,7 +116,7 @@ for (const id of B_IDS) {
 const Cn = {};
 const inc = (k, n) => { Cn[k] = (Cn[k] || 0) + (n === undefined ? 1 : n); };
 function wrap(obj, name, f) { const o = obj[name]; obj[name] = function (...a) { const r = o.apply(this, a); f(a, r); return r; }; }
-wrap(Combat, 'explode', (a) => { inc('explode'); inc('explode:' + (a[5] && a[5].color)); inc('explodeR:' + Math.round(a[3])); });
+wrap(Combat, 'explode', (a) => { inc('explode'); inc('explode:' + (a[5] && a[5].color)); inc('explodeR:' + Math.round(a[3])); inc('explodeDmgR:' + Math.round(a[3]), a[4] || 0); });
 wrap(Combat, 'lineHit', (a) => { inc('lineHit'); inc('lineHit:' + (a[6] && a[6].color)); });
 wrap(Combat, 'spawnLob', () => inc('lob'));
 wrap(Combat, 'spawnField', (a) => inc('field:' + (a[3] && a[3].kind)));
@@ -204,7 +204,7 @@ const M = {
   fp_thunderwhip: C => C['zone:twister'] || 0,
   fp_hellmist: C => C.explode || 0,
   fp_napalm: C => C.lob || 0,
-  fp_vortex: C => C['explodeR:38'] || 0,
+  fp_vortex: C => C['explodeDmgR:44'] || 0,   // 熱衝撃（半径 BAL.fusion.vortex.p.shR）は札なしでも起きる。札は威力を足すので、威力の合計で比べる
   fp_icefoam: C => C.explode || 0,
   fp_cryobeam: C => C['zone:spikes'] || 0,
   fp_convergence: C => C.laserMax || 0,

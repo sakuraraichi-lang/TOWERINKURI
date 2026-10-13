@@ -709,6 +709,7 @@ const DebugRoom = {
   //   セーブは変えない：武器は run.units に一時的に置くだけ（配置の記録に書かない）・保存は止める・run 側の値は終わりに戻す。的は倒れない（HP 1e12）
   // ---------------------------------------------------------------
   //   face … 武器の向き（度・Game.FACES のどれか）／ foes … 的の位置 [前へ, 横へ]（盤の px）／ times … 4つの時刻と名前／ look … 映す中心（武器から前へ）／ w … 画面の横幅に映す盤の幅
+  //   hold … 吹き続ける武器（爆裂放射器・相反の渦）。時刻で止めるときも1発にせず、本物と同じに撃ち続けたままその時刻まで進める（乱数は固定のまま）
   SR: {
     starassault: { face: -90, foes: [[70, 0], [105, 3], [140, -3], [175, 2], [210, -2], [250, 0]], times: [[0.07, '撃つ'], [0.2, '飛ぶ'], [0.4, '当たり'], [0.75, '余韻']], look: 125, w: 300 },
     voidblade: { face: -30, foes: [[80, -140], [100, -80], [75, -20], [110, 30], [85, 90], [105, 150]], times: [[0.04, '斬撃'], [0.2, '裂ける'], [0.6, '触手'], [2.45, '閉じる']], look: 85, w: 330 },
@@ -803,8 +804,8 @@ const DebugRoom = {
     Math.random = this._srRng(20261012);
     try {
       S.u.cd = 0;
-      const n = Math.round(T * 60);
-      for (let i = 0; i < n; i++) this._srStep(i, true);
+      const n = Math.round(T * 60), hold = !!(this.SR[S.fid] || this.SR_DEF).hold;
+      for (let i = 0; i < n; i++) this._srStep(i, !hold);
       S.T = n / 60;
     } finally { Math.random = R; }
     this._srLabel();
