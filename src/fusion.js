@@ -20,6 +20,10 @@ const Fusion = {
   p(w) { return BAL.fusion[w.fuse].p; },
   cardId(fid) { return 'fus_' + fid; },
   owned(fid) { return typeof Game !== 'undefined' && Game.own(Fusion.cardId(fid)) > 0; },
+  // 盤の上で合成できるか：札を持っている／改造ラン（MOD）の中は札が無くても使える（src/modrun.js）
+  usable(fid) { return (typeof Game !== 'undefined' && Game.run && Game.run.mr) ? true : this.owned(fid); },
+  // いまの盤での合成のコスト（改造ランの「合の予感」で +2 がなくなる）
+  costIn(run, fid) { return (run && run.mr) ? ModRun.fuseCost(run, fid) : this.cost(fid); },
 
   // ---------- 遅れて起きること・居座る場（ともに Combat.update が毎フレーム進める） ----------
   //   発射したユニット（_by・_src）を覚えておき、実行するときに戻す（Combat.damage が武器の種類と1基を読む）
@@ -423,8 +427,8 @@ const Fusion = {
         if (!nb.some(q => q[0] === b.c && q[1] === b.r)) continue;
         for (const fid of FUSION_IDS) {
           const f = FUSIONS[fid];
-          if (f.a !== a.id || f.b !== b.id || !this.owned(fid)) continue;
-          const dc = this.cost(fid) - a.def.cost - b.def.cost;
+          if (f.a !== a.id || f.b !== b.id || !this.usable(fid)) continue;
+          const dc = this.costIn(run, fid) - a.def.cost - b.def.cost;
           const ok = Game.costUsed() + dc <= Game.costCap();
           out.push({ a, b, fid, ok, why: ok ? '' : 'コストが足りません（合成は +' + dc + '・残り ' + (Game.costCap() - Game.costUsed()) + '）' });
         }

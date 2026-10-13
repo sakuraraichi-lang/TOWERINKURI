@@ -709,7 +709,8 @@ const Game = {
   costCap() {
     // 取り切りの連なりに割ったので、合計は gkey で取る（skilltree.js の chain）
     //   アセンション（第31章から）はレベルごとに +BAL.ascCostPerLv（レベル0＝第30章までは変わらない）
-    return BAL.costBase + Skill.gsum(this.meta, 'units') + Asc.lv(this.perm) * BAL.ascCostPerLv;
+    //   改造ラン（MOD）は改造の分を足し引きする（ModRun.capAdd）
+    return BAL.costBase + Skill.gsum(this.meta, 'units') + Asc.lv(this.perm) * BAL.ascCostPerLv + (this.run && this.run.mr ? ModRun.capAdd(this.run) : 0);
   },
 
   costOf(weaponId) { const d = WEAPONS[weaponId]; return d ? d.cost : 0; },
@@ -723,7 +724,7 @@ const Game = {
   },
 
   // そのユニットのコスト。合成した武器は A＋B＋BAL.fuseExtraCost（fusion.js）
-  unitCost(u) { return u.fuse ? FUSIONS[u.fuse].cost : ((u.def && u.def.cost) || 0); },
+  unitCost(u) { return u.fuse ? Fusion.costIn(this.run, u.fuse) : ((u.def && u.def.cost) || 0); },
   // 盤の上と札の上で見せる名前・色（合成した武器は合成の名前と色）
   unitName(u) { return u.fuse ? FUSIONS[u.fuse].name : u.def.name; },
   unitColor(u) { return u.fuse ? FUSIONS[u.fuse].color : u.def.color; },
@@ -837,11 +838,13 @@ const Game = {
     if (!run || !this.canBuild()) return null;
     if (!this.canPlaceAt(c, r)) return null;
     if (!WEAPONS[weaponId] || !this.canAfford(weaponId)) return null;      // コストの上限（武器1種の上限は無い）
+    if (run.mr && ModRun.placeBlock(run, weaponId, c, r)) return null;    // 改造ラン：背中合わせ・一点豪華
 
     const u = this.newUnit(weaponId, c, r);
     // 着弾点を持つ武器は、置いた瞬間に既定の点を決める（空撃ちを避ける）
     if (this.usesAimPoint(u.def)) { const p = this.defaultAimPoint(u); u.ax = p.x; u.ay = p.y; }
     run.units.push(u);
+    if (run.mr) ModRun.onPlace(run, u);   // 借金：1つ置くたびにライフ
     this.applyMods();
     this.syncPlacements();
     return u;
@@ -853,6 +856,7 @@ const Game = {
     if (!run || !this.canBuild()) return false;
     if (u.broken) return false;          // ラスボスに壊された武器は動かせない（その出撃の間は残骸のまま）
     if (!this.canPlaceAt(c, r, u)) return false;
+    if (run.mr && (!ModRun.canRearrange(run) || ModRun.placeBlock(run, u.id, c, r, u))) return false;   // 改造ラン：ウェーブの合間は動かせない（組み替え自由で外れる）
     const pos = run.stage.hexCenter(c, r);
     this.dropZones(run, [u]);           // その武器が盤に置いた場（合成武器の球・雲など）は古い場所に残さない（2026-10-12 ユーザー報告）
     u.c = c; u.r = r; u.x = pos.x; u.y = pos.y;
@@ -867,6 +871,7 @@ const Game = {
     const i = run.units.indexOf(u);
     if (i < 0) return false;
     if (u.broken) return false;          // 壊された武器は片づけられず、コストも戻らない（その出撃の間）
+    if (!ModRun.canRearrange(run)) return false;   // 改造ラン：ウェーブの合間は外せない
     run.units.splice(i, 1);
     this.dropZones(run, [u]);
     this.updateAdj(run);
@@ -884,7 +889,7 @@ const Game = {
   //   盤の武器を全部外す。コストの上限が上がったあとに置き直すための操作。**外した数を返す**（0 なら何もしていない）
   clearUnits() {
     const run = this.run;
-    if (!run || !this.canBuild()) return 0;
+    if (!run || !this.canBuild() || !ModRun.canRearrange(run)) return 0;
     const keep = run.units.filter(u => u.broken);      // 壊された武器は外せない
     const n = run.units.length - keep.length;
     if (!n) return 0;
@@ -905,10 +910,10 @@ const Game = {
     if (!run || !this.canBuild()) return { ok: false, why: '戦闘中は合成できません' };
     const f = FUSIONS[fid];
     if (!f || !run.units.includes(a) || !run.units.includes(b) || a.fuse || b.fuse || a.id !== f.a || b.id !== f.b) return { ok: false, why: 'その組み合わせは合成できません' };
-    if (!Fusion.owned(fid)) return { ok: false, why: '合成の札がありません' };
+    if (!Fusion.usable(fid)) return { ok: false, why: '合成の札がありません' };
     if (a.broken || b.broken) return { ok: false, why: '壊れた武器は合成できません' };
     if (!MapGen.hexNbr(a.c, a.r).some(q => q[0] === b.c && q[1] === b.r)) return { ok: false, why: '隣り合っていません' };
-    const dc = f.cost - a.def.cost - b.def.cost;
+    const dc = Fusion.costIn(run, fid) - a.def.cost - b.def.cost;
     if (this.costUsed() + dc > this.costCap()) return { ok: false, why: 'コストが足りません（合成は +' + dc + '・残り ' + (this.costCap() - this.costUsed()) + '）' };
     run.units.splice(run.units.indexOf(b), 1);
     this.dropZones(run, [a, b]);
@@ -922,7 +927,7 @@ const Game = {
   placeFusedUnit(fid, c, r) {
     const run = this.run, f = FUSIONS[fid];
     if (!run || !f || !this.canPlaceAt(c, r)) return null;
-    if (this.costUsed() + f.cost > this.costCap() || this.sameMax(f.a)) return null;
+    if (this.costUsed() + Fusion.costIn(run, fid) > this.costCap() || this.sameMax(f.a)) return null;
     const u = this.newUnit(f.a, c, r);
     u.fuse = fid;
     if (this.usesAimPoint(u.def)) { const p = this.defaultAimPoint(u); u.ax = p.x; u.ay = p.y; }
@@ -985,12 +990,15 @@ const Game = {
   syncPlacements() {
     const run = this.run;
     if (!run) return;
-    this.perm.placements[run.stageId] = run.units.map(u => ({
+    const list = run.units.map(u => ({
       w: u.id, c: u.c, r: u.r, a: +u.face.toFixed(4), f: u.fuse || undefined,   // f＝合成武器の id（B は消えているので A の位置に1つだけ）
       // 着弾点を持つ武器は、その点も覚える
       ax: (u.ax === undefined || u.ax === null) ? null : Math.round(u.ax),
       ay: (u.ay === undefined || u.ay === null) ? null : Math.round(u.ay),
     }));
+    // 改造ラン（MOD）の配置はランの状態に持つ（本編の配置・自動設置の元を汚さない）
+    if (run.mr) { run.mr.place = list; return; }
+    this.perm.placements[run.stageId] = list;
     // 自動設置の元。**転生でも消さない**（空にしたときは覚え直さない＝前の配置を残す）
     if (run.units.length) this.perm.lastPlace[run.stageId] = this.perm.placements[run.stageId];
   },
@@ -1042,11 +1050,12 @@ const Game = {
   // 保存された配置を読み戻す。編成から外れた武器や、置けない場所のものは捨てる
   restoreUnits(run) {
     const allowed = this.loadoutWeapons();
+    const mr = run.mr;
     // **自動設置：**この周でまだ一度も触っていない章なら、前の周の配置を置き直す
     //   （触ったことがあれば、空にしたのも本人の意思なのでそのまま）
     const touched = Array.isArray(this.perm.placements[run.stageId]);
     const last = this.perm.lastPlace && this.perm.lastPlace[run.stageId];
-    const saved = (!touched && this.autoOpen('autoPlace') && this.perm.autoPlace && last && last.length)
+    const saved = mr ? (mr.place || []) : (!touched && this.autoOpen('autoPlace') && this.perm.autoPlace && last && last.length)
       ? last : this.placementsFor(run.stageId);
     //   **コストの上限を超える分は、後ろから外す。**（保存された並びの順に入れ、収まらなくなったところで打ち切る。
     //   以前の基数の配置が、上限の変わったセーブでそのまま入りきらないことがある）
@@ -1059,8 +1068,8 @@ const Game = {
       // 置ける六角で、先に読み戻したものと重なっていないこと（this.run === run）
       if (!this.canPlaceAt(p.c, p.r)) continue;
       // 合成した武器（f）：札を持っているときだけ。A として数える（同じ武器の上限・系統）
-      const fz = (p.f && FUSIONS[p.f] && FUSIONS[p.f].a === p.w && Fusion.owned(p.f)) ? p.f : null;
-      const uc = fz ? FUSIONS[fz].cost : WEAPONS[p.w].cost;
+      const fz = (p.f && FUSIONS[p.f] && FUSIONS[p.f].a === p.w && Fusion.usable(p.f)) ? p.f : null;
+      const uc = fz ? Fusion.costIn(run, fz) : WEAPONS[p.w].cost;
       if (cost + uc > this.costCap()) break;
       cost += uc;
       const nu = this.newUnit(p.w, p.c, p.r, p.a);   // p.arc（古いセーブの射界）は読まない
@@ -1090,6 +1099,12 @@ const Game = {
   },
 
   loadoutWeapons() {
+    // 改造ラン（MOD）：ランで使える武器（一点豪華は、置いた1種だけ）
+    if (this.run && this.run.mr) {
+      const mr = this.run.mr;
+      if (ModRun.has(mr, 'solo')) { const u0 = this.run.units[0]; if (u0) return [u0.id]; }
+      return mr.weapons.slice();
+    }
     return this.perm.loadout
       .slice(0, this.loadoutSlots())
       .filter(Boolean)
@@ -1100,10 +1115,13 @@ const Game = {
   canBuySkills() { return this.phase !== 'battle'; },
 
   // 盤面とユニットだけ用意した状態。敵は出さない
-  startPrep(stageId) {
-    stageId = stageId || this.perm.currentStage || 'ch1';
-    if (!this.stageUnlocked(stageId)) stageId = 'ch1';
-    this.perm.currentStage = stageId;
+  //   mr … 改造ラン（MOD）の状態（perm.modrun）。渡したときは stageId は盤だけに使い、敵の強さは ModRun.diffIdx。本編の章の記録・いまの章は触らない
+  startPrep(stageId, mr) {
+    if (!mr) {
+      stageId = stageId || this.perm.currentStage || 'ch1';
+      if (!this.stageUnlocked(stageId)) stageId = 'ch1';
+      this.perm.currentStage = stageId;
+    }
     this.phase = 'prep';
 
     const st = Stage.build(stageId);
@@ -1111,7 +1129,8 @@ const Game = {
     const n = st.cols * st.rows;
 
     const run = {
-      stage: st, stageId, stageIdx: STAGE_BY_ID[stageId].idx,
+      stage: st, stageId, stageIdx: mr ? ModRun.diffIdx(mr) : STAGE_BY_ID[stageId].idx,
+      mr: mr || null,
       mods: null,
       time: 0,
       wave: 0,
@@ -1144,6 +1163,7 @@ const Game = {
     };
 
     this.run = run;
+    if (mr) run.lives = mr.lives;      // 改造ラン：ライフは章をまたいで持ち越す
     this.restoreUnits(run);
     this.applyMods();
     return run;
@@ -1162,11 +1182,15 @@ const Game = {
     const nb = MapGen.hexNbr(c, r);
     for (const o of units) {
       if (o === ignore || o.id === selfId || o.broken) continue;
-      for (const q of nb) if (q[0] === o.c && q[1] === o.r) { seen[o.id] = 1; break; }
+      for (const q of nb) if (q[0] === o.c && q[1] === o.r) { if (this.run && this.run.mr) { for (const k of ModRun.adjKinds(this.run, o)) seen[k] = 1; } else seen[o.id] = 1; break; }   // 改造ラン：融合回廊は合成武器を2種類ぶん
     }
     return Object.keys(seen);
   },
-  adjAddOf(n) { return BAL.adjBonus * Math.min(n, BAL.adjMax); },
+  adjAddOf(n) {
+    const run = this.run;
+    if (run && run.mr) return ModRun.adjBonus(run) * Math.min(n, ModRun.adjMax(run));   // 改造ラン：背中合わせ・大家族・群体
+    return BAL.adjBonus * Math.min(n, BAL.adjMax);
+  },
   // 隣の異種 n 種で、レートが何割上がるか（画面用）。1006f から札とは別の掛け算なので、札の量 S によらず +BAL.adjBonus×n（S は前の呼び出しとの互換のために受け取るだけ）
   adjRateGain(n, S) { return this.adjAddOf(n); },
   updateAdj(run) {
@@ -1178,6 +1202,7 @@ const Game = {
       if (a !== old && u.s) u.s.rate = u.s.rate / (1 + old) * (1 + a);
       u.adjAdd = a;
     }
+    if (run.mr) ModRun.refreshPos(run);   // 改造ラン：位置で決まるもの（ゼロ距離・継承・隣接の進化）
   },
 
   // 今のアップグレードの内容で、ユニットとコアの数値を組み直す
@@ -1204,10 +1229,18 @@ const Game = {
       u.dyn = { heat: d.heat || 0, tracer: d.tracer || 0 };
       u._rkAcc = {};
       u.adjAdd = 0;            // 隣り合う異種のレートは、土台に戻したのでここで0に。最後に updateAdj が掛け直す
+      u.mrPos = 1;             // 改造ランの位置の倍（ModRun.refreshPos）も同じく土台から
       u.cardBase = null;       // 重ね取りの基準（applyCardUnit）も、組み直した値から取り直す
       for (const id of (run.cardLog || [])) this.applyCardUnit(id, run, u);
     }
+    if (run.mr) ModRun.applyUnits(run);   // 改造ラン：改造の倍（威力・レート・射程）
     this.updateAdj(run);
+    if (run.mr) {
+      // 改造ラン：ライフは持ち越し（組み直しで満タンに戻さない）。上限は改造で決まる
+      run.livesMax = ModRun.livesMax(run);
+      run.lives = Math.min(run.livesMax, run.lives);
+      return;
+    }
     const lost = run.livesMax > 0 ? (run.livesMax - run.lives) : 0;
     run.livesMax = BAL.livesBase + mods.lives + (run.livesCard || 0);
     run.lives = Math.max(0, run.livesMax - (run.wave > 0 ? lost : 0));
@@ -1219,14 +1252,14 @@ const Game = {
     if (!run) return;
     run.cardLog = []; run.livesCard = 0;   // 引いたカードの記録（applyCard）も出撃ごとに空から
     this.applyMods();
-    run.lives = run.livesMax;
+    if (!run.mr) run.lives = run.livesMax;   // 改造ランはライフを持ち越す
     run.wave = 1;
     run.cards = {};
     run._rkAcc = {};   // 積んだ枚数を戻すので、繰り越しも戻す
     Combat.coinFx = 0; // 前の出撃の残りでコインが飛ばなくなるのを防ぐ
     run.pendingPicks = 0;
     this.phase = 'battle';
-    const rec0 = this.stageRec(run.stageId);
+    const rec0 = run.mr ? { attempts: 0 } : this.stageRec(run.stageId);   // 改造ランは本編の章の記録に数えない
     rec0.attempts++;
     // **同じ章で何度も落ちたら、その章の地形を引き直す。**（2026-09-22）
     //   生成マップだと、どうしても手に負えない地形を引くことがある。
@@ -1240,7 +1273,7 @@ const Game = {
     //   ここで地形を差し替えてそのまま戦闘に入っていたので、置いた武器のまま知らない盤で戦うことになり、
     //   「古い版の盤が読み込まれた」ように見えていた。いまは**プレイヤーが選ぶ**：負けが BAL.rerollAfterFails 回に届いたら、
     //   敗北のリザルトに「別の地形で挑む」を出していたが、**同じ日に撤去した**（ユーザー「盤が変わる仕様を撤廃しましょう、全て固定に」）。盤は二度と変わらない
-    this.perm.totalRuns++;
+    if (!run.mr) this.perm.totalRuns++;
     Combat.startWave(run);
     this.save();
   },
@@ -1260,6 +1293,8 @@ const Game = {
     if (!r || r.over) return null;
     r.over = true;
     this.phase = 'over';
+    // 改造ラン（MOD）：本編の章の記録・報酬・経験値・ヒートマップは通らない（src/modrun.js）
+    if (r.mr) { const mres = ModRun.endChapter(r, ok); this.save(); return mres; }
 
     const rec = this.stageRec(r.stageId);
     rec.bestWave = Math.max(rec.bestWave, ok ? BAL.wavesPerStage : r.wave);

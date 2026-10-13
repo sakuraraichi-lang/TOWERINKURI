@@ -76,6 +76,7 @@ const UI = {
         return;
       }
       this.disarmClear();
+      if (!ModRun.canRearrange(Game.run)) { this.toastMsg(ModRun.LOCK_WHY, '#ff8080', 'lock'); return; }   // 改造ラン
       const n = Game.clearUnits();
       this.selected = null; this.moving = null; this.aiming = null;
       Game.save();
@@ -246,6 +247,7 @@ const UI = {
     else line = '<span class="ck">＊</span>未挑戦　' + '全' + BAL.wavesPerStage + 'ウェーブ';
     e.homeStat.innerHTML = line;
 
+    if (typeof ModRun !== 'undefined') ModRun.homeButton();   // 改造ラン（MOD）の入口（アセンションを解放してから）
     e.homeStart.disabled = !open;
     e.homeStart.innerHTML = open ? '出撃<s>▶</s>' : 'ロック中';
 
@@ -459,6 +461,7 @@ const UI = {
     if (this.el.homeCoin && document.body.classList.contains('on-home')) {
       this.el.homeCoin.textContent = Util.fmt(Game.meta.coins);
     }
+    if (typeof ModRun !== 'undefined') ModRun.hud(r);   // 改造ランの札（盤の右上）
     if (!document.body.classList.contains('on-battle')) return;
 
     this._sk = (this._sk || 0) + 1;
@@ -664,7 +667,7 @@ const UI = {
   // **準備フェーズとウェーブの始まりは、上の帯ではなくカットインで見せる。**（2026-09-26・ユーザー
   //   「準備フェーズはカットインで見せればいいので上の情報を消せます」「今は何ウェーブかはカットインで出しましょう」）
   //   盤の真ん中を斜めの帯が横切り、1.4秒で消える。触れない（pointer-events: none）
-  cutin(title, sub, kind) {
+  cutin(title, sub, kind, col) {
     const c = this.el.cutin;
     if (!c) return;
     c.className = '';
@@ -680,14 +683,15 @@ const UI = {
     const hex = () => '0x' + ((Math.random() * 65536) | 0).toString(16).toUpperCase().padStart(4, '0');
     // ボス（0929o）：赤い警告の帯（縞・WARNING の行・画面の縁の赤い明滅）。倒したとき：金の帯と六角の衝撃波。
     //   通常のウェーブの帯の骨格（斜めの帯の叩きつけ・字が1字ずつ収まる）はそのまま。長さだけ 1.45 → 1.9 秒（ボスの帯のみ）
-    const boss = kind === 'boss', down = kind === 'down';
-    const kick = boss ? '// WARNING　VIRUS DETECTED' : down ? '// TARGET ELIMINATED' : '';
+    const boss = kind === 'boss', evo = kind === 'evo', down = kind === 'down' || evo;   // evo＝改造ランの進化・連携（金の帯の骨格に系統の色・src/modrun.js）
+    const kick = boss ? '// WARNING　VIRUS DETECTED' : evo ? '// MOD EVOLVED' : down ? '// TARGET ELIMINATED' : '';
     const sys = 'SYS//' + String(title).replace(/<[^>]+>/g, '').replace(/\s+/g, '_').toUpperCase() + '  ' + hex() + '  ' + hex() + '  ' + (boss ? 'ALERT' : down ? 'PURGED' : 'OK');
     c.innerHTML = '<div class="ci ci-' + (kind || 'wave') + '"><i class="ci-band"></i>' +
       (kick ? '<div class="ci-kick">' + kick + '</div>' : '') +
       '<b>' + split + '</b>' + (sub ? '<span>' + sub + '</span>' : '') + '<i class="ci-sys">' + sys + '</i></div>';
     void c.offsetWidth;
-    c.className = 'on' + (boss || down ? ' ' + kind : '');
+    c.className = 'on' + (boss || down ? ' ' + kind : '') + (evo ? ' down' : '');
+    if (evo && col) c.style.setProperty('--evc', col); else c.style.removeProperty('--evc');
     // 動きが終わったら片付ける（動きだけに頼ると、見た目の定義を変えたときに出たままになる・0929a）。次のカットインが来ていたら触らない
     const tok = this._cutTok = (this._cutTok || 0) + 1;
     clearTimeout(this._cutTimer);
@@ -699,7 +703,7 @@ const UI = {
         const band = c.querySelector('.ci-band');
         if (!band) return;
         const r = band.getBoundingClientRect();
-        CardFX.hexShock(c, r.left + r.width / 2, r.top + r.height / 2, boss ? '#ff3d4d' : '#ffc24a', big);
+        CardFX.hexShock(c, r.left + r.width / 2, r.top + r.height / 2, boss ? '#ff3d4d' : (evo && col) ? col : '#ffc24a', big);
       }, ms);
       if (boss) shock(140, true); else { shock(90, true); shock(420, 'sm'); }
     }
@@ -953,9 +957,11 @@ const UI = {
       return b;
     };
     row.appendChild(mk('移動', () => {
+      if (!ModRun.canRearrange(Game.run)) { this.toastMsg(ModRun.LOCK_WHY, '#ff8080', 'lock'); return; }   // 改造ラン
       this.moving = u; this.placingType = null; this.renderTray();
     }));
     row.appendChild(mk('撤去', () => {
+      if (!ModRun.canRearrange(Game.run)) { this.toastMsg(ModRun.LOCK_WHY, '#ff8080', 'lock'); return; }   // 改造ラン
       if (Game.removeUnit(u)) { this.selected = null; this.moving = null; this.renderTray(); Game.save(); }
     }, 'danger'));
     row.appendChild(mk('閉じる', () => { this.selected = null; this.moving = null; this.renderTray(); }));
