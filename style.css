@@ -2667,6 +2667,11 @@ body.rb-off #app{animation:crtoff .3s ease-in forwards;}
 .skfx-band span b.a{color:#a08c5c;}
 /* ボス章の「// WARNING」：赤が暗い地に沈んでいた */
 .srt.boss .srt-kick{color:#ff7b88;}
+/* アセンションの章の特色（出撃の帯・色は帯の --rk）：特色の名前を叩きつける。字は少し小さく、下に一行 */
+.srt.theme .srt-bg{box-shadow:0 0 34px color-mix(in srgb,var(--rk) 55%,transparent);}
+.srt.theme .srt-band b{font-size:clamp(26px,9vw,46px);letter-spacing:.12em;white-space:nowrap;}
+.srt.theme .srt-band span{color:#fff;}
+.srt-line{position:relative;margin-top:6px;font-style:normal;font-size:11px;font-weight:700;letter-spacing:.08em;color:color-mix(in srgb,var(--rk) 55%,#fff);animation:srtSub .3s ease-out .4s both;}
 /* パックのタブ（0929x）：赤い「まとめて開ける」の白い字は明るい面に負けていた（2.5〜3.0 → 5 以上）。ラベルの小さな英字はパックの色を白に寄せる */
 .gs-pull.all:not(:disabled){background:linear-gradient(180deg,#d94a36 0%,#bf2c42 50%,#8f1a33 100%);text-shadow:0 1px 1px rgba(0,0,0,.5);}
 .gs-have em,.gs-sys em{color:color-mix(in srgb,var(--pc) 62%,#fff);}
