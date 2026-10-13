@@ -88,6 +88,16 @@ const Asc = {
     const k = Math.max(0, this.lv(perm) - A.from + 1), L = A.order.length;
     return Math.floor((k + (L - 1 - i)) / L);
   },
+  // レベルごとの調整（BAL.ascAxis.ease[hp|count]：敵のHPの倍率・敵の数の倍率。[レベル, 倍率] の点を対数で線形に結ぶ・最後の点から先はその値のまま）
+  easeMul(perm, key) {
+    const P = BAL.ascAxis.ease && BAL.ascAxis.ease[key], lv = this.lv(perm);
+    if (!P || !P.length) return 1;
+    if (lv <= P[0][0]) return P[0][1];
+    for (let i = 1; i < P.length; i++) {
+      if (lv <= P[i][0]) { const t = (lv - P[i - 1][0]) / (P[i][0] - P[i - 1][0]); return Math.exp(Math.log(P[i - 1][1]) * (1 - t) + Math.log(P[i][1]) * t); }
+    }
+    return P[P.length - 1][1];
+  },
   axisMul(perm, key) {
     const c = BAL.ascAxis[key];
     return Math.min(c.max, 1 + c.per * this.axisN(perm, key));
