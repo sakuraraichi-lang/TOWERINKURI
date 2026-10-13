@@ -872,16 +872,16 @@ const BAL = {
   //   第31章から、ウェーブのHPの総量のうち ascUpperShare を「上位の敵」に置き換える。上位1体＝雑魚 k 体ぶん（HP ×k）で、
   //   HPの総量は変えず数だけ減る（数 ＝ 雑魚(1−s) ＋ 上位 s÷K。K＝出る種類の k の重み平均）。第30章までは一切出ない。
   //   割合 s ＝ ascUpperShare0 ＋ ascUpperSharePerLv × アセンションのレベル（ascUpperShareMax で頭打ち）。値は測って決める（暫定）
-  //   **アセンション21から先の難しさの軸（2026-10-13）**：レベルが1つ上がるごとに、order の順で軸を1つずつ上げる（21→hp・22→spd・23→count・24→upper・25→hp…）。
-  //   各軸は 1＋per×回数 で、max で頭打ち（1つの軸だけが無限に伸びない）。upper は上位の敵の割合の上限を ascUpperShareMax から足していく幅（max で頭打ち）。
+  //   **アセンション21から先の難しさの軸（2026-10-13）**：レベルが1つ上がるごとに、order の順で軸を1つずつ上げる（21→hp・22→spd・23→count・24→upHp・25→hp…）。
+  //   各軸は 1＋per×回数 で、max で頭打ち（1つの軸だけが無限に伸びない）。upHp は上位の敵だけのHP倍率。
   //   jam＝妨害の敵（ジャマー兵・クラッシャー）の席。別ブランチで足す。order に入れていないので、いまは何も上がらない
   ascAxis: {
     from: 21,
-    order: ['hp', 'spd', 'count', 'upper'],
-    hp:    { per: 0.25, max: 4 },       // 敵のHPの倍率（ascHpMul に掛かる）
-    spd:   { per: 0.05, max: 1.5 },     // 敵の速さの倍率（enemySpdCap の外側に掛かる）
-    count: { per: 0.15, max: 2.5 },     // 1ウェーブの敵の数の倍率
-    upper: { per: 0.003, max: 0.999 },  // 上位の敵の割合の上限（ascUpperShareMax から足す）
+    order: ['hp', 'spd', 'count', 'upHp'],
+    hp:    { per: 3, max: 40 },       // 敵のHPの倍率（ascHpMul に掛かる）
+    spd:   { per: 0.3, max: 4 },     // 敵の速さの倍率（enemySpdCap の外側に掛かる）
+    count: { per: 1.5, max: 12 },     // 1ウェーブの敵の数の倍率
+    upHp:  { per: 3, max: 40 },        // 上位の敵だけのHPの倍率（hp の軸に重なる。割合は Lv10 で上限に届いていて動かせないので、HPで上げる）
     jam:   { per: 0, max: 1 },          // 席だけ（別ブランチ）
   },
   ascUpperOn: true,

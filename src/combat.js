@@ -679,6 +679,7 @@ const Combat = {
   // 上位の敵の中身（無効の系統・ポリモーフの切り替え・ゼロデイの弱点・ランサムウェアの気配）
   upperInit(run, t, e) {
     e.upper = t.name; e.k = t.k; e.tname = t.name;
+    if (run.stageIdx >= MAIN_CHAPTERS) { const m = Asc.axisMul(Game.perm, 'upHp'); e.hp *= m; e.maxHp *= m; }   // 21から先の軸（BAL.ascAxis.upHp）
     if (t.imm) { e.imm = {}; for (const s of t.imm) e.imm[s] = true; }
     if (t.poly) { e.poly = true; e.polyI = (run.polySeq = (run.polySeq || 0) + 1) % SYS_ORDER.length; e.polyT = BAL.ascPolySec * (0.5 + 0.5 * Math.random()); }
     if (t.zd) e.weak = Asc.weakOf(run.stageIdx);

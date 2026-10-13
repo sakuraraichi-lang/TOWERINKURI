@@ -92,13 +92,9 @@ const Asc = {
     const c = BAL.ascAxis[key];
     return Math.min(c.max, 1 + c.per * this.axisN(perm, key));
   },
-  upperShareMax(perm) {
-    const c = BAL.ascAxis.upper;
-    return Math.min(c.max, BAL.ascUpperShareMax + c.per * this.axisN(perm, 'upper'));
-  },
   upperShare(perm, stageIdx) {
     if (!BAL.ascUpperOn || !this.on(perm) || stageIdx < MAIN_CHAPTERS) return 0;
-    return Math.min(this.upperShareMax(perm), Math.max(0, BAL.ascUpperShare0 + BAL.ascUpperSharePerLv * this.lv(perm)));
+    return Math.min(BAL.ascUpperShareMax, Math.max(0, BAL.ascUpperShare0 + BAL.ascUpperSharePerLv * this.lv(perm)));
   },
   // いま出る上位の種類（アセンションのレベルで増える）
   upperList(perm) {

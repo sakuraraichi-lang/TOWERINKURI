@@ -33,7 +33,7 @@ for (let rd = 0; rd < ROUNDS; rd++) {
     const lo = (LOAD === 'mix') ? LOADOUTS['ch' + CH] : SETS[LOAD];
     const t0 = Date.now();
     const r = runStage('ch' + CH, lo, 60, { coins: 1e12, deep: { prestiges: 2, deepest: 30 }, lives: 1e6 });
-    out[c.name].push({ res: r.res, leak: r.leaked, lost: r.livesLost, by: r.leakBy, cnt: r.waves[0] ? r.waves[0].count : 0, sec: +r.sec.toFixed(0), ms: Date.now() - t0, kills: r.kills, wave: r.wave });
+    out[c.name].push({ res: r.res, leak: r.leaked, lost: r.livesLost, by: r.leakBy, cnt: r.waves[0] ? r.waves[0].count : 0, sec: +r.sec.toFixed(0), ms: Date.now() - t0, kills: r.kills, wave: r.wave, cap: r.cap, used: r.used, placedOk: r.used >= r.cap - 2 });
   }
 }
 setBal(keep); BAL.ascEnabled = was; BAL_PRISTINE.ascEnabled = was; TIME_MIN = wasT; unseedRng();
