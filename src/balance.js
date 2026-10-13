@@ -1095,16 +1095,16 @@ BAL.fusion = {
   voidblade: { stat: { dmg: 220, rate: 1, range: 168, crit: 0.2, critMul: 2.5 }, p: { tilt: 0.1, dist: 92, len: 115, wid: 360, dur: 2.6, tick: 0.15, dps: 0.6, slow: 0.4, stabs: 3, stabEvery: 0.25, stabMul: 0.5 } },   // 2026-10-13 性能：大斬撃のあと、裂け目で触手が何度も突く
   // 6 刀＋火炎（8）フランベルジュ：紅蓮の炎を噴きっぱなし（rate 回/秒・扇 flameArc・長さ range×flameK・1回 dmg×flameMul）＋ every 発ごとに
   //   8連の滅多斬り（扇に広がる・gap 秒ずつずらす）→十字の大斬り＋炎の爆発・斬った跡が燃える線（2026-10-13・炎の噴きっぱなしは同日の2回目）
-  flameblade: { stat: { dmg: 60, rate: 12, range: 185, cone: 1.35, crit: 0.15, critMul: 2, burn: 0.6, burnDur: 3 }, p: { flameK: 0.9, flameArc: 0.5, flameMul: 0.15, every: 5.5, slashes: 8, spreadK: 0.9, subArc: 0.5, gap: 0.035, crossMul: 2.5, crossHalf: 22, boomR: 64, boomMul: 2, lineDur: 1.5, lineDps: 0.8 } },
+  flameblade: { stat: { dmg: 60, rate: 12, range: 280, cone: 1.35, crit: 0.15, critMul: 2, burn: 0.6, burnDur: 3 }, p: { flameK: 0.9, flameArc: 0.5, flameMul: 0.15, every: 5.5, slashes: 8, spreadK: 0.9, subArc: 0.5, gap: 0.035, crossMul: 2.5, crossHalf: 26, boomR: 84, boomMul: 2, lineDur: 1.5, lineDps: 0.8 } },
   // 7 触手＋泡（9）狂気の海底：大きな泡・集敵・触手の一突きで破裂
   abyssnet: { stat: { dmg: 60, rate: 0.6, range: 300, count: 2, stunDur: 0.5 }, p: { R: 100, dur: 3, tick: 0.1, dps: 0.8, pull: 160, burstR: 105, burstMul: 3.2, stabs: 3, stabEvery: 0.3, stabMul: 0.7 } },   // 2026-10-13 性能：集めて触手が何度も突く
   // 8 触手＋テスラ（7）航海の悪夢：雷を纏った竜巻
   thunderwhip: { stat: { dmg: 3, rate: 0.4, range: 230, knock: 60, knockDur: 0.3, chain: 3, chainFalloff: 0.85, shockDur: 1.2 }, p: { start: 24, R: 66, dur: 3.5, speed: 50, dps: 1.3, tick: 0.07, pull: 70, chainEvery: 0.15, chainMul: 1.6 } },   // 1013 性能：大きく・巻き込み・速い刻み（同日の2回目：立ち上がる竜巻の絵に合わせて dps 0.9→1.3・稲妻 0.2→0.15秒ごと）
   // 9 火炎＋毒ガス（7）爆裂放射器：火炎放射器と同じく炎を吹き続ける（毎秒 rate 回・扇の中の全員に当たる）。炎が敵に掛かっているあいだ、
   //    blastEvery 秒ごとに炎の線に沿って blasts 連の爆発（gap 秒ずつ）・gasEvery 秒ごとに炎の先へ毒の雲（2026-10-13 fx2）
-  hellmist: { stat: { dmg: 14, rate: 12, range: 190, cone: 0.45, burn: 1, burnDur: 3, fieldR: 80, fieldDur: 3, fieldVuln: 0.2 }, p: { flameLife: 0.24, blastEvery: 0.35, from: 0.3, at: 0.9, blasts: 4, gap: 0.06, blastR: 64, blastMul: 3.6, gasEvery: 1, dps: 2, slow: 0.15 } },
+  hellmist: { stat: { dmg: 14, rate: 12, range: 285, cone: 0.45, burn: 1, burnDur: 3, fieldR: 100, fieldDur: 3, fieldVuln: 0.2 }, p: { flameLife: 0.24, blastEvery: 0.35, from: 0.3, at: 0.9, blasts: 4, gap: 0.06, blastR: 84, blastMul: 3.6, gasEvery: 1, dps: 2, slow: 0.15 } },
   // 10 火炎＋迫撃砲（8）ヴォルケイノブラスト：溶岩の炎を噴きっぱなし（rate 回/秒・扇 flameArc・長さ flameR・1回 dmg×flameMul）＋ every 発ごとに正面へ火山弾
-  napalm: { stat: { dmg: 34, rate: 12, range: 330, burn: 0.6, burnDur: 3.5, splash: 56, speed: 330 }, p: { flameR: 170, flameArc: 0.45, flameMul: 0.3, every: 20, bombs: 7, fan: 0.22, fanK: 1.5, poolR: 62, poolDur: 4, poolDps: 1.0 } },   // 2026-10-13 性能：火山弾の連射と溶岩の溜まり
+  napalm: { stat: { dmg: 34, rate: 12, range: 400, burn: 0.6, burnDur: 3.5, splash: 72, speed: 330 }, p: { flameR: 255, flameArc: 0.45, flameMul: 0.3, every: 20, bombs: 7, fan: 0.22, fanK: 1.5, poolR: 80, poolDur: 4, poolDps: 1.0 } },   // 2026-10-13 性能：火山弾の連射と溶岩の溜まり
   // 11 凍結＋火炎（9）相反の渦：砲台を中心に、射程いっぱいの地面の渦（2026-10-13 fx3・ユーザー「壊れたスプリンクラーみたい」→ 渦に）。
   //    氷と炎の太い腕が2本（根元の幅 wRoot・先 wTip・外ほど twist ラジアン遅れて巻く）、毎秒 spin ラジアンで回る。腕の中の敵に毎秒 rate 回ずつ当たる。
   //    渦の中の敵は回る向きへ swirl・中心へ pull（px/秒）で流される。中心の目（半径 eyeR）で eyeEvery 秒ごとに蒸気の爆発（dmg×eyeMul）。
