@@ -15,6 +15,7 @@
 //   シードは SEEDS の本数。ふれ幅（シード間の最大の差/平均）も出す
 REAL_MS = 600000;
 const SEEDS = (typeof DPS_SEEDS !== 'undefined') ? DPS_SEEDS : [1, 2];   // 先頭に DPS_SEEDS=[1,2,3,4,5,6]; を付けて回すと本数を増やせる
+const ONLY = (typeof DPS_ONLY !== 'undefined') ? DPS_ONLY : null;   // 先頭に DPS_ONLY=['carpet','acidfoam']; を付けると、その合成と元の武器だけ測る（調整中の早回し）
 const SECS = 20, DT = 1 / 60;
 const CH = 'ch20';
 const DIST0 = 40, DIST1 = 320, DSTEP = 20, WSTEP = 30, HALFW = 60;
@@ -109,10 +110,11 @@ function trial(sp, wid, fid, seed) {
 
 const spBoard = board();
 const sp = spot(spBoard);
-const wids = Object.keys(WEAPONS);
+const FIDS = ONLY ? FUSION_IDS.filter(f => ONLY.includes(f)) : FUSION_IDS;
+const wids = ONLY ? Object.keys(WEAPONS).filter(w => FIDS.some(f => FUSIONS[f].a === w || FUSIONS[f].b === w)) : Object.keys(WEAPONS);
 const plain = {}, fused = {};
 for (const w of wids) plain[w] = SEEDS.map(sd => trial(sp, w, null, sd));
-for (const fid of FUSION_IDS) fused[fid] = SEEDS.map(sd => trial(sp, FUSIONS[fid].a, fid, sd));
+for (const fid of FIDS) fused[fid] = SEEDS.map(sd => trial(sp, FUSIONS[fid].a, fid, sd));
 unseedRng();
 
 const mean = (l, k) => l.reduce((a, o) => a + o[k], 0) / l.length;
@@ -121,7 +123,7 @@ const r1 = (x) => Math.round(x * 10) / 10;
 const P = {}, F = {};
 for (const w of wids) P[w] = { cost: WEAPONS[w].cost, dealt: Math.round(mean(plain[w], 'dealt')), hits: Math.round(mean(plain[w], 'hits')), hitsDirect: Math.round(mean(plain[w], 'direct')), spread: r1(spread(plain[w], 'dealt') * 100) + '%', perSeed: plain[w].map(o => Math.round(o.dealt)), dead: plain[w].map(o => o.n - o.aliveEnemies) };
 let reachedN = 0, maxSpread = 0;
-for (const fid of FUSION_IDS) {
+for (const fid of FIDS) {
   const f = FUSIONS[fid], cost = f.cost;
   const dA = P[f.a].dealt, dB = P[f.b].dealt;
   const dC = Math.round(mean(fused[fid], 'dealt'));
@@ -133,5 +135,5 @@ for (const fid of FUSION_IDS) {
   F[fid] = { ab: f.a + '+' + f.b, cost, dealt: dC, hits: Math.round(mean(fused[fid], 'hits')), hitsDirect: Math.round(mean(fused[fid], 'direct')), ratio: r1(ratio * 100) / 100, target: r1(target * 100) / 100, reached, perSeedRatio: perSeedRatio.map(x => r1(x * 100) / 100), perSeed: fused[fid].map(o => Math.round(o.dealt)), spread: r1(spread(fused[fid], 'dealt') * 100) + '%', dead: fused[fid].map(o => o.n - o.aliveEnemies) };
 }
 for (const w of wids) maxSpread = Math.max(maxSpread, spread(plain[w], 'dealt'));
-const noisy = [...wids.filter(w => spread(plain[w], 'dealt') >= 0.25).map(w => w + ' ' + r1(spread(plain[w], 'dealt') * 100) + '%'), ...FUSION_IDS.filter(f => spread(fused[f], 'dealt') >= 0.25).map(f => f + ' ' + r1(spread(fused[f], 'dealt') * 100) + '%')];   // シード間のふれが 25% 以上のもの
-({ noisy, spot: { c: sp.c, r: sp.r, a: Math.round(sp.a * 180 / Math.PI), score: r1(sp.f * 100) + '%', walkable: r1(sp.walk * 100) + '%', los: r1(sp.los * 100) + '%', fan: r1(sp.fan * 100) + '%' }, seeds: SEEDS, secs: SECS, plain: P, fused: F, reached: reachedN + '/' + FUSION_IDS.length, maxSpread: r1(maxSpread * 100) + '%' })
+const noisy = [...wids.filter(w => spread(plain[w], 'dealt') >= 0.25).map(w => w + ' ' + r1(spread(plain[w], 'dealt') * 100) + '%'), ...FIDS.filter(f => spread(fused[f], 'dealt') >= 0.25).map(f => f + ' ' + r1(spread(fused[f], 'dealt') * 100) + '%')];   // シード間のふれが 25% 以上のもの
+({ noisy, spot: { c: sp.c, r: sp.r, a: Math.round(sp.a * 180 / Math.PI), score: r1(sp.f * 100) + '%', walkable: r1(sp.walk * 100) + '%', los: r1(sp.los * 100) + '%', fan: r1(sp.fan * 100) + '%' }, seeds: SEEDS, secs: SECS, plain: P, fused: F, reached: reachedN + '/' + FIDS.length, maxSpread: r1(maxSpread * 100) + '%' })

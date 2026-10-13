@@ -1097,10 +1097,10 @@ BAL.fusion = {
   //   8連の滅多斬り（扇に広がる・gap 秒ずつずらす）→十字の大斬り＋炎の爆発・斬った跡が燃える線（2026-10-13・炎の噴きっぱなしは同日の2回目）
   flameblade: { stat: { dmg: 60, rate: 12, range: 280, cone: 1.35, crit: 0.15, critMul: 2, burn: 0.6, burnDur: 3 }, p: { flameK: 0.9, flameArc: 0.5, flameMul: 0.15, every: 5.5, slashes: 8, spreadK: 0.9, subArc: 0.5, gap: 0.035, crossMul: 2.5, crossHalf: 26, boomR: 84, boomMul: 2, lineDur: 1.5, lineDps: 0.8 } },
   // 7 触手＋泡（9）狂気の海底：大きな泡・集敵・触手の一突きで破裂
-  abyssnet: { stat: { dmg: 60, rate: 0.6, range: 300, count: 2, stunDur: 0.5 }, p: { R: 100, dur: 3, tick: 0.1, dps: 0.8, pull: 160, burstR: 105, burstMul: 3.2, stabs: 3, stabEvery: 0.3, stabMul: 0.7 } },   // 2026-10-13 性能：集めて触手が何度も突く
+  abyssnet: { stat: { dmg: 75, rate: 0.6, range: 300, count: 2, stunDur: 0.5 }, p: { R: 100, dur: 3, tick: 0.1, dps: 0.8, pull: 160, burstR: 105, burstMul: 3.2, stabs: 3, stabEvery: 0.3, stabMul: 0.7 } },   // 2026-10-13 性能：集めて触手が何度も突く
   // 8 触手＋テスラ（7）航海の悪夢：雷を纏った竜巻
   //    fx4（ユーザー「見た目は合格、そのまま大きくして性能跳ね上げて」）：竜巻の半径 66→105（絵も当たりも）・dps 1.3→3.5・刻み 0.07→0.05秒・稲妻 0.15→0.1秒ごと×2.4・連鎖 3→5・4.5秒
-  thunderwhip: { stat: { dmg: 3, rate: 0.45, range: 260, knock: 60, knockDur: 0.3, chain: 5, chainFalloff: 0.88, shockDur: 1.2 }, p: { start: 50, R: 105, dur: 4.5, speed: 45, dps: 3.5, tick: 0.05, pull: 110, chainEvery: 0.1, chainMul: 2.4 } },   // 1013 性能：大きく・巻き込み・速い刻み
+  thunderwhip: { stat: { dmg: 16, rate: 0.45, range: 260, knock: 60, knockDur: 0.3, chain: 10, chainFalloff: 0.88, shockDur: 1.2 }, p: { start: 50, R: 105, dur: 4.5, speed: 45, dps: 3.5, tick: 0.05, pull: 110, chainEvery: 0.07, chainMul: 3 } },   // 1013 性能：大きく・巻き込み・速い刻み
   // 9 火炎＋毒ガス（7）爆裂放射器：火炎放射器と同じく炎を吹き続ける（毎秒 rate 回・扇の中の全員に当たる）。炎が敵に掛かっているあいだ、
   //    blastEvery 秒ごとに炎の線に沿って blasts 連の爆発（gap 秒ずつ）・gasEvery 秒ごとに炎の先へ毒の雲（2026-10-13 fx2）
   hellmist: { stat: { dmg: 14, rate: 12, range: 285, cone: 0.45, burn: 1, burnDur: 3, fieldR: 100, fieldDur: 3, fieldVuln: 0.2 }, p: { flameLife: 0.24, blastEvery: 0.35, from: 0.3, at: 0.9, blasts: 4, gap: 0.06, blastR: 84, blastMul: 3.6, gasEvery: 1, dps: 2, slow: 0.15 } },
@@ -1117,24 +1117,24 @@ BAL.fusion = {
   // 13 レーザー＋凍結（9）凍結光線：反射した所に氷の棘山
   cryobeam: { stat: { dmg: 36, rate: 1, range: 430, pierce: 20, bulletR: 22, reflect: 2, slow: 0.55, slowDur: 2.2 }, p: { spikeR: 48, spikeDur: 3.2, spikeDps: 2.2, spikeTick: 0.1, spikeSlow: 0.6, lineDur: 1.2, lineTick: 0.1, lineDps: 1.2 } },   // 1013 性能：霜の線が刻む・棘山の刻みを速く
   // 14 レーザー＋ミサイル（9）スーパーノヴァ：道1本分の太さ・絶え間ない・多段ヒット
-  convergence: { stat: { dmg: 7, rate: 14, range: 440, bulletR: 30, reflect: 2 }, p: { life: 0.09 } },   // 1013 性能：1秒に14回当てる
+  convergence: { stat: { dmg: 13, rate: 14, range: 440, bulletR: 30, reflect: 3 }, p: { life: 0.09 } },   // 1013 性能：1秒に14回当てる
   // 15 ミサイル＋迫撃砲（9）滅尽嵐：着弾に火炎旋風
   //    fx4（ユーザー「見た目は合格、そのまま大きくして性能跳ね上げて」）：旋風の半径 60→100（絵も当たりも）・dps 2→4.5・刻み 0.1→0.07秒・4.5秒・爆発の半径 60→90
   carpet: { stat: { dmg: 14, rate: 0.85, range: 400, speed: 420, splash: 90, spot: 100 }, p: { R: 100, dur: 4.5, tick: 0.07, dps: 4.5, burn: 0.7, drift: 12, pull: 80 } },   // 2026-10-13 性能：火炎旋風が刻み続ける・中へ吸い込む（pull）
   // 16 ミサイル＋テスラ（8）磁気嵐
   chainstrike: { stat: { dmg: 30, rate: 0.85, range: 360, speed: 430, splash: 90, spot: 128, chain: 6, chainFalloff: 0.9, shockDur: 1.5 }, p: { pillarR: 96, chainMul: 0.65, stormDur: 2.6, tick: 0.12, dps: 0.6, boltEvery: 0.16, bolts: 2, boltMul: 0.9 } },   // 1013 性能：嵐が残って稲妻を次々
   // 17 テスラ＋毒ガス（6）雷雲
-  stormcloud: { stat: { dmg: 11, rate: 0.55, range: 210, chain: 2, chainFalloff: 0.85, shockDur: 1.2, fieldR: 92, fieldDur: 5 }, p: { strikeEvery: 0.15, strikeMul: 2.2, drift: 9, strikeR: 0.9, tick: 0.1, rainDps: 0.6 } },   // 1013 性能：落雷を連続・毒の雨が刻む
+  stormcloud: { stat: { dmg: 6, rate: 0.55, range: 210, chain: 3, chainFalloff: 0.85, shockDur: 1.2, fieldR: 92, fieldDur: 5 }, p: { strikes: 3, strikeEvery: 0.08, strikeMul: 2.2, drift: 9, strikeR: 0.9, tick: 0.05, rainDps: 0.6 } },   // 1013 性能：落雷を連続・毒の雨が刻む
   // 18 テスラ＋泡（8）プラズマボール
-  resonator: { stat: { dmg: 28, rate: 0.45, range: 230, chain: 1, chainFalloff: 0.85, shockDur: 1.4 }, p: { at: 0.75, R: 72, dur: 4.5, dps: 1.4, zapEvery: 0.16, zaps: 10, reach: 1.1, zapMul: 2 } },   // 1013 性能：球の中の敵全員へ1秒に6回
+  resonator: { stat: { dmg: 14, rate: 0.45, range: 230, chain: 1, chainFalloff: 0.85, shockDur: 1.4 }, p: { tick: 0.034, at: 0.75, R: 72, dur: 4.5, dps: 1.4, zapEvery: 0.1, zaps: 10, reach: 1.1, zapMul: 2 } },   // 1013 性能：球の中の敵全員へ1秒に6回
   // 19 毒ガス＋泡（8）王水：黄金の液体・極めて高い妨害
-  acidfoam: { stat: { dmg: 10, rate: 0.6, range: 340, speed: 280, bulletR: 6, fieldR: 140, fieldDur: 6, fieldVuln: 0.65 }, p: { tick: 0.1, dps: 1.6, slow: 0.8, armorDown: 0.6 } },   // 2026-10-13 性能：速い刻みで溶かす
+  acidfoam: { stat: { dmg: 10, rate: 1, range: 340, speed: 280, bulletR: 6, fieldR: 140, fieldDur: 6, fieldVuln: 0.65 }, p: { tick: 0.034, dps: 2, slow: 0.8, armorDown: 0.6 } },   // 2026-10-13 性能：速い刻みで溶かす
   // 20 毒ガス＋迫撃砲（7）破滅の雨：毒の持続を捨てた超高火力の砲撃
-  toxmortar: { stat: { dmg: 140, rate: 1.2, range: 460, speed: 240, splash: 140, fieldR: 90, fieldDur: 1.6, fieldVuln: 0.2, slow: 0.2, slowDur: 1 }, p: { shells: 6, spread: 110, gap: 0.12, gasDps: 0.3 } },   // 2026-10-13 性能：毒の砲弾の雨（数発ずつを速い間隔で）
+  toxmortar: { stat: { dmg: 140, rate: 1.2, range: 460, speed: 240, splash: 165, fieldR: 90, fieldDur: 1.6, fieldVuln: 0.2, slow: 0.2, slowDur: 1 }, p: { shells: 8, spread: 120, gap: 0.12, gasDps: 0.3 } },   // 2026-10-13 性能：毒の砲弾の雨（数発ずつを速い間隔で）
   // 21 泡＋ガトリング（7）ファンシーバブルガン：泡のガトリング
-  bubblegun: { stat: { dmg: 6.5, rate: 4.7, range: 300, speed: 560, splash: 38, stunDur: 0.55, spot: 62, bulletR: 7, pierce: 2, spread: 0.1 }, p: { popMul: 0.8, popStun: 0.8, kids: 3, kidMul: 0.6, kidR: 0.7, kidRange: 60 } },   // 2026-10-13：割れると小さな泡 kids 個になり、それぞれまた割れる
+  bubblegun: { stat: { dmg: 7, rate: 6, range: 300, speed: 560, splash: 44, stunDur: 0.55, spot: 62, bulletR: 7, pierce: 4, spread: 0.1 }, p: { grandRange: 45, grandR: 0.7, grandMul: 0.7, grand: 3, popMul: 0.8, popStun: 0.8, kids: 5, kidMul: 0.6, kidR: 0.9, kidRange: 60 } },   // 2026-10-13：割れると小さな泡 kids 個になり、それぞれまた割れる
   // 22 迫撃砲＋ガトリング（6）クラスター爆弾
-  scattergun: { stat: { dmg: 40, rate: 0.8, range: 400, speed: 260, splash: 56, spot: 130 }, p: { pellets: 14, spread: 95, pelMul: 0.5 } },   // 2026-10-13：子弾の雨を広く（8→14・70→95）
+  scattergun: { stat: { dmg: 40, rate: 0.8, range: 400, speed: 260, splash: 56, spot: 130 }, p: { pellets: 22, spread: 105, pelMul: 0.8 } },   // 2026-10-13：子弾の雨を広く（8→14・70→95）
   // 23 泡＋手裏剣（7）ポッピングスター：泡を纏った流れ星
   bubbleblade: { stat: { dmg: 40, rate: 1.15, range: 300, speed: 380, splash: 75, spot: 100 }, p: { rayLen: 78, rayHalf: 12, rayMul: 0.9, pops: 5, popR: 30, popMul: 0.5, popGap: 0.08 } },   // 2026-10-13：着地のあと、まわりで泡が pops 個、次々割れる
   // 24 迫撃砲＋凍結（9）スノーグレイブ：氷の嵐
