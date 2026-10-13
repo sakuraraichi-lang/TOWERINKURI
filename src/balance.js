@@ -1099,7 +1099,8 @@ BAL.fusion = {
   // 7 触手＋泡（9）狂気の海底：大きな泡・集敵・触手の一突きで破裂
   abyssnet: { stat: { dmg: 60, rate: 0.6, range: 300, count: 2, stunDur: 0.5 }, p: { R: 100, dur: 3, tick: 0.1, dps: 0.8, pull: 160, burstR: 105, burstMul: 3.2, stabs: 3, stabEvery: 0.3, stabMul: 0.7 } },   // 2026-10-13 性能：集めて触手が何度も突く
   // 8 触手＋テスラ（7）航海の悪夢：雷を纏った竜巻
-  thunderwhip: { stat: { dmg: 3, rate: 0.4, range: 230, knock: 60, knockDur: 0.3, chain: 3, chainFalloff: 0.85, shockDur: 1.2 }, p: { start: 24, R: 66, dur: 3.5, speed: 50, dps: 1.3, tick: 0.07, pull: 70, chainEvery: 0.15, chainMul: 1.6 } },   // 1013 性能：大きく・巻き込み・速い刻み（同日の2回目：立ち上がる竜巻の絵に合わせて dps 0.9→1.3・稲妻 0.2→0.15秒ごと）
+  //    fx4（ユーザー「見た目は合格、そのまま大きくして性能跳ね上げて」）：竜巻の半径 66→105（絵も当たりも）・dps 1.3→3.5・刻み 0.07→0.05秒・稲妻 0.15→0.1秒ごと×2.4・連鎖 3→5・4.5秒
+  thunderwhip: { stat: { dmg: 3, rate: 0.45, range: 260, knock: 60, knockDur: 0.3, chain: 5, chainFalloff: 0.88, shockDur: 1.2 }, p: { start: 50, R: 105, dur: 4.5, speed: 45, dps: 3.5, tick: 0.05, pull: 110, chainEvery: 0.1, chainMul: 2.4 } },   // 1013 性能：大きく・巻き込み・速い刻み
   // 9 火炎＋毒ガス（7）爆裂放射器：火炎放射器と同じく炎を吹き続ける（毎秒 rate 回・扇の中の全員に当たる）。炎が敵に掛かっているあいだ、
   //    blastEvery 秒ごとに炎の線に沿って blasts 連の爆発（gap 秒ずつ）・gasEvery 秒ごとに炎の先へ毒の雲（2026-10-13 fx2）
   hellmist: { stat: { dmg: 14, rate: 12, range: 285, cone: 0.45, burn: 1, burnDur: 3, fieldR: 100, fieldDur: 3, fieldVuln: 0.2 }, p: { flameLife: 0.24, blastEvery: 0.35, from: 0.3, at: 0.9, blasts: 4, gap: 0.06, blastR: 84, blastMul: 3.6, gasEvery: 1, dps: 2, slow: 0.15 } },
@@ -1118,7 +1119,8 @@ BAL.fusion = {
   // 14 レーザー＋ミサイル（9）スーパーノヴァ：道1本分の太さ・絶え間ない・多段ヒット
   convergence: { stat: { dmg: 7, rate: 14, range: 440, bulletR: 30, reflect: 2 }, p: { life: 0.09 } },   // 1013 性能：1秒に14回当てる
   // 15 ミサイル＋迫撃砲（9）滅尽嵐：着弾に火炎旋風
-  carpet: { stat: { dmg: 14, rate: 0.85, range: 400, speed: 420, splash: 60, spot: 100 }, p: { R: 60, dur: 3.5, tick: 0.1, dps: 2, burn: 0.4, drift: 14, pull: 40 } },   // 2026-10-13 性能：火炎旋風が刻み続ける・中へ吸い込む（pull）
+  //    fx4（ユーザー「見た目は合格、そのまま大きくして性能跳ね上げて」）：旋風の半径 60→100（絵も当たりも）・dps 2→4.5・刻み 0.1→0.07秒・4.5秒・爆発の半径 60→90
+  carpet: { stat: { dmg: 14, rate: 0.85, range: 400, speed: 420, splash: 90, spot: 100 }, p: { R: 100, dur: 4.5, tick: 0.07, dps: 4.5, burn: 0.7, drift: 12, pull: 80 } },   // 2026-10-13 性能：火炎旋風が刻み続ける・中へ吸い込む（pull）
   // 16 ミサイル＋テスラ（8）磁気嵐
   chainstrike: { stat: { dmg: 30, rate: 0.85, range: 360, speed: 430, splash: 90, spot: 128, chain: 6, chainFalloff: 0.9, shockDur: 1.5 }, p: { pillarR: 96, chainMul: 0.65, stormDur: 2.6, tick: 0.12, dps: 0.6, boltEvery: 0.16, bolts: 2, boltMul: 0.9 } },   // 1013 性能：嵐が残って稲妻を次々
   // 17 テスラ＋毒ガス（6）雷雲
@@ -1136,7 +1138,9 @@ BAL.fusion = {
   // 23 泡＋手裏剣（7）ポッピングスター：泡を纏った流れ星
   bubbleblade: { stat: { dmg: 40, rate: 1.15, range: 300, speed: 380, splash: 75, spot: 100 }, p: { rayLen: 78, rayHalf: 12, rayMul: 0.9, pops: 5, popR: 30, popMul: 0.5, popGap: 0.08 } },   // 2026-10-13：着地のあと、まわりで泡が pops 個、次々割れる
   // 24 迫撃砲＋凍結（9）スノーグレイブ：氷の嵐
-  icebomb: { stat: { dmg: 12, rate: 0.5, range: 420, speed: 240, splash: 70, slow: 0.6, slowDur: 2.5, spot: 100 }, p: { R: 80, dur: 5, tick: 0.1, dps: 1.4, slow: 0.7, drift: 12 } },   // 2026-10-13 性能：氷のつぶてが何度も当たる
+  //    fx4（ユーザー「巨大な嵐エフェクトに変更、今より巨大な嵐に、性能も見た目準拠に強化」）：嵐の半径 80→170（絵も当たりも）・6.5秒・0.08秒ごとに嵐の中の全員・
+  //    shardEvery 秒ごとに嵐の中の敵 shards 体へ氷片が刺さる（1本 dmg×shardMul）。撃つ間隔は 0.5→0.32回/秒（重なりすぎて盤が白く埋まらないように・1つずつを強く）
+  icebomb: { stat: { dmg: 12, rate: 0.32, range: 420, speed: 240, splash: 130, slow: 0.6, slowDur: 2.5, spot: 100 }, p: { R: 170, dur: 6.5, tick: 0.08, dps: 3, slow: 0.7, drift: 8, shardEvery: 0.2, shards: 4, shardMul: 1.5 } },   // 2026-10-13 性能：氷のつぶてが何度も当たる
 };
 
 // ---------------------------------------------------------------
@@ -1182,7 +1186,7 @@ BAL.fusionCards = {
   fl_acid:   { acid: 1, r: 1.2 },                                              // 軸 acid：酸の爆発の威力（破滅の雨のダメージの倍数）
   // 2026-10-13 追加の3枚（どちらも相手を呼ぶ双方向）。軸の値は1が基準で、凸で伸びるのは威力の倍率
   fl_starbub:{ sb: 1, bubbles: 3, bubMul: 0.8, bubR: 36, bubRange: 70, bubStun: 0.6, stars: 2, starMul: 2.5, starR: 46, starRange: 110, starGap: 0.4 }, // 軸 sb：泡・星の威力の倍率。星の爆発から泡 bubbles 個（スターアサルトの威力の bubMul 倍）／泡の破裂から星 stars 個（ファンシーバブルガンの威力の starMul 倍・starGap 秒に1回まで）
-  fl_prism:  { prism: 1, rays: 3, bounces: 2, half: 9, gap: 0.07, maxStorms: 3, dmgK: 0.45, mini: 3, miniR: 0.5, miniDur: 2.5, miniDps: 0.4, spacing: 70 }, // 軸 prism：乱反射の光と小さな嵐の威力の倍率。光1本は凍結光線のダメージの dmgK 倍（rays 本が bounces+1 回ずつ）。小さな嵐は半径が氷の嵐の miniR 倍・miniDur 秒・毎秒 miniDps 倍
+  fl_prism:  { prism: 1, rays: 3, bounces: 2, half: 9, gap: 0.07, maxStorms: 3, dmgK: 0.45, mini: 3, miniR: 0.24, miniDur: 2.5, miniDps: 0.4, spacing: 70 }, // 軸 prism：乱反射の光と小さな嵐の威力の倍率。光1本は凍結光線のダメージの dmgK 倍（rays 本が bounces+1 回ずつ）。小さな嵐は半径が氷の嵐の miniR 倍（fx4 で氷の嵐が 80→170 になったので 0.5→0.24・小さな嵐は約40px のまま）・miniDur 秒・毎秒 miniDps 倍
   fl_spark:  { spark: 1, stay: 3, max: 12, life: 3, bubR: 15, touchMul: 0.4, touch: 16, popRK: 1.3, rays: 4, lenMul: 1.7, blade: 1, reach: 120, boltMul: 0.4, sec: 3, thick: 2, strong: 1.6 }, // 軸 spark：光の刃と稲妻の威力の倍率。泡は着弾ごとに stay 個・同時に max 個まで・life 秒漂う。線は sec 秒 thick 倍の太さ・strong 倍の威力
 };
 
