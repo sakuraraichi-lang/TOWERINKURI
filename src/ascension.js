@@ -81,6 +81,17 @@ const Asc = {
   //   第31章から、ウェーブのHPの総量のうち upperShare を上位の敵に置き換える。上位1体＝雑魚 k 体ぶんで、HPの総量は変えず数だけ減る
   //   数 ＝ 雑魚(1−s) ＋ 上位 s÷K（K＝いま出る種類の k の重み平均）。湧くたびに上位にする確率 q ＝ (s÷K) ÷ ((1−s)＋s÷K)
   //   （雑魚側の1体あたりの平均HPは1として数えた近似：スクリプト 0.5・ブロック 3.4・ボット群 5体ぶん などが混ざるので、総量は ±数割ずれる）
+  // 21から先の軸：n 回目の上げ（order の順に1レベルずつ回す）。値は 1＋per×n・max で頭打ち
+  axisN(perm, key) {
+    const A = BAL.ascAxis, i = A.order.indexOf(key);
+    if (i < 0) return 0;
+    const k = Math.max(0, this.lv(perm) - A.from + 1), L = A.order.length;
+    return Math.floor((k + (L - 1 - i)) / L);
+  },
+  axisMul(perm, key) {
+    const c = BAL.ascAxis[key];
+    return Math.min(c.max, 1 + c.per * this.axisN(perm, key));
+  },
   upperShare(perm, stageIdx) {
     if (!BAL.ascUpperOn || !this.on(perm) || stageIdx < MAIN_CHAPTERS) return 0;
     return Math.min(BAL.ascUpperShareMax, Math.max(0, BAL.ascUpperShare0 + BAL.ascUpperSharePerLv * this.lv(perm)));
