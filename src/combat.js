@@ -291,7 +291,7 @@ const Combat = {
     //   同時に盤にいる数は enemyCap で別に抑えている（処理の重さ）
     if (run.stageIdx >= MAIN_CHAPTERS) {
       return Math.max(1, Math.floor(base * run.mods.spawn * wm * hm * Asc.spawnMul(Game.perm, run.stageIdx)
-        * Asc.upperCountMul(Game.perm, run.stageIdx) * Asc.axisMul(Game.perm, 'count') * Asc.themeFlow(run.stageIdx)
+        * Asc.upperCountMul(Game.perm, run.stageIdx) * Asc.axisMul(Game.perm, 'count') * Asc.easeMul(Game.perm, 'count') * Asc.themeFlow(run.stageIdx)
         * (run.mr ? ModRun.countMul(run) : 1)));   // 改造ラン（MOD）：1章の敵は通常の半分程度・起動条件・封鎖    // 上位の敵に置き換えた分だけ数が減る（HPの総量は同じ）
     }
     return Math.min(Math.floor(BAL.waveCountMax * hm),
@@ -744,7 +744,7 @@ const Combat = {
     const base = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * stageMul;
     let hp = hpOverride !== undefined ? hpOverride : base * t.hp;
     // 2026-10-07 ユーザー：第31章から（アセンション）、全ての敵の HP ×BAL.ascHpMul（3）
-    if (run.stageIdx >= 30) hp *= BAL.ascHpMul * Asc.axisMul(Game.perm, 'hp');
+    if (run.stageIdx >= 30) hp *= BAL.ascHpMul * Asc.axisMul(Game.perm, 'hp') * Asc.easeMul(Game.perm, 'hp');
     if (run.mr) hp *= BAL.modRun.hpMul;   // 改造ラン（MOD）：カードなしで遊ぶ強さ（BAL.modRun.hpMul）
     const en = {
       x, y, hp, maxHp: hp, si,
