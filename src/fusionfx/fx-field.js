@@ -434,7 +434,7 @@ FusionFX.register('abyssnet', FX_ABYSSNET);
 //   放物線で飛び（煙と火の粉の尾）、落ちた所で溶岩が飛び散り、燃える溜まり（割れた黒い殻の間で溶岩が脈打つ）が残る
 // ===============================================================
 const FX_NAPALM = {
-  sr: { face: -90, foes: [[70, -30], [105, 24], [140, -12], [175, 30], [205, -26], [235, 6]], times: [[0.05, '噴く'], [0.28, '飛ぶ'], [0.62, '落ちる'], [2.0, '燃える']], look: 130, w: 320 },
+  sr: { face: -90, stream: true, foes: [[70, -30], [105, 24], [140, -12], [175, 30], [205, -26], [235, 6]], times: [[0.05, '噴く'], [0.28, '飛ぶ'], [0.62, '落ちる'], [2.0, '燃える']], look: 130, w: 320 },
   // ヴォルケイノブラスト：後ろに燃料の玉、前は火口の形の太い砲身（黒い岩に溶岩の割れ目）。火口が赤く光る
   turret(c) {
     c.lineJoin = 'round'; c.lineCap = 'round';
@@ -567,7 +567,16 @@ const FX_NAPALM = {
     ctx.globalAlpha = 1;
   },
   lobs: { magma(ctx, b, by, br, run) { this.lob(ctx, b, by, br, run); } },
-  fx: { eruption(ctx, f, k) { this.eruption(ctx, f, k); }, magmaland(ctx, f, k) { this.land(ctx, f, k); } },
+  // 溶岩の炎の放射（噴きっぱなし・2026-10-13）：火炎放射器と同じ舌の重ね方で、溶岩の橙。先に黒い煙と溶岩の滴
+  stream(ctx, f, k) {
+    FxKit.flameStream(ctx, f, k, { hot: '255,240,176', mid: '255,150,40', edge: '230,60,10', glow: '#ff5a1a', ember: '#ff7a1a' });
+    const T = k * f.life, ux = Math.cos(f.a), uy = Math.sin(f.a), sd = (f.seed || 0) % 97, P = FXF._P;
+    P.length = 0;
+    for (let i = 0; i < 3; i++) { const d = f.r * (0.7 + 0.12 * i) + T * 60, s = (FxKit.h(i, sd) - 0.5) * f.r * f.arc * 1.2; P.push(f.x + ux * d - uy * s, f.y + uy * d + ux * s - T * 30, 6 + 6 * k + i * 2); }
+    FXF.puffs(ctx, P, '#2e2622', 0.22 * (1 - k));
+    FxKit.sparks(ctx, { x: f.x + ux * 18, y: f.y + uy * 18, t: T, seed: sd + 11, n: 3, life: f.life, a: f.a, spread: f.arc * 1.4, v: f.r * 3, drag: 1, g: 220, size: 3.6, shape: 'shard', c0: '#fff0b0', c1: '#ff3a0a' });
+  },
+  fx: { eruption(ctx, f, k) { this.eruption(ctx, f, k); }, magmaland(ctx, f, k) { this.land(ctx, f, k); }, vbstream(ctx, f, k) { this.stream(ctx, f, k); } },
 };
 FusionFX.register('napalm', FX_NAPALM);
 
@@ -778,49 +787,71 @@ const FX_CARPET = {
     }
     FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed, n: 10, life: 0.5, v: 320, drag: 5, size: 3.6, shape: 'shard', even: true, c0: '#fff0c0', c1: '#ff5a1a' });
   },
-  // 火炎旋風：地面の焦げと炎の輪 → 縦に立ち上がる渦（上ほど広がる炎の帯・後ろは暗く前は明るい）→ 巻き上がる火の粉。上に中心の白い熱
+  // 火炎旋風（敵の下）：地面の焦げ・足元で回る炎の輪（当たる範囲そのものの大きさ）・吸い込まれる火の筋
+  //   1013a までは楕円の帯を6段重ねていた（上から見た渦の線で竜巻に見えない・ユーザー「竜巻の表現が微妙」）。立ち上がる炎の柱は over で描く
+  wa(z) { const T = z.t; return FxKit.ease(T / 0.3) * FxKit.clamp01((z.dur - T) / 0.45); },
   whirl(ctx, z) {
-    const T = z.t, R = z.r, seed = FXF.seedOf(z), ap = FxKit.ease(T / 0.3), out = FxKit.clamp01((z.dur - T) / 0.45), a = ap * out;
+    const T = z.t, R = z.r, seed = FXF.seedOf(z), a = this.wa(z);
     if (a <= 0.01) return;
-    const x = z.x, y = z.y, H = R * 1.7 * (0.4 + 0.6 * ap), SQ = 0.34, ph = T * 9 + seed;
-    // 地面：焦げと炎の輪
-    ctx.globalAlpha = 0.45 * a; FXF.put(ctx, FXF.radial('fz-whirl-scorch' + R, R * 1.15, [[0, 'rgba(30,8,0,0.7)'], [0.7, 'rgba(40,12,2,0.45)'], [1, 'rgba(40,12,2,0)']]), x, y, 1);
+    const x = z.x, y = z.y;
+    ctx.globalAlpha = 0.5 * a; FXF.put(ctx, FXF.radial('fz-whirl-scorch' + R, R * 1.15, [[0, 'rgba(30,8,0,0.75)'], [0.7, 'rgba(40,12,2,0.5)'], [1, 'rgba(40,12,2,0)']]), x, y, 1);
     ctx.globalAlpha = 1;
     ctx.globalCompositeOperation = 'lighter';
-    FxKit.glow(ctx, x, y, R * 1.2, '#ff4a0a', 0.5 * a);
-    ctx.globalCompositeOperation = 'source-over';
-    ctx.beginPath(); ctx.ellipse(x, y, R * 0.95, R * 0.95 * SQ * 1.6, 0, 0, 7);
-    ctx.globalAlpha = 0.5 * a; ctx.strokeStyle = '#ff7a2a'; ctx.lineWidth = 3; ctx.stroke();
-    // 渦の帯：高さ6段・上ほど広い。後ろ半分（暗い）→ 前半分（明るい3層）
-    const N = 6, back = [], front = [];
-    for (let j = 0; j < N; j++) {
-      const q = j / (N - 1), hy = y - H * q, rx = R * (0.32 + 0.55 * q) * (1 + 0.06 * Math.sin(T * 7 + j)), ry = rx * SQ, s = ph * (1 - q * 0.25) + j * 0.9;
-      back.push(hy, rx, ry, s + Math.PI, s + Math.PI + 2.1); front.push(hy, rx, ry, s, s + 2.3);
-    }
-    const arcs = (L) => { ctx.beginPath(); for (let i = 0; i < L.length; i += 5) { const hy = L[i], rx = L[i + 1], ry = L[i + 2], s = L[i + 3], e = L[i + 4]; ctx.moveTo(x + Math.cos(s) * rx, hy + Math.sin(s) * ry); ctx.ellipse(x, hy, rx, ry, 0, s, e); } };
+    FxKit.glow(ctx, x, y, R * 1.2, '#ff4a0a', 0.55 * a);
+    // 足元で回る炎の舌（範囲の縁から中心へ吸い込まれる弧）
     ctx.lineCap = 'round';
-    arcs(back); ctx.globalAlpha = 0.45 * a; ctx.strokeStyle = '#a0300a'; ctx.lineWidth = 5; ctx.stroke();
-    // 中心の熱（縦の光）
-    ctx.globalCompositeOperation = 'lighter';
-    for (let j = 0; j < 3; j++) FxKit.glow(ctx, x, y - H * (0.15 + j * 0.32), R * (0.42 + j * 0.1), j ? '#ff9a3a' : '#ffd070', 0.55 * a);
-    ctx.globalCompositeOperation = 'source-over';
-    arcs(front);
-    ctx.globalAlpha = 0.3 * a; ctx.strokeStyle = '#ff5a1a'; ctx.lineWidth = 11; ctx.stroke();
-    ctx.globalAlpha = 0.95 * a; ctx.strokeStyle = '#ffa040'; ctx.lineWidth = 4.2; ctx.stroke();
-    ctx.globalAlpha = a; ctx.strokeStyle = '#fff2c0'; ctx.lineWidth = 1.5; ctx.stroke();
-    // 巻き上がる火の粉
     ctx.beginPath();
-    for (let i = 0; i < 14; i++) {
-      const p = (T * 0.8 + FxKit.h(i, seed)) % 1, an = FxKit.h(i + 30, seed) * 6.28 + T * 6 + p * 4, rr = R * (0.3 + 0.6 * p), s = 2.6 * (1 - p * 0.5);
-      const px = x + Math.cos(an) * rr, py = y - H * 1.15 * p + Math.sin(an) * rr * SQ;
+    for (let i = 0; i < 6; i++) {
+      const a0 = FxKit.h(i, seed) * 6.28 - T * 6, r0 = R * (0.98 - 0.1 * FxKit.h(i + 5, seed));
+      for (let j = 0; j <= 6; j++) { const q = j / 6, an = a0 + q * 1.1, rr = r0 * (1 - q * 0.3); ctx[j ? 'lineTo' : 'moveTo'](x + Math.cos(an) * rr, y + Math.sin(an) * rr); }
+    }
+    ctx.globalAlpha = 0.3 * a; ctx.strokeStyle = '#ff5a1a'; ctx.lineWidth = 7; ctx.stroke();
+    ctx.globalAlpha = 0.75 * a; ctx.strokeStyle = '#ffb040'; ctx.lineWidth = 2.4; ctx.stroke();
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    FxKit.hexWave(ctx, x, y, R * 1.2, T / 0.4, '#ff8a3a', 4);
+  },
+  // 火炎旋風（敵の上）：立ち上がる炎の柱（FxKit.tornado・胴は加算で光る）・上で渦巻く黒煙・まき散らす火の粉
+  whirlOver(ctx, z) {
+    const T = z.t, R = z.r, seed = FXF.seedOf(z), a = this.wa(z);
+    if (a <= 0.01) return;
+    const grow = FxKit.ease(T / 0.35);
+    const sp = FxKit.tornado(ctx, { x: z.x, y: z.y, H: R * 2.5 * (0.3 + 0.7 * grow), wb: R * 0.24, wt: R * (0.4 + 0.45 * grow), T, seed, a: a * 0.95, sway: R * 0.3, spin: 8,
+      body: ['rgba(255,200,90,1)', 'rgba(200,40,8,1)'], bodyA: 0.5, add: true, back: '#7a1a04', glow: '#ff4a0a', streak: '#ffb040', core: '#fff4c8', sw: 4, debris: '#ffd070', nd: 16, ds: 3.2 });
+    if (!sp) return;
+    const N = sp.length - 1, top = sp[N];
+    // 白い熱の芯（足元から胴の半ばまで）
+    ctx.globalCompositeOperation = 'lighter';
+    for (let i = 0; i <= 6; i += 3) FxKit.glow(ctx, sp[i].x, sp[i].y, sp[i].w * 1.6 + 8, i ? '#ff9a3a' : '#ffe0a0', 0.6 * a);
+    // 胴の縁の炎の舌（両側でちらつく）
+    ctx.beginPath();
+    for (let i = 2; i < N; i += 2) {
+      const p = sp[i], s = i % 4 ? 1 : -1, hh = Math.min(16, p.w * 0.45) * (0.7 + 0.3 * Math.sin(T * 17 + i * 2.3)), bx = p.x + s * p.w * 0.95;
+      ctx.moveTo(bx, p.y + 4); ctx.quadraticCurveTo(bx + s * hh * 0.6, p.y - hh * 0.3, bx + s * hh * 0.3 + Math.sin(T * 11 + i) * 3, p.y - hh); ctx.quadraticCurveTo(bx - s * 2, p.y - hh * 0.4, bx - s * 4, p.y + 2); ctx.closePath();
+    }
+    ctx.globalAlpha = 0.75 * a; ctx.fillStyle = '#ff7a1a'; ctx.fill();
+    ctx.globalCompositeOperation = 'source-over';
+    // 上で渦巻く黒煙（上の幅より一回り広く・ゆっくり昇る）
+    const P = FXF._P; P.length = 0;
+    for (let i = 0; i < 7; i++) {
+      const u = (i / 6 - 0.5) * 2, rise = (T * 14 + i * 5) % 18;
+      P.push(top.x + u * top.w * 1.2 + Math.sin(T * 1.5 + i) * 4, top.y - 6 - rise + Math.abs(u) * 10, top.w * (0.38 - Math.abs(u) * 0.12) + rise * 0.3);
+    }
+    FXF.puffs(ctx, P, '#2e2622', 0.55 * a);
+    // まき散らす火の粉（上から外へ）
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.beginPath();
+    for (let i = 0; i < 10; i++) {
+      const p = (T * 0.9 + FxKit.h(i, seed)) % 1, side = FxKit.h(i + 3, seed) < 0.5 ? -1 : 1, s = 3 * (1 - p * 0.6);
+      const px = top.x + side * (top.w * 0.6 + p * R * 0.9) , py = top.y + 10 - p * 30 + p * p * 70;
       ctx.rect(px - s / 2, py - s / 2, s, s);
     }
-    ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.95 * a; ctx.fillStyle = '#ffc060'; ctx.fill();
+    ctx.globalAlpha = 0.95 * a; ctx.fillStyle = '#ffc060'; ctx.fill();
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
   },
   lobs: { stormmsl(ctx, b, by, br, run) { this.lob(ctx, b, by, br, run); } },
   fx: { carpetblast(ctx, f, k) { this.blast(ctx, f, k); } },
   zones: { firewhirl(ctx, z) { this.whirl(ctx, z); } },
+  over: { firewhirl(ctx, z) { this.whirlOver(ctx, z); } },
 };
 FusionFX.register('carpet', FX_CARPET);
 

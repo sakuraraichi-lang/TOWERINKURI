@@ -221,4 +221,133 @@ const FxKit = {
     return out;
   },
   poly(ctx, pts) { ctx.beginPath(); for (let i = 0; i < pts.length; i++) ctx[i ? 'lineTo' : 'moveTo'](pts[i].x, pts[i].y); },
+
+  // ---------- 立ち上がる竜巻（2026-10-13・航海の悪夢と滅尽嵐の火炎旋風） ----------
+  //   ユーザー「竜巻の表現が微妙」：上から見た渦の線（楕円を重ねた絵）では竜巻に見えなかった。
+  //   画面の上へ立ち上がる漏斗（足元が細く上が広い）を、太い胴の塗り・胴に巻きつく斜めの筋（手前は明るく奥は暗い）・
+  //   巻き上がる破片で描く。足元はうろつき、胴は S 字にうねり、上は遅れて振れる＝荒れ狂って見える。
+  //   o: { x, y（足元）, H（高さ）, wb（足元の半幅）, wt（上の半幅）, T（秒）, seed, a（濃さ）, sway（うねりの振れ px）,
+  //        spin（回る速さ）, body:[下の色, 上の色], bodyA（胴の濃さ）, add（胴を加算で塗る：炎）, back（奥の筋の色）,
+  //        glow（外の光の色）, streak（手前の筋の色）, core（筋の芯の色）, sw（筋の太さ）, debris（破片の色）, nd（破片の数） }
+  //   戻り値：背骨の点 [{x,y,w}]（足元→上・15点）。呼ぶ側が稲妻・火の粉・雲の傘を重ねる
+  _tsp: [],
+  tornadoSpine(o) {
+    const N = 14, out = this._tsp, T = o.T, s = o.seed || 0, sw = o.sway || 0;
+    out.length = 0;
+    for (let i = 0; i <= N; i++) {
+      const q = i / N;
+      const dx = sw * (0.3 * Math.sin(T * 2.1 + s) * (1 - q) + 0.75 * Math.sin(T * 3.4 - q * 4.4 + s * 1.7) * q + 0.55 * Math.sin(T * 1.3 + 1 + s) * q * q);
+      const w = (o.wb + (o.wt - o.wb) * Math.pow(q, 1.4)) * (1 + 0.1 * Math.sin(T * 8 + q * 7 + s));
+      out.push({ x: o.x + dx, y: o.y - o.H * q, w });
+    }
+    return out;
+  },
+  _tsF: [], _tsB: [],
+  tornado(ctx, o) {
+    const a = o.a;
+    if (a <= 0.01) return null;
+    const sp = this.tornadoSpine(o), N = sp.length - 1, T = o.T, seed = o.seed || 0;
+    const at = q => { const f = this.clamp01(q) * N, i = Math.min(N - 1, f | 0), u = f - i, p = sp[i], r = sp[i + 1]; return { x: p.x + (r.x - p.x) * u, y: p.y + (r.y - p.y) * u, w: p.w + (r.w - p.w) * u }; };
+    // 外の光（胴に沿って3つ）
+    ctx.globalCompositeOperation = 'lighter';
+    for (const q of [0.15, 0.5, 0.85]) { const p = at(q); this.glow(ctx, p.x, p.y, p.w * 1.9 + 10, o.glow, 0.42 * a); }
+    // 胴：足元から上へ色の変わる塗り（下の色→上の色）。外の縁は薄い光の幅、中は胴
+    if (!o.add) ctx.globalCompositeOperation = 'source-over';
+    const g = ctx.createLinearGradient(sp[0].x, sp[0].y, sp[N].x, sp[N].y);
+    g.addColorStop(0, o.body[0]); g.addColorStop(1, o.body[1]);
+    ctx.fillStyle = g;
+    // 上の端は丸めて閉じる（平らに切ると板に見える）
+    const WD = k => q => sp[Math.round(q * N)].w * k * (q < 0.86 ? 1 : Math.sqrt(Math.max(0.05, 1 - Math.pow((q - 0.86) / 0.14, 2) * 0.8)));
+    ctx.globalAlpha = (o.bodyA || 0.45) * a * 0.4; this.ribbon(ctx, sp, WD(2.3)); ctx.fill();
+    ctx.globalAlpha = (o.bodyA || 0.45) * a; this.ribbon(ctx, sp, WD(2)); ctx.fill();
+    // 胴の縁（左右の輪郭）：漏斗の形をはっきりさせる
+    if (o.rim) { ctx.globalAlpha = 0.7 * a; ctx.strokeStyle = o.rim; ctx.lineWidth = 2; ctx.lineJoin = 'round'; ctx.stroke(); }
+    // 胴の明るい中（円柱の陰影：真ん中が明るい）
+    if (o.mid) { ctx.globalCompositeOperation = 'lighter'; ctx.globalAlpha = 0.3 * a; ctx.fillStyle = o.mid; this.ribbon(ctx, sp, WD(0.9)); ctx.fill(); }
+    // 巻きつく筋：胴を斜めに半周ずつ横切るらせん。手前（楕円の下半分）と奥で分けて1回ずつ塗る
+    const M = o.ns || 15, spin = o.spin || 6, paths = [this._tsF, this._tsB];
+    paths[0].length = 0; paths[1].length = 0;
+    ctx.globalCompositeOperation = 'source-over';
+    for (let i = 0; i < M; i++) {
+      const q0 = (i + 0.5) / M * 0.92, ph = -T * spin * (1 - q0 * 0.35) + this.h(i, seed) * 6.28;
+      let side = -1;
+      for (let j = 0; j <= 10; j++) {
+        const s = j / 10, q = q0 + (s - 0.5) * 0.12, th = ph + s * 3.4, p = at(q), x = p.x + Math.cos(th) * p.w, y = p.y + Math.sin(th) * p.w * 0.3;
+        const fr = Math.sin(th) > 0 ? 0 : 1;
+        const L = paths[fr];
+        if (fr !== side) { L.push(NaN); if (side >= 0) { const P2 = paths[side]; P2.push(x, y); } side = fr; }
+        L.push(x, y);
+      }
+    }
+    const strokeL = (L) => { ctx.beginPath(); let m = true; for (let i = 0; i < L.length; i++) { if (L[i] !== L[i]) { m = true; continue; } const x = L[i], y = L[++i]; if (m) { ctx.moveTo(x, y); m = false; } else ctx.lineTo(x, y); } };
+    const w = o.sw || 5;
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    strokeL(paths[1]); ctx.globalAlpha = 0.55 * a; ctx.strokeStyle = o.back; ctx.lineWidth = w * 0.8; ctx.stroke();
+    strokeL(paths[0]);
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.globalAlpha = 0.2 * a; ctx.strokeStyle = o.glow; ctx.lineWidth = w * 2.6; ctx.stroke();
+    ctx.globalAlpha = 0.85 * a; ctx.strokeStyle = o.streak; ctx.lineWidth = w; ctx.stroke();
+    ctx.globalAlpha = 0.9 * a; ctx.strokeStyle = o.core || '#ffffff'; ctx.lineWidth = Math.max(1.2, w * 0.32); ctx.stroke();
+    // 巻き上がる破片：胴のまわりを回りながら上へ（上へ行くほど外へ振られる）
+    const nd = o.nd || 14;
+    ctx.beginPath();
+    for (let i = 0; i < nd; i++) {
+      const p0 = (T * (0.45 + 0.3 * this.h(i + 9, seed)) + this.h(i, seed)) % 1, th = this.h(i + 30, seed) * 6.28 - T * spin * 1.2, p = at(p0);
+      const x = p.x + Math.cos(th) * p.w * (1.05 + 0.35 * p0), y = p.y + Math.sin(th) * p.w * 0.34, s = (o.ds || 3) * (1 - p0 * 0.45) * (0.7 + 0.6 * this.h(i + 50, seed));
+      ctx.rect(x - s / 2, y - s / 2, s, s);
+    }
+    ctx.globalAlpha = 0.9 * a; ctx.fillStyle = o.debris || o.streak; ctx.fill();
+    ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
+    return sp;
+  },
+
+  // ---------- 炎の放射（火炎放射器と同じ「噴きっぱなし」の流れ・2026-10-13） ----------
+  //   ユーザー「火炎放射器が元となってるやつは、元の火炎放射器のように出しっぱでいい」。
+  //   火炎放射器（render.js の flameCone）と同じ「長さの違う舌を重ねる」形で、毎秒10回以上出して 0.2秒ずつ重ねる＝出しっぱなしに見える。
+  //   合成武器はそれに、塗りの詰まった炎の胴（外・中・芯の3枚・縁が揺れる）・外の光・白い芯の噴流・火の粉を足して、ひと目で強く見せる。
+  //   f: { x, y, a, arc（半角）, r（届く長さ）, seed, life } ・ k 0〜1 ・ p: { hot, mid, edge, glow, ember }（'r,g,b' の文字列。glow／ember は '#rrggbb'）
+  flameStream(ctx, f, k, p) {
+    const n = 5, R = f.r, ARC = f.arc, fade = 1 - k, T = k * (f.life || 0.2), sd = f.seed || 0;
+    const ux0 = Math.cos(f.a), uy0 = Math.sin(f.a);
+    ctx.globalCompositeOperation = 'lighter';
+    // 外の光：噴き口から先へ
+    this.glow(ctx, f.x + ux0 * R * 0.5, f.y + uy0 * R * 0.5, R * 0.6, p.glow, 0.28 * fade);
+    // 炎の胴：噴き口から広がり、先が丸く消える形。縁が揺れる。外（edge）→中（mid）→芯（hot）の3枚
+    const L = R * (0.88 + 0.18 * k), TW = Math.tan(Math.min(ARC, 0.9)), M = 9;
+    for (const [wk, a0] of [[1, 0.42], [0.58, 0.5], [0.24, 0.62]]) {
+      const g = ctx.createLinearGradient(f.x, f.y, f.x + ux0 * L, f.y + uy0 * L);
+      g.addColorStop(0, 'rgba(' + p.hot + ',' + (a0 * fade) + ')');
+      g.addColorStop(wk < 0.5 ? 0.55 : 0.3, 'rgba(' + (wk < 0.5 ? p.hot : p.mid) + ',' + (a0 * 0.9 * fade) + ')');
+      g.addColorStop(0.75, 'rgba(' + (wk < 0.5 ? p.mid : p.edge) + ',' + (a0 * 0.55 * fade) + ')');
+      g.addColorStop(1, 'rgba(' + p.edge + ',0)');
+      ctx.fillStyle = g; ctx.beginPath();
+      for (let s = -1; s <= 1; s += 2) for (let j = 0; j <= M; j++) {
+        const q = s < 0 ? j / M : 1 - j / M, d = L * q * (wk < 0.5 ? 0.85 : 1);
+        const hw = L * TW * wk * Math.pow(q, 0.75) * Math.sqrt(Math.max(0, 1 - q * q * q)) * (1 + 0.22 * Math.sin(q * 13 - T * 55 + sd + s * 1.7) + 0.1 * Math.sin(q * 29 - T * 90 + sd * 2 + s));   // 外へ流れる炎のうねり
+        const x = f.x + ux0 * d - uy0 * hw * s, y = f.y + uy0 * d + ux0 * hw * s;
+        (s < 0 && j === 0) ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.closePath(); ctx.fill();
+    }
+    for (let i = 0; i < n; i++) {
+      const t = (i + 0.5) / n, rnd = ((sd + i * 9781) % 997) / 997, a = f.a + (t * 2 - 1) * ARC;
+      const core = 1 - Math.abs(t * 2 - 1) * 0.5, len = R * core * (0.66 + rnd * 0.34) * (0.7 + 0.45 * k), hw = ARC / n * (1.6 + rnd * 0.9);
+      const g = ctx.createLinearGradient(f.x, f.y, f.x + Math.cos(a) * len, f.y + Math.sin(a) * len);
+      g.addColorStop(0, 'rgba(' + p.hot + ',' + (0.6 * fade) + ')');
+      g.addColorStop(0.35, 'rgba(' + p.mid + ',' + (0.46 * fade) + ')');
+      g.addColorStop(0.75, 'rgba(' + p.edge + ',' + (0.28 * fade) + ')');
+      g.addColorStop(1, 'rgba(' + p.edge + ',0)');
+      ctx.fillStyle = g;
+      ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.arc(f.x, f.y, len, a - hw, a + hw); ctx.closePath(); ctx.fill();
+    }
+    // 白い芯の噴流（真ん中を細く長く）
+    const ux = ux0, uy = uy0, Lc = R * 0.62 * (0.8 + 0.3 * k);
+    ctx.globalAlpha = 0.55 * fade; ctx.fillStyle = 'rgb(' + p.hot + ')';
+    ctx.beginPath(); ctx.moveTo(f.x - uy * 5, f.y + ux * 5); ctx.lineTo(f.x + ux * Lc, f.y + uy * Lc); ctx.lineTo(f.x + uy * 5, f.y - ux * 5); ctx.closePath(); ctx.fill();
+    ctx.globalAlpha = 1;
+    this.glow(ctx, f.x, f.y, 16, '#ffffff', 0.55 * fade);
+    // 火の粉：流れの先へ飛ぶ（数は少なく）
+    this.sparks(ctx, { x: f.x + ux * 14, y: f.y + uy * 14, t: T, seed: sd % 97, n: 4, life: f.life || 0.2, a: f.a, spread: ARC * 1.8, v: R * 3.6, drag: 1.5, size: 3, c0: '#ffffff', c1: p.ember });
+    ctx.globalCompositeOperation = 'source-over';
+  },
 };

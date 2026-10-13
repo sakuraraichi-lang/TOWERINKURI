@@ -782,10 +782,10 @@ const DebugRoom = {
     run.shake = 0;
     run.nums.length = 0;   // ダメージの数字は出さない（的の HP が 1e12 なので、最大HPの割合で削る効果が「833M」のような数字で演出を覆う）
     if (i === 0) {
-      if (single) S.u.cd = 1e9;
+      if (single && !cfg.stream) S.u.cd = 1e9;   // stream … 噴きっぱなしの武器（フランベルジュ・ヴォルケイノブラスト）は止めた時刻でも撃ち続ける
       // 撃った弾の線の上に的を並べ直す（散らばりで外れないように）・見本の弾は壁で止めない（盤によっては的の手前が壁なので）
       const b = run.bullets.find(q => q.src === S.u);
-      if (b) {
+      if (b && !cfg.stream) {   // 噴きっぱなしの武器は並べ直さない（射界の外へ的が動き、炎が当たらなくなる）
         const sp = Math.hypot(b.vx, b.vy) || 1, vx = b.vx / sp, vy = b.vy / sp;
         cfg.foes.forEach(([d, off], k) => { const en = S.enemies[k]; if (en) { en.x = b.ox + vx * d - vy * off; en.y = b.oy + vy * d + vx * off; } });
       }

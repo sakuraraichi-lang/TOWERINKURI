@@ -3,7 +3,7 @@
 //
 //   このファイルの受け持ち（8種）：
 //     resonator    プラズマボール（済・手本）
-//     thunderwhip  航海の悪夢（段2）：雷を纏った竜巻（足元の渦・巻き上がる風の帯・中を走る稲妻・掴んだ敵に絡む触手）
+//     thunderwhip  航海の悪夢（段2・1013 作り直し）：立ち上がる雷の竜巻（FxKit.tornado・雷雲の傘・胴を走る稲妻・足元の土煙・掴んだ敵に絡む触手）
 //     hellmist     爆裂放射器（段2）：橙から毒の緑へ変わる炎の放射・先で連鎖する火球・毒の煙
 //     vortex       相反の渦（段2）：範囲いっぱいに氷と炎の2本の腕が巻く渦・凍って燃える敵から白い蒸気
 //     cryobeam     凍結光線（段2）：青白い太い光線と霜の結晶・反射した所に透き通った氷の棘山
@@ -225,80 +225,66 @@ const FX_THUNDERWHIP = {
     c.lineWidth = 0.9; c.strokeStyle = 'rgba(255,255,255,0.9)'; c.beginPath(); c.arc(P[12].x + 1, P[12].y, 4.2, 0, 7); c.stroke();
   },
   fade(z) { return Math.min(FxKit.clamp01(z.t / 0.15), FxKit.clamp01((z.dur - z.t) / 0.35)); },
-  // 敵の下：足元の渦（当たる範囲そのものの大きさの3本の腕）と範囲の縁
+  // 敵の下：足元の土煙（当たる範囲そのものの大きさで回る塊）と範囲の縁・出るときと消えるときの衝撃波
+  //   1013a までは足元に渦の腕を描いていた（上から見た渦の線で、竜巻に見えない）。竜巻は over の漏斗が主役、足元は巻き上げる土煙
   ground(ctx, z) {
     const T = z.t, R = z.r, fa = this.fade(z);
     if (fa <= 0.01) return;
-    const rot = -T * 5.5;
-    ctx.globalCompositeOperation = 'lighter';
-    FxKit.glow(ctx, z.x, z.y, R * 1.15, '#5a3ad8', 0.32 * fa);
-    ctx.fillStyle = '#9a86ff'; ctx.globalAlpha = 0.4 * fa;
-    for (let j = 0; j < 3; j++) {
-      const pts = [];
-      for (let i = 0; i <= 10; i++) { const q = i / 10, a = rot + j * 2.094 + q * 2.6, rr = R * (0.16 + 0.86 * q); pts.push({ x: z.x + Math.cos(a) * rr, y: z.y + Math.sin(a) * rr }); }
-      FxKit.ribbon(ctx, pts, q => 10 * (1 - q) + 1); ctx.fill();
+    const seed = z.sd === undefined ? (z.sd = Math.abs((z.x * 7 + z.y * 3) | 0) % 97) : z.sd;
+    ctx.globalAlpha = 0.3 * fa; ctx.fillStyle = '#120a28';
+    ctx.beginPath(); ctx.arc(z.x, z.y, R * 0.92, 0, 7); ctx.fill();
+    ctx.beginPath();
+    for (let i = 0; i < 14; i++) {
+      const an = FxKit.h(i, seed) * 6.28 - T * (5 + 2 * FxKit.h(i + 7, seed)), rr = R * (0.3 + 0.62 * FxKit.h(i + 20, seed)), s = 7 + 7 * FxKit.h(i + 40, seed);
+      const x = z.x + Math.cos(an) * rr, y = z.y + Math.sin(an) * rr;
+      ctx.moveTo(x + s, y); ctx.arc(x, y, s, 0, 7);
     }
+    ctx.globalAlpha = 0.34 * fa; ctx.fillStyle = '#5a4e8a'; ctx.fill();
+    ctx.globalCompositeOperation = 'lighter';
+    FxKit.glow(ctx, z.x, z.y, R * 1.1, '#5a3ad8', 0.3 * fa);
     ctx.globalCompositeOperation = 'source-over';
-    ctx.globalAlpha = 0.45 * fa; ctx.strokeStyle = '#b8a8ff'; ctx.lineWidth = 1.6; ctx.beginPath(); ctx.arc(z.x, z.y, R, 0, 7); ctx.stroke();
+    ctx.globalAlpha = 0.5 * fa; ctx.strokeStyle = '#b8a8ff'; ctx.lineWidth = 1.8; ctx.setLineDash([10, 7]); ctx.lineDashOffset = -T * 60;
+    ctx.beginPath(); ctx.arc(z.x, z.y, R, 0, 7); ctx.stroke(); ctx.setLineDash([]);
     ctx.globalAlpha = 1;
     FxKit.flash(ctx, z.x, z.y, R * 1.1, T, '#a890ff', 0.12);
     FxKit.hexWave(ctx, z.x, z.y, R * 1.25, T / 0.4, '#a890ff', 4);
     if (z.dur - T < 0.35) FxKit.hexWave(ctx, z.x, z.y, R * 1.3, 1 - (z.dur - T) / 0.35, '#d8d0ff', 3);
   },
-  // 敵の上：竜巻の漏斗（風の帯は細い線の重なりなので、下の敵と道が透けて見える）・中を走る稲妻・掴んだ敵に絡む触手
-  _tg: [],
+  // 敵の上：立ち上がる雷の竜巻（FxKit.tornado）・上の雷雲の傘・胴の中を走る稲妻・掴んだ敵に絡む触手
+  _tg: [], _bj: [],
   funnel(ctx, z) {
     const T = z.t, R = z.r, fa = this.fade(z);
     if (fa <= 0.01) return;
-    const grow = FxKit.ease(T / 0.3), H = R * 2.0 * (0.35 + 0.65 * grow), bx = z.x, by = z.y, sway = Math.sin(T * 2.3) * 7;
-    const N = 7, seed = z.sd === undefined ? (z.sd = Math.abs((z.x * 7 + z.y * 3) | 0) % 97) : z.sd;
-    const band = i => { const q = i / (N - 1), rx = R * (0.2 + 0.88 * Math.pow(q, 1.25)) * (0.6 + 0.4 * grow); return { q, cx: bx + sway * q * q, cy: by - H * q, rx, ry: rx * 0.3 }; };
-    // 奥の半分（薄く）
-    ctx.beginPath();
-    for (let i = 0; i < N; i++) { const b = band(i); ctx.moveTo(b.cx + b.rx, b.cy); ctx.ellipse(b.cx, b.cy, b.rx, b.ry, 0, 0, Math.PI, true); }
-    ctx.globalAlpha = 0.4 * fa; ctx.strokeStyle = '#6a5ac8'; ctx.lineWidth = 3; ctx.stroke();
-    // 中を走る稲妻（ちらつく・上から下へ）
-    const fr = Math.floor(T * 16);
-    const top = band(N - 1);
+    const grow = FxKit.ease(T / 0.35), seed = z.sd === undefined ? (z.sd = Math.abs((z.x * 7 + z.y * 3) | 0) % 97) : z.sd;
+    const sp = FxKit.tornado(ctx, { x: z.x, y: z.y, H: R * 2.5 * (0.25 + 0.75 * grow), wb: R * 0.2, wt: R * (0.4 + 0.55 * grow), T, seed, a: fa, sway: R * 0.34, spin: 7,
+      body: ['rgba(150,136,220,1)', 'rgba(70,60,140,1)'], bodyA: 0.62, rim: '#b8a8ff', mid: '#7a6ae8', back: '#3a2a80', glow: '#6a4aff', streak: '#d8ceff', core: '#ffffff', sw: 3.6, debris: '#e6dcff', nd: 18 });
+    if (!sp) return;
+    const N = sp.length - 1, top = sp[N], fr = Math.floor(T * 16);
+    // 胴の中を走る稲妻：上の傘から足元へ、背骨に沿ってぎざぎざ（ちらつく・2本まで）
+    const J = this._bj;
     for (let j = 0; j < 2; j++) {
-      if (FxKit.h(fr + j * 31, seed) < 0.35) continue;
-      const J = FxKit.jag(top.cx + (FxKit.h(fr + 7, seed + j) - 0.5) * top.rx, top.cy, bx + (FxKit.h(fr + 9, seed + j) - 0.5) * R * 0.3, by - R * 0.15, 7, R * 0.28, seed + fr * 3 + j);
+      if (FxKit.h(fr + j * 31, seed) < 0.3) continue;
+      J.length = 0;
+      for (let i = N; i >= 0; i -= 2) { const p = sp[i], o = i === 0 ? 0 : (FxKit.h(i + fr * 3 + j * 11, seed) - 0.5) * p.w * 1.2; J.push({ x: p.x + o, y: p.y }); }
       FxKit.beam(ctx, c => FxKit.poly(c, J), 4.5, '#e6dcff', 0.95 * fa, '#8a6aff');
     }
-    // 手前の半分：回る風の帯（下の段は細く・上の段は太く）。3層（外光・本体・白い芯）
-    for (const [i0, i1, w] of [[0, 3, 5.5], [3, N, 8.5]]) {
-      ctx.beginPath();
-      for (let i = i0; i < i1; i++) {
-        const b = band(i), ph = ((-T * (6 + 4 * b.q) + i * 1.3) % Math.PI + Math.PI) % Math.PI;
-        for (const s of [0, Math.PI * 0.5]) {
-          const a0 = (ph + s) % Math.PI, a1 = Math.min(Math.PI, a0 + 1.15);
-          ctx.moveTo(b.cx + Math.cos(a0) * b.rx, b.cy + Math.sin(a0) * b.ry);
-          ctx.ellipse(b.cx, b.cy, b.rx, b.ry, 0, a0, a1);
-        }
-      }
-      ctx.lineCap = 'round';
-      ctx.globalAlpha = 0.3 * fa; ctx.strokeStyle = '#6a4aff'; ctx.lineWidth = w * 2.4; ctx.stroke();
-      ctx.globalAlpha = 0.85 * fa; ctx.strokeStyle = '#b8acff'; ctx.lineWidth = w; ctx.stroke();
-      ctx.globalAlpha = 0.95 * fa; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = Math.max(1.2, w * 0.33); ctx.stroke();
+    // 雷雲の傘：上にぼけた暗い雲の塊（上の幅より一回り広い・ゆっくり渦巻く）・中が光る
+    const cv = FxKit.glowCv('#3a3270');
+    for (let i = 0; i < 7; i++) {
+      const u = (i / 6 - 0.5) * 2, an = T * 1.6 + i * 0.9, x = top.x + u * top.w * 1.3 + Math.cos(an) * 6, y = top.y - 2 + Math.abs(u) * 9 + Math.sin(an) * 3, s = top.w * (0.95 - Math.abs(u) * 0.3);
+      ctx.globalAlpha = fa; ctx.drawImage(cv, x - s, y - s * 0.7, s * 2, s * 1.4);
     }
-    // 上の雲の傘と足元の光
     ctx.globalCompositeOperation = 'lighter';
-    FxKit.glow(ctx, top.cx, top.cy, top.rx * 1.25, '#6a4aff', 0.5 * fa);
-    if (FxKit.h(fr + 31, seed) >= 0.35) FxKit.glow(ctx, top.cx, top.cy, top.rx * 0.9, '#e6dcff', 0.55 * fa);
-    FxKit.glow(ctx, bx, by, R * 0.55, '#a890ff', 0.5 * fa);
-    // 巻き上げられる破片（漏斗のまわりを回る）
-    ctx.beginPath();
-    for (let i = 0; i < 10; i++) {
-      const q = 0.1 + 0.85 * FxKit.h(i, seed), b = band(Math.min(N - 1, Math.round(q * (N - 1)))), an = -T * (7 + 3 * FxKit.h(i + 20, seed)) + FxKit.h(i + 40, seed) * 6.28;
-      const x = b.cx + Math.cos(an) * b.rx * 1.12, y = b.cy + Math.sin(an) * b.ry * 1.12 - (T * 40 + i * 9) % 12, s = 2 + 1.6 * FxKit.h(i + 60, seed);
-      ctx.rect(x - s / 2, y - s / 2, s, s);
-    }
-    ctx.globalAlpha = 0.85 * fa; ctx.fillStyle = '#e0d8ff'; ctx.fill();
+    const lit = FxKit.h(fr + 31, seed) >= 0.35;
+    FxKit.glow(ctx, top.x, top.y, top.w * 1.5, '#6a4aff', (lit ? 0.75 : 0.35) * fa);
+    if (lit) FxKit.glow(ctx, top.x + (FxKit.h(fr, seed) - 0.5) * top.w, top.y, top.w * 0.8, '#ffffff', 0.5 * fa);
+    FxKit.glow(ctx, sp[0].x, sp[0].y, R * 0.5, '#a890ff', 0.55 * fa);
     ctx.globalCompositeOperation = 'source-over';
-    // 掴んだ敵に絡む触手（範囲の中の近い敵3体まで）
+    // 掴んだ敵に絡む触手（範囲の中の近い敵2体まで）：漏斗の下のほうから伸びる
     const tg = this._tg; tg.length = 0;
     if (typeof Fusion !== 'undefined' && typeof Grid !== 'undefined') for (const e of Fusion.nearestTo(z.x, z.y, R, 2)) tg.push(e);
-    for (let n = 0; n < tg.length; n++) this.tentacle(ctx, z, tg[n], band(1), n, fa, seed);
+    const b = { cx: sp[2].x, cy: sp[2].y };
+    for (let n = 0; n < tg.length; n++) this.tentacle(ctx, z, tg[n], b, n, fa, seed);
     ctx.globalAlpha = 1;
   },
   tentacle(ctx, z, e, b, n, fa, seed) {
@@ -954,7 +940,7 @@ FusionFX.register('stormcloud', FX_STORMCLOUD);
 //   face 武器の向き（度）・foes 的の位置 [前へ, 横へ]・times 4つの時刻・look 映す中心（前へ）・w 画面の横幅に映す盤の幅
 // ---------------------------------------------------------------
 const SR_ELEM = {
-  thunderwhip: { face: -90, foes: [[60, 0], [95, -14], [130, 12], [165, -10], [200, 8], [240, 0]], times: [[0.06, '出る'], [0.5, '進む'], [1.25, '絡む'], [2.85, '消える']], look: 120, w: 300 },
+  thunderwhip: { face: -90, foes: [[60, 0], [95, -14], [130, 12], [165, -10], [200, 8], [240, 0]], times: [[0.12, '立ち上がる'], [0.6, '進む'], [1.5, '絡む'], [3.3, '消える']], look: 150, w: 320 },
   hellmist: { face: -90, foes: [[60, 0], [95, -14], [130, 12], [160, -10], [190, 8], [215, 0]], times: [[0.04, '噴く'], [0.12, '炎の先'], [0.24, '爆発'], [0.8, '毒の煙']], look: 115, w: 300 },
   vortex: { face: -90, foes: [[40, 0], [80, -14], [120, 12], [160, -10], [195, 8], [-40, 0]], times: [[0.04, '出る'], [0.18, '渦'], [0.42, '回る'], [0.66, '消える']], look: 30, w: 460 },
   cryobeam: { face: -90, foes: [[70, 0], [110, -8], [150, 8], [190, -6], [230, 6], [270, 0]], times: [[0.03, '撃つ'], [0.12, '光線'], [0.4, '棘山'], [3.0, '砕ける']], look: 150, w: 360 },
