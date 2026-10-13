@@ -286,7 +286,7 @@ const Combat = {
     //   同時に盤にいる数は enemyCap で別に抑えている（処理の重さ）
     if (run.stageIdx >= MAIN_CHAPTERS) {
       return Math.max(1, Math.floor(base * run.mods.spawn * wm * hm * Asc.spawnMul(Game.perm, run.stageIdx)
-        * Asc.upperCountMul(Game.perm, run.stageIdx)));    // 上位の敵に置き換えた分だけ数が減る（HPの総量は同じ）
+        * Asc.upperCountMul(Game.perm, run.stageIdx) * Asc.axisMul(Game.perm, 'count')));    // 上位の敵に置き換えた分だけ数が減る（HPの総量は同じ）
     }
     return Math.min(Math.floor(BAL.waveCountMax * hm),
                     Math.floor(base * run.mods.spawn * wm * hm));
@@ -648,11 +648,11 @@ const Combat = {
     const base = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * stageMul;
     let hp = hpOverride !== undefined ? hpOverride : base * t.hp;
     // 2026-10-07 ユーザー：第31章から（アセンション）、全ての敵の HP ×BAL.ascHpMul（3）
-    if (run.stageIdx >= 30) hp *= BAL.ascHpMul;
+    if (run.stageIdx >= 30) hp *= BAL.ascHpMul * Asc.axisMul(Game.perm, 'hp');
     const en = {
       x, y, hp, maxHp: hp, si,
       lane: this.pickLane(run, si),    // その口のレーンに順番に振る（stages.js の lanes）
-      spd: Math.min(BAL.enemySpdCap, BAL.enemySpdBase * Math.pow(BAL.enemySpdGrowth, g)) * t.spd,
+      spd: Math.min(BAL.enemySpdCap, BAL.enemySpdBase * Math.pow(BAL.enemySpdGrowth, g)) * t.spd * (run.stageIdx >= 30 ? Asc.axisMul(Game.perm, 'spd') : 1),
       r: t.r,
       coin: BAL.enemyCoinBase * Math.pow(BAL.enemyCoinGrowth, g - 1) * t.coin,
       color: t.color,
@@ -853,9 +853,9 @@ const Combat = {
       amount *= 1 - e.barrier;
       // 2026-10-07 ユーザー：1発ごとの下がり幅はアセンションのレベルで減る（Lv1〜5：0.5%・6〜10：0.25%・11〜15：0.125%・16〜20：0.065%・21から先は0.065%のまま）
       const alv = Asc.lv(Game.perm), steps = BAL.ascBarrierStepByLv;
-      //   21から先は5レベルごとに半分ずつ下げる（2026-10-07 ユーザー）
-      const si = Math.max(0, Math.ceil(alv / 5) - 1);
-      const step = si < steps.length ? steps[si] : steps[steps.length - 1] * Math.pow(0.5, si - steps.length + 1);
+      //   21から先は下げ止め（2026-10-13・難しさは BAL.ascAxis の軸で分散）
+      const si = Math.min(steps.length - 1, Math.max(0, Math.ceil(alv / 5) - 1));   // 2026-10-13：Lv20で下げ止め
+      const step = steps[si];
       e.barrier = Math.max(0, e.barrier - step);
     }
     // **ラスボスの胴の節**：入ったダメージは頭へ、BAL.finalBodyMul 倍で回す（弱点は頭）。節の見た目の位置で当たりを判定する
