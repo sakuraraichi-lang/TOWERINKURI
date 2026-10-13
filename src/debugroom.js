@@ -217,6 +217,11 @@ const DebugRoom = {
         ['上位の敵：サンドボックス（場を無効・ガスと泡が効かない）', () => me.upperBattle('sandbox')],
         ['上位の敵：ポリモーフ（約4秒ごとに無効の系統が 物理→光学→属性→場 と切り替わる・色と輪）', () => me.upperBattle('polymorph')],
         ['上位の敵：ゼロデイ（弱点以外は半分・頭の上の金の縁の印が弱点）', () => me.upperBattle('zeroday')],
+        ['妨害：ジャマー兵（点線の輪の中の武器を2基ずつ止める・金の縁の合成武器は止まらない）', () => me.upperBattle('jamsol')],
+        ['妨害：クラッシャー（道の隣の武器に赤い照準→壊す・金の縁の合成武器は狙わない）', () => me.upperBattle('crusher')],
+        ['かつてのボス（縮小版）：ワーム', () => me.upperBattle('mini:worm')],
+        ['かつてのボス（縮小版）：ルートキット', () => me.upperBattle('mini:rootkit')],
+        ['かつてのボス（縮小版）：ジャマー', () => me.upperBattle('mini:jammer')],
         ['ラスボス：フォーマッタ（蛇の節・頭が弱点・視点が頭を追う）', () => me.finalBattle('walk')],
         ['ラスボス：噛みつき（予告で大顎が開く→近い武器が1基壊れて残骸が残る）', () => me.finalBattle('bite')],
         ['ラスボス：レーザー（近い6基へ線→撃てなくなる）', () => me.finalBattle('laser')],
@@ -1230,7 +1235,8 @@ const DebugRoom = {
     const wcOrig = Combat.waveCount;
     Combat.waveCount = () => 0;            // 雑魚は出さない（見本の1体だけ）
     try { Game.startNextWave(); } finally { Combat.waveCount = wcOrig; }
-    const st = run.stage, t = UPPER_TYPES[kind];
+    const mini = kind.indexOf('mini:') === 0 ? kind.slice(5) : null;
+    const st = run.stage, t = mini ? { jp: Combat.BOSS_KIND[mini].jp + '（縮小版）', en: Combat.BOSS_KIND[mini].en, color: Combat.BOSS_KIND[mini].col } : UPPER_TYPES[kind];
     const sp = st.spawns[0], p = st.center(sp.c, sp.r);
     // 4つの系統の武器を2基ずつ、**通り道が射界に入る六角と向き**を選んで置く（射界は固定・向きは6方向なので、決め打ちでは当たらない）。
     //   口のバリアの4タイルより先の通り道の点を、武器の射程の中・向きの線から 14px 以内・壁に切られずに見通せる、で数えて多い所
@@ -1264,11 +1270,21 @@ const DebugRoom = {
       }
       if (best && best.n > 0) { used.add(best.h.c + ',' + best.h.r); run.units.push(Game.newUnit(id, best.h.c, best.h.r, best.f)); }
     }
+    // 妨害の見本：最初のガトリングを合成武器（スターアサルト）にして、妨害が効かないことを並べて見せる
+    if (t.sab) { const u = run.units.find(x => x.id === 'gatling'); if (u) { u.fuse = 'starassault'; Game.applyMods(); } }
     const g = 1;     // 見本の武器は札なしの素の強さなので、HPは第1ウェーブ並み（倒れる様子まで見えるように）
-    const e = Combat.makeEnemy(run, t, g, p.x, p.y, 0);
-    e.hp = e.maxHp = e.maxHp * 0.1;                 // 見本のHP：本物の1割（見本の武器は札なしの素の強さ）
-    e.spd *= 0.3;                                   // 見本なので、ゆっくり歩かせる（武器との関係を見る時間をとる）
-    run.enemies.push(e);
+    let e;
+    if (mini) {
+      e = Combat.spawnMini(run, mini, 0);           // run.enemies に積まれる（ワームは体の鎖も）
+      e.hp = e.maxHp = e.maxHp * 0.1;
+      for (const x of run.enemies) if (x.seg === e) x.hp = x.maxHp = e.maxHp;
+      e.spd *= 0.5;
+    } else {
+      e = Combat.makeEnemy(run, t, g, p.x, p.y, 0);
+      e.hp = e.maxHp = e.maxHp * 0.1;                 // 見本のHP：本物の1割（見本の武器は札なしの素の強さ）
+      e.spd *= 0.3;                                   // 見本なので、ゆっくり歩かせる（武器との関係を見る時間をとる）
+      run.enemies.push(e);
+    }
     UI.toastMsg('見本：' + t.jp + '（' + t.en + '・約40秒）', t.color, 'demo');
     let t0 = performance.now(), last = t0, doneAt = 0;
     this._bt = setInterval(() => {
@@ -1280,7 +1296,7 @@ const DebugRoom = {
         if (!run.fx.length || now - doneAt > 2500) this._btEnd();
         return;
       }
-      const lead = run.enemies.find(x => !x.dead && x.upper) || run.enemies.find(x => !x.dead);
+      const lead = (!e.dead && e) || run.enemies.find(x => !x.dead && x.upper) || run.enemies.find(x => !x.dead && !x.seg);
       if (lead && Render.canPan()) {
         Render.cam.x += (lead.x - Render.viewW / 2 - Render.cam.x) * 0.25;
         Render.cam.y += (lead.y - Render.viewH / 2 - Render.cam.y) * 0.25;
@@ -1288,6 +1304,8 @@ const DebugRoom = {
       }
       const inSh = run.enemies.some(x => !x.dead && Combat.inShield(run, x));
       for (let i = 0; i < (inSh ? 6 : 1); i++) Combat.update(run, dt);
+      // 縮小版のボス：4秒ごとに HP を節目の直前まで下げて、仕掛け（跳躍・防壁・腕の沈黙）を本来どおり出させる
+      if (mini && !e.dead && (e.ph || 0) < 3 && !e.tele && now - t0 > 4000 * ((e.ph || 0) + 1)) e.hp = Math.min(e.hp, e.maxHp * (BAL.bossPhaseAt[e.ph || 0] - 0.01));
       if (now - t0 > 40000 && !e.dead) Combat.damage(run, e, e.maxHp * 2, { by: 'debug' });   // 倒しきれない見本は、40秒で片づける
       if (!run.enemies.some(x => !x.dead) || now - t0 > 52000) doneAt = now;
     }, 16);
