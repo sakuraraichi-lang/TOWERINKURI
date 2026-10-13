@@ -280,7 +280,7 @@ const FX_THUNDERWHIP = {
   fade(z) { return Math.min(FxKit.clamp01(z.t / 0.15), FxKit.clamp01((z.dur - z.t) / 0.35)); },
   // 敵の下：足元の土煙（当たる範囲そのものの大きさで回る塊）と範囲の縁・出るときと消えるときの衝撃波
   //   1013a までは足元に渦の腕を描いていた（上から見た渦の線で、竜巻に見えない）。竜巻は over の漏斗が主役、足元は巻き上げる土煙
-  ground(ctx, z) {
+  groundZ(ctx, z) {
     const T = z.t, R = z.r, fa = this.fade(z);
     if (fa <= 0.01) return;
     const seed = z.sd === undefined ? (z.sd = Math.abs((z.x * 7 + z.y * 3) | 0) % 97) : z.sd;
@@ -367,7 +367,7 @@ const FX_THUNDERWHIP = {
     }
     ctx.globalCompositeOperation = 'source-over';
   },
-  zones: { twister(ctx, z) { this.ground(ctx, z); } },
+  zones: { twister(ctx, z) { this.groundZ(ctx, z); } },
   over: { twister(ctx, z) { this.funnel(ctx, z); } },
   fx: { nmzap(ctx, f, k) { FXE.chain(ctx, f, k, { w: 5.5, body: '#dcd0ff', glow: '#6a4aff', hit: '#b8a0ff', lift: 34 }); } },
 };

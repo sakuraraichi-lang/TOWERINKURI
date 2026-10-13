@@ -766,7 +766,7 @@ const FX_ICEFOAM = {
     FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed: (f.seed || 0) + 21, n: 8, life: 0.45, v: 230, drag: 5, size: 4.2, shape: 'shard', even: true, add: false, c0: '#ffffff', c1: '#8fd8ff' });
   },
   // 凍土（居座る場・敵の下）：凍った地面・縁に霜の六角の板・中へ伸びる霜の筋・きらめき
-  ground(ctx, z) {
+  groundZ(ctx, z) {
     const a = Math.min(1, z.t / 0.25) * Math.min(1, (z.dur - z.t) / 0.5), R = z.r, seed = z.seed || 0, x = z.x, y = z.y;
     if (a <= 0.01) return;
     ctx.beginPath(); ctx.arc(x, y, R - 18, 0, 7);
@@ -792,7 +792,7 @@ const FX_ICEFOAM = {
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
   },
   fx: { pfdome(ctx, f, k) { this.dome(ctx, f, k); }, pfcoat(ctx, f, k) { this.coat(ctx, f, k); }, pfshard(ctx, f, k) { this.shard(ctx, f, k); }, pfburst(ctx, f, k) { this.burst(ctx, f, k); } },
-  zones: { permafrost(ctx, z) { this.ground(ctx, z); } },
+  zones: { permafrost(ctx, z) { this.groundZ(ctx, z); } },
 };
 FusionFX.register('icefoam', FX_ICEFOAM);
 
