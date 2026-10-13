@@ -125,7 +125,8 @@ wrap(Combat, 'spawnBullet', () => inc('bullet'));
 wrap(Combat, 'laser', (a, r) => { if (r) { inc('laser'); inc('laserPts', r.pts.length); Cn.laserMax = Math.max(Cn.laserMax || 0, r.pts.length); } });
 wrap(Combat, 'fx', (a) => { if (a[1] && a[1].type === 'tentacle') inc('tentacleFx'); });
 wrap(Fusion, 'zone', (a) => inc('zone:' + a[1].kind));
-wrap(Fusion, 'chainFrom', (a) => { inc('chain'); inc('chain:' + (a[6] && a[6].color)); inc('chainN', a[3]); });
+wrap(Fusion, 'fx', (a) => { if (a[1] && a[1].k === 'riftstab') inc('riftStab'); });   // 異界の剣：裂け目の触手の突き（1013a で Combat.fx の tentacle から変わった）
+wrap(Fusion, 'chainFrom', (a) => { if (a[6] && a[6].fxk === 'zap') inc('zap'); inc('chain'); inc('chain:' + (a[6] && a[6].color)); inc('chainN', a[3]); });
 wrap(Fusion, 'bulletAt', () => inc('bulletAt'));
 // 連携の札3枚（星と泡・白い乱反射・火花の泡）：効果が実際に起きた回数
 wrap(Fusion, 'starBubbles', () => inc('sbBub'));
@@ -205,7 +206,7 @@ const M = {
   fp_plasmachain: C => C.chainN || 0,
   fp_chakram: C => C.bulletAt || 0,
   fp_toxblade: C => C['field:gas'] || 0,
-  fp_voidblade: C => C.tentacleFx || 0,
+  fp_voidblade: C => C.riftStab || 0,
   fp_flameblade: C => C.lineHit || 0,
   fp_abyssnet: C => C.explode || 0,
   fp_thunderwhip: C => C['zone:twister'] || 0,
@@ -218,7 +219,7 @@ const M = {
   fp_carpet: C => C['zone:firewhirl'] || 0,
   fp_chainstrike: C => C.chain || 0,
   fp_stormcloud: C => C.chain || 0,
-  fp_resonator: C => C.chain || 0,
+  fp_resonator: C => C.zap || 0,   // 球の中の敵が基準（zaps 10）より多いときだけ増える。trial の敵を増やす（MN）
   fp_acidfoam: null,
   fp_toxmortar: C => C.lob || 0,
   fp_bubblegun: C => C.explode || 0,
@@ -226,14 +227,15 @@ const M = {
   fp_bubbleblade: C => C.lineHit || 0,
   fp_icebomb: C => C['zone:blizzard'] || 0,
 };
+const MN = { fp_resonator: 24 };      // 札の効き目が頭打ちにならない敵の数
 const REPS = 3, SECS = 10;
 for (const fid of FUSION_IDS) {
   const id = 'fp_' + fid, m = M[id];
   if (!m) continue;
   let off = 0, on = 0;
   for (let k = 0; k < REPS; k++) {
-    seedRng(100 + k); off += m(trial([fid], [], SECS));
-    seedRng(100 + k); on += m(trial([fid], [id], SECS));
+    seedRng(100 + k); off += m(trial([fid], [], SECS, { n: MN[id] }));
+    seedRng(100 + k); on += m(trial([fid], [id], SECS, { n: MN[id] }));
   }
   ok(on > off, id + ' 挙動が増えていない（札なし ' + off + ' / 札あり ' + on + '）');
   out.behavior[id] = { off, on };
