@@ -477,7 +477,7 @@ const UI = {
     // ボスを1体倒すたびに「あと何体」を出す（最後の1体は、そのまま突破の画面になる）
     if ((r.bossKills || 0) !== (this._bossKills || 0)) {
       this._bossKills = r.bossKills || 0;
-      const rest = r.enemies.filter(e => e.boss && !e.dead).length;
+      const rest = r.enemies.filter(e => e.boss && !e.mini && !e.dead).length;
       if (this._bossKills > 0 && rest > 0) this.cutinBossDown(rest);
     }
     // ラスボスを退けた／倒した（Combat.finalUpdate が run.retreatCut に積む・kill が run.finalKill を立てる）
@@ -1981,6 +1981,8 @@ const UI = {
       else if (t.poly) eff = chip('#ff8ad8', '無効が切り替わる', '約' + BAL.ascPolySec + '秒ごとに、無効の系統が ' + SYS_ORDER.map(s => '<span style="color:' + SI[s].color + '">' + SI[s].jp + '</span>').join('→') + ' の順に変わる。体の色・頭の上の印・まわりの輪（残り時間）で分かる');
       else if (t.zd) eff = chip('#ffd24a', '弱点以外は' + Math.round(BAL.ascZdOther * 100) + '%', '弱点の系統は章ごとに固定（第31章：' + SI[Asc.weakOf(30)].jp + '・第32章：' + SI[Asc.weakOf(31)].jp + '・第33章：' + SI[Asc.weakOf(32)].jp + '…）。頭の上の金の縁の印が弱点');
       else if (k === 'ransom') eff = chip('#ff6a5c', '気配：周りの敵が受けるダメージ ×' + BAL.ascRansomMul, '半径の点線の輪の中の敵（本体は対象外）。先に倒すか、輪の外から届かせる');
+      else if (t.sab === 'jam') eff = chip('#d36bff', '近くの' + BAL.ascJamN + '基を' + BAL.ascJamSec + '秒止める', '半径 ' + (BAL.ascJamR / TILE).toFixed(1) + 'マス（点線の輪）・' + BAL.ascJamCd + '秒ごと。合成武器は止まらない');
+      else if (t.sab === 'crush') eff = chip('#ff7a1a', '道の隣の武器を壊す', '約' + BAL.ascCrushTele + '秒の予告（赤い照準）のあと、その出撃のあいだ壊れたまま。1体につき' + BAL.ascCrushMax + '基まで。合成武器は壊せない');
       else if (k === 'trojan') eff = chip('#e0a640', '倒すと' + BAL.ascTrojanKids + '体こぼす', 'パケットが各 ×' + BAL.ascTrojanKidHp + '（本体は ×' + t.k + '）');
       const lvTxt = c.lv > 0 ? 'アセンション Lv' + c.lv + 'から' : 'アセンション（第31章）から';
       const row = Util.el('div', 'erow eup');

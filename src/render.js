@@ -2206,6 +2206,28 @@ const Render = {
       for (let i = 0; i <= n; i++) { const a = (i / n) * Math.PI * 2, rad = R * (0.86 + 0.2 * Math.sin(a * 3 + f * 1.7) + 0.1 * Math.cos(a * 2 - f)); const x = Math.cos(a) * rad, y = Math.sin(a) * rad; i ? c.lineTo(x, y) : c.moveTo(x, y); }
       c.closePath(); finish();
       eye(-R * 0.32, -R * 0.12, R * 0.17, R * 0.22, '#222'); eye(R * 0.32, -R * 0.12, R * 0.17, R * 0.22, '#222'); eye(0, R * 0.28, R * 0.12, R * 0.15, '#222');
+    } else if (name === 'jamsol') {
+      // ジャマー兵（妨害）：逆三角の小さな機体に、上へ伸びるアンテナと電波の弧。目は斜線の入った「止める」記号
+      c.beginPath(); c.moveTo(-R * 0.95, -R * 0.35); c.lineTo(R * 0.95, -R * 0.35); c.lineTo(R * 0.35, R * 0.85); c.lineTo(-R * 0.35, R * 0.85); c.closePath(); finish();
+      c.strokeStyle = dark; c.lineWidth = 3; c.beginPath(); c.moveTo(0, -R * 0.35); c.lineTo(0, -R * 1.05); c.stroke();
+      c.strokeStyle = '#f4e6ff'; c.lineWidth = 1.6; c.stroke();
+      c.fillStyle = '#fff'; c.beginPath(); c.arc(0, -R * 1.08, 2.2, 0, 7); c.fill();
+      c.save(); c.shadowColor = color; c.shadowBlur = 4; c.strokeStyle = '#f4e6ff'; c.lineWidth = 1.5;
+      for (let i = 0; i < 2; i++) { const rad = R * (0.42 + i * 0.3 + f * 0.1); c.beginPath(); c.arc(0, -R * 1.08, rad, -Math.PI * 0.85, -Math.PI * 0.15); c.stroke(); }
+      c.restore();
+      c.fillStyle = 'rgba(8,4,16,0.9)'; c.beginPath(); c.arc(0, R * 0.12, R * 0.34, 0, 7); c.fill();
+      c.strokeStyle = '#ff3b4a'; c.lineWidth = 2; c.beginPath(); c.arc(0, R * 0.12, R * 0.24, 0, 7); c.moveTo(-R * 0.17, R * 0.29); c.lineTo(R * 0.17, R * -0.05); c.stroke();
+    } else if (name === 'crusher') {
+      // クラッシャー（妨害）：前に2枚のあご（ギザギザの歯）を持つ、平たい重機。あごはコマで開け閉めする
+      rr(-R * 0.95, -R * 0.6, R * 1.6, R * 1.2, R * 0.2); finish();
+      c.fillStyle = 'rgba(0,0,0,0.5)'; for (let i = 0; i < 3; i++) c.fillRect(-R * 0.75 + i * R * 0.42, -R * 0.42, R * 0.2, R * 0.84);
+      const op = f ? 0.32 : 0.16;
+      for (const sy of [-1, 1]) {
+        c.beginPath(); c.moveTo(R * 0.6, sy * R * 0.15); c.lineTo(R * 1.25, sy * R * (0.15 + op)); c.lineTo(R * 1.25, sy * R * (0.6 + op)); c.lineTo(R * 0.6, sy * R * 0.62); c.closePath();
+        c.lineWidth = 3; c.strokeStyle = dark; c.stroke(); c.fillStyle = '#d9dde6'; c.fill();
+        c.fillStyle = '#2a2a30'; for (let k = 0; k < 3; k++) { const x = R * (0.7 + k * 0.18); c.beginPath(); c.moveTo(x, sy * R * (0.17 + op * k / 3)); c.lineTo(x + R * 0.09, sy * R * (0.32 + op * k / 3)); c.lineTo(x + R * 0.18, sy * R * (0.17 + op * k / 3)); c.fill(); }
+      }
+      eye(-R * 0.2, -R * 0.0, R * 0.16, R * 0.16, '#5a1a00');
     } else {   // zeroday
       // とげの輪（12本）と、大きな目（赤い縦の瞳孔）
       const n = 12; c.beginPath();
@@ -2242,6 +2264,29 @@ const Render = {
       for (const k in e.imm) badge(k, 'imm');
     } else if (e.weak) {
       badge(e.weak, 'weak');
+    }
+    if (e.sab) {
+      // 妨害役の印：体のまわりを回る黄と黒の警告の輪（どちらの妨害役も同じ）＋頭の上の記号
+      ctx.save(); ctx.lineWidth = 3; ctx.setLineDash([4, 4]);
+      ctx.lineDashOffset = -run.time * 18; ctx.strokeStyle = '#ffd24a'; ctx.beginPath(); ctx.arc(e.x, e.y, e.r + 5, 0, Math.PI * 2); ctx.stroke();
+      ctx.lineDashOffset = -run.time * 18 + 4; ctx.strokeStyle = '#111'; ctx.stroke(); ctx.restore();
+      ctx.beginPath(); ctx.arc(ox, oy, 7.5, 0, Math.PI * 2); ctx.fillStyle = 'rgba(8,10,16,0.88)'; ctx.fill();
+      ctx.lineWidth = 2; ctx.strokeStyle = '#ffd24a'; ctx.stroke();
+      ctx.fillStyle = e.color; ctx.font = 'bold 9px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(e.sab === 'jam' ? '止' : '壊', ox, oy + 0.5);
+      if (e.sab === 'jam') {   // 届く範囲（点線の輪）と、止めた武器へ伸びる線
+        ctx.save(); ctx.setLineDash([3, 7]); ctx.strokeStyle = 'rgba(211,107,255,0.45)'; ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(e.x, e.y, BAL.ascJamR, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+        if (e.jamArms && e.jamArmT > 0) {
+          ctx.save(); ctx.strokeStyle = 'rgba(230,170,255,' + Math.min(1, e.jamArmT * 2).toFixed(2) + ')'; ctx.lineWidth = 2.4; ctx.shadowColor = e.color; ctx.shadowBlur = 6;
+          ctx.beginPath(); for (const w of e.jamArms) { ctx.moveTo(e.x, e.y); ctx.lineTo(w.x, w.y); } ctx.stroke(); ctx.restore();
+        }
+      } else if (e.crushTg) {   // 狙った武器への予告：赤い線と、縮んでいく照準
+        const w = e.crushTg, k = Util.clamp((e.crushT || 0) / BAL.ascCrushTele, 0, 1);
+        ctx.save(); ctx.strokeStyle = 'rgba(255,122,26,0.9)'; ctx.lineWidth = 2; ctx.setLineDash([6, 4]);
+        ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(w.x, w.y); ctx.stroke(); ctx.setLineDash([]);
+        ctx.strokeStyle = '#ff3b4a'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(w.x, w.y, 14 + 22 * k, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+      }
     }
     if (e.aura) {   // ランサムウェアの気配：ゆっくり脈打つ点線の輪
       const R0 = BAL.ascRansomR, p = 0.5 + 0.5 * Math.sin(run.time * 3);

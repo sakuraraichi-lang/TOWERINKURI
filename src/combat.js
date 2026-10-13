@@ -92,6 +92,11 @@ const UPPER_TYPES = {
     desc: '姿を変え続ける。数秒ごとに、無効になる系統が 物理→光学→属性→場 の順で切り替わる（体の色と輪で分かる）。', want: '系統を散らした混成' },
   zeroday:   { name: 'zeroday', up: true, hp: 1500, spd: 0.45, r: 24, coin: 1000, color: '#ff3d5a', jp: 'ゼロデイ', en: 'ZERO-DAY', zd: true,
     desc: 'とても硬く遅い。弱点の系統（章ごとに固定・頭の上の印）のほかは、ダメージが半分しか通らない。', want: '弱点の系統をそろえる' },
+  // 妨害の敵（2026-10-13・ユーザー）。合成武器には効かない（Combat.cannotJam）。掴み・足止めで止まっている間は妨害しない
+  jamsol:    { name: 'jamsol', up: true, hp: 60, spd: 1.10, r: 13, coin: 40, color: '#d36bff', jp: 'ジャマー兵', en: 'JAMMER UNIT', sab: 'jam',
+    desc: '通りすがりに、近くの武器を数秒止める（点線の輪が届く範囲）。合成武器は止まらない。', want: '輪の外から撃つ・先に倒す・合成武器を前に' },
+  crusher:   { name: 'crusher', up: true, hp: 120, spd: 0.65, r: 15, coin: 80, color: '#ff7a1a', jp: 'クラッシャー', en: 'CRUSHER', sab: 'crush',
+    desc: '通り道の隣の武器に狙いを付け、少しの予告のあと、その出撃のあいだ壊す。合成武器は壊せない。', want: '予告のうちに倒す・掴んで止める・道から1マス離す' },
 };
 // k＝雑魚何体ぶんを置き換えるか（数の圧縮）。2026-10-07 ユーザー：HP だけ ×1.5（100→150・300→450・1000→1500）、**圧縮ではなく強化**なので k は元のまま
 for (const k in UPPER_TYPES) UPPER_TYPES[k].k = Math.round(UPPER_TYPES[k].hp / 1.5);
@@ -330,12 +335,20 @@ const Combat = {
       const m = mouths[mi];
       const si = m[(m.length / 2) | 0];          // 穴の真ん中から
       const bk = this.bossKindFor(ch, mi);
+      run.enemies.push(this.bossOne(run, bk, si, base * BAL.bossHp * ((BAL.bossHpBy || {})[run.stageIdx + 1] || 1) * (BAL.bossHpKind[bk] || 1), 1));
+    }
+    run.hasBoss = true;
+  },
+  // ボス1体（ワームは体の鎖も run.enemies に積む・頭は返すだけ）。sc＝縮小版の倍（1＝本来のボス・ascMiniR で小さく）
+  bossOne(run, bk, si, hp, sc) {
+    const st = run.stage, t = ENEMY_TYPES.grunt, g = this.gw(run);
+    {   // （spawnBoss のループの中身をそのまま切り出した）
       const sp = st.spawns[si];
       const p = st.center(sp.c, sp.r);
-      const e = this.makeEnemy(run, t, g, p.x, p.y, si, base * BAL.bossHp * ((BAL.bossHpBy || {})[run.stageIdx + 1] || 1) * (BAL.bossHpKind[bk] || 1));
+      const e = this.makeEnemy(run, t, g, p.x, p.y, si, hp);
       e.lane = this.pickLane(run, si);
       e.spd = BAL.bossSpeed;
-      e.r = BAL.bossRKind[bk] || BAL.bossR;
+      e.r = (BAL.bossRKind[bk] || BAL.bossR) * sc;
       e.color = this.BOSS_KIND[bk].col;
       e.tname = 'boss';
       e.boss = true;
@@ -349,10 +362,87 @@ const Combat = {
       e.tele = null;                             // 予告中：{ kind, t, by }
       e.wallT = 0; e.wallBy = null;              // 防壁：残り秒・半分になる武器の id
       e.rec = {};                                // 直近にいちばん削った武器を見るための、時間で薄れる合計
-      if (bk === 'worm') this.spawnChain(run, e, BAL.wormBodyN, e.r * BAL.wormBodyR, BAL.wormBodyTaper, base * BAL.bossHp * ((BAL.bossHpBy || {})[run.stageIdx + 1] || 1) * (BAL.bossHpKind[bk] || 1), si);
-      run.enemies.push(e);
+      if (bk === 'worm') this.spawnChain(run, e, BAL.wormBodyN, e.r * BAL.wormBodyR, BAL.wormBodyTaper, hp, si);
+      return e;
     }
-    run.hasBoss = true;
+  },
+
+  // ===== かつてのボスが雑魚に混ざる（アセンション・2026-10-13 ユーザー・BAL.ascMini*） =====
+  //   ボスのウェーブ以外のアセンションのウェーブに、ワーム・ルートキット・ジャマーの縮小版を ascMini 体。湧きの途中に等間隔で差し込む（miniTick）。
+  //   仕掛けは本来どおり（bossPhaseUpdate）。e.mini：コアに着いても即負けにせず、上位の敵と同じ重いライフ・節目の帯（phaseCut）とボス撃破の数（bossKills）には数えない
+  miniCount(run) {
+    if (!BAL.ascMiniOn || run.stageIdx < MAIN_CHAPTERS || this.isBossWave(run)) return 0;
+    return Util.clamp(Math.round(BAL.ascMiniN0 + BAL.ascMiniPerLv * Asc.lv(Game.perm)), 1, BAL.ascMiniMax);
+  },
+  miniPlan(run) {
+    const n = this.miniCount(run), T = run.waveTotal || 0;
+    run.miniAt = [];
+    for (let i = 0; i < n; i++) run.miniAt.push(Math.floor(T * (1 - (i + 0.3) / n)));   // 残りの数がこれを切ったら1体
+  },
+  miniTick(run) {
+    while (run.miniAt && run.miniAt.length && run.toSpawn <= run.miniAt[0]) { run.miniAt.shift(); this.spawnMini(run); }
+  },
+  spawnMini(run, bk, si) {
+    const st = run.stage;
+    if (!bk) { const K = BAL.bossKinds; bk = K[(run.miniSeq = (run.miniSeq || 0) + 1) % K.length]; }
+    if (si === undefined) {
+      const mouths = (st.mouths && st.mouths.length) ? st.mouths : st.spawns.map((s, i) => [i]);
+      const m = mouths[(Math.random() * mouths.length) | 0];
+      si = m[(m.length / 2) | 0];
+    }
+    const base = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, this.gw(run) - 1) * Math.pow(BAL.stageHpMul, run.stageIdx) * this.chapterWeight(run);
+    const e = this.bossOne(run, bk, si, base * BAL.bossHp * (BAL.bossHpKind[bk] || 1) * BAL.ascMiniHp, BAL.ascMiniR);
+    e.mini = true; e.tname = 'mini_' + bk;       // 漏れの内訳（leakBy）で本来のボスと分ける
+    e.spd = BAL.bossSpeed * BAL.ascMiniSpd;
+    e.coin *= BAL.ascMiniHp;
+    e.leakLives = Math.max(BAL.leakLives, Math.round(BAL.bossHp * BAL.ascMiniHp * BAL.ascUpperLeakK));
+    run.enemies.push(e);
+    run.miniN = (run.miniN || 0) + 1;
+    run.miniBy = run.miniBy || {}; run.miniBy[bk] = (run.miniBy[bk] || 0) + 1;
+    return e;
+  },
+
+  // ===== 妨害の敵（ジャマー兵・クラッシャー・2026-10-13 ユーザー・BAL.ascJam*・ascCrush*） =====
+  //   狙いは Combat.cannotJam を通す（合成武器は選ばない）。掴み・足止めの間と、湧き口のバリアの中では何もしない
+  //   run.sab = { jam: 止めた回数, crush: 壊した数, fuse: 合成武器に掛かった数（0のはず） }
+  sabTick(run, e, dt) {
+    if (e.jamArmT > 0 && (e.jamArmT -= dt) <= 0) e.jamArms = null;
+    if (e.stun > 0 || e.grabT > 0 || this.inShield(run, e)) { if (e.crushTg) e.crushT = BAL.ascCrushTele; return; }
+    const S = run.sab || (run.sab = { jam: 0, crush: 0, fuse: 0 });
+    const near = (R) => run.units.filter(w => !w.broken && !this.cannotJam(w) && Util.dist(e.x, e.y, w.x, w.y) <= R)
+      .map(w => ({ w, d: Util.dist(e.x, e.y, w.x, w.y) })).sort((p, q) => p.d - q.d).map(o => o.w);
+    if (e.sab === 'jam') {
+      if ((e.sabCd = (e.sabCd || 0) - dt) > 0) return;
+      const tg = near(BAL.ascJamR).filter(w => !(w.jamT > 0)).slice(0, BAL.ascJamN);
+      if (!tg.length) { e.sabCd = 0.25; return; }
+      e.sabCd = BAL.ascJamCd;
+      for (const w of tg) {
+        if (w.fuse) S.fuse++;
+        w.jamT = Math.max(w.jamT || 0, BAL.ascJamSec); S.jam++;
+        this.fx(run, { type: 'ring', x: w.x, y: w.y, r: 30, color: e.color, life: 0.4 });
+      }
+      e.jamArms = tg; e.jamArmT = 0.6;
+      this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 2.6, color: e.color, life: 0.4 });
+    } else if (e.sab === 'crush') {
+      if ((e.crushN || 0) >= BAL.ascCrushMax) return;
+      const w = e.crushTg;
+      if (w) {
+        if (w.broken || this.cannotJam(w) || !run.units.includes(w) || Util.dist(e.x, e.y, w.x, w.y) > BAL.ascCrushR * 1.8) { e.crushTg = null; return; }
+        if ((e.crushT -= dt) > 0) return;
+        if (w.fuse) S.fuse++;
+        w.broken = true; w.jamT = 0; w.target = null;
+        run.broken = (run.broken || 0) + 1; S.crush++;
+        e.crushN = (e.crushN || 0) + 1; e.crushTg = null;
+        this.fx(run, { type: 'boom', x: w.x, y: w.y, r: 40, color: e.color, life: 0.45 });
+        this.fx(run, { type: 'ring', x: w.x, y: w.y, r: 54, color: '#fff3c8', life: 0.5 });
+        this.shake(run, 5, true);
+        return;
+      }
+      if ((e.sabCd = (e.sabCd || 0) - dt) > 0) return;
+      e.sabCd = 0.2;
+      const t = near(BAL.ascCrushR)[0];
+      if (t) { e.crushTg = t; e.crushT = BAL.ascCrushTele; this.fx(run, { type: 'ring', x: t.x, y: t.y, r: 34, color: e.color, life: BAL.ascCrushTele }); }
+    }
   },
 
   // ===== 体の鎖（ワームとラスボスで共通）=====
@@ -552,8 +642,8 @@ const Combat = {
       e.tele = { kind, t: BAL.bossPhaseTele, by, targets: kind === 'jam' ? this.jamTargets(run, e) : null };
       e.ph++;
       this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 4, color: this.BOSS_COL[kind], life: BAL.bossPhaseTele });
-      // 画面側（UI.renderHud）が見て帯を出す。新しい予告は新しいオブジェクト
-      run.phaseCut = { n: (run.phaseCut ? run.phaseCut.n : 0) + 1, no: e.ph, kind, by, bk: e.bk };
+      // 画面側（UI.renderHud）が見て帯を出す。新しい予告は新しいオブジェクト。縮小版（e.mini）は帯を出さない（雑魚に混ざって何体も出るので、輪の予告だけ）
+      if (!e.mini) run.phaseCut = { n: (run.phaseCut ? run.phaseCut.n : 0) + 1, no: e.ph, kind, by, bk: e.bk };
     }
   },
   // ジャマーの腕の行き先：ジャマーから最も近い BAL.bossJamMax 基（距離は問わない・盤の上の全部の武器から近い順）
@@ -599,6 +689,7 @@ const Combat = {
     // 穴の切り替え。**ウェーブごとに違う穴から始める**ので、同じ絵にならない
     run.mouthLeft = 0;
     run.hasBoss = false;
+    this.miniPlan(run);                        // アセンション：かつてのボスの縮小版を湧きの途中に差し込む予定
     if (this.isFinalChapter(run)) this.spawnFinal(run);
     else if (this.isBossWave(run)) this.spawnBoss(run);
   },
@@ -683,6 +774,7 @@ const Combat = {
     if (t.poly) { e.poly = true; e.polyI = (run.polySeq = (run.polySeq || 0) + 1) % SYS_ORDER.length; e.polyT = BAL.ascPolySec * (0.5 + 0.5 * Math.random()); }
     if (t.zd) e.weak = Asc.weakOf(run.stageIdx);
     if (t.name === 'ransom') { e.aura = true; e.auraCd = 0; }
+    if (t.sab) { e.sab = t.sab; e.sabCd = 0; }      // 妨害（ジャマー兵・クラッシャー）
     e.auraT = 0; e.immT = 0;
   },
 
@@ -993,6 +1085,7 @@ const Combat = {
 
   // 上位の敵が毎フレームすること：ポリモーフの切り替え・ランサムウェアの気配
   upperTick(run, e, dt) {
+    if (e.sab) this.sabTick(run, e, dt);
     if (e.poly) {
       e.polyT -= dt;
       if (e.polyT <= 0) {
@@ -1035,7 +1128,13 @@ const Combat = {
   kill(run, e, opts) {
     e.dead = true;
     // **ボスを倒した。**大きく弾けて揺れる。数は画面側（UI.renderHud）が見てカットインを出す
-    if (e.boss) {
+    if (e.boss && e.mini) {
+      // かつてのボスの縮小版（アセンション）：ボス撃破の数には数えない・揺れは小さく
+      run.miniKills = (run.miniKills || 0) + 1;
+      this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 4, color: e.color, life: 0.5 });
+      this.fx(run, { type: 'ring', x: e.x, y: e.y, r: e.r * 5, color: '#fff3c8', life: 0.45 });
+      this.shake(run, 6, true);
+    } else if (e.boss) {
       run.bossKills = (run.bossKills || 0) + 1;
       this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 5, color: '#ff4d6a', life: 0.6 });
       this.fx(run, { type: 'boom', x: e.x, y: e.y, r: e.r * 3, color: '#fff3c8', life: 0.4 });
@@ -1787,6 +1886,7 @@ const Combat = {
         if (run.enemies.length >= BAL.enemyCap) break;
         this.spawnEnemy(run);
         run.toSpawn--;
+        this.miniTick(run);
         run.spawnTimer += this.spawnInterval(run);
       }
       if (run.toSpawn <= 0) run.phase = 'clear';
@@ -1986,7 +2086,7 @@ const Combat = {
       // コアに触れた敵は、ライフを1つ持っていって消える（＝漏れ）。**コアが2つ以上なら、どれに触れても同じライフ**
       if ((run.towers || [tw]).some(T => Util.dist(e.x, e.y, T.x, T.y) <= T.r + e.r)) {
         // **ボスがコアに着いたら、その場で負け**（残りのライフを全部持っていく・2026-09-28 ユーザー「倒せなかった場合強制的に敗北」）
-        const cost = e.boss ? Math.max(run.lives, BAL.leakLives) : e.upper ? Math.max(BAL.leakLives, Math.round(e.k * BAL.ascUpperLeakK)) : BAL.leakLives;
+        const cost = e.mini ? e.leakLives : e.boss ? Math.max(run.lives, BAL.leakLives) : e.upper ? Math.max(BAL.leakLives, Math.round(e.k * BAL.ascUpperLeakK)) : BAL.leakLives;
         run.lives -= cost;
         run.leaked++;
         run.livesLost += cost;
