@@ -824,37 +824,76 @@ const FUSIONS = {
     },
   },
 
-  // 11 凍結＋火炎：相反の渦。氷の放射と炎の放射が背中合わせに吹き続けながら回る（2026-10-13 fx2：ユーザー「根本から表現方法を変えて」「火炎放射器が元のものは出しっぱで」）
-  //   回る向きは run.time で決める（撃つ回数で回すと、フレームの刻みで速さが変わる）。氷が掛けた凍結に炎が掛かると熱衝撃で砕ける
+  // 11 凍結＋火炎：相反の渦。砲台を中心に、射程いっぱいの地面に広がる渦（2026-10-13 fx3：ユーザー「渦の表現は出来ないのか？これでは壊れたスプリンクラーみたい」）
+  //   氷の腕と炎の腕（根元が太く先が細る帯）がゆっくり回る。腕の形は arm()／armOff() の1つの式で、絵（fusionfx/fx-elem.js）と当たりが同じものを使う。
+  //   回る向きは run.time で決める（撃つ回数で回すと、フレームの刻みで速さが変わる）。渦の中の敵は回る向きへ流されながら中心へ寄る。
+  //   氷の腕が掛けた凍結に炎の腕が掛かると熱衝撃で砕ける（fp_vortex で威力が増える）。中心の目では周期的に蒸気が爆ぜる。範囲に敵が居ないときは渦を出さない
   vortex: {
     id: 'vortex', a: 'cryo', b: 'flame', name: '相反の渦', short: 'VTX', color: '#ff9ad0',
-    role: '凍結の広い範囲のまま', desc: '氷と炎を背中合わせに吹きながら回る。凍った敵に炎が掛かると砕ける',
+    role: '凍結の広い範囲のまま', desc: '氷と炎の渦が敵を巻き込んで中心へ寄せる。凍った敵は炎の腕で砕け、中心で蒸気が爆ぜる',
+    // 腕 k（0＝氷・1＝炎）の、中心からの割合 q（0〜1）での向き。外ほど回る向きの逆へ遅れる（後ろへ巻く渦の腕）
+    arm(P, base, k, q) { return base + k * Math.PI - P.twist * q; },
+    // 腕の幅（px・根元 wRoot から先 wTip へ細る）
+    armW(P, q) { return P.wRoot + (P.wTip - P.wRoot) * q; },
+    // 点（中心から d・向き ang）が腕 k の中心線からどれだけ離れているか（px・腕に直角な向きで測る）
+    armOff(P, base, k, ang, d, R) {
+      const q = Math.min(1, d / R), m = q * P.twist;
+      let da = ang - this.arm(P, base, k, q);
+      da -= Math.round(da / (Math.PI * 2)) * Math.PI * 2;
+      return Math.abs(da) * d / Math.sqrt(1 + m * m);
+    },
+    base(w, run) { return w.fxA0 + run.time * Fusion.p(w).spin; },
     fire(w, run) {
-      const P = Fusion.p(w), F = Fusion.fc(w), KS = BAL.fusionCards.fl_shatter, shK = P.shatter + (F.shatter || 0);
+      const V = FUSIONS.vortex, P = Fusion.p(w), F = Fusion.fc(w), KS = BAL.fusionCards.fl_shatter, shK = P.shatter + (F.shatter || 0), R = w.s.range;
+      const foes = Fusion.enemiesIn(w.x, w.y, R);
+      if (!foes.length) return false;
       const sh = Fusion.link(w, run, 'burst', 'icefoam');
       if (w.fxA0 === undefined) w.fxA0 = Math.random() * Math.PI * 2;
-      const ai = w.fxA0 + run.time * P.spin, af = ai + Math.PI, R = w.s.range;
-      // 炎の側：先に熱衝撃を見る（氷の側が前に通って凍らせた敵）。砕けたら凍結は解ける（次に氷が通ればまた凍る）
-      for (const e of Fusion.coneEnemies(w, af, P.arc, R)) {
+      // 渦が立ち上がった時刻（絵が腕を伸ばす）。途切れたら（0.5秒より空いた・出撃が変わった）立ち上げ直す
+      if (w.vxOn === undefined || run.time < w.vxOn || run.time - w.vxOn > 0.5) { w.vxS = run.time; w.vxEye = run.time + P.eyeFirst; w.vxOn = run.time; }
+      const dt = Math.min(0.25, run.time - w.vxOn) || 1 / w.s.rate;
+      w.vxOn = run.time;
+      const base = V.base(w, run), crit = { crit: w.s.crit, critMul: w.s.critMul };
+      const ice = Object.assign({ color: '#bff0ff', slow: w.s.slow, slowDur: w.s.slowDur, chill: true }, crit);
+      const fire = Object.assign({ color: '#ffb066', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur }, crit);
+      for (const e of foes) {
         if (e.dead) continue;
-        if (e.chill > 0 && !(e.fshT > run.time)) {
-          e.fshT = run.time + P.cool; e.chill = 0;
-          Combat.explode(run, e.x, e.y, P.shR, w.s.dmg * shK, { color: '#ffffff' });
-          Fusion.fx(run, { k: 'vtxshock', x: e.x, y: e.y, r: P.shR, life: 0.6, seed: (e.id || 0) % 97 });
-        }
+        const dx = e.x - w.x, dy = e.y - w.y, d = Math.hypot(dx, dy), ang = Math.atan2(dy, dx), q = Math.min(1, d / R);
+        const half = V.armW(P, q) * 0.5 + e.r * 0.5;
+        const inIce = V.armOff(P, base, 0, ang, d, R) <= half, inFire = V.armOff(P, base, 1, ang, d, R) <= half;
         // 凍泡炸裂（fl_shatter）：永久凍土の凍った泡に包まれている敵は、渦に入ると爆ぜる
         if (sh && e.fcage > run.time) {
           e.fcage = 0;
           Combat.explode(run, e.x, e.y, KS.r, w.s.dmg * sh, { color: '#bff0ff', chill: true });
           Fusion.fx(run, { k: 'vtxshock', x: e.x, y: e.y, r: KS.r, life: 0.6, seed: 7 });
+          if (e.dead) continue;
+        }
+        if (inFire) {
+          // 熱衝撃：氷の腕が前に通って凍らせた敵。砕けたら凍結は解ける（次に氷の腕が通ればまた凍る）
+          if (e.chill > 0 && !(e.fshT > run.time)) {
+            e.fshT = run.time + P.cool; e.chill = 0;
+            Combat.explode(run, e.x, e.y, P.shR, w.s.dmg * shK, { color: '#ffffff' });
+            Fusion.fx(run, { k: 'vtxshock', x: e.x, y: e.y, r: P.shR, life: 0.6, seed: (e.id || 0) % 97 });
+          }
+          if (!e.dead) Combat.damage(run, e, w.s.dmg, (w.flags.frostCrit && e.chill > 0) ? Object.assign({ forceCrit: true }, fire) : fire);
+        }
+        if (inIce && !e.dead) Combat.damage(run, e, w.s.dmg, (w.flags.frostCrit && e.chill > 0) ? Object.assign({ forceCrit: true }, ice) : ice);
+        // 渦の流れ：回る向きへ流されながら中心へ寄る。ボスは動かさない・壁の中へは入れない・止める効果と同じ合計の上限で打ち止め
+        if (!e.dead && !e.boss && !e.noPush && d > 8 && (e.ccUsed || 0) < BAL.ccMaxSec) {
+          const hv = ((e.res && e.res.heavy) ? BAL.resMul : 1) * Combat.ccK(e) * dt;
+          const ux = dx / d, uy = dy / d, ix = -ux * Math.min(P.pull * hv, d - 4), iy = -uy * Math.min(P.pull * hv, d - 4);
+          const nx = e.x - uy * P.swirl * hv + ix, ny = e.y + ux * P.swirl * hv + iy;
+          if (run.stage.walkable((nx / TILE) | 0, (ny / TILE) | 0)) { e.x = nx; e.y = ny; }
+          else if (run.stage.walkable(((e.x + ix) / TILE) | 0, ((e.y + iy) / TILE) | 0)) { e.x += ix; e.y += iy; }
         }
       }
-      Combat.coneDamage(w, run, af, P.arc, R, w.s.dmg, { color: '#ffb066', burn: w.s.dmg * w.s.burn, burnDur: w.s.burnDur, crit: w.s.crit, critMul: w.s.critMul });
-      Combat.coneDamage(w, run, ai, P.arc, R, w.s.dmg, { color: '#bff0ff', slow: w.s.slow, slowDur: w.s.slowDur, chill: true, crit: w.s.crit, critMul: w.s.critMul });
-      // 絵（fusionfx/fx-elem.js）：氷と炎の2枚。毎秒 rate 枚ずつ、回りながら重なって、途切れない放射の帯になる
-      const seed = (w.shots * 37) % 1000;
-      Fusion.fx(run, { k: 'vtxjet', x: w.x, y: w.y, a: ai, arc: P.arc, r: R, life: P.jetLife, seed, ice: 1 });
-      Fusion.fx(run, { k: 'vtxjet', x: w.x, y: w.y, a: af, arc: P.arc, r: R, life: P.jetLife, seed: seed + 500, ice: 0 });
+      // 中心の目：氷と炎がぶつかって蒸気が爆ぜる（熱衝撃）
+      if (run.time >= w.vxEye) {
+        w.vxEye = run.time + P.eyeEvery;
+        Combat.explode(run, w.x, w.y, P.eyeR, w.s.dmg * P.eyeMul, { color: '#ffffff' });
+        Fusion.fx(run, { k: 'vtxeye', x: w.x, y: w.y, r: P.eyeR, life: 0.7, seed: (w.shots * 7) % 97 });
+      }
+      // 渦そのものの絵は fusionfx/fx-elem.js の ground（毎フレーム・w.vxS／w.vxOn と run.time で描く）
     },
   },
 
