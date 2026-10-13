@@ -1088,9 +1088,9 @@ BAL.fusion = {
   // 2 ガトリング＋テスラ（5）プラズマチェーン
   plasmachain: { stat: { dmg: 10, rate: 8, range: 215, speed: 380, pierce: 2, spread: 0.22, chain: 2, chainFalloff: 0.8, shockDur: 0.8 }, p: { chainMul: 0.6, linkMax: 120, linkHalf: 10, linkMul: 0.6 } },   // 2026-10-13：撃った弾どうしが電撃の線でつながり、線に触れた敵へ刻む（linkMax 以内の前後の弾）
   // 3 手裏剣＋刀（6）円環刃
-  chakram: { stat: { dmg: 100, rate: 2.2, range: 340, speed: 560, bulletR: 14, bounce: 0, pierce: 99 }, p: { backMul: 1, spin: 0.9, spinR: 44, spinTick: 0.1, spinDps: 10 } },   // 2026-10-13：全部貫通・いちばん遠い所で spin 秒その場で回って刻む（spinTick ごと・1回 dmg×spinDps×spinTick）→戻り道でも全部斬る
+  chakram: { stat: { dmg: 130, rate: 1.6, range: 340, speed: 560, bulletR: 22, bounce: 0, pierce: 99 }, p: { rings: 3, fan: 0.2, backMul: 1, spin: 1.2, spinR: 64, spinTick: 0.1, spinDps: 10, cutEvery: 0.15 } },   // 2026-10-13 第2版：大きな輪を3枚、扇に投げる・全部貫通・いちばん遠い所で輪が spinR まで広がって spin 秒回って刻む（spinTick ごと・1回 dmg×spinDps×spinTick）→戻り道でも全部斬る
   // 4 手裏剣＋毒ガス（5）悪魔の流れ星
-  toxblade: { stat: { dmg: 30, rate: 2, range: 240, speed: 500, bulletR: 5.5, bounce: 7 }, p: { trailW: 11, trailDur: 1.6, trailDps: 0.6, chance: 0.7, cloudR: 46, cloudDur: 3, cloudDps: 0.35, slow: 0.1, vuln: 0.1 } },
+  toxblade: { stat: { dmg: 45, rate: 2, range: 240, speed: 520, bulletR: 18, bounce: 10 }, p: { trailW: 18, trailDur: 2.4, trailTick: 0.2, trailDps: 1.2, burstR: 52, burstMul: 0.8, chance: 0.7, cloudR: 56, cloudDur: 3, cloudDps: 0.35, slow: 0.1, vuln: 0.1 } },   // 2026-10-13 第2版：大きな流れ星（当たりの半径18）が10回跳ね、跳ねるたび毒の爆発（burstR・dmg×burstMul）・通った跡に太い毒の筋
   // 5 刀＋触手（8）異界の剣
   voidblade: { stat: { dmg: 220, rate: 1, range: 168, crit: 0.2, critMul: 2.5 }, p: { tilt: 0.1, dist: 92, len: 115, wid: 360, dur: 2.6, tick: 0.15, dps: 0.6, slow: 0.4, stabs: 3, stabEvery: 0.25, stabMul: 0.5 } },   // 2026-10-13 性能：大斬撃のあと、裂け目で触手が何度も突く
   // 6 刀＋火炎（8）フランベルジュ：8連の滅多斬り（扇に広がる・gap 秒ずつずらす）→十字の大斬り＋炎の爆発・斬った跡が燃える線（2026-10-13）

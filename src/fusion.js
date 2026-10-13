@@ -352,18 +352,25 @@ const FUSIONS = {
   // 3 手裏剣＋刀：跳ね回ったあと持ち主へ戻り、帰り道でもう一度斬る刃
   chakram: {
     id: 'chakram', a: 'shuriken', b: 'katana', name: '円環刃', short: 'CHK', color: '#e6f0ff',
-    role: '一直線と、いちばん遠い所', desc: '全部貫いて飛び、遠くで回って刻み、帰りも斬る輪',
-    // 2026-10-13：全部貫通して飛ぶ → いちばん遠い所（射程の端・壁）で spin 秒その場で回って刻む → 戻り道でもう一度全部斬る
+    role: '一直線と、いちばん遠い所', desc: '大きな輪を3枚投げ、遠くで広がって回って刻み、帰りも斬る',
+    // 2026-10-13 第2版：大きな輪を rings 枚、扇に投げる（全部貫通）→ いちばん遠い所（射程の端・壁）で輪が spinR まで広がり、spin 秒その場で回って刻む → 戻り道でもう一度全部斬る
     fire(w, run) {
       const P = Fusion.p(w), F = Fusion.fc(w), KT = BAL.fusionCards.fl_trail;
       const trail = Fusion.link(w, run, 'trail', 'flameblade');
       const cut = (rr, b, e) => Fusion.fx(rr, { k: 'chakcut', x: e.x, y: e.y, a: Math.atan2(b.vy, b.vx) + 2.0, life: 0.32, seed: ((e.x * 3 + e.y) | 0) % 97 });
-      for (let i = 0; i < w.n; i++) {
-        const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n : 1);
+      const rings = Math.max(1, Math.round(P.rings || 1)) * Math.max(1, Math.round(w.n || 1));
+      for (let i = 0; i < rings; i++) {
+        const a = w.angle + (i - (rings - 1) / 2) * P.fan + Util.rand(-w.s.spread, w.s.spread);
         const back = (rr, b0) => {
           if (b0.child) return;
           const b = { x: b0.x, y: b0.y };
-          Fusion.zone(rr, { kind: 'chakspin', x: b.x, y: b.y, r: P.spinR, dur: P.spin, tick: P.spinTick, dps: w.s.dmg * P.spinDps, color: '#e6f0ff', dcolor: '#e6f0ff' });
+          const z = { kind: 'chakspin', x: b.x, y: b.y, r: P.spinR, dur: P.spin, tick: P.spinTick, dps: w.s.dmg * P.spinDps, color: '#e6f0ff', dcolor: '#e6f0ff', seed: i };
+          // 刻んでいる敵に切り傷を出す（絵だけ。当たりは上の tick が入れている）
+          z.pulse = { every: P.cutEvery, fn: (r3, zz) => {
+            const l = Fusion.enemiesIn(zz.x, zz.y, zz.r);
+            for (let k = 0; k < l.length && k < 3; k++) Fusion.fx(r3, { k: 'chakcut', x: l[k].x, y: l[k].y, a: zz.t * 9 + k * 2.1, life: 0.26, seed: ((l[k].x * 3 + k) | 0) % 97 });
+          } };
+          Fusion.zone(rr, z);
           Fusion.later(rr, P.spin, () => ret(rr, b));
         };
         const ret = (rr, b) => {
@@ -382,32 +389,34 @@ const FUSIONS = {
             }
           }
         };
-        Combat.spawnBullet(w, run, a, { color: '#e6f0ff', fx: 'chakram', pierce: 99, bounce: 0, onHit: cut, onEnd: back });
+        Combat.spawnBullet(w, run, a, { color: '#e6f0ff', fx: 'chakram', pierce: 99, bounce: 0, bulletR: w.s.bulletR, onHit: cut, onEnd: back });
         const nb = run.bullets[run.bullets.length - 1];
         if (nb && nb.src === w) nb.range = w.s.range;      // 射程の端（いちばん遠い所）で回る
       }
-      Fusion.fx(run, { k: 'chakthrow', x: w.x + Math.cos(w.angle) * 20, y: w.y + Math.sin(w.angle) * 20, a: w.angle, life: 0.14 });
+      Fusion.fx(run, { k: 'chakthrow', x: w.x + Math.cos(w.angle) * 22, y: w.y + Math.sin(w.angle) * 22, a: w.angle, fan: P.fan * (rings - 1) / 2, life: 0.18 });
     },
   },
 
-  // 4 手裏剣＋毒ガス：悪魔の流れ星。大きく跳ね回り（7回）、通った跡に毒の尾の筋が残って刻む。当たった所に毒の雲（2026-10-13）
+  // 4 手裏剣＋毒ガス：悪魔の流れ星。大きな流れ星が跳ね回り（10回）、跳ねるたび毒の爆発、通った跡に太い毒の尾の筋が残って刻む。当たった所に毒の雲（2026-10-13 第2版）
   toxblade: {
     id: 'toxblade', a: 'shuriken', b: 'gas', name: '悪魔の流れ星', short: 'DMS', color: '#a8e05a',
-    role: '通路の長い区間', desc: '跳ね回り、通った跡に毒の筋を残す',
+    role: '通路の長い区間', desc: '大きな流れ星が跳ね回り、跳ねるたび毒が弾け、通った跡に毒の筋を残す',
     fire(w, run) {
       const P = Fusion.p(w), F = Fusion.fc(w);
       for (let i = 0; i < w.n; i++) {
         const a = w.angle + Util.rand(-w.s.spread, w.s.spread) * (w.n > 1 ? w.n : 1);
         Combat.spawnBullet(w, run, a, {
-          color: '#a8e05a', fx: 'devilstar',
+          color: '#a8e05a', fx: 'devilstar', bulletR: w.s.bulletR,
           onHit: (rr, b, e) => {
             // 毒の尾の筋：跳ねる前の点から当たった所まで（帯の場・刻む）
             const L = Util.dist(b.ox, b.oy, b.x, b.y);
-            if (L > 16) Fusion.zone(rr, { kind: 'toxtrail', shape: 'rect', x: (b.ox + b.x) / 2, y: (b.oy + b.y) / 2, a: Math.atan2(b.y - b.oy, b.x - b.ox), hw: L / 2, hh: P.trailW, dur: P.trailDur, tick: 0.25, dps: b.dmg * P.trailDps, color: '#8fd94a', dcolor: '#c8ff6a' });
+            if (L > 16) Fusion.zone(rr, { kind: 'toxtrail', shape: 'rect', x: (b.ox + b.x) / 2, y: (b.oy + b.y) / 2, a: Math.atan2(b.y - b.oy, b.x - b.ox), hw: L / 2, hh: P.trailW, dur: P.trailDur, tick: P.trailTick, dps: b.dmg * P.trailDps, color: '#8fd94a', dcolor: '#c8ff6a' });
+            // 跳ねるたびの毒の爆発（当たった所・半径 burstR）。絵は toxhit の緑の衝撃波（同じ半径）
+            for (const o of Fusion.enemiesIn(e.x, e.y, P.burstR)) if (o !== e) Combat.damage(rr, o, b.dmg * P.burstMul, { color: '#c8ff6a' });
             // 猛毒の尾（fp_toxblade）：雲が必ず出て、毒が強く、雲が広がる
             const cloud = F.sure || Math.random() < P.chance, cr = P.cloudR + (F.dr || 0);
             if (cloud) Combat.spawnField(rr, e.x, e.y, { kind: 'gas', r: cr, dur: P.cloudDur, dps: b.dmg * P.cloudDps * (1 + (F.dpsK || 0)), slow: P.slow, vuln: P.vuln, color: '#8fd94a', src: w });
-            Fusion.fx(rr, { k: 'toxhit', x: e.x, y: e.y, cr: cloud ? cr : 0, life: cloud ? 0.7 : 0.36, seed: ((e.x * 5 + e.y) | 0) % 97 });
+            Fusion.fx(rr, { k: 'toxhit', x: e.x, y: e.y, cr: cloud ? cr : 0, br: P.burstR, life: cloud ? 0.7 : 0.42, seed: ((e.x * 5 + e.y) | 0) % 97 });
           },
         });
       }
