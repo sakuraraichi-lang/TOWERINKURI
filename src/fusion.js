@@ -2,7 +2,7 @@
 // fusion.js : 合成武器（2026-10-06・企画書 docs/FUSION-ORDER-2026-10-06.md・一覧 docs/FUSION-LIST-DRAFT-2026-10-06.md）
 //
 //   A＋B＝C。**C は A として扱う**：盤の上のユニットは `u.id`＝A のまま、`u.fuse`＝合成の id を持つ。
-//   だから A の札が乗り、A の15基の上限に数え、A の系統（sys）で上位の敵の無効を判定し、A のカテゴリのツリーの強化が乗る。
+//   だから A の札が乗り、A の15基の上限に数え、上位の敵の無効は A と B の両方の系統で判定し（両方が無効のときだけ効かない・Combat.sysOf）、A のカテゴリのツリーの強化が乗る。
 //   B の札は乗らない（B は消える）。盤の上で A と B が隣り合っていて、その合成の札を持っているとき、
 //   合成ボタンが A の左上に光る（render の fuseBtns）。押すと A の場所に C ができ、B は消える。
 //   **コストは A＋B＋BAL.fuseExtraCost（2）。例外なし。**重い合成ほど性能を盛る（BAL.fusion の dmg など）。
@@ -90,7 +90,7 @@ const Fusion = {
   },
   zoneHit(run, z, step) {
     const near = Grid.query(z.x, z.y, this.zoneBound(z), _fq);
-    const sys = Combat.sysOf(z.by);
+    const sys = Combat.sysOf(z.by, z.src);
     for (const e of near) {
       if (e.dead || !this.inZone(z, e)) continue;
       if (Combat.inShield(run, e)) continue;

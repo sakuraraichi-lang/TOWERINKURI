@@ -1968,7 +1968,7 @@ const UI = {
     const head = Util.el('div', 'erow eup-h');
     head.innerHTML = '<div class="ebody"><b>上位の敵<em>ASCENSION</em><u>アセンション（第31章から）</u></b>' +
       '<p>HPの総量はそのままに、数を減らして1体を大きくした敵。' + Math.round(BAL.ascUpperShare0 * 100) + '%から始まり、アセンションのレベルで割合が増える。' +
-      '<strong>無効（ダメージも状態異常も0）を持つのは、この敵だけ。</strong>武器は系統（物理・光学・属性・場・掴み）で分かれていて、無効の系統の武器は弾が素通りする。</p>' +
+      '<strong>無効（ダメージも状態異常も0）を持つのは、この敵だけ。</strong>武器は系統（物理・光学・属性・場・掴み）で分かれていて、無効の系統の武器は弾が素通りする。<strong>合成武器は元の2つの両方の系統を持つ</strong>ので、片方の系統だけが無効の敵には当たる（両方が無効のときだけ素通りする）。</p>' +
       '<small>' + Object.keys(SI).map(k => '<span style="color:' + SI[k].color + '">' + SI[k].jp + '</span>＝' + SI[k].desc).join('　') + '</small></div>';
     el.appendChild(head);
     const chip = (col, txt, sub) => '<i class="eres" style="--c:' + col + '">' + txt + '</i>' + (sub ? '<small>' + sub + '</small>' : '');

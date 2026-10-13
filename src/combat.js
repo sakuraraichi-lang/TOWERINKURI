@@ -67,7 +67,7 @@ const RESIST_INFO = {
 //   設計：docs/DESIGN-ASCENSION-V2-2026-10-06.md §8・§8-2。指示書「100を1に圧縮する」（docs/ASCENSION-ORDER-2026-10-06.md）
 //   第31章（アセンション）から、ウェーブのHPの総量の一部が上位の敵に置き換わる（BAL.ascUpper*・Asc.upperShare）。
 //   上位1体＝雑魚 k 体ぶん（hp が k）。**無効（ダメージも状態異常も0）を持てるのは、この上位の敵だけ**（第30章までの敵の耐性は半分まで・RESIST_INFO）
-//   武器は系統（WEAPONS[id].sys）を持ち、無効の判定は「その系統から来たもの」で決まる：直接のダメージ・状態異常・持続ダメージ・凍結の印・掴み・場の効果、すべて武器の id（by）から系統に引く
+//   武器は系統（WEAPONS[id].sys）を持ち、無効の判定は「その系統から来たもの」で決まる：直接のダメージ・状態異常・持続ダメージ・凍結の印・掴み・場の効果、すべて武器の id（by）から系統に引く。**合成武器は A と B の両方の系統を持ち、両方が無効のときだけ無効（sysOf）**
 const SYS_INFO = {
   phys:  { jp: '物理', color: '#ffb347', desc: 'ガトリング・手裏剣・刀・迫撃砲・ミサイル' },
   optic: { jp: '光学', color: '#6fe3ff', desc: 'レーザーライフル' },
@@ -682,10 +682,26 @@ const Combat = {
   },
 
   // 武器 by（id）の系統。武器でないもの（遺物・見本）は null＝無効の対象にならない
-  sysOf(by) { const d = by && WEAPONS[by]; return d ? d.sys || null : null; },
+  //   **合成武器（src＝その1基で src.fuse がある）は A と B の両方の系統を持つ**（2026-10-13 ユーザー：単一の耐性に引っかからない複数属性）。
+  //   A・B の系統が違うときは配列（例：['phys','field']）を返す。同じなら文字列1つ。src を渡さない・合成でないときは今までどおり A の系統1つ
+  sysOf(by, src) {
+    if (src && src.fuse && src.id === by) {
+      const c = this._fsys || (this._fsys = {});
+      let s = c[src.fuse];
+      if (s === undefined) {
+        const f = FUSIONS[src.fuse], a = this.sysOf(f.a), b = this.sysOf(f.b);
+        s = (a && b && a !== b) ? [a, b] : (a || b || null);
+        c[src.fuse] = s;
+      }
+      return s;
+    }
+    const d = by && WEAPONS[by]; return d ? d.sys || null : null;
+  },
   // 敵 e が系統 sys から来たものを受けつけないか（ダメージも状態異常も）。上位の敵だけが無効を持つ
+  //   sys が配列（合成武器）のときは、**全部の系統が無効のときだけ**受けつけない（片方でも通る系統があれば当たる）
   immune(e, sys) {
     if (!e.upper || !sys) return false;
+    if (typeof sys !== 'string') { for (const s of sys) if (!this.immune(e, s)) return false; return true; }
     if (e.imm && e.imm[sys]) return true;
     return !!(e.poly && SYS_ORDER[e.polyI] === sys);
   },
@@ -700,7 +716,8 @@ const Combat = {
   upperMul(e, sys, run) {
     if (this.immune(e, sys)) return BAL.ascImmuneMul;
     //   弱点以外の半減は、アセンション専用の札（ua_weak・連携の上位パック）で、半分から run.zdOther まで緩む
-    if (e.weak && sys && sys !== e.weak) return (run && run.zdOther) ? Math.max(BAL.ascZdOther, run.zdOther) : BAL.ascZdOther;
+    //   合成武器（sys が配列）は、片方でも弱点の系統なら半分にならない（全部が弱点以外のときだけ半分）
+    if (e.weak && sys && !(typeof sys === 'string' ? sys === e.weak : sys.includes(e.weak))) return (run && run.zdOther) ? Math.max(BAL.ascZdOther, run.zdOther) : BAL.ascZdOther;
     return 1;
   },
 
@@ -810,7 +827,7 @@ const Combat = {
     opts = opts || {};
     // 2026-10-07 ユーザー：第31章から、全ての敵に99%のダメージカットのバリア。1発当たるごとに1%ずつ下がる（初見の攻撃はほぼ通らず、当てるほど通る）
     // 2026-10-07 ユーザー：耐性で無効にする上位の敵は「当たり判定を受けない」。バリアも削れず、何も起きない
-    if (e.upper && this.immune(e, this.sysOf(opts.by || this._by))) { e.immT = 0.2; return 0; }
+    if (e.upper && this.immune(e, this.sysOf(opts.by || this._by, opts.src || this._src))) { e.immT = 0.2; return 0; }
     // 確認室の見本（run.demoGuard）：武器のダメージは入れない（本物のセーブのカード・凸・常駐・アセンションの倍率が乗って、仕掛けを見る前に倒れるため）。見本の台本の呼び出し（opts.demo）と debug だけ通す。本物の戦闘では付かない
     if (run.demoGuard && !opts.demo && opts.by !== 'debug') return 0;
     if (run.stageIdx >= 30 && !e.seg && amount > 0) {
@@ -837,7 +854,7 @@ const Combat = {
     const by0 = opts.by || this._by;
     let upMul = 1;
     if (e.upper) {
-      upMul = this.upperMul(e, this.sysOf(by0), run);
+      upMul = this.upperMul(e, this.sysOf(by0, opts.src || this._src), run);
       if (upMul <= 0) { e.immT = 0.2; return 0; }
       //   アセンション専用の札（上位パック）と常駐：上位の敵が受けるダメージの倍率（run.upDmg＝出撃中の札・mods.relic.upDmg＝常駐）
       upMul *= (run.upDmg || 1) * ((run.mods && run.mods.relic && run.mods.relic.upDmg) || 1);
@@ -908,7 +925,7 @@ const Combat = {
     const sc = this.statusScale(e);
     const cck = this.ccK(e);
     const st = run.st;
-    if (opts.shock) { e.shock = Math.max(e.shock, (opts.shock * sc + st.shockDur) * (res && res.elec ? BAL.resMul : 1)); e.shockBy = by; }
+    if (opts.shock) { e.shock = Math.max(e.shock, (opts.shock * sc + st.shockDur) * (res && res.elec ? BAL.resMul : 1)); e.shockBy = by; e.shockFz = (src && src.fuse && src.id === by) ? src : null; }
 
     let sl = opts.slow || 0, slD = (opts.slowDur || 0) * sc, ch = !!opts.chill;
     if (st.chillGrant > 0 && !opts.dot) {           // 霜結：どの武器でも凍る
@@ -929,7 +946,7 @@ const Combat = {
     }
 
     // 重量（2026-09-30 段3）：閉じ込めは半分
-    if (opts.stun && (e.ccUsed || 0) < BAL.ccMaxSec) { e.stun = Math.max(e.stun, (opts.stun * sc + st.stunDur) * (res && res.heavy ? BAL.resMul : 1) * cck); e.stunBy = by; }
+    if (opts.stun && (e.ccUsed || 0) < BAL.ccMaxSec) { e.stun = Math.max(e.stun, (opts.stun * sc + st.stunDur) * (res && res.heavy ? BAL.resMul : 1) * cck); e.stunBy = by; e.stunFz = (src && src.fuse && src.id === by) ? src : null; }
 
     let bn = opts.burn || 0, bd = opts.burnDur || 0;
     if (st.burnGrant > 0 && !opts.dot) {            // 熾火：どの武器でも燃える
@@ -938,7 +955,7 @@ const Combat = {
     }
     if (bn > 0) {
       e.burn = Math.max(e.burn, bn * st.burnMul);
-      e.burnBy = by;
+      e.burnBy = by; e.burnFz = (src && src.fuse && src.id === by) ? src : null;   /* 合成武器の燃焼：持続ダメージも A と B の両方の系統として判定する */
       e.burnBlue = !!(opts.blue || (by === 'flame' && src && src.flags && src.flags.blue));
       if (opts.sticky) e.sticky = Math.max(e.sticky || 0, opts.sticky);   // 粘着燃料：この燃焼は隣へ燃え移る
       e.burnT = Math.max(e.burnT, (bd || 3) + st.burnDur);
@@ -991,7 +1008,7 @@ const Combat = {
       if (o === e || o.dead || o.burnT > 0.2 || this.inShield(run, o) || (o.upper && this.immune(o, 'elem'))) continue;
       if (Util.dist(e.x, e.y, o.x, o.y) > F.stickyR + o.r) continue;
       o.burn = e.burn * F.stickyMul; o.burnT = Math.min(e.burnT, F.stickyDur);
-      o.burnBy = e.burnBy; o.burnBlue = e.burnBlue; o.sticky = e.sticky - 1;
+      o.burnBy = e.burnBy; o.burnFz = e.burnFz; o.burnBlue = e.burnBlue; o.sticky = e.sticky - 1;
       n++;
       if (run.fx.length < 150) this.fx(run, { type: 'spark', x: o.x, y: o.y, color: '#ff8a3a', life: 0.16 });
     }
@@ -1308,7 +1325,7 @@ const Combat = {
       if (opts.tntMul && e.tntT > 0) { v *= opts.tntMul; run.tntBoostN = (run.tntBoostN || 0) + 1; }
       if (opts.spotMul && e.spotT > 0) v *= opts.spotMul;
       this.damage(run, e, v, Object.assign({ color: '#ffc38a' }, opts));
-      if (opts.irr > 0 && !e.dead && !this.inShield(run, e) && !(e.upper && this.immune(e, this.sysOf(this._by)))) { e.nukeV = opts.irr; e.nukeT = BAL.cardFx.nukeDur; }   // 戦術核：被爆
+      if (opts.irr > 0 && !e.dead && !this.inShield(run, e) && !(e.upper && this.immune(e, this.sysOf(this._by, this._src)))) { e.nukeV = opts.irr; e.nukeT = BAL.cardFx.nukeDur; }   // 戦術核：被爆
     }
     this.fx(run, { type: 'boom', x, y, r: radius, color: opts.color || '#ff9a4a', life: 0.3 });
     this.shake(run, Math.min(10, radius * 0.06));
@@ -1459,7 +1476,7 @@ const Combat = {
       if (e.dead) continue;
       const reach = e.r + half;
       if (Util.segDist2(x1, y1, x2, y2, e.x, e.y) > reach * reach) continue;
-      if (e.upper && this.immune(e, this.sysOf((opts && opts.by) || this._by))) { e.immT = 0.2; continue; }   // 無効の上位の敵は当たり判定を受けない（ヒットに数えない・2026-10-07）
+      if (e.upper && this.immune(e, this.sysOf((opts && opts.by) || this._by, (opts && opts.src) || this._src))) { e.immT = 0.2; continue; }   // 無効の上位の敵は当たり判定を受けない（ヒットに数えない・2026-10-07）
       this.damage(run, e, dmg, opts);
       hits++;
     }
@@ -1713,7 +1730,7 @@ const Combat = {
           if (!arr) continue;
           for (const e of arr) {
             if (e.dead) continue;
-            if (e.upper && this.immune(e, w.def.sys)) continue;     // 無効の相手は狙わない（見えているのに撃たれないのではなく、ほかの敵を撃つ）
+            if (e.upper && this.immune(e, this.sysOf(w.id, w))) continue;     // 無効の相手は狙わない（見えているのに撃たれないのではなく、ほかの敵を撃つ）
             const dx = e.x - w.x, dy = e.y - w.y;
             const along = dx * ca + dy * sa;                  // 砲身方向の距離
             if (along < 0 || along > range + e.r) continue;
@@ -1790,7 +1807,7 @@ const Combat = {
           if (e.dead) continue;
           if (Util.dist(f.x, f.y, e.x, e.y) > f.r + e.r) continue;
           if (this.inShield(run, e)) continue;   // バリアの中は状態異常も受けない
-          if (e.upper && this.immune(e, this.sysOf(f.by))) { e.immT = 0.2; continue; }   // 上位の敵の無効（ガス・泡の場は、その場の効果を丸ごと受けつけない）
+          if (e.upper && this.immune(e, this.sysOf(f.by, f.src))) { e.immT = 0.2; continue; }   // 上位の敵の無効（ガス・泡の場は、その場の効果を丸ごと受けつけない）
           if (f.vuln) { e.fvuln = f.vuln; e.fvulnT = 0.4; }
           if (f.armorDown) { e.armorDown = (e.armorT > 0) ? Math.max(e.armorDown, f.armorDown) : f.armorDown; e.armorT = 0.6; }   // 腐蝕の雲
           // 場の減速にも遺物の軸を乗せる。**ここは damage() を通らないので、
@@ -1809,7 +1826,7 @@ const Combat = {
           //   炎上（`burnT`）と同じ形にして、雲を出たあとも少し続くようにする
           if (f.kind === 'gas' && !e.noStatus) {
             e.poison = Math.max(e.poison || 0, f.dps * BAL.poisonKeep);
-            e.poisonBy = f.by;
+            e.poisonBy = f.by; e.poisonFz = (f.src && f.src.fuse && f.src.id === f.by) ? f.src : null;
             e.poisonT = Math.max(e.poisonT || 0, BAL.poisonDur + run.st.burnDur);
           }
           this.damage(run, e, f.dps * step, { color: f.kind === 'gas' ? '#c6ff7a' : (f.kind === 'ink' || f.kind === 'tentwall') ? f.color : '#ffb066', dot: true, by: f.by, src: f.src });
@@ -1858,14 +1875,14 @@ const Combat = {
         // 焼き印（syn_searbind）：触手の印のある敵は炎上ダメージに倍率
         const gb = (run.tntBurn && e.tntT > 0) ? run.tntBurn : 1;
         if (gb > 1) run.tntBoostN = (run.tntBoostN || 0) + 1;
-        this.damage(run, e, e.burn * dt * gb, { color: '#ff8a3a', dot: true, by: e.burnBy, burnTick: true, blue: e.burnBlue });
+        this.damage(run, e, e.burn * dt * gb, { color: '#ff8a3a', dot: true, by: e.burnBy, src: e.burnFz || undefined, burnTick: true, statusTick: true, blue: e.burnBlue });
         if (e.dead) continue;
         // 粘着燃料：燃えている敵が、隣の敵へ燃え移る（移った先は世代を1つ減らして、無限に広がらない）
         if (e.sticky > 0) this.spreadFlame(run, e, dt);
       }
       // **毒のスリップダメージ。**（ユーザー要望8・2026-09-22）
       //   雲を出たあとも続く。炎上と同じ形
-      if (e.poisonT > 0) { e.poisonT -= dt; this.damage(run, e, (e.poison || 0) * dt, { color: '#c6ff7a', dot: true, by: e.poisonBy }); if (e.dead) continue; }
+      if (e.poisonT > 0) { e.poisonT -= dt; this.damage(run, e, (e.poison || 0) * dt, { color: '#c6ff7a', dot: true, by: e.poisonBy, src: e.poisonFz || undefined, statusTick: true }); if (e.dead) continue; }
       // **感電と拘束にもスリップダメージ。**（ユーザー判断 2026-09-23）
       //   > 「凍結にスリップダメージは不要、**感電と拘束につける**、これでいきましょう」
       //   **凍結には付けない。**「時間を奪う軸」として上限を開かない決まりにしてあるため。
@@ -1875,11 +1892,11 @@ const Combat = {
       //   **ボスには効かせない。**（2026-09-28）ボスはHPを制限時間内に削り切れるかを問う敵なので、割合で削るとHPが意味を持たない。
       //   倍率×8でも第15章から先のボスは口を出てすぐ倒れ、受けたダメージの 0〜93%（6本）が感電のスリップだった
       if (e.shock > 0 && BAL.shockDps && !e.boss) {
-        this.damage(run, e, e.maxHp * BAL.shockDps * dt, { color: '#c9b3ff', dot: true, by: e.shockBy, shockTick: true });
+        this.damage(run, e, e.maxHp * BAL.shockDps * dt, { color: '#c9b3ff', dot: true, by: e.shockBy, src: e.shockFz || undefined, shockTick: true, statusTick: true });
         if (e.dead) continue;
       }
       if (e.stun > 0 && BAL.stunDps && !e.boss) {
-        this.damage(run, e, e.maxHp * BAL.stunDps * dt, { color: '#bea0ff', dot: true, by: e.stunBy });
+        this.damage(run, e, e.maxHp * BAL.stunDps * dt, { color: '#bea0ff', dot: true, by: e.stunBy, src: e.stunFz || undefined, statusTick: true });
         if (e.dead) continue;
       }
       // （ボスが雑魚を出し続ける形は 2026-09-28 に撤去した。ボスのウェーブは雑魚が出ない・spawnBoss）
@@ -2105,7 +2122,7 @@ const Combat = {
       for (const e of near) {
         if (e.dead) continue;
         if (b.hit && b.hit.has(e)) continue;
-        if (e.upper && this.immune(e, this.sysOf(b.wid))) { e.immT = 0.2; continue; }   // 無効の相手には当たらず、すり抜ける
+        if (e.upper && this.immune(e, this.sysOf(b.wid, b.src))) { e.immT = 0.2; continue; }   // 無効の相手には当たらず、すり抜ける
         const reach = e.r + b.r;
         if (swept) { if (Util.segDist2(px, py, b.x, b.y, e.x, e.y) > reach * reach) continue; }
         else if (Util.dist(b.x, b.y, e.x, e.y) > reach) continue;
