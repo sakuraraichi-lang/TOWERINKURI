@@ -451,6 +451,7 @@ const Render = {
     FusionFX.zones(ctx, run);        // 合成武器の居座る場（裂け目・雲・凍った線など）
     this.aims(ctx, run);
     this.core(ctx, run);
+    if (run.mr && typeof ModRun !== 'undefined') ModRun.drawBoard(ctx, run);   // 改造ラン：塞いだ口
     this.enemies(ctx, run);
     FusionFX.zonesOver(ctx, run);    // 合成武器の場のうち、敵の上に描くもの（異界の剣の触手・fusionfx.js）
     this.bullets(ctx, run);

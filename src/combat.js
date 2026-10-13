@@ -245,7 +245,7 @@ const Combat = {
     // 第31章から先（アセンション）だけの上乗せ（BAL.ascEnemyG）
     if (ch > MAIN_CHAPTERS && BAL.ascEnemyG > 1) w *= Math.pow(BAL.ascEnemyG, ch - MAIN_CHAPTERS);
     // 節目の章の壁（BAL.ascWallMul）。その章だけ
-    if (ch > MAIN_CHAPTERS && BAL.ascWallEvery > 0 && ch % BAL.ascWallEvery === 0) w *= BAL.ascWallMul;
+    if (ch > MAIN_CHAPTERS && BAL.ascWallEvery > 0 && ch % BAL.ascWallEvery === 0 && !run.mr) w *= BAL.ascWallMul;   // 改造ランの章は節目の壁を付けない（ボスの章は BAL.modRun.bossAt）
     return w;
   },
 
@@ -291,7 +291,8 @@ const Combat = {
     //   同時に盤にいる数は enemyCap で別に抑えている（処理の重さ）
     if (run.stageIdx >= MAIN_CHAPTERS) {
       return Math.max(1, Math.floor(base * run.mods.spawn * wm * hm * Asc.spawnMul(Game.perm, run.stageIdx)
-        * Asc.upperCountMul(Game.perm, run.stageIdx) * Asc.axisMul(Game.perm, 'count') * Asc.easeMul(Game.perm, 'count') * Asc.themeFlow(run.stageIdx)));    // 上位の敵に置き換えた分だけ数が減る（HPの総量は同じ）
+        * Asc.upperCountMul(Game.perm, run.stageIdx) * Asc.axisMul(Game.perm, 'count') * Asc.easeMul(Game.perm, 'count') * Asc.themeFlow(run.stageIdx)
+        * (run.mr ? ModRun.countMul(run) : 1)));   // 改造ラン（MOD）：1章の敵は通常の半分程度・起動条件・封鎖    // 上位の敵に置き換えた分だけ数が減る（HPの総量は同じ）
     }
     return Math.min(Math.floor(BAL.waveCountMax * hm),
                     Math.floor(base * run.mods.spawn * wm * hm));
@@ -300,10 +301,11 @@ const Combat = {
   isLastWave(run) { return run.wave >= BAL.wavesPerStage; },
 
   // 第30章（ゲームの区切り）はラスボス専用。BAL.finalOn を切ると、ほかの節目の章と同じボス（口ごとに1体）に戻る
-  isFinalChapter(run) { return !!BAL.finalOn && run.stageIdx + 1 === MAIN_CHAPTERS; },
+  isFinalChapter(run) { return !!BAL.finalOn && !run.mr && run.stageIdx + 1 === MAIN_CHAPTERS; },
 
   // このウェーブにボスが出るか。**節目の章（BAL.bossChapters と、第31章から先の5章ごと）の、最後のウェーブだけ。**
   isBossWave(run) {
+    if (run.mr) return ModRun.isBossWave(run);        // 改造ラン（MOD）：第4章・第8章の最後のウェーブ
     if (this.isFinalChapter(run)) return true;       // 第30章はラスボス（全ウェーブ・雑魚なし）
     if (!this.isLastWave(run)) return false;
     const ch = run.stageIdx + 1;
@@ -332,6 +334,7 @@ const Combat = {
     const mouths = (st.mouths && st.mouths.length) ? st.mouths : st.spawns.map((s, i) => [i]);
     const ch = run.stageIdx + 1;
     for (let mi = 0; mi < mouths.length; mi++) {
+      if (run.mr && mi === ModRun.blockedMouth(run)) continue;   // 改造ラン：塞いだ口からは出ない
       const m = mouths[mi];
       const si = m[(m.length / 2) | 0];          // 穴の真ん中から
       const bk = this.bossKindFor(ch, mi);
@@ -387,7 +390,9 @@ const Combat = {
     if (!bk) { const K = BAL.bossKinds; bk = K[(run.miniSeq = (run.miniSeq || 0) + 1) % K.length]; }
     if (si === undefined) {
       const mouths = (st.mouths && st.mouths.length) ? st.mouths : st.spawns.map((s, i) => [i]);
-      const m = mouths[(Math.random() * mouths.length) | 0];
+      let mi = (Math.random() * mouths.length) | 0;
+      if (run.mr && mi === ModRun.blockedMouth(run)) mi = (mi + 1) % mouths.length;   // 改造ラン：塞いだ口
+      const m = mouths[mi];
       si = m[(m.length / 2) | 0];
     }
     const base = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, this.gw(run) - 1) * Math.pow(BAL.stageHpMul, run.stageIdx) * this.chapterWeight(run);
@@ -740,10 +745,11 @@ const Combat = {
     let hp = hpOverride !== undefined ? hpOverride : base * t.hp;
     // 2026-10-07 ユーザー：第31章から（アセンション）、全ての敵の HP ×BAL.ascHpMul（3）
     if (run.stageIdx >= 30) hp *= BAL.ascHpMul * Asc.axisMul(Game.perm, 'hp') * Asc.easeMul(Game.perm, 'hp');
+    if (run.mr) hp *= BAL.modRun.hpMul;   // 改造ラン（MOD）：カードなしで遊ぶ強さ（BAL.modRun.hpMul）
     const en = {
       x, y, hp, maxHp: hp, si,
       lane: this.pickLane(run, si),    // その口のレーンに順番に振る（stages.js の lanes）
-      spd: Math.min(BAL.enemySpdCap, BAL.enemySpdBase * Math.pow(BAL.enemySpdGrowth, g)) * t.spd * (run.stageIdx >= 30 ? Asc.axisMul(Game.perm, 'spd') : 1),
+      spd: Math.min(BAL.enemySpdCap, BAL.enemySpdBase * Math.pow(BAL.enemySpdGrowth, g)) * t.spd * (run.stageIdx >= 30 ? Asc.axisMul(Game.perm, 'spd') : 1) * (run.mr ? ModRun.spdMul(run) : 1),
       r: t.r,
       coin: BAL.enemyCoinBase * Math.pow(BAL.enemyCoinGrowth, g - 1) * t.coin,
       color: t.color,
@@ -783,6 +789,7 @@ const Combat = {
   //   **合成武器（src＝その1基で src.fuse がある）は A と B の両方の系統を持つ**（2026-10-13 ユーザー：単一の耐性に引っかからない複数属性）。
   //   A・B の系統が違うときは配列（例：['phys','field']）を返す。同じなら文字列1つ。src を渡さない・合成でないときは今までどおり A の系統1つ
   sysOf(by, src) {
+    if (src && src.mrSys && src.id === by && !src.fuse) return src.mrSys;   // 改造ラン（MOD）の継承：合成武器の隣の武器も2つ目の系統
     if (src && src.fuse && src.id === by) {
       const c = this._fsys || (this._fsys = {});
       let s = c[src.fuse];
@@ -869,6 +876,7 @@ const Combat = {
         run.mouthI = (run.mouthI === undefined)
           ? ((Math.random() * mouths.length) | 0)
           : (run.mouthI + 1) % mouths.length;
+        if (run.mr && run.mouthI === ModRun.blockedMouth(run)) run.mouthI = (run.mouthI + 1) % mouths.length;   // 改造ラン：塞いだ口からは出ない
         run.mouthLeft = mouths[run.mouthI].length * 2;
         run.mouthPick = 0;
       }
@@ -942,15 +950,18 @@ const Combat = {
     // 確認室の見本（run.demoGuard）：武器のダメージは入れない（本物のセーブのカード・凸・常駐・アセンションの倍率が乗って、仕掛けを見る前に倒れるため）。見本の台本の呼び出し（opts.demo）と debug だけ通す。本物の戦闘では付かない
     if (run.demoGuard && !opts.demo && opts.by !== 'debug') return 0;
     if (run.stageIdx >= 30 && !e.seg && amount > 0) {
-      if (e.barrier === undefined) e.barrier = BAL.ascBarrier;
+      if (e.barrier === undefined) e.barrier = run.mr ? ModRun.barrier0(run) : BAL.ascBarrier;   // 改造ラン：ヒットの進化で低く始まる
+      const bar0 = e.barrier;
       amount *= 1 - e.barrier;
       // 2026-10-07 ユーザー：1発ごとの下がり幅はアセンションのレベルで減る（Lv1〜5：0.5%・6〜10：0.25%・11〜15：0.125%・16〜20：0.065%・21から先は0.065%のまま）
       const alv = Asc.lv(Game.perm), steps = BAL.ascBarrierStepByLv;
       //   21から先は下げ止め（2026-10-13・難しさは BAL.ascAxis の軸で分散）
       const si = Math.min(steps.length - 1, Math.max(0, Math.ceil(alv / 5) - 1));   // 2026-10-13：Lv20で下げ止め
-      const step = steps[si];
+      const step = run.mr ? BAL.modRun.barrierStep * ModRun.barrierStepMul(run, opts.src || this._src) : steps[si];   // 改造ラン：1発の減りは BAL.modRun.barrierStep（一撃必砕・一点豪華で倍）   // 改造ラン：一撃必砕・一点豪華
       e.barrier = Math.max(0, e.barrier - step);
+      if (run.mr && bar0 > 0 && e.barrier <= 0) ModRun.onBreak(run, e, false);   // ブレイク祝い
     }
+    if (run.mr) amount *= ModRun.hitMul(run);   // 捨て身
     // **ラスボスの胴の節**：入ったダメージは頭へ、BAL.finalBodyMul 倍で回す（弱点は頭）。節の見た目の位置で当たりを判定する
     if (e.seg) {
       const h = e.seg;
@@ -2087,9 +2098,11 @@ const Combat = {
       // コアに触れた敵は、ライフを1つ持っていって消える（＝漏れ）。**コアが2つ以上なら、どれに触れても同じライフ**
       if ((run.towers || [tw]).some(T => Util.dist(e.x, e.y, T.x, T.y) <= T.r + e.r)) {
         // **ボスがコアに着いたら、その場で負け**（残りのライフを全部持っていく・2026-09-28 ユーザー「倒せなかった場合強制的に敗北」）
-        const cost = e.mini ? e.leakLives : e.boss ? Math.max(run.lives, BAL.leakLives) : e.upper ? Math.max(BAL.leakLives, Math.round(e.k * BAL.ascUpperLeakK)) : BAL.leakLives;
+        let cost = e.mini ? e.leakLives : e.boss ? Math.max(run.lives, BAL.leakLives) : e.upper ? Math.max(BAL.leakLives, Math.round(e.k * BAL.ascUpperLeakK)) : BAL.leakLives;
+        if (run.mr && !e.boss) cost = ModRun.leakCost(run, e, cost);   // 改造ラン：上位の敵・縮小版のボスの漏れを軽く（ライフ30のランで1体で終わらないように）
         run.lives -= cost;
         run.leaked++;
+        if (run.mr) ModRun.onLeak(run);       // 改造ラン：ガラスの大砲
         run.livesLost += cost;
         Snd.leak();
         // 何に抜けられたか。死因を「どの敵に負けたか」まで残す

@@ -187,6 +187,7 @@ const Main = {
     UI.selected = null;
     UI.renderTray();
     UI.renderPanel();
+    if (res && res.mr) { ModRun.afterChapter(res); return; }   // 改造ラン（MOD）の章の終わり（src/modrun.js）
     if (res) UI.showResult(res);
   },
 
@@ -250,7 +251,7 @@ const Main = {
         if (!Game.canBuild()) { no('戦闘中は動かせません'); return; }
         if (onTile) { no('そこには別のユニットがいます'); return; }
         if (!run.stage.hexBuildable(t.hc, t.hr)) { no('地面にしか置けません'); return; }
-        Game.moveUnit(UI.moving, t.hc, t.hr);
+        if (!Game.moveUnit(UI.moving, t.hc, t.hr)) { no((run.mr && (ModRun.canRearrange(run) ? ModRun.placeBlock(run, UI.moving.id, t.hc, t.hr, UI.moving) : ModRun.LOCK_WHY)) || 'そこには動かせません'); return; }
         Snd.place();
         UI.moving = null;
         Game.save();
@@ -264,7 +265,7 @@ const Main = {
         if (!Game.canBuild()) { no('戦闘中は配置を変えられません'); return; }
         if (!run.stage.hexBuildable(t.hc, t.hr)) { no('地面にしか置けません'); return; }
         const u = Game.placeUnit(UI.placingType, t.hc, t.hr);
-        if (!u) { no('そこには置けません'); return; }
+        if (!u) { no((run.mr && ModRun.placeBlock(run, UI.placingType, t.hc, t.hr)) || 'そこには置けません'); return; }
         Snd.place();
         Game.save();
         UI.selected = u;
@@ -337,7 +338,7 @@ const Main = {
         if (sig === 'waveclear') {
           // ウェーブを1つ凌ぐごとにカードを引ける
           run.lives = Math.min(run.livesMax, run.lives + run.mods.regen);
-          run.pendingPicks += run.mods.picks;
+          if (!run.mr) run.pendingPicks += run.mods.picks;   // 改造ラン（MOD）はカードを使わない
           Snd.waveClear();
           UI.toastMsg('ウェーブ ' + run.wave + ' 突破', '#7ee3a0', 'wave');
           UI.renderTray();

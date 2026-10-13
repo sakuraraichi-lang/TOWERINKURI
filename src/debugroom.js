@@ -168,6 +168,16 @@ const DebugRoom = {
       ['題字（2026-09-30 X1）', [
         ['タイトル画面（紋 → 帯 → 字の順に出る・タップで閉じる）', () => Scenes.title()],
       ]],
+      ['改造ラン（MOD・2026-10-13）', [
+        ['改造の3択', () => ModRun.demoPick()],
+        ['連携が出た3択', () => ModRun.demoLink()],
+        ['進化（選ぶと帯）', () => ModRun.demoEvo()],
+        ['進化の帯だけ', () => ModRun.evoFx('bet')],
+        ['ボスのあとの代償つき', () => ModRun.demoBoss()],
+        ['ガチャ師の5択', () => ModRun.demoGacha()],
+        ['ランの終わり（踏破）', () => ModRun.demoEnd(true)],
+        ['ランの終わり（途中まで）', () => ModRun.demoEnd(false)],
+      ]],
       ['パック開封', [
         ['コモン', () => CardFX.demo('common')],
         ['レア', () => CardFX.demo('rare')],

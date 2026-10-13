@@ -162,6 +162,7 @@ const Asc = {
   },
   // 章 ch（1から数える）の特色。無ければ null。{ key, sys }（sys は耐性章だけ）
   themeOf(ch) {
+    if (typeof Game !== 'undefined' && Game.run && Game.run.mr) return null;   // 改造ラン（MOD）は章の特色を付けない
     if (!(ch > MAIN_CHAPTERS) || ch % 5 === 0) return null;
     if (ch in this._thMemo) return this._thMemo[ch];
     const x = ch - MAIN_CHAPTERS - 1, k = x - Math.floor(x / 5), b = Math.floor(k / 24), pos = k % 24, deck = this._themeDeck(b);
