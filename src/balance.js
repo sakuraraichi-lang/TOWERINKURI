@@ -6,7 +6,7 @@
 // 版。**ホームの右上に出る。**
 // 「更新されていない気がする」と思ったとき、ここの文字列が合っているかで
 // 端末のキャッシュの問題か、配信の問題かを一目で切り分けられる
-const BUILD = '1013k';
+const BUILD = '1013l';
 
 // パッチノート。**版の数字だけでは「で、何が変わったの」に答えていない**ので、
 // ホーム右上の版をタップしたときに、ここへの入口を出す
@@ -1086,7 +1086,7 @@ BAL.fusion = {
   // 1 ガトリング＋手裏剣（コスト4）スターアサルト
   starassault: { stat: { dmg: 20, rate: 4.5, range: 270, pierce: 4, bulletR: 5.5, speed: 560, spread: 0.05 }, p: { burstR: 64, burstMul: 0.9 } },
   // 2 ガトリング＋テスラ（5）プラズマチェーン
-  plasmachain: { stat: { dmg: 10, rate: 8, range: 215, speed: 380, pierce: 2, spread: 0.22, chain: 2, chainFalloff: 0.8, shockDur: 0.8 }, p: { chainMul: 0.6, linkMax: 120, linkHalf: 10, linkMul: 0.6 } },   // 2026-10-13：撃った弾どうしが電撃の線でつながり、線に触れた敵へ刻む（linkMax 以内の前後の弾）
+  plasmachain: { stat: { dmg: 12, rate: 8, range: 215, speed: 380, pierce: 2, spread: 0.22, chain: 3, chainFalloff: 0.8, shockDur: 0.8 }, p: { chainMul: 0.6, linkMax: 120, linkHalf: 10, linkMul: 0.6 } },   // 2026-10-13：撃った弾どうしが電撃の線でつながり、線に触れた敵へ刻む（linkMax 以内の前後の弾）
   // 3 手裏剣＋刀（6）円環刃
   chakram: { stat: { dmg: 130, rate: 1.6, range: 340, speed: 560, bulletR: 22, bounce: 0, pierce: 99 }, p: { rings: 3, fan: 0.2, backMul: 1, spin: 1.2, spinR: 64, spinTick: 0.1, spinDps: 10, cutEvery: 0.15 } },   // 2026-10-13 第2版：大きな輪を3枚、扇に投げる・全部貫通・いちばん遠い所で輪が spinR まで広がって spin 秒回って刻む（spinTick ごと・1回 dmg×spinDps×spinTick）→戻り道でも全部斬る
   // 4 手裏剣＋毒ガス（5）悪魔の流れ星
@@ -1115,7 +1115,7 @@ BAL.fusion = {
   //    破片が中の敵1体ごとに shardHits 回刺さる（半径 shardR）→ 足元が凍土として残る（groundDur 秒・groundTick ごとに刻む）。範囲に敵が居ないときは撃たない（2026-10-13 fx2）
   icefoam: { stat: { dmg: 14, rate: 0.7, range: 210, slow: 0.9, slowDur: 3, stunDur: 1.2 }, p: { n: 40, cages: 14, delay: 1, travel: 0.12, shardR: 40, shardMul: 1.2, shardSlow: 0.6, shardSlowDur: 2, shardHits: 3, shardGap: 0.07, groundDur: 2.2, groundTick: 0.25, groundDps: 0.8 } },
   // 13 レーザー＋凍結（9）凍結光線：反射した所に氷の棘山
-  cryobeam: { stat: { dmg: 36, rate: 1, range: 430, pierce: 20, bulletR: 22, reflect: 2, slow: 0.55, slowDur: 2.2 }, p: { spikeR: 48, spikeDur: 3.2, spikeDps: 2.2, spikeTick: 0.1, spikeSlow: 0.6, lineDur: 1.2, lineTick: 0.1, lineDps: 1.2 } },   // 1013 性能：霜の線が刻む・棘山の刻みを速く
+  cryobeam: { stat: { dmg: 44, rate: 1, range: 430, pierce: 20, bulletR: 22, reflect: 2, slow: 0.55, slowDur: 2.2 }, p: { spikeR: 48, spikeDur: 3.2, spikeDps: 2.8, spikeTick: 0.1, spikeSlow: 0.6, lineDur: 1.2, lineTick: 0.1, lineDps: 1.2 } },   // 1013 性能：霜の線が刻む・棘山の刻みを速く
   // 14 レーザー＋ミサイル（9）スーパーノヴァ：道1本分の太さ・絶え間ない・多段ヒット
   convergence: { stat: { dmg: 13, rate: 14, range: 440, bulletR: 30, reflect: 3 }, p: { life: 0.09 } },   // 1013 性能：1秒に14回当てる
   // 15 ミサイル＋迫撃砲（9）滅尽嵐：着弾に火炎旋風
