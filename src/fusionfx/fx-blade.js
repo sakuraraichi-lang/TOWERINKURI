@@ -397,17 +397,21 @@ const FX_CHAKRAM = {
     c.fillStyle = hg; c.beginPath(); c.arc(0, 0, R * 0.25, 0, 7); c.fill();
     c.restore();
   },
-  // 輪の半径（刃の先まで約23・六角1つぶん）。当たりの半径は 14
-  R: 16,
+  // 輪の半径（刃の先まで約33・直径が六角2つぶん）。当たりの半径は 22（BAL.fusion.chakram.stat.bulletR）
+  R: 22,
   sprite(back) {
     const R = this.R;
-    return FxKit.sprite('fz-chak' + (back ? 'b' : 'o'), R * 1.5 + 4, FxKit.res(), c => this.ringArt(c, 0, 0, R, back ? '#7fa8ff' : '#e6f0ff'));
+    return FxKit.sprite('fz-chak' + (back ? 'b' : 'o') + R, R * 1.5 + 4, FxKit.res(), c => this.ringArt(c, 0, 0, R, back ? '#7fa8ff' : '#e6f0ff'));
   },
+  // 遠くで回る大きな輪（刃の先まで 44×1.48≈65）。場の半径 z.r に合わせて縮めて貼る
+  BIG: 44,
+  bigSprite() { const R = this.BIG; return FxKit.sprite('fz-chakbig', R * 1.5 + 4, FxKit.res(), c => this.ringArt(c, 0, 0, R, '#ffffff')); },
   bullet(ctx, b, t) {
     const R = this.R, d = FXB.dir(b), back = b.child, col = back ? '#6f96ff' : '#cfe0ff', rot = t * 17 + d.seed;
     ctx.globalCompositeOperation = 'lighter';
-    for (let j = 1; j <= 2; j++) { const dd = j * R * 0.8; if (dd > d.trav) break; FxKit.glow(ctx, b.x - d.ux * dd, b.y - d.uy * dd, R * (1.7 - j * 0.3), col, 0.38 / j); }
-    FxKit.glow(ctx, b.x, b.y, R * 2.4, col, 0.5);
+    for (let j = 1; j <= 3; j++) { const dd = j * R * 0.7; if (dd > d.trav) break; FxKit.glow(ctx, b.x - d.ux * dd, b.y - d.uy * dd, R * (1.8 - j * 0.3), col, 0.42 / j); }
+    FxKit.glow(ctx, b.x, b.y, R * 2.6, col, 0.6);
+    FxKit.glow(ctx, b.x, b.y, R * 0.9, '#ffffff', 0.45);
     // 回転の残像：4枚の刃の先の後ろに薄い円弧
     ctx.lineCap = 'round'; ctx.beginPath();
     for (let i = 0; i < 4; i++) {
@@ -424,46 +428,61 @@ const FX_CHAKRAM = {
     ctx.rotate(0.4); ctx.globalAlpha = 1; ctx.drawImage(S.cv, -S.h, -S.h, S.h * 2, S.h * 2);
     ctx.restore();
   },
-  // 投げる瞬間：白い閃光と、砲台を巻くように走る弧
+  // 投げる瞬間：白い閃光と、砲台を巻くように走る弧・扇に投げた輪の向きへ伸びる光の筋
   throwFx(ctx, f, k) {
-    const a = 1 - k, e = FxKit.ease(k), R = 9 + 15 * e;
-    FxKit.glow(ctx, f.x, f.y, 28, '#cfe0ff', 0.85 * a);
-    FxKit.glow(ctx, f.x, f.y, 11, '#ffffff', a);
+    const a = 1 - k, e = FxKit.ease(k), R = 12 + 22 * e, fan = f.fan || 0;
+    FxKit.glow(ctx, f.x, f.y, 44, '#cfe0ff', 0.9 * a);
+    FxKit.glow(ctx, f.x, f.y, 16, '#ffffff', a);
     ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
-    ctx.beginPath(); ctx.arc(f.x, f.y, R, f.a + 0.4, f.a + 2.8);
-    ctx.globalAlpha = 0.45 * a; ctx.strokeStyle = '#9fc0ff'; ctx.lineWidth = 9 * a + 1; ctx.stroke();
-    ctx.globalAlpha = a; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.6 * a + 0.6; ctx.stroke();
+    ctx.beginPath(); ctx.arc(f.x, f.y, R, f.a + 0.4, f.a + 2.8); ctx.moveTo(f.x + Math.cos(f.a - 0.4) * R, f.y + Math.sin(f.a - 0.4) * R); ctx.arc(f.x, f.y, R, f.a - 0.4, f.a - 2.8, true);
+    ctx.globalAlpha = 0.45 * a; ctx.strokeStyle = '#9fc0ff'; ctx.lineWidth = 12 * a + 1; ctx.stroke();
+    ctx.globalAlpha = a; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3.4 * a + 0.6; ctx.stroke();
+    ctx.beginPath();
+    for (const s of [-1, 0, 1]) { const an = f.a + s * fan, L0 = 10 + 30 * e, L1 = L0 + 26 * a; ctx.moveTo(f.x + Math.cos(an) * L0, f.y + Math.sin(an) * L0); ctx.lineTo(f.x + Math.cos(an) * L1, f.y + Math.sin(an) * L1); }
+    ctx.globalAlpha = 0.5 * a; ctx.strokeStyle = '#9fc0ff'; ctx.lineWidth = 8; ctx.stroke();
+    ctx.globalAlpha = a; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.6; ctx.stroke();
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
   },
   // 斬った所：白い切り傷の線（0.06秒で走って薄れて消える）・閃光・銀の火花
   cut(ctx, f, k) {
     const T = k * f.life, D = 0.06, q = Math.min(1, T / D), fade = T < D ? 1 : Math.pow(Math.max(0, 1 - (T - D) / (f.life - D)), 1.4);
-    const ux = Math.cos(f.a), uy = Math.sin(f.a), L = 17, x0 = f.x - ux * L, y0 = f.y - uy * L;
+    const ux = Math.cos(f.a), uy = Math.sin(f.a), L = 24, x0 = f.x - ux * L, y0 = f.y - uy * L;
     const ex = x0 + ux * 2 * L * q, ey = y0 + uy * 2 * L * q;
-    const pts = [{ x: x0, y: y0 }, { x: (x0 + ex) / 2 - uy * 3, y: (y0 + ey) / 2 + ux * 3 }, { x: ex, y: ey }];
-    FxKit.flash(ctx, f.x, f.y, 20, T, '#cfe0ff', 0.08);
+    const pts = [{ x: x0, y: y0 }, { x: (x0 + ex) / 2 - uy * 4, y: (y0 + ey) / 2 + ux * 4 }, { x: ex, y: ey }];
+    FxKit.flash(ctx, f.x, f.y, 28, T, '#cfe0ff', 0.08);
     ctx.globalCompositeOperation = 'lighter';
-    ctx.globalAlpha = 0.45 * fade; ctx.fillStyle = '#7fa8ff'; FxKit.ribbon(ctx, pts, s => 16 * Math.sin(Math.PI * s)); ctx.fill();
-    ctx.globalAlpha = fade; ctx.fillStyle = '#e6f0ff'; FxKit.ribbon(ctx, pts, s => 8 * Math.sin(Math.PI * s)); ctx.fill();
-    ctx.fillStyle = '#ffffff'; FxKit.ribbon(ctx, pts, s => 3 * Math.sin(Math.PI * s)); ctx.fill();
+    ctx.globalAlpha = 0.45 * fade; ctx.fillStyle = '#7fa8ff'; FxKit.ribbon(ctx, pts, s => 22 * Math.sin(Math.PI * s)); ctx.fill();
+    ctx.globalAlpha = fade; ctx.fillStyle = '#e6f0ff'; FxKit.ribbon(ctx, pts, s => 10 * Math.sin(Math.PI * s)); ctx.fill();
+    ctx.fillStyle = '#ffffff'; FxKit.ribbon(ctx, pts, s => 3.4 * Math.sin(Math.PI * s)); ctx.fill();
     ctx.globalCompositeOperation = 'source-over'; ctx.globalAlpha = 1;
-    FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed: f.seed || 0, n: 6, life: 0.28, v: 170, a: f.a + Math.PI / 2, spread: 1.6, drag: 7, size: 2.6, c0: '#ffffff', c1: '#9fb8e0', shape: 'shard' });
+    FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed: f.seed || 0, n: 7, life: 0.3, v: 200, a: f.a + Math.PI / 2, spread: 1.6, drag: 7, size: 3, c0: '#ffffff', c1: '#9fb8e0', shape: 'shard' });
   },
-  // いちばん遠い所で回る（場 chakspin・当たりの半径 z.r）：速く回る輪・刻む円の白い残像・削る火花
+  // いちばん遠い所で回る（場 chakspin・当たりの半径 z.r）：当たる範囲そのものの大きさの回転鋸。
+  //   層：光（範囲いっぱいの青白い光）・本体（大きな輪の刃と残像2枚）・回転の円弧（白い芯つき）・当たり（出た瞬間の閃光と六角の衝撃波・縁から飛ぶ削りの火花）
   spin(ctx, z) {
-    const T = z.t, a = Math.min(1, T / 0.06, (z.dur - T) / 0.1), rot = T * 34;
-    FxKit.glow(ctx, z.x, z.y, z.r * 1.9, '#cfe0ff', 0.55 * a);
+    const T = z.t, R = z.r, a = Math.min(1, T / 0.05, (z.dur - T) / 0.12), rot = T * 24 + (z.seed || 0) * 1.3;
+    FxKit.glow(ctx, z.x, z.y, R * 1.55, '#9fc0ff', 0.5 * a);
+    FxKit.glow(ctx, z.x, z.y, R * 0.7, '#ffffff', 0.25 * a);
     ctx.globalCompositeOperation = 'lighter'; ctx.lineCap = 'round';
+    ctx.beginPath(); ctx.arc(z.x, z.y, R * 0.78, 0, 7);
+    ctx.globalAlpha = 0.16 * a; ctx.strokeStyle = '#cfe0ff'; ctx.lineWidth = R * 0.42; ctx.stroke();   // 回る刃がぶれて見える円盤
     ctx.beginPath();
-    for (let i = 0; i < 3; i++) { const a0 = rot * 0.8 + i * 2.094; ctx.moveTo(z.x + Math.cos(a0) * z.r, z.y + Math.sin(a0) * z.r); ctx.arc(z.x, z.y, z.r, a0, a0 + 1.5); }
-    ctx.globalAlpha = 0.3 * a; ctx.strokeStyle = '#9fc0ff'; ctx.lineWidth = 9; ctx.stroke();
-    ctx.globalAlpha = 0.85 * a; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.2; ctx.stroke();
+    for (let i = 0; i < 4; i++) { const a0 = rot * 1.1 + i * Math.PI / 2; ctx.moveTo(z.x + Math.cos(a0) * R, z.y + Math.sin(a0) * R); ctx.arc(z.x, z.y, R, a0, a0 + 1.1); }
+    ctx.globalAlpha = 0.35 * a; ctx.strokeStyle = '#9fc0ff'; ctx.lineWidth = 12; ctx.stroke();
+    ctx.globalAlpha = 0.95 * a; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.stroke();
     ctx.globalCompositeOperation = 'source-over';
-    const S = this.sprite(false);
+    const S = this.bigSprite(), sc = R / (this.BIG * 1.48), h = S.h * sc;
     ctx.save(); ctx.translate(z.x, z.y);
-    for (let j = 2; j >= 0; j--) { ctx.globalAlpha = a * (j ? 0.25 / j : 1); ctx.save(); ctx.rotate(rot - j * 0.35); ctx.drawImage(S.cv, -S.h, -S.h, S.h * 2, S.h * 2); ctx.restore(); }
+    for (let j = 2; j >= 0; j--) { ctx.globalAlpha = a * (j ? 0.3 / j : 0.88); ctx.save(); ctx.rotate(rot - j * 0.3); ctx.drawImage(S.cv, -h, -h, h * 2, h * 2); ctx.restore(); }
     ctx.restore(); ctx.globalAlpha = 1;
-    FxKit.sparks(ctx, { x: z.x, y: z.y, t: T % 0.2, seed: Math.floor(T / 0.2) + (z.x | 0), n: 7, life: 0.2, v: 260, drag: 4, size: 2.6, c0: '#ffffff', c1: '#9fb8e0', shape: 'shard' });
+    FxKit.flash(ctx, z.x, z.y, R * 1.1, T, '#cfe0ff', 0.1);
+    FxKit.hexWave(ctx, z.x, z.y, R * 1.15, T / 0.32, '#cfe0ff', 4.5);
+    // 縁から接線の向きへ飛ぶ削りの火花（0.2秒ごとに出し直す）
+    const ph = Math.floor(T / 0.2), tt = T % 0.2;
+    for (let s = 0; s < 2; s++) {
+      const an = rot * 1.1 + s * Math.PI, px = z.x + Math.cos(an) * R * 0.95, py = z.y + Math.sin(an) * R * 0.95;
+      FxKit.sparks(ctx, { x: px, y: py, t: tt, seed: ph * 2 + s + (z.x | 0), n: 6, life: 0.2, v: 300, a: an + Math.PI / 2, spread: 0.9, drag: 4, size: 2.8, c0: '#ffffff', c1: '#9fb8e0', shape: 'shard' });
+    }
   },
   bullets: { chakram(ctx, b, t) { this.bullet(ctx, b, t); } },
   zones: { chakspin(ctx, z) { this.spin(ctx, z); } },
@@ -504,8 +523,8 @@ const FX_TOXBLADE = {
     c.strokeStyle = '#b8ff5a'; c.lineWidth = Math.max(0.8, r * 0.08); c.beginPath(); c.arc(0, 0, r * 0.2, 0, 7); c.stroke();
     c.restore();
   },
-  HR: 14,
-  headSprite() { return FxKit.sprite('fz-devil', this.HR + 3, FxKit.res(), c => this.headArt(c, 0, 0, this.HR, 0)); },
+  HR: 22,   // 頭の手裏剣の半径（当たりの半径 18・BAL.fusion.toxblade.stat.bulletR）
+  headSprite() { return FxKit.sprite('fz-devil' + this.HR,this.HR + 3, FxKit.res(), c => this.headArt(c, 0, 0, this.HR, 0)); },
   // 毒の雲の塊（作り置き）：緑の本体と、下に落ちる紫の影（厚みを出す）
   blob(dark) {
     return FxKit.sprite(dark ? 'fz-toxsh' : 'fz-toxbl', 32, 1, c => {
@@ -575,9 +594,12 @@ const FX_TOXBLADE = {
       }
       ctx.globalCompositeOperation = 'source-over';
     }
-    FxKit.flash(ctx, f.x, f.y, 24, T, '#b8ff5a', 0.09);
-    FxKit.hexWave(ctx, f.x, f.y, 28, T / 0.3, '#a8e05a', 3.2);
-    FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed: sd + 3, n: 8, life: 0.36, v: 170, drag: 5, size: 3, c0: '#e6ffb0', c1: '#a85aff', shape: 'shard' });
+    // 跳ねるたびの毒の爆発（当たりの半径 f.br そのもの）：白芯の閃光・紫の光・緑の六角の衝撃波・緑と紫の破片
+    const br = f.br || 28;
+    FxKit.flash(ctx, f.x, f.y, br * 0.55, T, '#b8ff5a', 0.08);
+    FxKit.glow(ctx, f.x, f.y, br * 1.3, '#8a3ad8', 0.55 * Math.max(0, 1 - T / 0.3));
+    FxKit.hexWave(ctx, f.x, f.y, br, T / 0.3, '#a8e05a', 5);
+    FxKit.sparks(ctx, { x: f.x, y: f.y, t: T, seed: sd + 3, n: 10, life: 0.4, v: br * 4.2, drag: 5, size: 3.4, c0: '#e6ffb0', c1: '#a85aff', shape: 'shard' });
   },
   // 毒の尾の筋（帯の場 toxtrail・幅は当たりそのもの z.hh×2）：揺れる緑の帯・白っぽい芯・立ちのぼる毒の粒。消える前に薄れる
   trail(ctx, z, run) {
@@ -1030,8 +1052,8 @@ if (typeof window !== 'undefined' && window.addEventListener) window.addEventLis
   const F = [[60, 0], [95, -14], [130, 12], [165, -10], [200, 8], [240, 0]];
   Object.assign(DebugRoom.SR, {
     plasmachain: { face: -90, foes: F, times: [[0.05, '撃つ'], [0.3, '網'], [0.45, '当たり'], [0.9, '余韻']], look: 120, w: 300 },
-    chakram: { face: -90, foes: [[60, 0], [110, 4], [160, -4], [220, 3], [280, -2], [335, 0]], times: [[0.04, '投げる'], [0.2, '飛ぶ'], [1.0, '回る'], [1.85, '戻る']], look: 165, w: 300 },
-    toxblade: { face: -90, foes: F, times: [[0.04, '撃つ'], [0.15, '飛ぶ'], [0.35, '跳ねる'], [0.9, '毒の筋']], look: 120, w: 300 },
+    chakram: { face: -90, foes: [[60, 0], [110, 4], [160, -4], [220, 3], [280, -2], [335, 0]], times: [[0.04, '投げる'], [0.25, '飛ぶ'], [1.0, '回る'], [2.0, '戻る']], look: 200, w: 420 },
+    toxblade: { face: -90, foes: [[70, 0], [140, 50], [205, -45], [265, 40], [325, -40], [385, 30]], times: [[0.04, '撃つ'], [0.1, '当たり'], [0.45, '跳ねる'], [1.1, '毒の筋']], look: 190, w: 400 },
     flameblade: { face: -90, foes: F, times: [[0.03, '1本目'], [0.2, '滅多斬り'], [0.36, '十字'], [0.9, '燃える線']], look: 120, w: 300 },
     bubblegun: { face: -90, foes: F, times: [[0.04, '撃つ'], [0.12, '飛ぶ'], [0.2, '割れる'], [0.45, '小さな泡']], look: 120, w: 300 },
     bubbleblade: { face: -90, foes: F, times: [[0.05, '撃つ'], [0.25, '落ちる'], [0.5, '光の刃'], [0.9, '泡が割れる']], look: 120, w: 300 },
