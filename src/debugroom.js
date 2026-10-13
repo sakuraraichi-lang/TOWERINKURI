@@ -280,7 +280,7 @@ const DebugRoom = {
           UI.toastMsg(['新しい武器 ガトリング', 'ウェーブ ' + (i + 1) + ' 突破', '3件 購入　コイン 900', 'コスト不足', '取得: 見本のカード', '開いていません'][i], '#ffc24a', k), i * 260))],
       ]],
       ['合成武器（A＋B＝C・2026-10-06）', me._fusionButtons()],
-      ['合成武器の札（A：その合成武器だけの3択の札24枚／B：合成どうしの連携の札8枚・2026-10-12）', me._fusionCardButtons()],
+      ['合成武器の札（A：その合成武器だけの3択の札24枚／B：合成どうしの連携の札11枚・2026-10-12）', me._fusionCardButtons()],
       ['スキルツリー（ノードを取った瞬間）', [
         ['1つ取る（火力の連なり）', () => me.skill('normal')],
         ['コストの上限を取る（増設完了の帯）', () => me.skill('units')],
@@ -923,6 +923,7 @@ const DebugRoom = {
   _CDKEEP: ['chillVuln', 'cageVuln', 'apen', 'backdraft', 'tntBurn', 'tntMark', 'coinMul', 'livesMax', 'lives', 'livesCard', 'resonanceStep', 'resonanceMax', 'dealt', 'kills', 'coinsEarned'],
   _cdEnd() {
     clearInterval(this._cd);
+    this._flViewEnd();           // 連携の札の見本の視点・隠したメニューを戻す（_flView）
     const d = this._cdState; this._cdState = null;
     if (!d) return;
     const run = d.run;
@@ -1021,11 +1022,10 @@ const DebugRoom = {
     }
     return out;
   },
-  fusionCardDemo(cardId) {
-    const run = Game.run, c = CARDS[cardId];
-    if (!run || !run.stage || !c) return;
-    this._cdEnd();
-    const st = run.stage, hx = (st.vec && st.vec.hexes) || [];
+  //   札の見本の置き方：A を拠点の六角に、2つ目を「的が並ぶ線の近くの六角」へ同じ向きで置き、的は線の上に6体。指定攻撃（泡・迫撃砲・ミサイル）は的の真ん中へ円。
+  //     連携の札11枚すべてで、約7秒のうちにその札の効果が起きることを tools/measure/fusion-cardlayout.js で数えてある（置き方を変えたら回し直す）
+  _flBest() {
+    const run = Game.run, st = run.stage, hx = (st.vec && st.vec.hexes) || [];
     let best = null;
     for (const h of hx) {
       if (h.y > st.h * 0.5 || h.y < 80) continue;
@@ -1039,7 +1039,16 @@ const DebugRoom = {
         if (!best || sc > best.sc) best = { sc, h, a, len };
       }
     }
-    if (!best) return;
+    return best;
+  },
+  // 札の見本の盤を組む（戦闘は回さない）。fusionCardDemo と、測定（tools/measure/fusion-cardlayout.js）が同じものを使う。run.units は見本の武器だけに差し替える（元は返り値の orig）
+  _flBuild(cardId) {
+    const run = Game.run, c = CARDS[cardId];
+    if (!run || !run.stage || !c) return null;
+    const hx = (run.stage.vec && run.stage.vec.hexes) || [];
+    const best = this._flBest();
+    if (!best) return null;
+    const ca = Math.cos(best.a), sa = Math.sin(best.a);
     const units = [];
     (c.flink || [c.fusion]).forEach((fid, i) => {
       let h = best.h;
@@ -1048,7 +1057,7 @@ const DebugRoom = {
         for (const q of hx) {
           const dx = q.x - best.h.x, dy = q.y - best.h.y, d = Math.hypot(dx, dy);
           if (d < 20 || d > 150) continue;
-          const sc = Math.abs(-Math.sin(best.a) * dx + Math.cos(best.a) * dy) * 3 + d * 0.2;
+          const sc = Math.abs(-sa * dx + ca * dy) * 3 + d * 0.2;
           if (sc < bd) { bd = sc; h = q; }
         }
       }
@@ -1068,20 +1077,64 @@ const DebugRoom = {
     const L = Math.max(90, best.len), N = 6;
     for (let i = 0; i < N; i++) {
       const dd = 45 + (L - 60) * i / (N - 1);
-      const ex = best.h.x + Math.cos(best.a) * dd + Math.sin(best.a) * (i % 2 ? 7 : -7), ey = best.h.y + Math.sin(best.a) * dd - Math.cos(best.a) * (i % 2 ? 7 : -7);
+      const ex = best.h.x + ca * dd + sa * (i % 2 ? 7 : -7), ey = best.h.y + sa * dd - ca * (i % 2 ? 7 : -7);
       const en = Combat.makeEnemy(run, t, g, ex, ey, 0, 1e12);
       en.spd = 0; en.lane = null;
       run.enemies.push(en); enemies.push(en);
     }
-    for (const u of units) if (u.def.aimPoint) { const m = enemies[(N / 2) | 0]; u.ax = m.x; u.ay = m.y; u.aim = { x: m.x, y: m.y }; }
-    this._cdState = { run, u: units[0], enemies, keep, orig };
+    const m = enemies[(N / 2) | 0];
+    for (const u of units) if (u.def.aimPoint) { u.ax = m.x; u.ay = m.y; u.aim = { x: m.x, y: m.y }; }
+    return { run, u: units[0], units, enemies, keep, orig, best };
+  },
+  fusionCardDemo(cardId) {
+    const c = CARDS[cardId];
+    this._cdEnd();
+    const d = this._flBuild(cardId);
+    if (!d) return;
+    const run = d.run;
+    this._cdState = d;
+    this._flView(cardId, d);
     let last = performance.now(), el = 0;
     this._cd = setInterval(() => {
       const now = performance.now(), dt = Math.min(0.05, (now - last) / 1000); last = now; el += dt;
       if (Game.run !== run || el > 8) { this._cdEnd(); return; }
       Combat.update(run, dt);
+      run.nums.length = 0; run.shake = 0;   // ダメージの数字は出さない（的の HP が 1e12 なので「966M」のような数字が絵を覆う）・揺らさない
     }, 16);
-    UI.toastMsg('見本：' + c.name + '（約8秒）', BAL.rarity[c.rarity].color, 'demo');
+  },
+  // 札の見本のあいだの見せ方（見本の部屋 showroom と同じ扱い・2026-10-13）：確認室のメニューを隠す・2基と的が収まるよう視点を寄せて大きく映す・チュートリアルの札を隠す（sr-on）・下に名前と「閉じる」の帯。
+  //   終わり（_cdEnd）で全部元に戻す
+  _flView(cardId, d) {
+    this._flViewEnd();
+    const pts = d.units.map(u => ({ x: u.x, y: u.y })).concat(d.enemies.map(e => ({ x: e.x, y: e.y })));
+    let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+    for (const p of pts) { x0 = Math.min(x0, p.x); x1 = Math.max(x1, p.x); y0 = Math.min(y0, p.y); y1 = Math.max(y1, p.y); }
+    const pad = 95;     // 氷の嵐・泡・光の刃が2基と的の外へ広がる分
+    const s = Math.min(2.4, Render.cssW / (x1 - x0 + 2 * pad), Render.cssH * 0.55 / (y1 - y0 + 2 * pad));
+    this._flZ = true;
+    Render.zoom = { x: (x0 + x1) / 2, y: (y0 + y1) / 2, s, cy: 0.42 };
+    Render.fit();
+    if (this.el) this.el.style.display = 'none';
+    document.body.classList.add('sr-on');
+    const c = CARDS[cardId], ids = CARD_IDS.filter(id => CARDS[id].flink), i = ids.indexOf(cardId);
+    const bar = Util.el('div', 'srbar');
+    bar.id = 'srbar';
+    bar.innerHTML = '<div class="sr-top"><button class="dbg-key sr-prev">◀ 前</button><div class="sr-name"><b style="color:' + BAL.rarity[c.rarity].color + '">' + c.name + '</b><span>' +
+      c.flink.map(f => FUSIONS[f].name).join('＋') + '　' + (i + 1) + ' / ' + ids.length + '</span></div><button class="dbg-key sr-next">次 ▶</button><button class="dbg-key sr-x">閉じる</button></div>';
+    const on = (sel, fn) => bar.querySelector(sel).addEventListener('click', () => { try { fn(); } catch (e) { console.error('札の見本', e); } });
+    on('.sr-prev', () => this.fusionCardDemo(ids[((i - 1) % ids.length + ids.length) % ids.length]));
+    on('.sr-next', () => this.fusionCardDemo(ids[(i + 1) % ids.length]));
+    on('.sr-x', () => this._cdEnd());
+    document.body.appendChild(bar);
+    this._flBar = bar;
+  },
+  _flViewEnd() {
+    if (!this._flZ) return;
+    this._flZ = false;
+    Render.zoom = null; Render.fit();
+    if (this._flBar) { this._flBar.remove(); this._flBar = null; }
+    if (this.el) this.el.style.display = '';
+    document.body.classList.remove('sr-on');
   },
 
   // kind（'worm'|'rootkit'|'jammer'）を渡すと、その個体を1体だけ出し、HP が 75% を割った直後に仕掛けを1回使わせる（見本・記録なし）。
