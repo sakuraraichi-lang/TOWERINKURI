@@ -201,6 +201,11 @@ const Stage = {
         }()),
       });
     }
+    // 広域章（アセンションの章の特色・BAL.ascTheme.wide）：盤を広げる。型は 0〜1 の座標なので、そのまま大きく作れる
+    if (base && idx >= MAIN_CHAPTERS && typeof Asc !== 'undefined' && Asc.themeKey(idx) === 'wide') {
+      const W = BAL.ascTheme.wide;
+      base.cols = Math.round((base.cols || MapGen.COLS) * W.colsMul); base.rows = Math.round((base.rows || MapGen.ROWS) * W.rowsMul);
+    }
     const own = (BAL.mapShape && BAL.mapShape[idx + 1]) || null;
     const shape = (base || own) ? Object.assign({}, base, own) : null;
     // **作れなかったら種をずらして作り直す。**落とし先の手書きの盤は無い。

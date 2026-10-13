@@ -291,7 +291,7 @@ const Combat = {
     //   同時に盤にいる数は enemyCap で別に抑えている（処理の重さ）
     if (run.stageIdx >= MAIN_CHAPTERS) {
       return Math.max(1, Math.floor(base * run.mods.spawn * wm * hm * Asc.spawnMul(Game.perm, run.stageIdx)
-        * Asc.upperCountMul(Game.perm, run.stageIdx) * Asc.axisMul(Game.perm, 'count') * Asc.easeMul(Game.perm, 'count')));    // 上位の敵に置き換えた分だけ数が減る（HPの総量は同じ）
+        * Asc.upperCountMul(Game.perm, run.stageIdx) * Asc.axisMul(Game.perm, 'count') * Asc.easeMul(Game.perm, 'count') * Asc.themeFlow(run.stageIdx)));    // 上位の敵に置き換えた分だけ数が減る（HPの総量は同じ）
     }
     return Math.min(Math.floor(BAL.waveCountMax * hm),
                     Math.floor(base * run.mods.spawn * wm * hm));
@@ -372,7 +372,7 @@ const Combat = {
   //   仕掛けは本来どおり（bossPhaseUpdate）。e.mini：コアに着いても即負けにせず、上位の敵と同じ重いライフ・節目の帯（phaseCut）とボス撃破の数（bossKills）には数えない
   miniCount(run) {
     if (!BAL.ascMiniOn || run.stageIdx < MAIN_CHAPTERS || this.isBossWave(run)) return 0;
-    return Util.clamp(Math.round(BAL.ascMiniN0 + BAL.ascMiniPerLv * Asc.lv(Game.perm)), 1, BAL.ascMiniMax) + Asc.jamMiniAdd(Game.perm);
+    return Util.clamp(Math.round(BAL.ascMiniN0 + BAL.ascMiniPerLv * Asc.lv(Game.perm)), 1, BAL.ascMiniMax) + Asc.jamMiniAdd(Game.perm) + Asc.themeMiniAdd(run.stageIdx);
   },
   miniPlan(run) {
     const n = this.miniCount(run), T = run.waveTotal || 0;
@@ -839,7 +839,7 @@ const Combat = {
     if (!(q > 0) || Math.random() >= q) return null;
     const lv = Asc.lv(Game.perm), list = [];
     for (const k in UPPER_TYPES) { const c = BAL.ascUpper[k]; if (c && lv >= c.lv) list.push(UPPER_TYPES[k]); }
-    return list.length ? Util.weighted(list, t => BAL.ascUpper[t.name].weight * Asc.jamWMul(Game.perm, t)) : null;
+    return list.length ? Util.weighted(list, t => BAL.ascUpper[t.name].weight * Asc.jamWMul(Game.perm, t) * Asc.themeW(run.stageIdx, t)) : null;
   },
 
   // その章で付いている耐性。**ボスは付かない**（ボスは grunt の形で作る・足止めが効かないのは別の決まり）

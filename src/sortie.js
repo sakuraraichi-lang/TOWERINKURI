@@ -25,6 +25,13 @@ const Sortie = {
     return i >= 0 && Combat.isBossWave({ wave: BAL.wavesPerStage, stageIdx: i });
   },
 
+  // その章の特色（アセンションの章だけ・無ければ null）。確認室の見本は st に idx を持たせて呼ぶ
+  theme(st) {
+    if (st && st._theme) return st._theme;
+    const i = st ? STAGES.indexOf(st) : -1;
+    return i >= MAIN_CHAPTERS ? Asc.themeOf(i + 1) : null;
+  },
+
   // st … 出撃する章（STAGES の要素）／ go … 切り替えの本体（Main.toBattle）
   play(st, go) {
     if (this._busy) return;
@@ -37,15 +44,20 @@ const Sortie = {
     }
     try { Snd.resume(); Snd.ui(); } catch (e) {}
 
+    // アセンションの章の特色（Asc.themeOf）：特色のある章は、SORTIE の代わりに特色の名前を叩きつける
+    const th = this.theme(st);
+    const info = th && Asc.THEMES[th.key];
+    const col = th ? (th.sys ? SYS_INFO[th.sys].color : info.col) : '';
     let n = 0;
-    const title = Array.from('SORTIE').map(ch =>
+    const title = Array.from(th ? info.en : 'SORTIE').map(ch => ch === ' ' ? ' ' :
       '<i class="cc" style="--d:' + (0.1 + n++ * 0.025).toFixed(3) + 's;--y:' + (-30 - ((n * 13) % 26)) + 'px">' + ch + '</i>').join('');
-    const ov = Util.el('div', 'srt' + (boss ? ' boss' : ''));
+    const ov = Util.el('div', 'srt' + (boss ? ' boss' : '') + (th ? ' theme' : ''));
     ov.innerHTML = '<i class="srt-cover"></i><i class="srt-lat"></i>' +
-      '<div class="srt-band"><i class="srt-bg"></i>' +
-      '<div class="srt-kick">' + (boss ? '// WARNING　BOSS SECTOR' : '// LAUNCH SEQUENCE　出撃') + '</div>' +
+      '<div class="srt-band"' + (th ? ' style="--rk:' + col + '"' : '') + '><i class="srt-bg"></i>' +
+      '<div class="srt-kick">' + (th ? '// SECTOR TRAIT　特色' : boss ? '// WARNING　BOSS SECTOR' : '// LAUNCH SEQUENCE　出撃') + '</div>' +
       '<b>' + title + '</b>' +
-      '<span>' + (st && st.name ? st.name : '') + (boss ? '　ボス出現' : '　出撃') + '</span></div>';
+      '<span>' + (st && st.name ? st.name : '') + (th ? '　' + info.jp : boss ? '　ボス出現' : '　出撃') + '</span>' +
+      (th ? '<i class="srt-line">' + Asc.themeLine(th) + '</i>' : '') + '</div>';
     document.body.appendChild(ov);
 
     // 叩きつけた瞬間の音と、帯の真ん中からの六角の衝撃波
@@ -73,8 +85,9 @@ const Sortie = {
   //   boss … true ならボス章（第10章）の帯。
   //   **見本のあいだ、確認室の操作盤は隠す**（本物の出撃では幕の穴から盤が見える。見本では操作盤が穴から透けて見えていた）。
   //   幕が閉じきった時刻に隠し、片付けと同時に戻す（戻すときは少し透明から）
-  demo(boss, auto) {
-    const st = STAGES[boss ? 9 : 6];
+  demo(boss, auto, theme) {
+    // theme … { key, sys }：アセンションの章の特色の帯（第31章として）
+    const st = theme ? { name: '第31章', _theme: theme } : STAGES[boss ? 9 : 6];
     this.play(st, (cutDelay) => {
       // auto … 自動購入の通知つき（本物の出撃と同じく、帯が抜ける時刻まで通知を待たせる）
       if (auto) setTimeout(() => UI.toastMsg('自動購入 3件　コイン 12.4K', '#ff8a1f', 'auto'), cutDelay);

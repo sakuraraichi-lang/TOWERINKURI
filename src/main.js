@@ -122,8 +122,11 @@ const Main = {
     UI.renderTray();
     this.syncStartButton();
     UI.closeBattleCfg();
-    if (cutDelay > 0) setTimeout(() => { if (UI._screen === 'battle' && Game.phase !== 'battle') UI.cutin('準備フェーズ', '', 'prep'); }, cutDelay);
-    else UI.cutin('準備フェーズ', '', 'prep');
+    // アセンションの章の特色は、準備フェーズの帯にも一行添える（出撃の帯で見せたものの念押し）
+    const th = Game.run && Game.run.stageIdx >= MAIN_CHAPTERS ? Asc.themeOf(Game.run.stageIdx + 1) : null;
+    const prepSub = th ? Asc.THEMES[th.key].jp + ' ─ ' + Asc.themeLine(th) : '';
+    if (cutDelay > 0) setTimeout(() => { if (UI._screen === 'battle' && Game.phase !== 'battle') UI.cutin('準備フェーズ', prepSub, 'prep'); }, cutDelay);
+    else UI.cutin('準備フェーズ', prepSub, 'prep');
   },
 
   beginBattle() {
