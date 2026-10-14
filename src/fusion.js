@@ -20,8 +20,8 @@ const Fusion = {
   p(w) { return BAL.fusion[w.fuse].p; },
   cardId(fid) { return 'fus_' + fid; },
   owned(fid) { return typeof Game !== 'undefined' && Game.own(Fusion.cardId(fid)) > 0; },
-  // 盤の上で合成できるか：札を持っている／改造ラン（MOD）の中は札が無くても使える（src/modrun.js）
-  usable(fid) { return (typeof Game !== 'undefined' && Game.run && Game.run.mr) ? true : this.owned(fid); },
+  // 盤の上で合成できるか：札を持っている／MOD モードは元の2つがランで使えれば札なしで（src/modrun.js）
+  usable(fid) { return (typeof Game !== 'undefined' && Game.run && Game.run.mr) ? ModRun.fuseOk(Game.run, fid) : this.owned(fid); },
   // いまの盤での合成のコスト（改造ランの「合の予感」で +2 がなくなる）
   costIn(run, fid) { return (run && run.mr) ? ModRun.fuseCost(run, fid) : this.cost(fid); },
 

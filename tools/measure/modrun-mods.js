@@ -1,18 +1,17 @@
-// 改造ラン（MOD）：全部の改造・進化・起動条件について「取ると挙動が変わる」を1つずつ数える（死に改造の検査・2026-10-13）
+// MOD モード：全部の改造・進化・起動条件・改造ツリーの節・交換所について「取ると挙動が変わる」を1つずつ数える（死に改造の検査・2026-10-13 → 10-14 独立のモードに）
 //   node tools/simnode.js --file tools/measure/modrun-mods.js
-//   それぞれ、同じ盤・同じ置き方で「取っていない」「取った」を作り、本体の関数（置く・合成・Combat.damage・Combat.update・waveCount・報酬）を通して値を比べる。
-//   出力：rows（名前・取らない・取る・変わったか）／changed（変わった数）／total／bad（変わらなかったもの）／clean（本編のセーブを汚していないか）
+//   それぞれ、同じ盤・同じ置き方で「取っていない」「取った」を作り、本体の関数（置く・合成・Combat.damage・Combat.update・waveCount・MP）を通して値を比べる。
+//   出力：rows／changed／total／bad（変わらなかったもの）／clean（本編のセーブを汚していないか）／indep（本編の進み具合が MOD に持ち込まれていないか）
 REAL_MS = 600000;
 const rows = [];
 function rec(name, off, on, changed) { rows.push({ name, off, on, ok: changed === undefined ? JSON.stringify(off) !== JSON.stringify(on) : !!changed }); }
 const r3 = (x) => typeof x === 'number' ? Math.round(x * 1000) / 1000 : x;
 
+// まっさらな本編のセーブ（MOD モードは本編を読まない）。武器は改造ツリーで全部開けておく
 function save() {
-  Game.newSave(); ensureStages(32); seedRng(11);
-  for (let i = 1; i <= MAIN_CHAPTERS; i++) Game.stageRec('ch' + i).cleared = true;
-  Game.perm.deepest = MAIN_CHAPTERS; Game.perm.legacyDeep = MAIN_CHAPTERS; Game.perm.prestiges = 2;
-  Game.perm.asc = { lv: 1, exp: 0, total: 0 };
-  for (const w of WEAPON_IDS) Game.grant('wc_' + w, 1);
+  Game.newSave(); seedRng(11);
+  const P = ModRun.P(Game.perm);
+  for (const n of ModRun.nodes()) if (n.grp === 'weapon') P.tree[n.id] = 1;
   Relic.invalidate();
 }
 // 改造 mods を持った第1章（盤 ch12・口3つ）の準備フェーズ
@@ -218,18 +217,16 @@ for (const on of [false, true]) {
   const bm = ModRun.blockedMouth(run), mouth0 = new Set(run.stage.mouths[0]);
   let from0 = 0;
   for (let i = 0; i < 60; i++) { run.enemies.length = 0; Combat.spawnEnemy(run); for (const e of run.enemies) if (mouth0.has(e.si)) from0++; }
-  mr.cleared = 3;
-  const pk = Object.values(ModRun.reward(mr)).reduce((a, b) => a + b, 0);
-  const v = { count: cnt, fromMouth0: from0, packs3ch: pk };
+  const v = { count: cnt, fromMouth0: from0, ptsMul: r3(ModRun.ptsMul(mr)) };
   if (!on) var blOff = v; else rec('封鎖', blOff, v);
 }
 for (const on of [false, true]) {
   save();
   const mr = ModRun.start(Game.perm, 9); mr.mods = on ? ['passer'] : [];
   ModRun.makeOffer(mr);
-  const got = ModRun.skip(mr);
-  mr.cleared = 1;
-  const v = { got, packs: Object.values(ModRun.reward(mr)).reduce((a, b) => a + b, 0) };
+  const p0 = ModRun.P(Game.perm).pts;
+  const got = ModRun.skip(mr, Game.perm);
+  const v = { got, mp: ModRun.P(Game.perm).pts - p0 };
   if (!on) var paOff = v; else rec('見送り上手', paOff, v);
 }
 // ---- 連携（融合回廊） ----
@@ -289,7 +286,7 @@ for (const s in EVO_SETS) {
     } else if (s === 'hit') {
       battle(run); const e = enemyAt(run, run.tower.x, run.tower.y - 300); Combat.damage(run, e, 1, { by: 'debug' }); v = { barrierAfter1: r3(e.barrier) };
     } else if (s === 'greed') {
-      mr.cleared = 4; v = { packs: Object.values(ModRun.reward(mr)).reduce((a, b) => a + b, 0) };
+      v = { ptsMul: r3(ModRun.ptsMul(mr)) };
     } else {
       const a = Game.placeUnit('sniper', cl.c, cl.r); Game.placeUnit('gatling', cl.nb[0][0], cl.nb[0][1]);
       v = { dmg: r3(a.s.dmg), range: r3(a.s.range) };
@@ -305,30 +302,99 @@ for (const s in EVO_SETS) {
     battle(run); run.wave = 1; Combat.startWave(run); const e = Combat.makeEnemy(run, ENEMY_TYPES.grunt, 1, 0, 0, 0);
     return { cap: Game.costCap(), count: run.toSpawn, spd: r3(e.spd), weapons: mr.weapons.length }; };
   const lean = base('lean'), fast = base('fast'), horde = base('horde');
-  save(); const m6 = ModRun.start(Game.perm, 1); m6.cond = 'six';
-  let w6 = WEAPON_IDS.length; { for (let sd = 1; sd < 60; sd++) { save(); const m = ModRun.start(Game.perm, sd); if (m.cond === 'six') { w6 = m.weapons.length; break; } } }
-  rec('条件：六種', { weapons: WEAPON_IDS.length }, { weapons: w6 });
+  let w6 = WEAPON_IDS.length; { for (let sd = 1; sd < 60; sd++) { save(); const m = ModRun.start(Game.perm, sd); if (m.cond === 'few') { w6 = m.weapons.length; break; } } }
+  rec('条件：少数精鋭', { weapons: WEAPON_IDS.length }, { weapons: w6 });
+  save(); const mc = ModRun.start(Game.perm, 1); const mpC = ModRun.ptsMul(mc); mc.cond = 'calm';
+  rec('条件つきは MP +25%', { calm: 1 }, { cond: r3(mpC) }, mpC > 1 && ModRun.ptsMul(mc) === 1);
   rec('条件：早足', { spd: horde.spd }, { spd: fast.spd });
   rec('条件：薄給', { cap: fast.cap }, { cap: lean.cap });
   rec('条件：大群', { count: fast.count }, { count: horde.count });
 }
-// ---- 本編を汚さない：1章ぶん回したあと、本編の配置・章の記録・出撃数・ヒートマップが変わっていないか ----
+// ---- 改造ツリーの節：取ると、次のランの初期値・使える武器・候補に出る改造・起動条件が変わる ----
+{
+  const look = (tree, fn) => { Game.newSave(); seedRng(11); const P = ModRun.P(Game.perm); for (const id of tree) P.tree[id] = 1; return fn(Game.perm); };
+  for (const n of ModRun.nodes()) {
+    const pre = n.need ? [n.need] : [];
+    const fn = (perm) => {
+      const mr = ModRun.start(perm, 7, 'calm');
+      const run = Game.startPrep(mr.boards[0], mr);
+      return { lives: mr.livesMax, cap: Game.costCap(), rr: mr.rerolls, heal: mr.heal, w: Game.loadoutWeapons().length, pool: mr.pool.length, cond: mr.cond };
+    };
+    rec('ツリー：' + n.name + (n.add ? ' +' + n.add : ''), look(pre, fn), look(pre.concat([n.id]), fn));
+  }
+  // 値段：MP が足りなければ取れず、取ったら減る。前の節が先
+  Game.newSave(); const P = ModRun.P(Game.perm);
+  const a = ModRun.buy(Game.perm, 'cost1'); P.pts = 1000; const b2 = ModRun.buy(Game.perm, 'cost3'); const b = ModRun.buy(Game.perm, 'cost1');
+  rec('ツリー：MP と前の節', { noMp: a, skip: b2 }, { ok: b, left: P.pts }, !a && !b2 && b && P.pts === 1000 - BAL.modRun.tree.cost[0].cost);
+}
+// ---- 交換所：MP で本編のパック・合成の札が増える（上位パックと合成の札はアセンションから） ----
+{
+  Game.newSave(); const P = ModRun.P(Game.perm); P.pts = 5000;
+  const pk0 = Game.perm.packs.basic, upLock = !!ModRun.shopItems(Game.perm).find(x => x.id === 'u_arms').lock;
+  ModRun.shopBuy(Game.perm, 'basic');
+  Game.perm.asc = { lv: 1, exp: 0, total: 0 };
+  const u0 = Game.perm.packs.u_arms, f0 = FUSION_IDS.filter(f => Game.own('fus_' + f) > 0).length;
+  ModRun.shopBuy(Game.perm, 'u_arms'); ModRun.shopBuy(Game.perm, 'fusion');
+  const S = BAL.modRun.shop;
+  rec('交換所', { basic: pk0, u_arms: u0, fusion: f0, upLockBeforeAsc: upLock },
+    { basic: Game.perm.packs.basic, u_arms: Game.perm.packs.u_arms, fusion: FUSION_IDS.filter(f => Game.own('fus_' + f) > 0).length, mp: P.pts },
+    upLock && Game.perm.packs.basic === pk0 + 1 && Game.perm.packs.u_arms === u0 + 1 && P.pts === 5000 - S.pack - S.upack - S.fusion);
+}
+// ---- MP：章の突破・ボス・踏破で入り、負けても残る ----
+{
+  Game.newSave(); seedRng(11);
+  const P = ModRun.P(Game.perm);
+  const mr = ModRun.start(Game.perm, 3); mr.cond = 'calm';   // 条件の上乗せなし
+  const run = Game.startPrep(mr.boards[0], mr);
+  Game.beginBattle(); const r1 = Game.endRun(true);
+  ModRun.take(mr, mr.offer.ids[0]);
+  const run2 = Game.startPrep(mr.boards[1], mr); Game.beginBattle(); run2.bossKills = 0; const r2 = Game.endRun(false);
+  rec('MP：突破で入り負けても残る', { start: 0 }, { afterClear: r1.pts, afterLose: P.pts, rec: P.rec.runs }, r1.pts === BAL.modRun.pts.ch[0] && P.pts === r1.pts && P.rec.runs === 1 && !P.run);
+}
+// ---- 本編の進み具合を持ち込まない：まっさらな本編と、育ち切った本編（アセンション・全札の凸・ツリー・常駐）で MOD の数字が同じか ----
+let indep;
+{
+  const snap = (rich) => {
+    Game.newSave(); ensureStages(32); seedRng(11);
+    if (rich) {
+      for (let i = 1; i <= MAIN_CHAPTERS; i++) Game.stageRec('ch' + i).cleared = true;
+      Game.perm.deepest = MAIN_CHAPTERS; Game.perm.legacyDeep = MAIN_CHAPTERS; Game.perm.prestiges = 6;
+      Game.perm.asc = { lv: 12, exp: 0, total: 0 };
+      for (const id of CARD_IDS) Game.grant(id, 9);
+      Game.meta.coins = 1e60;
+      for (let i = 0; i < 3000; i++) { const ids = Skill.buyOrder(Game.meta, Game.perm); if (!ids.length) break; if (!Skill.buy(Game.meta, Game.perm, ids[0])) break; }
+      Relic.invalidate();
+    }
+    const mr = ModRun.start(Game.perm, 9, 'calm'); mr.ch = 5;
+    const run = Game.startPrep(mr.boards[5], mr);
+    const h = cluster(run, 0); const u = Game.placeUnit('gatling', h.c, h.r);
+    battle(run); run.wave = 3; Combat.startWave(run);
+    const e = Combat.makeEnemy(run, ENEMY_TYPES.grunt, Combat.gw(run), 0, 0, 0);
+    return JSON.stringify({ cap: Game.costCap(), lives: run.livesMax, dmg: r3(u.s.dmg), rate: r3(u.s.rate), range: r3(u.s.range), count: run.toSpawn, hp: r3(e.hp), spd: r3(e.spd), weapons: Game.loadoutWeapons().length });
+  };
+  const a = snap(false), b = snap(true);
+  indep = { same: a === b, fresh: a, rich: b };
+}
+// ---- 本編を汚さない：1章ぶん回したあと、本編の配置・章の記録・出撃数・ヒートマップ・コイン・撃破数・見たコストが変わっていないか ----
 let clean;
 {
   save();
-  const before = JSON.stringify({ pl: Game.perm.placements, st: Game.perm.stages, tr: Game.perm.totalRuns, heat: Object.keys(Game.perm.heat), last: Game.perm.lastPlace, cur: Game.perm.currentStage });
+  const before = JSON.stringify({ pl: Game.perm.placements, st: Game.perm.stages, tr: Game.perm.totalRuns, heat: Object.keys(Game.perm.heat), last: Game.perm.lastPlace, cur: Game.perm.currentStage, coins: Game.meta.coins, tk: Game.perm.totalKills, cs: Game.perm.capSeen });
   const mr = ModRun.start(Game.perm, 3);
   const run = Game.startPrep(mr.boards[0], mr);
   autoPlace(run);
   Game.beginBattle();
   for (let t = 0; t < 600; t++) Combat.update(run, 1 / 60);
   Game.endRun(false);
-  const after = JSON.stringify({ pl: Game.perm.placements, st: Game.perm.stages, tr: Game.perm.totalRuns, heat: Object.keys(Game.perm.heat), last: Game.perm.lastPlace, cur: Game.perm.currentStage });
+  const after = JSON.stringify({ pl: Game.perm.placements, st: Game.perm.stages, tr: Game.perm.totalRuns, heat: Object.keys(Game.perm.heat), last: Game.perm.lastPlace, cur: Game.perm.currentStage, coins: Game.meta.coins, tk: Game.perm.totalKills, cs: Game.perm.capSeen });
   // 本編に戻ったとき：合成の札なしでは合成の選択肢が出ない
   Game.startPrep('ch12');
   const cl = cluster(Game.run, 1);
   Game.placeUnit(FF.a, cl.c, cl.r); Game.placeUnit(FF.b, cl.nb[0][0], cl.nb[0][1]);
-  clean = { mainUntouched: before === after, mainFuseWithoutCard: Fusion.options(Game.run).length, modrunEnded: Game.perm.modrun === null };
+  // 前の改造ラン（perm.modrun）は読み込みで1回だけ捨てる
+  const old = { modrun: { ch: 3 }, modrunRec: { runs: 2 } };
+  Game.perm.modrun = old.modrun; Game.perm.modrunRec = old.modrunRec; ModRun.migrate(Game.perm);
+  clean = { mainUntouched: before === after, mainFuseWithoutCard: Fusion.options(Game.run).length, runEnded: ModRun.P(Game.perm).run === null, oldDropped: !('modrun' in Game.perm) && !('modrunRec' in Game.perm) };
 }
 unseedRng();
-({ changed: rows.filter(r => r.ok).length, total: rows.length, bad: rows.filter(r => !r.ok).map(r => r.name), clean, rows: rows.map(r => r.name + '　' + JSON.stringify(r.off) + ' → ' + JSON.stringify(r.on) + (r.ok ? '' : '　★変わらない')) })
+({ changed: rows.filter(r => r.ok).length, total: rows.length, bad: rows.filter(r => !r.ok).map(r => r.name), clean, indep, rows: rows.map(r => r.name + '　' + JSON.stringify(r.off) + ' → ' + JSON.stringify(r.on) + (r.ok ? '' : '　★変わらない')) })

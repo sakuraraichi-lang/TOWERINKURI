@@ -85,6 +85,7 @@ const Main = {
     const i = STAGES.findIndex(x => x.id === Game.perm.currentStage);
     if (i >= 0) UI.pick = i;
     UI.setScreen('home');
+    if (typeof ModRun !== 'undefined' && ModRun.onHome) ModRun.onHome();   // MOD モードの中にいたら MOD 基地へ（src/modbase.js）
   },
 
   // ---------- 戦場（準備フェーズ）へ ----------
@@ -187,7 +188,7 @@ const Main = {
     UI.selected = null;
     UI.renderTray();
     UI.renderPanel();
-    if (res && res.mr) { ModRun.afterChapter(res); return; }   // 改造ラン（MOD）の章の終わり（src/modrun.js）
+    if (res && res.mr) { ModRun.afterChapter(res); return; }   // MOD モードの章の終わり（src/modbase.js）
     if (res) UI.showResult(res);
   },
 

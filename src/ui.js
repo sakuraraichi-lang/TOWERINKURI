@@ -247,7 +247,7 @@ const UI = {
     else line = '<span class="ck">＊</span>未挑戦　' + '全' + BAL.wavesPerStage + 'ウェーブ';
     e.homeStat.innerHTML = line;
 
-    if (typeof ModRun !== 'undefined') ModRun.homeButton();   // 改造ラン（MOD）の入口（アセンションを解放してから）
+    if (typeof ModRun !== 'undefined') ModRun.homeButton();   // MOD 基地の入口（URL に ?modlab を付けたときだけ・src/modbase.js）
     e.homeStart.disabled = !open;
     e.homeStart.innerHTML = open ? '出撃<s>▶</s>' : 'ロック中';
 
@@ -1124,6 +1124,7 @@ const UI = {
     const p = this.el.tut;
     if (!p) return;
     const run = Game.run;
+    if (run && run.mr) { p.classList.remove('on'); return; }   // MOD モードでは本編のチュートリアルを出さない・進めない
     // 最後まで見せたあとに出撃が終わったら、そこで畳む。
     // **ウェーブ1で負けると wave は 2 にならない**ので、これが無いと次の出撃でも
     // 「あとは眺めるだけ」が準備フェーズに出てしまう

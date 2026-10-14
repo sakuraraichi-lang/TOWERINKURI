@@ -256,6 +256,7 @@ const Combat = {
   waveCount(run) {
     // **ボスのウェーブは雑魚を出さない**（2026-09-28・ユーザー「雑魚は出ずに、それぞれの出現口からいよいよヤバそうな奴が出てきます」）
     if (this.isBossWave(run)) return 0;
+    if (run.mr) return ModRun.waveCount(run);      // MOD モード：ランの章だけで決まる（本編・アセンションの値を借りない）
     const g = this.gw(run);
     const base = (BAL.waveCountBase + g * BAL.waveCountPerWave)
                * Math.pow(BAL.waveCountGrowth || 1, g - 1);
@@ -291,8 +292,7 @@ const Combat = {
     //   同時に盤にいる数は enemyCap で別に抑えている（処理の重さ）
     if (run.stageIdx >= MAIN_CHAPTERS) {
       return Math.max(1, Math.floor(base * run.mods.spawn * wm * hm * Asc.spawnMul(Game.perm, run.stageIdx)
-        * Asc.upperCountMul(Game.perm, run.stageIdx) * Asc.axisMul(Game.perm, 'count') * Asc.easeMul(Game.perm, 'count') * Asc.themeFlow(run.stageIdx)
-        * (run.mr ? ModRun.countMul(run) : 1)));   // 改造ラン（MOD）：1章の敵は通常の半分程度・起動条件・封鎖    // 上位の敵に置き換えた分だけ数が減る（HPの総量は同じ）
+        * Asc.upperCountMul(Game.perm, run.stageIdx) * Asc.axisMul(Game.perm, 'count') * Asc.easeMul(Game.perm, 'count') * Asc.themeFlow(run.stageIdx)));   // 上位の敵に置き換えた分だけ数が減る（HPの総量は同じ）
     }
     return Math.min(Math.floor(BAL.waveCountMax * hm),
                     Math.floor(base * run.mods.spawn * wm * hm));
@@ -338,7 +338,8 @@ const Combat = {
       const m = mouths[mi];
       const si = m[(m.length / 2) | 0];          // 穴の真ん中から
       const bk = this.bossKindFor(ch, mi);
-      run.enemies.push(this.bossOne(run, bk, si, base * BAL.bossHp * ((BAL.bossHpBy || {})[run.stageIdx + 1] || 1) * (BAL.bossHpKind[bk] || 1), 1));
+      const bh = run.mr ? ModRun.bossHp(run) : base * BAL.bossHp * ((BAL.bossHpBy || {})[run.stageIdx + 1] || 1);   // MOD モード：ボスの HP もランの章だけで
+      run.enemies.push(this.bossOne(run, bk, si, bh * (BAL.bossHpKind[bk] || 1), 1));
     }
     run.hasBoss = true;
   },
@@ -742,14 +743,13 @@ const Combat = {
     const chMul = this.chapterWeight(run);
     const stageMul = Math.pow(BAL.stageHpMul, run.stageIdx) * chMul;
     const base = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * stageMul;
-    let hp = hpOverride !== undefined ? hpOverride : base * t.hp;
+    let hp = hpOverride !== undefined ? hpOverride : (run.mr ? ModRun.enemyHp(run, t) : base * t.hp);   // MOD モード：ランの章だけで決まる
     // 2026-10-07 ユーザー：第31章から（アセンション）、全ての敵の HP ×BAL.ascHpMul（3）
-    if (run.stageIdx >= 30) hp *= BAL.ascHpMul * Asc.axisMul(Game.perm, 'hp') * Asc.easeMul(Game.perm, 'hp');
-    if (run.mr) hp *= BAL.modRun.hpMul;   // 改造ラン（MOD）：カードなしで遊ぶ強さ（BAL.modRun.hpMul）
+    if (run.stageIdx >= 30 && !run.mr) hp *= BAL.ascHpMul * Asc.axisMul(Game.perm, 'hp') * Asc.easeMul(Game.perm, 'hp');
     const en = {
       x, y, hp, maxHp: hp, si,
       lane: this.pickLane(run, si),    // その口のレーンに順番に振る（stages.js の lanes）
-      spd: Math.min(BAL.enemySpdCap, BAL.enemySpdBase * Math.pow(BAL.enemySpdGrowth, g)) * t.spd * (run.stageIdx >= 30 ? Asc.axisMul(Game.perm, 'spd') : 1) * (run.mr ? ModRun.spdMul(run) : 1),
+      spd: run.mr ? ModRun.enemySpd(run, t) : Math.min(BAL.enemySpdCap, BAL.enemySpdBase * Math.pow(BAL.enemySpdGrowth, g)) * t.spd * (run.stageIdx >= 30 ? Asc.axisMul(Game.perm, 'spd') : 1),
       r: t.r,
       coin: BAL.enemyCoinBase * Math.pow(BAL.enemyCoinGrowth, g - 1) * t.coin,
       color: t.color,
@@ -776,7 +776,7 @@ const Combat = {
   // 上位の敵の中身（無効の系統・ポリモーフの切り替え・ゼロデイの弱点・ランサムウェアの気配）
   upperInit(run, t, e) {
     e.upper = t.name; e.k = t.k; e.tname = t.name;
-    if (run.stageIdx >= MAIN_CHAPTERS) { const m = Asc.axisMul(Game.perm, 'upHp'); e.hp *= m; e.maxHp *= m; }   // 21から先の軸（BAL.ascAxis.upHp）
+    if (run.stageIdx >= MAIN_CHAPTERS && !run.mr) { const m = Asc.axisMul(Game.perm, 'upHp'); e.hp *= m; e.maxHp *= m; }   // 21から先の軸（BAL.ascAxis.upHp）
     if (t.imm) { e.imm = {}; for (const s of t.imm) e.imm[s] = true; }
     if (t.poly) { e.poly = true; e.polyI = (run.polySeq = (run.polySeq || 0) + 1) % SYS_ORDER.length; e.polyT = BAL.ascPolySec * (0.5 + 0.5 * Math.random()); }
     if (t.zd) e.weak = Asc.weakOf(run.stageIdx);
@@ -841,6 +841,7 @@ const Combat = {
 
   // 湧く敵を上位に置き換えるときの種類（アセンションのレベルで増える）。置き換えないなら null
   pickUpper(run) {
+    if (run.mr) return ModRun.pickUpper(run);     // MOD モード：上位の敵の割合と種類はランの章で（BAL.modRun.enemy.upper）
     if (!BAL.ascUpperOn || run.stageIdx < MAIN_CHAPTERS) return null;
     const q = Asc.upperQ(Game.perm, run.stageIdx);
     if (!(q > 0) || Math.random() >= q) return null;
@@ -949,7 +950,7 @@ const Combat = {
     if (e.upper && this.immune(e, this.sysOf(opts.by || this._by, opts.src || this._src))) { e.immT = 0.2; return 0; }
     // 確認室の見本（run.demoGuard）：武器のダメージは入れない（本物のセーブのカード・凸・常駐・アセンションの倍率が乗って、仕掛けを見る前に倒れるため）。見本の台本の呼び出し（opts.demo）と debug だけ通す。本物の戦闘では付かない
     if (run.demoGuard && !opts.demo && opts.by !== 'debug') return 0;
-    if (run.stageIdx >= 30 && !e.seg && amount > 0) {
+    if ((run.stageIdx >= 30 || run.mr) && !e.seg && amount > 0) {   // MOD モードはどの章でもバリア（BAL.modRun.barrier0）
       if (e.barrier === undefined) e.barrier = run.mr ? ModRun.barrier0(run) : BAL.ascBarrier;   // 改造ラン：ヒットの進化で低く始まる
       const bar0 = e.barrier;
       amount *= 1 - e.barrier;
@@ -1199,7 +1200,7 @@ const Combat = {
       }
     }
     run.kills++;
-    Game.perm.totalKills++;
+    if (!run.mr) Game.perm.totalKills++;   // MOD モードは本編のセーブに触らない
     Snd.kill();
 
     // **どこで倒したかで取り分が変わる。**
@@ -1207,7 +1208,7 @@ const Combat = {
     //   そこへ置くのが無条件の最適解になっていた（指定攻撃に射線が無いため）。
     //   禁止するのではなく、**奥まで通してから倒すほうが儲かる**ようにして、
     //   置き場所をプレイヤーに選ばせる。止め損ねる危険が、そのまま対価
-    const coin = e.coin * run.coinMul * run.mods.coin * this.depthBonus(run, e);
+    const coin = run.mr ? 0 : e.coin * run.coinMul * run.mods.coin * this.depthBonus(run, e);   // MOD モードはコインを出さない（本編のセーブに触らない）
     Game.meta.coins += coin;
     run.coinsEarned += coin;
 
@@ -1248,7 +1249,7 @@ const Combat = {
       });
       // **倒す＝儲かる、を目で見えるようにする。**
       // これまでHUDの数字が静かに増えるだけで、報酬を得た実感が無かった
-      if (this.coinFx < 26) {
+      if (this.coinFx < 26 && !run.mr) {   // MOD モードはコインを出さない
         this.coinFx++;
         this.fx(run, { type: 'coin', x: e.x, y: e.y, life: 0.72, seed: (Math.random() * 100) | 0 });
       }
@@ -2110,7 +2111,7 @@ const Combat = {
       if ((run.towers || [tw]).some(T => Util.dist(e.x, e.y, T.x, T.y) <= T.r + e.r)) {
         // **ボスがコアに着いたら、その場で負け**（残りのライフを全部持っていく・2026-09-28 ユーザー「倒せなかった場合強制的に敗北」）
         let cost = e.mini ? e.leakLives : e.boss ? Math.max(run.lives, BAL.leakLives) : e.upper ? Math.max(BAL.leakLives, Math.round(e.k * BAL.ascUpperLeakK)) : BAL.leakLives;
-        if (run.mr && !e.boss) cost = ModRun.leakCost(run, e, cost);   // 改造ラン：上位の敵・縮小版のボスの漏れを軽く（ライフ30のランで1体で終わらないように）
+        if (run.mr && !e.boss) cost = ModRun.leakCost(run, e, cost);   // MOD モード：上位の敵の漏れは BAL.modRun.leakUpper
         run.lives -= cost;
         run.leaked++;
         if (run.mr) ModRun.onLeak(run);       // 改造ラン：ガラスの大砲

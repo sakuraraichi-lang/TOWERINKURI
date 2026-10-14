@@ -168,7 +168,10 @@ const DebugRoom = {
       ['題字（2026-09-30 X1）', [
         ['タイトル画面（紋 → 帯 → 字の順に出る・タップで閉じる）', () => Scenes.title()],
       ]],
-      ['改造ラン（MOD・2026-10-13）', [
+      ['MOD モード（2026-10-14）', [
+        ['MOD 基地（次のラン）', () => ModRun.demoBase(false)],
+        ['MOD 基地（ランの途中）', () => ModRun.demoBase(true)],
+        ['改造ツリー', () => ModRun.demoTree()],
         ['改造の3択', () => ModRun.demoPick()],
         ['連携が出た3択', () => ModRun.demoLink()],
         ['進化（選ぶと帯）', () => ModRun.demoEvo()],
