@@ -242,8 +242,14 @@ const Combat = {
     //   ＝ 置ける数だけで決まる「偽の難易度」になる
     const le = BAL.lateEnemyMul;
     if (le && le.g > 1 && ch > le.from) w *= Math.pow(le.g, ch - le.from);
-    // 第31章から先（アセンション）だけの上乗せ（BAL.ascEnemyG）
-    if (ch > MAIN_CHAPTERS && BAL.ascEnemyG > 1) w *= Math.pow(BAL.ascEnemyG, ch - MAIN_CHAPTERS);
+    // **第31章から先（アセンション）の章の伸び（2026-10-14 作り直し・BAL.ascChG / ascChK）**
+    //   第31章の敵を基準（第30章の chapterMul × ascChK）に、1章ごとにちょうど ascChG 倍。
+    //   ウェーブの伸び（enemyHpGrowth^5＝約2.4倍/章）はここで打ち消すので、章の伸びは ascChG だけで決まる（火力のレベルの伸び ascDmgPerLv と直に比べられる）。
+    //   前は chapterMul が第60章までしか無く、第61章から敵が 1/50 に落ちていた
+    if (ch > MAIN_CHAPTERS) {
+      const d = ch - MAIN_CHAPTERS - 1;
+      w = (BAL.chapterMul[MAIN_CHAPTERS] || 1) * BAL.ascChK * Math.pow(BAL.ascChG / Math.pow(BAL.enemyHpGrowth, BAL.wavesPerStage), d);
+    }
     // 節目の章の壁（BAL.ascWallMul）。その章だけ
     if (ch > MAIN_CHAPTERS && BAL.ascWallEvery > 0 && ch % BAL.ascWallEvery === 0 && !run.mr) w *= BAL.ascWallMul;   // 改造ランの章は節目の壁を付けない（ボスの章は BAL.modRun.bossAt）
     return w;
@@ -290,8 +296,11 @@ const Combat = {
     //   誘引を足しても上限に食われて効かないため（方針「上限は壊れるから置くもの」）。
     //   同時に盤にいる数は enemyCap で別に抑えている（処理の重さ）
     if (run.stageIdx >= MAIN_CHAPTERS) {
-      return Math.max(1, Math.floor(base * run.mods.spawn * wm * hm * Asc.spawnMul(Game.perm, run.stageIdx)
-        * Asc.upperCountMul(Game.perm, run.stageIdx) * Asc.axisMul(Game.perm, 'count') * Asc.easeMul(Game.perm, 'count') * Asc.themeFlow(run.stageIdx)
+      // 数の土台は第31章の値で止める（2026-10-14）。章が進んでも数は増えない。数はレベル（誘引・count の軸）と上位の割合で動き、章の重さは HP（ascChG）で持つ
+      const gc = g - (run.stageIdx - MAIN_CHAPTERS) * BAL.wavesPerStage;
+      const baseA = (BAL.waveCountBase + gc * BAL.waveCountPerWave) * Math.pow(BAL.waveCountGrowth || 1, gc - 1);
+      return Math.max(1, Math.floor(baseA * BAL.ascCountMul * run.mods.spawn * wm * hm * Asc.spawnMul(Game.perm, run.stageIdx)
+        * Asc.upperCountMul(Game.perm, run.stageIdx) * Asc.axisMul(Game.perm, 'count') * Asc.themeFlow(run.stageIdx)
         * (run.mr ? ModRun.countMul(run) : 1)));   // 改造ラン（MOD）：1章の敵は通常の半分程度・起動条件・封鎖    // 上位の敵に置き換えた分だけ数が減る（HPの総量は同じ）
     }
     return Math.min(Math.floor(BAL.waveCountMax * hm),
@@ -744,7 +753,7 @@ const Combat = {
     const base = BAL.enemyHpBase * Math.pow(BAL.enemyHpGrowth, g - 1) * stageMul;
     let hp = hpOverride !== undefined ? hpOverride : base * t.hp;
     // 2026-10-07 ユーザー：第31章から（アセンション）、全ての敵の HP ×BAL.ascHpMul（3）
-    if (run.stageIdx >= 30) hp *= BAL.ascHpMul * Asc.axisMul(Game.perm, 'hp') * Asc.easeMul(Game.perm, 'hp');
+    if (run.stageIdx >= 30) hp *= BAL.ascHpMul * Asc.axisMul(Game.perm, 'hp');
     if (run.mr) hp *= BAL.modRun.hpMul;   // 改造ラン（MOD）：カードなしで遊ぶ強さ（BAL.modRun.hpMul）
     const en = {
       x, y, hp, maxHp: hp, si,
