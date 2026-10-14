@@ -210,6 +210,7 @@ const Game = {
     // アセンション中なら、突破した章の次まで並べる（第31章から先は STAGES に足していく）
     if (Asc.on(this.perm)) ensureStages(Math.max(MAIN_CHAPTERS + 1, this.endlessReach() + 1));
     if (!STAGE_BY_ID[this.perm.currentStage]) this.perm.currentStage = 'ch1';
+    if (typeof ModRun !== 'undefined') ModRun.migrate(this.perm);   // 前の改造ラン（perm.modrun）は1回だけ捨てる（2026-10-14）
     Relic.invalidate();
     return true;
   },
@@ -709,8 +710,9 @@ const Game = {
   costCap() {
     // 取り切りの連なりに割ったので、合計は gkey で取る（skilltree.js の chain）
     //   アセンション（第31章から）はレベルごとに +BAL.ascCostPerLv（レベル0＝第30章までは変わらない）
-    //   改造ラン（MOD）は改造の分を足し引きする（ModRun.capAdd）
-    return BAL.costBase + Skill.gsum(this.meta, 'units') + Asc.lv(this.perm) * BAL.ascCostPerLv + (this.run && this.run.mr ? ModRun.capAdd(this.run) : 0);
+    //   MOD モードは本編から切り離す：改造ツリーの初期値＋ランの改造だけ（ModRun.costCap）
+    if (this.run && this.run.mr) return ModRun.costCap(this.run);
+    return BAL.costBase + Skill.gsum(this.meta, 'units') + Asc.lv(this.perm) * BAL.ascCostPerLv;
   },
 
   costOf(weaponId) { const d = WEAPONS[weaponId]; return d ? d.cost : 0; },
@@ -944,6 +946,7 @@ const Game = {
     const run = this.run;
     if (!run) return false;
     run.capUp = false;
+    if (run.mr) return false;      // MOD モードのコストは本編と別（本編の capSeen を書き換えない）
     const cap = this.costCap(), seen = this.perm.capSeen;
     if (typeof seen !== 'number' || cap < seen) { this.perm.capSeen = cap; return false; }
     if (cap > seen) { this.perm.capSeen = cap; run.capUp = run.units.length > 0; }
@@ -1115,7 +1118,7 @@ const Game = {
   canBuySkills() { return this.phase !== 'battle'; },
 
   // 盤面とユニットだけ用意した状態。敵は出さない
-  //   mr … 改造ラン（MOD）の状態（perm.modrun）。渡したときは stageId は盤だけに使い、敵の強さは ModRun.diffIdx。本編の章の記録・いまの章は触らない
+  //   mr … MOD モードのラン（perm.mod.run）。渡したときは stageId は盤だけに使う。stageIdx は敵の種類と耐性だけ（ModRun.diffIdx）・強さは ModRun。本編の章の記録・いまの章は触らない
   startPrep(stageId, mr) {
     if (!mr) {
       stageId = stageId || this.perm.currentStage || 'ch1';
@@ -1209,7 +1212,8 @@ const Game = {
   applyMods() {
     const run = this.run;
     if (!run) return;
-    const mods = Skill.mods(this.meta, this.perm);
+    // MOD モード：本編のツリー・常駐を通さない（ModRun.neutralMods）
+    const mods = run.mr ? ModRun.neutralMods() : Skill.mods(this.meta, this.perm);
     run.mods = mods;
     run.st = mods.relic.st;
     for (const u of run.units) {
@@ -1218,7 +1222,7 @@ const Game = {
       u.s.arc = u.arc;
       // **武器カードの凸。**（ユーザー 2026-09-24「入手出来るカード全てに」）
       //   同じ武器カードが被るほど、その武器の基本ダメージが上がる。倍率は他のカードと同じ rankMul
-      u.s.dmg *= this.rankMul('wc_' + u.id);
+      if (!run.mr) u.s.dmg *= this.rankMul('wc_' + u.id);   // MOD モードは凸を持ち込まない
       Skill.applyTo(u, mods);
       // 組み直したので、カードの足し算の基準も取り直す（Game.addPct）
       u.sBase = null; u.sAdd = null;
