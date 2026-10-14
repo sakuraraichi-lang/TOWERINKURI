@@ -330,6 +330,8 @@ const Main = {
     const run = Game.run;
     const t0 = performance.now();
 
+    if (run && Game.phase !== 'battle' && run.fx.length
+        && !(typeof DebugRoom !== 'undefined' && (DebugRoom._sr || DebugRoom._cd))) Combat.ageFx(run, dt);   // 準備中の演出（合成の光など）も消えるように
     if (run && Game.phase === 'battle' && !run.over && !Game.paused && !UI.draftOpen) {
       for (let i = 0; i < Game.speed; i++) {
         const sig = Combat.update(run, dt);

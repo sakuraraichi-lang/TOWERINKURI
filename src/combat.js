@@ -1704,6 +1704,17 @@ const Combat = {
   },
 
   fx(run, o) { if (run.fx.length < 240) { o.t = 0; run.fx.push(o); } },
+  // 演出を古くして、寿命が来たら片付ける。準備フェーズのあいだも main.js が呼ぶ（2026-10-14：戦闘の中だけで進めていたので、
+  //   準備中に合成した光（starburst）が消えずに残り、合成武器を動かすと元の場所に光る星が残った・ユーザー報告）
+  ageFx(run, dt) {
+    for (let i = run.fx.length - 1; i >= 0; i--) {
+      const f = run.fx[i]; f.t += dt;
+      if (f.t >= f.life) {
+        if (f.type === 'coin') this.coinFx = Math.max(0, this.coinFx - 1);
+        run.fx.splice(i, 1);
+      }
+    }
+  },
   // 画面の揺れ。**撃ちっぱなしにしたので、撃つたびに揺らすと一生揺れる。**
   //   日常の揺れ（発砲・爆発）は 3px までしか積めない
   //   一発ものの衝撃（ボス撃破・雷神・漏れ）だけが 16px まで上げられる
@@ -2346,13 +2357,7 @@ const Combat = {
     this._by = null; this._src = null;
 
     // --- 演出 ---
-    for (let i = run.fx.length - 1; i >= 0; i--) {
-      const f = run.fx[i]; f.t += dt;
-      if (f.t >= f.life) {
-        if (f.type === 'coin') this.coinFx = Math.max(0, this.coinFx - 1);
-        run.fx.splice(i, 1);
-      }
-    }
+    this.ageFx(run, dt);
     for (let i = run.nums.length - 1; i >= 0; i--) {
       const n = run.nums[i]; n.t += dt; n.y -= dt * 34;
       if (n.t >= n.life) run.nums.splice(i, 1);
